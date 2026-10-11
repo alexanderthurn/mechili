@@ -192,5 +192,11 @@
   "terrainWall": "Tembok",
   "terrainWallDesc": "tembok perbukitan bercelah di tengah, sisanya datar",
   "money": "Persediaan",
-  "startMoney": "Persediaan awal"
+  "startMoney": "Persediaan awal",
+  "armies": {
+    "standard": "Pasukan standar",
+    "komtur": "Pasukan Komtur"
+  },
+  "armyPick": "Ganti pasukan",
+  "rolePick": "Ganti peran"
 }

@@ -155,16 +155,27 @@ export function rallyRouteBuyMax(
 }
 
 /**
- * The attacking side (0 / 1) from the roles two players asked for: a wish the
- * other side doesn't contest is granted; the same wish on both sides, or none,
- * is a coin flip on the match seed.
+ * The attacking side (0 / 1) from the roles a room's seats asked for: each
+ * side scores its wishes (Attacker +1, Defender −1, Any 0) and the higher
+ * score attacks; level sides — no clear attacker or defender — toss for it on
+ * the match seed, so every client agrees.
  */
-export function yearAttackerFromWishes(a: ClimbRole | undefined, b: ClimbRole | undefined, seed: number): number {
-    if (a === 'attacker' && b !== 'attacker') return 0;
-    if (b === 'attacker' && a !== 'attacker') return 1;
-    if (a === 'defender' && b !== 'defender') return 1;
-    if (b === 'defender' && a !== 'defender') return 0;
+export function yearAttackerFromSeats(
+    a: readonly (ClimbRole | undefined)[],
+    b: readonly (ClimbRole | undefined)[],
+    seed: number,
+): number {
+    const score = (wishes: readonly (ClimbRole | undefined)[]) =>
+        wishes.reduce((n, w) => n + (w === 'attacker' ? 1 : w === 'defender' ? -1 : 0), 0);
+    const sa = score(a);
+    const sb = score(b);
+    if (sa !== sb) return sa > sb ? 0 : 1;
     return (seed >>> 0) % 2;
+}
+
+/** one player a side (see {@link yearAttackerFromSeats}) */
+export function yearAttackerFromWishes(a: ClimbRole | undefined, b: ClimbRole | undefined, seed: number): number {
+    return yearAttackerFromSeats([a], [b], seed);
 }
 
 /**

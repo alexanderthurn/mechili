@@ -192,5 +192,11 @@
   "terrainWall": "城墙",
   "terrainWallDesc": "中央一道带缺口的丘陵墙，其余平坦",
   "money": "补给",
-  "startMoney": "初始补给"
+  "startMoney": "初始补给",
+  "armies": {
+    "standard": "标准军队",
+    "komtur": "孔图尔军队"
+  },
+  "armyPick": "更换军队",
+  "rolePick": "更换角色"
 }

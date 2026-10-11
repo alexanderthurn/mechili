@@ -192,5 +192,11 @@
   "terrainHighlands": "Highlands",
   "terrainHighlandsDesc": "each Stronghold on a high plateau with one ramp up",
   "terrainWall": "Wall",
-  "terrainWallDesc": "a hilly wall with gaps across the middle, the rest flat"
+  "terrainWallDesc": "a hilly wall with gaps across the middle, the rest flat",
+  "armies": {
+    "standard": "Standard army",
+    "komtur": "Komtur army"
+  },
+  "armyPick": "Change army",
+  "rolePick": "Change role"
 }

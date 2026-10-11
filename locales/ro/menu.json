@@ -192,5 +192,11 @@
   "terrainWall": "Val",
   "terrainWallDesc": "un val deluros cu breșe la mijloc, restul plat",
   "money": "Provizii",
-  "startMoney": "Provizii inițiale"
+  "startMoney": "Provizii inițiale",
+  "armies": {
+    "standard": "Armată standard",
+    "komtur": "Armata Komturului"
+  },
+  "armyPick": "Schimbă armata",
+  "rolePick": "Schimbă rolul"
 }

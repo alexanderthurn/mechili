@@ -192,5 +192,11 @@
   "terrainWall": "Vall",
   "terrainWallDesc": "en kuperad vall med luckor i mitten, resten platt",
   "money": "Förråd",
-  "startMoney": "Startförråd"
+  "startMoney": "Startförråd",
+  "armies": {
+    "standard": "Standardarmé",
+    "komtur": "Komturs armé"
+  },
+  "armyPick": "Byt armé",
+  "rolePick": "Byt roll"
 }

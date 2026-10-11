@@ -350,14 +350,6 @@ export interface CustomGameConfig {
     startMoney: number;
     /** what the Stronghold is worth this match; see GameSettings.strongholdMode */
     strongholdMode: StrongholdMode;
-    /**
-     * The Year (mode 'year'): who attacks — 'choose' = each player asks for a
-     * role in the lobby and a clash is a coin flip at Start; or fixed to the
-     * host's / the guest's side.
-     */
-    yearRoles?: 'choose' | 'host' | 'guest';
-    /** The Year: the attacker fields the Komtur's forest roster (Cursed Christine) */
-    yearKomtur?: boolean;
     /** a static map (assets/data/landscapes/<id>.json); unset / '' = the procedural terrain */
     landscape?: string;
     /**
@@ -531,6 +523,8 @@ export type NetMessage =
     | { type: 'lobbyReady'; ready: boolean }
     /** guest → host: the role this guest asks for in a Year room (null = any) */
     | { type: 'lobbyRole'; role: 'attacker' | 'defender' | null }
+    /** guest → host: the army this guest plays (see CanonicalSeatDef.army) */
+    | { type: 'lobbyArmy'; army: string }
     /**
      * The Year's "Rematch, roles swapped": a player → host asks for it; host →
      * everyone: the seats that asked so far. When every connected player has,

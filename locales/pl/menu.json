@@ -192,5 +192,11 @@
   "terrainWall": "Wał",
   "terrainWallDesc": "pagórkowaty wał z przerwami pośrodku, reszta płaska",
   "money": "Zapasy",
-  "startMoney": "Zapasy początkowe"
+  "startMoney": "Zapasy początkowe",
+  "armies": {
+    "standard": "Armia standardowa",
+    "komtur": "Armia Komtura"
+  },
+  "armyPick": "Zmień armię",
+  "rolePick": "Zmień rolę"
 }

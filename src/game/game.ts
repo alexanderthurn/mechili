@@ -5398,7 +5398,7 @@ export class Game {
     private triggerExtraStarters(team: Team): void {
         for (const e of this.extraAis) {
             if (e.team !== team) continue;
-            e.ai.chooseStarter(this.starterOfferFor(team, e.rng));
+            e.ai.chooseStarter(this.starterOfferFor(team, e.rng, e.seat));
         }
     }
 
@@ -5408,15 +5408,23 @@ export class Game {
      * nothing is drawn from that side's stream; otherwise four at random
      * (every playable commander when `?allCommanders`).
      */
-    private starterOfferFor(team: Team, rng: () => number): StartCard[] {
+    /**
+     * The commanders a seat is offered: those of the army it plays (see
+     * StartCard.army) — every Standard commander's pool as before, an army
+     * with fewer just offers what it has. `seat` omitted = the side's own
+     * player (the local seat, or the enemy's first).
+     */
+    private starterOfferFor(team: Team, rng: () => number, seat?: SeatId): StartCard[] {
         const climb = this.settings.climb;
         const forced =
             climb?.attackerCommander && isSiege(this.settings) && this.yearAttackerTeam() === team
                 ? this.types.commander(climb.attackerCommander)
                 : null;
         if (forced) return [forced];
-        const pool = this.types.commanders;
-        const n = offerAllCommanders() ? pool.length : 4;
+        const who = seat ?? (team === 'player' ? this.humanSeat : primarySeatOf(this.seats, team));
+        const army = this.seats[who]?.army ?? 'standard';
+        const pool = this.types.commanders.filter((c) => (c.army ?? 'standard') === army);
+        const n = offerAllCommanders() ? pool.length : Math.min(4, pool.length);
         return this.draw(pool, n, rng);
     }
 
@@ -6428,7 +6436,7 @@ export class Game {
             // forever, freezing every player at the specialist screen (same
             // follow-up triggerExtraStarters' own caller runs after a human
             // pick — see afterStarterPick).
-            ai.chooseStarter(this.starterOfferFor(def.team, rng));
+            ai.chooseStarter(this.starterOfferFor(def.team, rng, seat));
             this.afterStarterPick();
         } else if (this.phase === 'build' && !this.seatReady[seat]) {
             ai.onBuildPhase(this.round);

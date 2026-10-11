@@ -192,5 +192,11 @@
   "terrainWall": "Voll",
   "terrainWallDesc": "en kupert voll med åpninger i midten, resten flatt",
   "money": "Forsyninger",
-  "startMoney": "Startforsyninger"
+  "startMoney": "Startforsyninger",
+  "armies": {
+    "standard": "Standardhær",
+    "komtur": "Komturs hær"
+  },
+  "armyPick": "Bytt hær",
+  "rolePick": "Bytt rolle"
 }

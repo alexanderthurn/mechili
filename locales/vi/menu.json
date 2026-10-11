@@ -192,5 +192,11 @@
   "terrainWall": "Tường thành",
   "terrainWallDesc": "một dải đồi chắn ngang giữa có khe hở, còn lại bằng phẳng",
   "money": "Tiếp tế",
-  "startMoney": "Tiếp tế ban đầu"
+  "startMoney": "Tiếp tế ban đầu",
+  "armies": {
+    "standard": "Quân tiêu chuẩn",
+    "komtur": "Quân Komtur"
+  },
+  "armyPick": "Đổi quân",
+  "rolePick": "Đổi vai trò"
 }

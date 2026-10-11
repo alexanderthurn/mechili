@@ -1,7 +1,8 @@
-// The Komtur's side in The Year: never offered in normal pools — a mode hands her
-// to the side that plays the Komtur. She fields his forest roster instead of an army.
+// The Komtur's army: offered to a player who picks that army in the room (the
+// Standard pool never holds her). She fields his forest roster instead of an army.
 {
     "id": "cursed",
+    "army": "komtur",
     "title": "Cursed Christine",
     "portrait": "spec-cursed",
     "speciality": "cursed",

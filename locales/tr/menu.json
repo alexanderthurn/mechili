@@ -192,5 +192,11 @@
   "terrainWall": "Sur",
   "terrainWallDesc": "ortada geçitli tepelik bir sur, gerisi düz",
   "money": "Tedarik",
-  "startMoney": "Başlangıç tedariki"
+  "startMoney": "Başlangıç tedariki",
+  "armies": {
+    "standard": "Standart ordu",
+    "komtur": "Komtur ordusu"
+  },
+  "armyPick": "Orduyu değiştir",
+  "rolePick": "Rolü değiştir"
 }

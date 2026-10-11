@@ -78,7 +78,7 @@ import {
     type MultiplayerTransport,
 } from './game/multiplayerTransport';
 import { getPlayerName, setPlayerName, validatePlayerName } from './game/player';
-import { getCachedProfile, claimName, syncOpenProfile, uploadAvatar, shouldPersistAvatarToPhp } from './game/account';
+import { getCachedProfile, fetchPlayerPublic, claimName, syncOpenProfile, uploadAvatar, shouldPersistAvatarToPhp } from './game/account';
 import { getAvatarDataUrl, resizeImageFileToAvatar, setAvatarDataUrl, setSteamAvatarDataUrl, wireAvatar } from './game/avatar';
 import { activeLoadout, normalizeLoadout, randomLoadout } from './game/loadouts';
 import { createLoadoutPanel } from './ui/loadoutPanel';
@@ -137,7 +137,7 @@ import {
     CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
     type ClimbRole,
     climbAttackerTeam,
-    yearAttackerFromWishes,
+    yearAttackerFromSeats,
     type YearRoundWinner,
     DEFAULT_COMMANDER_HP_FACTOR,
     DEFAULT_CUSTOM_GAME_PACE_ID,
@@ -290,10 +290,6 @@ function roomConfig<T extends CustomGameConfig>(cfg: T): T {
     return cfg;
 }
 
-/** a stored / received Year roles setting, or the default: players choose */
-function yearRolesOption(value: unknown): NonNullable<CustomGameConfig['yearRoles']> {
-    return value === 'host' || value === 'guest' ? value : 'choose';
-}
 
 function loadCustomGameConfig(): CustomGameConfig {
     try {
@@ -337,8 +333,6 @@ function loadCustomGameConfig(): CustomGameConfig {
             moneyFactor: moneyFactorOption(parsed.moneyFactor),
             startMoney: startMoneyOption(parsed.startMoney),
             strongholdMode: strongholdModeOption(parsed.strongholdMode),
-            yearRoles: yearRolesOption(parsed.yearRoles),
-            yearKomtur: parsed.yearKomtur === true,
             map: mapOption(parsed.map),
             terrainShape: terrainShapeOption(parsed.terrainShape),
             siege: parsed.siege === true,
@@ -1320,67 +1314,65 @@ menu.innerHTML = `
                 <!-- settings first: a guest reads what they are agreeing to, THEN
                      confirms. (The host never sees the ready row — see
                      showHostLobbySettings — so this ordering only shows up there.) -->
-                <div class="m-lobby-role-row" style="display:none">
-                    <span class="m-lobby-role-label" data-i18n="menu:yearYourRole"></span>
-                    <button type="button" class="m-lobby-role" data-role="attacker" data-i18n="hud:yearAttacker"></button>
-                    <button type="button" class="m-lobby-role" data-role="defender" data-i18n="hud:yearDefender"></button>
-                    <button type="button" class="m-lobby-role" data-role="any" data-i18n="menu:yearAnyRole"></button>
+                <!-- the match itself, always in view: who plays, what kind, how it is won, the waves -->
+                <div class="m-lobby-settings m-lobby-basic">
+                    <label class="m-field"><span class="m-field-label" data-i18n="menu:players"></span>
+                        <select class="cg-players"></select>
+                    </label>
+                    <label class="m-field"><span class="m-field-label" data-i18n="menu:roomMode"></span>
+                        <select class="cg-siege"></select>
+                    </label>
+                    <label class="m-field"><span class="m-field-label" data-i18n="menu:victory"></span>
+                        <select class="cg-victory"></select>
+                    </label>
+                    <label class="m-field"><span class="m-field-label" data-i18n="menu:horde"></span>
+                        <select class="cg-horde"></select>
+                    </label>
                 </div>
-                <button class="m-lobby-settings-toggle" style="display:none" type="button"></button>
+                <!-- the advanced toggle, and Reset whenever any setting (basic or advanced) is gold -->
+                <div class="m-lobby-settings-row">
+                    <button class="m-lobby-settings-toggle" style="display:none" type="button"></button>
+                    <button type="button" class="m-lobby-settings-reset" hidden data-i18n="menu:resetDefaults"></button>
+                </div>
+                <!-- the rest, behind the toggle, under the basics -->
+                <div class="m-lobby-settings m-lobby-advanced">
+                    <label class="m-field"><span class="m-field-label" data-i18n="menu:pace"></span>
+                        <select class="cg-pace"></select>
+                    </label>
+                    <label class="m-field"><span class="m-field-label" data-i18n="menu:roundCards"></span>
+                        <select class="cg-roundcards"></select>
+                    </label>
+                    <label class="m-field"><span class="m-field-label" data-i18n="menu:hp"></span>
+                        <select class="cg-commander-hp"></select>
+                    </label>
+                    <label class="m-field"><span class="m-field-label" data-i18n="menu:money"></span>
+                        <select class="cg-money"></select>
+                    </label>
+                    <label class="m-field"><span class="m-field-label" data-i18n="menu:startMoney"></span>
+                        <select class="cg-start-money"></select>
+                    </label>
+                    <label class="m-field"><span class="m-field-label" data-i18n="menu:stronghold"></span>
+                        <select class="cg-stronghold"></select>
+                    </label>
+                    <label class="m-field"><span class="m-field-label" data-i18n="menu:terrainSetting"></span>
+                        <select class="cg-terrain"></select>
+                    </label>
+                    <label class="m-field m-landscape-field"><span class="m-field-label" data-i18n="menu:mapSetting"></span>
+                        <select class="cg-landscape"></select>
+                    </label>
+                    <label class="m-field"><span class="m-field-label" data-i18n="menu:fogOfWar"></span>
+                        <select class="cg-fog"></select>
+                    </label>
+                </div>
                 <label class="m-lobby-ready-row" style="display:none">
                     <input type="checkbox" class="m-lobby-ready-check">
                     <span class="m-lobby-ready-label" data-i18n="menu:imReady"></span>
                 </label>
-                <button class="m-btn m-small" data-mode="startstar" style="display:none"></button>
-                <button class="m-btn m-small m-cancel" style="display:none"></button>
-            </div>
-            <div class="m-lobby-settings">
-                <label class="m-field"><span class="m-field-label" data-i18n="menu:players"></span>
-                    <select class="cg-players"></select>
-                </label>
-                <label class="m-field"><span class="m-field-label" data-i18n="menu:roomMode"></span>
-                    <select class="cg-siege"></select>
-                </label>
-                <label class="m-field"><span class="m-field-label" data-i18n="menu:victory"></span>
-                    <select class="cg-victory"></select>
-                </label>
-                <label class="m-field m-komtur-field"><span class="m-field-label" data-i18n="menu:yearArmySetting"></span>
-                    <select class="cg-year-komtur"></select>
-                </label>
-                <label class="m-field"><span class="m-field-label" data-i18n="menu:pace"></span>
-                    <select class="cg-pace"></select>
-                </label>
-                <label class="m-field"><span class="m-field-label" data-i18n="menu:horde"></span>
-                    <select class="cg-horde"></select>
-                </label>
-                <label class="m-field"><span class="m-field-label" data-i18n="menu:roundCards"></span>
-                    <select class="cg-roundcards"></select>
-                </label>
-                <label class="m-field"><span class="m-field-label" data-i18n="menu:hp"></span>
-                    <select class="cg-commander-hp"></select>
-                </label>
-                <label class="m-field"><span class="m-field-label" data-i18n="menu:money"></span>
-                    <select class="cg-money"></select>
-                </label>
-                <label class="m-field"><span class="m-field-label" data-i18n="menu:startMoney"></span>
-                    <select class="cg-start-money"></select>
-                </label>
-                <label class="m-field"><span class="m-field-label" data-i18n="menu:stronghold"></span>
-                    <select class="cg-stronghold"></select>
-                </label>
-                <label class="m-field"><span class="m-field-label" data-i18n="menu:terrainSetting"></span>
-                    <select class="cg-terrain"></select>
-                </label>
-                <label class="m-field m-landscape-field"><span class="m-field-label" data-i18n="menu:mapSetting"></span>
-                    <select class="cg-landscape"></select>
-                </label>
-                <label class="m-field m-year-field"><span class="m-field-label" data-i18n="menu:yearRolesSetting"></span>
-                    <select class="cg-year-attacker"></select>
-                </label>
-                <label class="m-field"><span class="m-field-label" data-i18n="menu:fogOfWar"></span>
-                    <select class="cg-fog"></select>
-                </label>
-                <button type="button" class="m-lobby-settings-reset" hidden data-i18n="menu:resetDefaults"></button>
+                <!-- Back left, Start right, across the column's full width -->
+                <div class="m-lobby-footer">
+                    <button class="m-btn m-small m-cancel" style="display:none"></button>
+                    <button class="m-btn m-small" data-mode="startstar" style="display:none"></button>
+                </div>
             </div>
         </div>
     </div>
@@ -1747,8 +1739,6 @@ const cgStartMoneyEl = menu.querySelector<HTMLSelectElement>('.cg-start-money')!
 const cgStrongholdEl = menu.querySelector<HTMLSelectElement>('.cg-stronghold')!;
 const cgLandscapeEl = menu.querySelector<HTMLSelectElement>('.cg-landscape')!;
 const cgTerrainEl = menu.querySelector<HTMLSelectElement>('.cg-terrain')!;
-const cgYearAttackerEl = menu.querySelector<HTMLSelectElement>('.cg-year-attacker')!;
-const cgYearKomturEl = menu.querySelector<HTMLSelectElement>('.cg-year-komtur')!;
 const cgSiegeEl = menu.querySelector<HTMLSelectElement>('.cg-siege')!;
 const cgVictoryEl = menu.querySelector<HTMLSelectElement>('.cg-victory')!;
 const cgPlayersEl = menu.querySelector<HTMLSelectElement>('.cg-players')!;
@@ -1786,20 +1776,14 @@ function fillRoomShapeOptions(): void {
     ]);
 }
 
-/** a Standard match won on HP, with fog of war — the room as it opens by default */
-function isPlainRoomShape(cfg: CustomGameConfig): boolean {
-    return !cfg.siege && cfg.victory !== 'rounds' && cfg.fog !== false;
+/** a setting behind the advanced toggle is off its default (the waves sit in the basic part) */
+function isNonDefaultAdvanced(cfg: CustomGameConfig, defaults = defaultLobbySettings()): boolean {
+    return isNonDefaultLobbySettings({ ...cfg, hordePreset: defaults.hordePreset }, defaults);
 }
 
-/**
- * A Siege room's own settings: who attacks shows only in a Siege; the
- * attacker's army (the Komtur) keeps its place among the first four and is
- * greyed out outside one — editable by the host only.
- */
+/** a Siege room's own setting (who attacks) shows only in a Siege */
 function syncSiegeFields(cfg: CustomGameConfig): void {
     for (const field of menu.querySelectorAll<HTMLElement>('.m-year-field')) field.style.display = cfg.siege ? '' : 'none';
-    cgYearKomturEl.disabled = !cfg.siege || !activeLobbyHost;
-    menu.querySelector<HTMLElement>('.m-komtur-field')?.classList.toggle('is-off', !cfg.siege);
 }
 const cgResetEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-reset')!;
 /**
@@ -1924,16 +1908,10 @@ async function playSavedScenario(ref: LevelRef, id: string): Promise<void> {
     startGame(applyScenarioToSettings(localMatchSettings(), def, ref, 'play', id));
 }
 
-const lobbySettingsEl = menu.querySelector<HTMLDivElement>('.m-lobby-settings')!;
+const lobbySettingsEl = menu.querySelector<HTMLDivElement>('.m-lobby-advanced')!;
+const lobbyBasicEl = menu.querySelector<HTMLDivElement>('.m-lobby-basic')!;
 const lobbySettingsToggleEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-toggle')!;
 const lobbyReadyRowEl = menu.querySelector<HTMLLabelElement>('.m-lobby-ready-row')!;
-const lobbyRoleRowEl = menu.querySelector<HTMLDivElement>('.m-lobby-role-row')!;
-for (const button of lobbyRoleRowEl.querySelectorAll<HTMLButtonElement>('.m-lobby-role')) {
-    button.addEventListener('click', () => {
-        const role = button.dataset.role;
-        lobbyYear?.pick(role === 'attacker' || role === 'defender' ? role : null);
-    });
-}
 const lobbyReadyCheckEl = menu.querySelector<HTMLInputElement>('.m-lobby-ready-check')!;
 const startStarBtn = menu.querySelector<HTMLButtonElement>('[data-mode="startstar"]')!;
 
@@ -2215,15 +2193,6 @@ function refreshYearLobbyOptions(): void {
         );
         if (value) select.value = value;
     };
-    fill(cgYearAttackerEl, [
-        ['choose', t('menu:yearRolesChoose', { defaultValue: 'Players choose' })],
-        ['host', t('menu:yearHostAttacks', { defaultValue: 'Host attacks' })],
-        ['guest', t('menu:yearGuestAttacks', { defaultValue: 'Guest attacks' })],
-    ]);
-    fill(cgYearKomturEl, [
-        ['army', t('menu:yearArmyNormal', { defaultValue: 'Normal army' })],
-        ['komtur', t('menu:yearArmyKomtur', { defaultValue: 'The Komtur' })],
-    ]);
 }
 refreshYearLobbyOptions();
 
@@ -2307,8 +2276,6 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     cgStartMoneyEl.value = String(startMoneyOption(cfg.startMoney));
     cgStrongholdEl.value = strongholdModeOption(cfg.strongholdMode);
     refreshYearLobbyOptions();
-    cgYearAttackerEl.value = yearRolesOption(cfg.yearRoles);
-    cgYearKomturEl.value = cfg.yearKomtur ? 'komtur' : 'army';
     mapChoice.refresh(cfg.map);
     refreshTerrainOptions();
     cgTerrainEl.value = terrainShapeOption(cfg.terrainShape);
@@ -2328,12 +2295,16 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
  * changed match reads at a glance (host and guests alike).
  */
 function markChangedLobbySettings(cfg: CustomGameConfig): void {
+    for (const [select, on] of changedLobbySettings(cfg)) select.classList.toggle('is-changed', on);
+}
+
+/** each room setting's box and whether it is off the room's default (the gold ones) */
+function changedLobbySettings(cfg: CustomGameConfig): [HTMLSelectElement, boolean][] {
     const d = activeLobbyHost?.save ? defaultPracticeSettings() : defaultLobbySettings();
-    const changed: [HTMLSelectElement, boolean][] = [
+    return [
         [cgPlayersEl, cfg.mode === '2v2'],
         [cgSiegeEl, !!cfg.siege],
         [cgVictoryEl, cfg.victory === 'rounds'],
-        [cgYearKomturEl, !!cfg.siege && !!cfg.yearKomtur],
         [cgFogEl, cfg.fog === false],
         [cgPaceEl, cfg.pace !== d.pace],
         [cgHordeEl, cfg.hordePreset !== d.hordePreset],
@@ -2344,15 +2315,12 @@ function markChangedLobbySettings(cfg: CustomGameConfig): void {
         [cgStrongholdEl, cfg.strongholdMode !== d.strongholdMode],
         [cgTerrainEl, terrainShapeOption(cfg.terrainShape) !== d.terrainShape],
         [cgLandscapeEl, mapValue(cfg.map) !== mapValue(d.map)],
-        [cgYearAttackerEl, !!cfg.siege && yearRolesOption(cfg.yearRoles) !== 'choose'],
     ];
-    for (const [select, on] of changed) select.classList.toggle('is-changed', on);
 }
 
-/** Host-only: show "Reset to defaults" only when pace/horde/cards/HP differ. */
+/** Host-only: "Reset to defaults" shows whenever any setting is gold (off its default) */
 function syncLobbySettingsResetVisibility(cfg: CustomGameConfig): void {
-    cgResetEl.hidden =
-        !activeLobbyHost || !isNonDefaultLobbySettings(cfg, activeLobbyHost.save ? defaultPracticeSettings() : defaultLobbySettings());
+    cgResetEl.hidden = !activeLobbyHost || !changedLobbySettings(cfg).some(([, on]) => on);
 }
 
 function selectedLobbyOptionFull(select: HTMLSelectElement): string {
@@ -2447,15 +2415,13 @@ registerHoverTipClearer(() => hideLobbySettingTip());
 function readLobbySettingsForm(): Pick<
     CustomGameConfig,
     | 'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'fixedSideHp' | 'moneyFactor' | 'startMoney' | 'strongholdMode'
-    | 'yearRoles' | 'yearKomtur' | 'map' | 'terrainShape' | 'siege' | 'victory' | 'fog'
+    | 'map' | 'terrainShape' | 'siege' | 'victory' | 'fog'
 > {
     const hpOpt = commanderHpOptionById(cgCommanderHpEl.value);
     return {
         siege: cgSiegeEl.value === 'siege',
         victory: cgVictoryEl.value === 'rounds' ? 'rounds' : 'hp',
         fog: cgFogEl.value !== 'off',
-        yearRoles: yearRolesOption(cgYearAttackerEl.value),
-        yearKomtur: cgYearKomturEl.value === 'komtur',
         map: mapChoice.value,
         terrainShape: terrainShapeOption(cgTerrainEl.value),
         pace: customGamePaceById(cgPaceEl.value).id,
@@ -2968,10 +2934,8 @@ let activeLobbyHost: { config: CustomGameConfig; onChange: () => void; save?: (c
     cgMoneyEl.addEventListener('change', onChange);
     cgStartMoneyEl.addEventListener('change', onChange);
     cgStrongholdEl.addEventListener('change', onChange);
-    cgYearAttackerEl.addEventListener('change', onChange);
     cgLandscapeEl.addEventListener('change', onChange);
     cgTerrainEl.addEventListener('change', onChange);
-    cgYearKomturEl.addEventListener('change', onChange);
     // Mode / Victory / Fog are settings like the rest (Siege shows its own rows)
     const onShapeChange = () => {
         onChange();
@@ -2997,12 +2961,22 @@ let activeLobbyHost: { config: CustomGameConfig; onChange: () => void; save?: (c
         cancelHost();
         hostCustomGame(mode);
     });
+    // every setting back to the room's default — the basics too; a different
+    // player count is a new room, so that one goes last (it rebuilds the room)
     cgResetEl.addEventListener('click', () => {
         if (!activeLobbyHost) return;
-        Object.assign(activeLobbyHost.config, activeLobbyHost.save ? defaultPracticeSettings() : defaultLobbySettings());
+        Object.assign(activeLobbyHost.config, activeLobbyHost.save ? defaultPracticeSettings() : defaultLobbySettings(), {
+            siege: false,
+            victory: 'hp' as const,
+            fog: true,
+        });
         populateLobbySettingsForm(activeLobbyHost.config);
         (activeLobbyHost.save ?? saveCustomGameConfig)(activeLobbyHost.config);
         activeLobbyHost.onChange();
+        if (activeLobbyHost.config.mode !== '1v1') {
+            cgPlayersEl.value = '1v1';
+            cgPlayersEl.dispatchEvent(new Event('change'));
+        }
     });
 })();
 
@@ -3020,9 +2994,10 @@ function showHostLobbySettings(
     const firstShow = !lobbySettingsAvailable;
     activeLobbyHost = { config, onChange: onSettingsChanged, ...(save ? { save } : {}) };
     lobbySettingsAvailable = true;
-    // open when the room isn't a plain Standard HP match with fog — its shape lives in there
-    if (firstShow) lobbySettingsExpanded = !isPlainRoomShape(config) || isNonDefaultLobbySettings(config, save ? defaultPracticeSettings() : defaultLobbySettings());
+    // the advanced part opens by itself when one of its settings is off its default
+    if (firstShow) lobbySettingsExpanded = config.fog === false || isNonDefaultAdvanced(config, save ? defaultPracticeSettings() : defaultLobbySettings());
     lobbySettingsEl.classList.remove('m-readonly');
+    lobbyBasicEl.classList.remove('m-readonly');
     hideLobbySettingTip();
     applyLobbySettingsExpanded();
     // the host doesn't ready up — clicking Start IS their commitment
@@ -3039,10 +3014,8 @@ function showHostLobbySettings(
     cgMoneyEl.disabled = false;
     cgStartMoneyEl.disabled = false;
     cgStrongholdEl.disabled = false;
-    cgYearAttackerEl.disabled = false;
     cgLandscapeEl.disabled = false;
     cgTerrainEl.disabled = false;
-    cgYearKomturEl.disabled = false;
     cgResetEl.disabled = false;
     populateLobbySettingsForm(config);
 }
@@ -3057,8 +3030,9 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
     const firstShow = !lobbySettingsAvailable;
     activeLobbyHost = null;
     lobbySettingsAvailable = true;
-    if (firstShow) lobbySettingsExpanded = !isPlainRoomShape(config) || isNonDefaultLobbySettings(config);
+    if (firstShow) lobbySettingsExpanded = config.fog === false || isNonDefaultAdvanced(config);
     lobbySettingsEl.classList.add('m-readonly');
+    lobbyBasicEl.classList.add('m-readonly');
     applyLobbySettingsExpanded();
     lobbyReadyRowEl.style.display = '';
     fillRoomShapeOptions();
@@ -3073,10 +3047,8 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
     cgMoneyEl.disabled = true;
     cgStartMoneyEl.disabled = true;
     cgStrongholdEl.disabled = true;
-    cgYearAttackerEl.disabled = true;
     cgLandscapeEl.disabled = true;
     cgTerrainEl.disabled = true;
-    cgYearKomturEl.disabled = true;
     cgResetEl.disabled = true;
     populateLobbySettingsForm(config);
     lobbyReadyCheckEl.onchange = () => onReady(lobbyReadyCheckEl.checked);
@@ -3095,14 +3067,15 @@ function clearLobbySettings(): void {
     lobbySettingsAvailable = false;
     lobbySettingsExpanded = false;
     lobbySettingsEl.classList.remove('m-readonly');
+    lobbyBasicEl.classList.remove('m-readonly');
     hideLobbySettingTip();
     applyLobbySettingsExpanded();
     lobbyReadyRowEl.style.display = 'none';
     lobbyReadyCheckEl.checked = false;
     lobbyReadyCheckEl.onchange = null;
     lobbyYear = null;
+    lobbyArmy = null;
     lastRosterRender = null;
-    lobbyRoleRowEl.style.display = 'none';
 }
 
 /** host-side: the settings just changed, so every other seat's previous
@@ -3170,25 +3143,53 @@ let lastRosterRender: Parameters<typeof renderRosterTable> | null = null;
 function setLobbyYear(next: typeof lobbyYear): void {
     lobbyYear = next;
     if (lastRosterRender) renderRosterTable(...lastRosterRender);
-    else lobbyRoleRowEl.style.display = 'none';
 }
 
-/** the role a seat stands for in a Year room: fixed by the setting, or what its player asked for */
-function lobbySeatRole(roster: readonly CanonicalSeatDef[], seat: SeatId): string | null {
-    const entry = roster[seat];
-    if (!lobbyYear || !entry || entry.name === OPEN_SEAT_NAME) return null;
-    const roles = yearRolesOption(lobbyYear.config.yearRoles);
-    if (roles !== 'choose') {
-        const attacks = entry.side === (roles === 'host' ? 'a' : 'b');
-        return attacks ? t('hud:yearAttacker') : t('hud:yearDefender');
-    }
-    if (entry.controller !== 'human') return null;
-    return entry.yearRole === 'attacker'
+function roleName(role: 'attacker' | 'defender' | undefined): string {
+    return role === 'attacker'
         ? t('hud:yearAttacker')
-        : entry.yearRole === 'defender'
+        : role === 'defender'
           ? t('hud:yearDefender')
           : t('menu:yearAnyRole', { defaultValue: 'Any' });
 }
+
+/** the armies a player can lead: Standard, and every army a commander names (see StartCard.army) */
+function roomArmies(): string[] {
+    const armies = ['standard'];
+    for (const c of BASE_TYPES.commanders) if (c.army && !armies.includes(c.army)) armies.push(c.army);
+    return armies;
+}
+
+function armyName(army: string): string {
+    return t(`menu:armies.${army}`, { defaultValue: army });
+}
+
+/**
+ * Who may change which seat's army in the room on screen, and how a change
+ * travels: Practice sets every seat, a host its own and the AI / open ones,
+ * a guest its own (asking the host). null outside a room.
+ */
+/** room seats' MMR by name, loaded once each (null = none / not found) — redraws the seats when it arrives */
+const roomMmr = new Map<string, number | null>();
+function roomMmrOf(name: string): number | null | undefined {
+    if (roomMmr.has(name)) return roomMmr.get(name);
+    roomMmr.set(name, null);
+    void fetchPlayerPublic(name).then((p) => {
+        const own = getCachedProfile();
+        roomMmr.set(name, p?.mmr ?? (own?.name === name ? own.mmr : null));
+        if (lastRosterRender) renderRosterTable(...lastRosterRender);
+    });
+    return undefined;
+}
+
+let lobbyArmy: {
+    canEdit: (seat: SeatId) => boolean;
+    pick: (seat: SeatId, army: string) => void;
+    /** the seat's role in a Siege (null = any) */
+    pickRole: (seat: SeatId, role: 'attacker' | 'defender' | null) => void;
+    /** who may change a seat's role (omit = as for the army) — a host, every seat's */
+    canEditRole?: (seat: SeatId) => boolean;
+} | null = null;
 
 function renderRosterTable(
     roster: CanonicalSeatDef[],
@@ -3199,13 +3200,6 @@ function renderRosterTable(
     onInvite?: () => void,
 ): void {
     lastRosterRender = [roster, mySeat, waitForJoined, onKick, onInvite];
-    // the role picker: a Year room whose players choose
-    const choosing = !!lobbyYear && yearRolesOption(lobbyYear.config.yearRoles) === 'choose' && !!roster[mySeat];
-    lobbyRoleRowEl.style.display = choosing ? '' : 'none';
-    const myRole = roster[mySeat]?.yearRole ?? 'any';
-    for (const button of lobbyRoleRowEl.querySelectorAll<HTMLButtonElement>('.m-lobby-role')) {
-        button.classList.toggle('active', choosing && button.dataset.role === myRole);
-    }
     rosterTableEl.innerHTML = '';
     rosterTableEl.style.display = '';
     const cols = document.createElement('div');
@@ -3267,14 +3261,77 @@ function renderRosterTable(
                     else showLobbySettingTip(cell, displayName, true);
                 });
             }
-            cell.appendChild(label);
-            const role = lobbySeatRole(roster, seat);
-            if (role) {
-                const badge = document.createElement('span');
-                badge.className = `m-roster-role${roster[seat]!.yearRole ? ` is-${roster[seat]!.yearRole}` : ''}`;
-                badge.textContent = role;
-                cell.appendChild(badge);
+            // the player's face (an AI seat its symbol, no avatar an empty disc), and its MMR
+            const entry = roster[seat]!;
+            if (filled || guaranteedAi) {
+                const face = document.createElement('span');
+                face.className = 'm-roster-avatar';
+                if (filled && entry.controller === 'human' && entry.avatar) {
+                    const img = document.createElement('img');
+                    img.alt = '';
+                    img.draggable = false;
+                    img.src = entry.avatar;
+                    face.appendChild(img);
+                } else if (!filled || entry.controller === 'ai') {
+                    face.classList.add('is-ai');
+                    face.innerHTML = iconHtml('ui-unit', 'm-roster-avatar-ico mask-ico');
+                } else {
+                    face.classList.add('is-empty');
+                }
+                cell.appendChild(face);
             }
+            cell.appendChild(label);
+            if (filled && entry.controller === 'human') {
+                const mmr = roomMmrOf(entry.name);
+                if (typeof mmr === 'number') {
+                    const tag = document.createElement('span');
+                    tag.className = 'm-roster-mmr';
+                    tag.textContent = String(mmr);
+                    cell.appendChild(tag);
+                }
+            }
+            // the seat's tags (army, role) on a line of their own under the name
+            const tags = document.createElement('div');
+            tags.className = 'm-roster-tags';
+            // the seat's army: a chip that walks the armies where this client may change it
+            if (lobbyArmy) {
+                const army = roster[seat]!.army ?? 'standard';
+                const editable = lobbyArmy.canEdit(seat);
+                const chip = document.createElement(editable ? 'button' : 'span');
+                chip.className = `m-roster-army is-${army}${editable ? ' is-editable' : ''}`;
+                chip.textContent = armyName(army);
+                if (editable) {
+                    (chip as HTMLButtonElement).type = 'button';
+                    chip.title = t('menu:armyPick');
+                    chip.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const armies = roomArmies();
+                        const next = armies[(armies.indexOf(army) + 1) % armies.length]!;
+                        lobbyArmy?.pick(seat, next);
+                    });
+                }
+                tags.appendChild(chip);
+            }
+            // a Siege: the role this seat asks for — every player picks its own, the host
+            // any seat's; sides left without a clear attacker / defender are tossed at Start
+            if (lobbyYear) {
+                const role = roster[seat]!.yearRole;
+                const editable = !!(lobbyArmy?.canEditRole ?? lobbyArmy?.canEdit)?.(seat);
+                const badge = document.createElement(editable ? 'button' : 'span');
+                badge.className = `m-roster-role${role ? ` is-${role}` : ''}${editable ? ' is-editable' : ''}`;
+                badge.textContent = roleName(role);
+                if (editable) {
+                    (badge as HTMLButtonElement).type = 'button';
+                    badge.title = t('menu:rolePick');
+                    badge.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const next = role === undefined ? 'attacker' : role === 'attacker' ? 'defender' : null;
+                        lobbyArmy?.pickRole(seat, next);
+                    });
+                }
+                tags.appendChild(badge);
+            }
+            if (tags.childElementCount > 0) cell.appendChild(tags);
             if (filled && seat !== 0 && roster[seat]!.ready) {
                 const ready = document.createElement('span');
                 ready.className = 'm-roster-ready';
@@ -4843,6 +4900,27 @@ function wireHostedHub(
         const joined = hub.connectedSeats().length + 1;
         // the room's player count can't change under someone who already joined it
         cgPlayersEl.disabled = joined > 1;
+        // the host sets its own army and the AI / still-open seats'; a guest sets its own
+        lobbyArmy = {
+            canEdit: (seat) => {
+                const entry = hub.currentRoster()[seat];
+                return seat === 0 || !entry || entry.controller === 'ai' || entry.name === OPEN_SEAT_NAME;
+            },
+            pick: (seat, army) => {
+                const entry = hub.currentRoster()[seat];
+                if (!entry) return;
+                hub.setRosterEntry(seat, { ...entry, army });
+                refresh();
+            },
+            // roles: the host may set anyone's — players pick their own, the host settles it
+            canEditRole: () => true,
+            pickRole: (seat, role) => {
+                const entry = hub.currentRoster()[seat];
+                if (!entry) return;
+                hub.setRosterEntry(seat, { ...entry, yearRole: role ?? undefined });
+                refresh();
+            },
+        };
         lobbyYear =
             customConfig?.siege
                 ? {
@@ -4948,6 +5026,13 @@ function wireHostedHub(
             if (msg.error) {
                 announceLobbySystem(`${state.name} could not load the scenario: ${msg.error}`, hub);
             }
+            refresh();
+            return;
+        }
+        if (msg.type === 'lobbyArmy') {
+            const entry = hub.currentRoster()[seat];
+            if (!entry || !roomArmies().includes(msg.army)) return;
+            hub.setRosterEntry(seat, { ...entry, army: msg.army });
             refresh();
             return;
         }
@@ -5119,9 +5204,8 @@ function lobbyMatchSettings(
         applyClimbMode(settings, {
             role: 'attacker',
             // a Standard Rounds match has no attacker: its first side stands in for one on the tally
-            attackerSide: siege ? resolveYearAttackerSide(room, roster, seed) : 0,
+            attackerSide: siege ? resolveYearAttackerSide(roster, seed) : 0,
             keepHorde: true,
-            ...(siege && room.yearKomtur ? { komtur: true } : {}),
         });
         if (!siege) settings.climb!.siege = false;
         if (!rounds) settings.climb!.victory = 'hp';
@@ -5133,23 +5217,21 @@ function lobbyMatchSettings(
 }
 
 /**
- * Who attacks in a Year room: fixed by the host's setting, or from the roles
- * the players asked for — a wish nobody contests is granted, the same wish on
- * both sides (or none) is a coin flip on the match seed, so every client that
- * receives the settings agrees.
+ * Who attacks in a Siege room: from the roles its seats asked for (players
+ * pick their own, the host any seat's) — each side's wishes are weighed, and
+ * sides left without a clear attacker or defender toss for it on the match
+ * seed, so every client that receives the settings agrees.
  */
-function resolveYearAttackerSide(config: CustomGameConfig, roster: readonly CanonicalSeatDef[], seed: number): number {
-    const roles = yearRolesOption(config.yearRoles);
-    if (roles !== 'choose') return roles === 'guest' ? 1 : 0;
-    const wish = (side: 'a' | 'b') => roster.find((s) => s.side === side && s.controller === 'human')?.yearRole;
-    return yearAttackerFromWishes(wish('a'), wish('b'), seed);
+function resolveYearAttackerSide(roster: readonly CanonicalSeatDef[], seed: number): number {
+    const wishes = (side: 'a' | 'b') => roster.filter((s) => s.side === side).map((s) => s.yearRole);
+    return yearAttackerFromSeats(wishes('a'), wishes('b'), seed);
 }
 
 /** empty seats of a lobby roster become bots, each with its own rolled loadout */
 function rosterWithBots(roster: readonly CanonicalSeatDef[]): CanonicalSeatDef[] {
     return roster.map((s, i) =>
         i > 0 && s.controller === 'human' && s.name === OPEN_SEAT_NAME
-            ? { side: s.side, controller: 'ai' as const, name: starAiName(i, [...roster]), loadout: randomLoadout() }
+            ? { side: s.side, controller: 'ai' as const, name: starAiName(i, [...roster]), loadout: randomLoadout(), ...(s.army ? { army: s.army } : {}) }
             : s,
     );
 }
@@ -5194,8 +5276,6 @@ function loadPracticeConfig(): CustomGameConfig {
             siege: parsed.siege === true,
             victory: parsed.victory === 'rounds' ? 'rounds' : 'hp',
             fog: parsed.fog !== false,
-            yearRoles: yearRolesOption(parsed.yearRoles),
-            yearKomtur: parsed.yearKomtur === true,
             pace: customGamePaceById(parsed.pace ?? defaults.pace).id,
             hordePreset: hordeAlgorithmById(parsed.hordePreset ?? defaults.hordePreset).id,
             roundCardPreset: roundCardAlgorithmById(parsed.roundCardPreset ?? defaults.roundCardPreset).id,
@@ -5226,11 +5306,32 @@ function openPracticeLobby(mode: CustomGameMode): void {
     savePracticeConfig(config);
     const roster = (config.mode === '2v2' ? initialStarRoster : initial1v1Roster)(getPlayerName());
     practiceLobby = { config, roster };
+    // every seat is yours to set: your own army, and the AI's
+    const redraw = () => {
+        lobbyYear = config.siege ? { config, pick: () => undefined } : null;
+        renderRosterTable(roster, 0, 1);
+    };
+    lobbyArmy = {
+        canEdit: () => true,
+        pick: (seat, army) => {
+            const entry = roster[seat];
+            if (!entry) return;
+            roster[seat] = { ...entry, army };
+            redraw();
+        },
+        pickRole: (seat, role) => {
+            const entry = roster[seat];
+            if (!entry) return;
+            roster[seat] = { ...entry, yearRole: role ?? undefined };
+            redraw();
+        },
+    };
     showMenuView('session');
     setStatus('');
     // waitForJoined 1: nobody is expected, every open seat shows as a bot
-    renderRosterTable(roster, 0, 1);
-    showHostLobbySettings(config, () => undefined, savePracticeConfig);
+    redraw();
+    // a Mode change shows / hides the seats' roles
+    showHostLobbySettings(config, redraw, savePracticeConfig);
     startStarBtn.disabled = false;
     startStarBtn.classList.remove('is-go');
     startStarBtn.textContent = t('menu:start');
@@ -5262,6 +5363,8 @@ function startHostedMatch(): void {
                 controller: 'ai' as const,
                 name: starAiName(i, currentRoster),
                 loadout: randomLoadout(),
+                // the army the host set for this seat
+                ...(s.army ? { army: s.army } : {}),
             };
         }
         return s;
@@ -5480,6 +5583,12 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
             );
             const found = msg.roster.findIndex((s) => s.name === getPlayerName());
             if (found >= 0) mySeat = found;
+            // a guest sets its own army; the host decides it (and re-broadcasts the roster)
+            lobbyArmy = {
+                canEdit: (seat) => seat === (mySeat ?? 1),
+                pick: (_seat, army) => session.send({ type: 'lobbyArmy', army }),
+                pickRole: (_seat, role) => session.send({ type: 'lobbyRole', role }),
+            };
             renderRosterTable(msg.roster, mySeat ?? 1, msg.waitForJoined);
             if (mySeat !== null) {
                 const hostSaysReady = msg.roster[mySeat]?.ready ?? false;

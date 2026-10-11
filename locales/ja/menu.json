@@ -192,5 +192,11 @@
   "terrainWall": "壁",
   "terrainWallDesc": "中央に切れ目のある丘の壁、他は平ら",
   "money": "補給",
-  "startMoney": "開始時の補給"
+  "startMoney": "開始時の補給",
+  "armies": {
+    "standard": "標準軍",
+    "komtur": "コムトゥール軍"
+  },
+  "armyPick": "軍を変更",
+  "rolePick": "役割を変更"
 }

@@ -192,5 +192,11 @@
   "terrainWall": "Valli",
   "terrainWallDesc": "mäkinen valli keskellä aukkoineen, muuten tasaista",
   "money": "Tarvikkeet",
-  "startMoney": "Aloitustarvikkeet"
+  "startMoney": "Aloitustarvikkeet",
+  "armies": {
+    "standard": "Tavallinen armeija",
+    "komtur": "Komturin armeija"
+  },
+  "armyPick": "Vaihda armeija",
+  "rolePick": "Vaihda roolia"
 }

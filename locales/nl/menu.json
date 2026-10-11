@@ -192,5 +192,11 @@
   "terrainWall": "Wal",
   "terrainWallDesc": "een heuvelachtige wal met gaten in het midden, de rest vlak",
   "money": "Voorraad",
-  "startMoney": "Startvoorraad"
+  "startMoney": "Startvoorraad",
+  "armies": {
+    "standard": "Standaardleger",
+    "komtur": "Komturleger"
+  },
+  "armyPick": "Leger wisselen",
+  "rolePick": "Rol wisselen"
 }

@@ -192,5 +192,11 @@
   "terrainWall": "Vold",
   "terrainWallDesc": "en bakket vold med huller i midten, resten fladt",
   "money": "Forsyninger",
-  "startMoney": "Startforsyninger"
+  "startMoney": "Startforsyninger",
+  "armies": {
+    "standard": "Standardhær",
+    "komtur": "Komturs hær"
+  },
+  "armyPick": "Skift hær",
+  "rolePick": "Skift rolle"
 }

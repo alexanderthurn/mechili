@@ -192,5 +192,11 @@
   "terrainWall": "Muralla",
   "terrainWallDesc": "una muralla de colinas con huecos en el centro, el resto llano",
   "money": "Suministros",
-  "startMoney": "Suministros iniciales"
+  "startMoney": "Suministros iniciales",
+  "armies": {
+    "standard": "Ejército estándar",
+    "komtur": "Ejército del Komtur"
+  },
+  "armyPick": "Cambiar ejército",
+  "rolePick": "Cambiar rol"
 }

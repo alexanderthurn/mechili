@@ -44,6 +44,10 @@
           },
           "description": "This commander's own shop — the unit types its side can ever buy or unlock, instead of the normal shop (e.g. The Komtur's forest roster, whose units are otherwise not buyable). Omit = the normal shop."
         },
+        "army": {
+          "type": "string",
+          "description": "The army this commander leads (e.g. 'komtur' — the forest roster). A player who picks an army in the room is offered its commanders only. Omit = 'standard'."
+        },
         "effects": {
           "$ref": "#/definitions/CommanderEffects",
           "description": "what the commander does in a match — each effect is code, the numbers are the commander's"

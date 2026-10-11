@@ -192,5 +192,11 @@
   "terrainWall": "Tembok",
   "terrainWallDesc": "tembok berbukit dengan celah di tengah, selebihnya rata",
   "money": "Bekalan",
-  "startMoney": "Bekalan permulaan"
+  "startMoney": "Bekalan permulaan",
+  "armies": {
+    "standard": "Tentera standard",
+    "komtur": "Tentera Komtur"
+  },
+  "armyPick": "Tukar tentera",
+  "rolePick": "Tukar peranan"
 }

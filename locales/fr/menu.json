@@ -192,5 +192,11 @@
   "terrainWall": "Rempart",
   "terrainWallDesc": "un rempart vallonné avec des brèches au centre, le reste plat",
   "money": "Ravitaillement",
-  "startMoney": "Ravitaillement de départ"
+  "startMoney": "Ravitaillement de départ",
+  "armies": {
+    "standard": "Armée standard",
+    "komtur": "Armée du Komtur"
+  },
+  "armyPick": "Changer d'armée",
+  "rolePick": "Changer de rôle"
 }

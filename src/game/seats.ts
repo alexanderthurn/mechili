@@ -39,6 +39,8 @@ export interface SeatDef {
      *  use. Combat-affecting, so it must be identical on every client —
      *  it rides the canonical roster, never a local decision. */
     loadout?: Loadout;
+    /** the army this seat plays (see StartCard.army) — unset = 'standard' */
+    army?: string;
 }
 
 /** the implicit 1v1 roster — classic behavior, seat 0 = the local player */
@@ -133,6 +135,8 @@ export interface CanonicalSeatDef {
     ready?: boolean;
     /** Custom Game lobby, The Year with roles to choose: the role this seat asks for (unset = any) */
     yearRole?: 'attacker' | 'defender';
+    /** the army this seat plays (see StartCard.army): its commanders are the ones offered. Unset = 'standard' */
+    army?: string;
     /** this seat's talent picks, carried to every client by starSetup /
      *  starRoster / matchCatchUp exactly like `avatar`. ALWAYS normalized
      *  before it lands here (see `normalizeLoadout`) — it feeds the sim. */
@@ -164,6 +168,7 @@ export function localizeRoster(canonical: readonly CanonicalSeatDef[], mySide: '
         // modified host could hand a guest a loadout the allowlist forbids
         // and the guest's own buyTech gate would honour it.
         loadout: c.loadout ? normalizeLoadout(c.loadout) : undefined,
+        ...(typeof c.army === 'string' && c.army !== 'standard' ? { army: c.army } : {}),
     }));
 }
 

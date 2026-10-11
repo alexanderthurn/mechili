@@ -203,6 +203,12 @@ export interface StartCard {
      * whose units are otherwise not buyable). Omit = the normal shop.
      */
     shop?: string[];
+    /**
+     * The army this commander leads (e.g. 'komtur' — the forest roster). A
+     * player who picks an army in the room is offered its commanders only.
+     * Omit = 'standard'.
+     */
+    army?: string;
     /** what the commander does in a match — each effect is code, the numbers are the commander's */
     effects?: CommanderEffects;
     /** pack items granted into the player's inventory */

@@ -192,5 +192,11 @@
   "terrainWall": "Wall",
   "terrainWallDesc": "ein hügeliger Wall mit Lücken in der Mitte, sonst flach",
   "money": "Vorrat",
-  "startMoney": "Startvorrat"
+  "startMoney": "Startvorrat",
+  "armies": {
+    "standard": "Standardarmee",
+    "komtur": "Komtur-Armee"
+  },
+  "armyPick": "Armee wechseln",
+  "rolePick": "Rolle wechseln"
 }

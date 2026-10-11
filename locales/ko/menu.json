@@ -192,5 +192,11 @@
   "terrainWall": "방벽",
   "terrainWallDesc": "중앙에 틈이 있는 언덕 방벽, 나머지는 평지",
   "money": "보급",
-  "startMoney": "시작 보급"
+  "startMoney": "시작 보급",
+  "armies": {
+    "standard": "표준 군대",
+    "komtur": "콤투어 군대"
+  },
+  "armyPick": "군대 변경",
+  "rolePick": "역할 변경"
 }

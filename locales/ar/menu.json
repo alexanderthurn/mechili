@@ -192,5 +192,11 @@
   "terrainWall": "سور",
   "terrainWallDesc": "سور من التلال في الوسط به فجوات، والباقي مستوٍ",
   "money": "إمداد",
-  "startMoney": "إمداد البداية"
+  "startMoney": "إمداد البداية",
+  "armies": {
+    "standard": "الجيش القياسي",
+    "komtur": "جيش الكومتور"
+  },
+  "armyPick": "تغيير الجيش",
+  "rolePick": "تغيير الدور"
 }

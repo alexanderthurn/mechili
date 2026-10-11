@@ -192,5 +192,11 @@
   "terrainWall": "Muraglia",
   "terrainWallDesc": "una muraglia collinosa con varchi al centro, il resto piatto",
   "money": "Scorte",
-  "startMoney": "Scorte iniziali"
+  "startMoney": "Scorte iniziali",
+  "armies": {
+    "standard": "Esercito standard",
+    "komtur": "Esercito del Komtur"
+  },
+  "armyPick": "Cambia esercito",
+  "rolePick": "Cambia ruolo"
 }

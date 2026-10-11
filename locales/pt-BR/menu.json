@@ -192,5 +192,11 @@
   "terrainWall": "Muralha",
   "terrainWallDesc": "uma muralha de morros com brechas no centro, o resto plano",
   "money": "Provisões",
-  "startMoney": "Provisões iniciais"
+  "startMoney": "Provisões iniciais",
+  "armies": {
+    "standard": "Exército padrão",
+    "komtur": "Exército do Komtur"
+  },
+  "armyPick": "Mudar exército",
+  "rolePick": "Mudar papel"
 }

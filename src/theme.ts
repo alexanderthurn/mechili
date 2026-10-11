@@ -455,10 +455,11 @@ html .mechili-menu::before {
 }
 /* text that sits on the menu's parchment itself (rows, buttons and fields keep theirs) */
 html .mechili-menu :is(.m-spmode-row, .m-spmode-horde, .m-lobby-role-row, .m-lobby-ready-row) { color: ${INK}; }
-html .mechili-menu :is(.m-status, .m-rooms-label, .m-scenario-list-label, .m-lobby-settings-toggle) { color: ${INK_MUTED}; }
-html .mechili-menu .m-field:not(.m-lobby-settings .m-field) { color: ${INK_MUTED}; }
+html .mechili-menu :is(.m-status, .m-rooms-label, .m-scenario-list-label, .m-lobby-settings-toggle, .m-lobby-settings-reset) { color: ${INK_MUTED}; }
+/* field labels on the parchment in ink — the room's settings included (no dark box of their own) */
+html .mechili-menu .m-field { color: ${INK_MUTED}; }
 /* dark wells on the parchment whose text only inherited the menu's colour: light again */
-html .mechili-menu :is(.m-room-list, .m-scenario-row, .m-lobby-settings) { color: ${u.cream}; }
+html .mechili-menu :is(.m-room-list, .m-scenario-row) { color: ${u.cream}; }
 html .mechili-menu .m-room-list.empty { color: ${u.textMuted}; }
 html .mechili-menu :is(.m-scenario-status, .m-spmode-title, .m-roster-vs) { color: ${INK_RUST}; }
 html .mechili-menu .m-lobby-settings-toggle:hover { color: ${INK}; }
@@ -1602,7 +1603,7 @@ ${chatFloatStyles(u, pc, ec)}
     letter-spacing: 2px;
     text-align: center;
 }
-.mechili-menu .m-status { font-size: 14px; color: ${u.phase}; max-width: 380px; text-align: center; }
+.mechili-menu .m-status { font-size: 14px; color: ${u.phase}; max-width: 380px; text-align: center; margin-inline: auto; align-self: center; }
 /* Cancel is the way OUT of a lobby, never the thing to do in it — but it
    inherited .m-btn's full-width leather-and-shadow treatment, which read as
    the primary action while the real one ("I'm ready", "Start") sat above it
@@ -2475,9 +2476,9 @@ ${chatFloatStyles(u, pc, ec)}
     min-width: 0;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     gap: 6px;
-    text-align: center;
+    text-align: start;
     font-size: 13px;
     font-weight: bold;
     letter-spacing: 0.2px;
@@ -2485,6 +2486,33 @@ ${chatFloatStyles(u, pc, ec)}
     background: ${u.panelBgDark};
     border: 1.5px solid ${u.border};
     color: ${u.text};
+}
+.mechili-menu .m-roster-seat:has(.m-roster-tags) { flex-wrap: wrap; row-gap: 4px; }
+/* the player's face and MMR beside the name */
+.mechili-menu .m-roster-avatar {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid ${u.border};
+}
+.mechili-menu .m-roster-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.mechili-menu .m-roster-avatar-ico { width: 14px; height: 14px; }
+.mechili-menu .m-roster-mmr { flex: none; font-weight: normal; font-size: 12px; color: ${u.textMuted}; }
+/* the seat's army / role chips: their own line under the name, the name keeps the full width */
+.mechili-menu .m-roster-tags {
+    order: 10;
+    flex: 0 0 100%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 4px;
+    font-style: normal;
 }
 .mechili-menu .m-roster-seat-name {
     flex: 1;
@@ -2546,6 +2574,24 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-menu .m-roster-role.is-attacker { border-color: #d8643f; color: #f0a184; }
 .mechili-menu .m-roster-role.is-defender { border-color: #5d97c9; color: #9cc3e4; }
+.mechili-menu .m-roster-role.is-editable { cursor: pointer; background: rgba(0, 0, 0, 0.25); }
+.mechili-menu .m-roster-role.is-editable:hover { border-color: ${u.brassLight}; color: ${u.brassLight}; }
+/* the seat's army — a chip; where this client may change it, a button that walks the armies */
+.mechili-menu .m-roster-army {
+    flex: none;
+    padding: 1px 7px;
+    border-radius: 999px;
+    border: 1px solid ${u.border};
+    background: rgba(0, 0, 0, 0.25);
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 0.3px;
+    color: ${u.textMuted};
+    white-space: nowrap;
+}
+.mechili-menu .m-roster-army.is-komtur { border-color: #8f6bc4; color: #c9b0ef; }
+.mechili-menu .m-roster-army.is-editable { cursor: pointer; }
+.mechili-menu .m-roster-army.is-editable:hover { border-color: ${u.brassLight}; color: ${u.brassLight}; }
 .mechili-menu .m-lobby-role-row {
     display: flex;
     flex-wrap: wrap;
@@ -2602,14 +2648,60 @@ ${chatFloatStyles(u, pc, ec)}
     box-sizing: border-box;
 }
 .mechili-menu .m-session.m-lobby-settings-open .m-lobby-settings { display: grid; }
+/* the match's basics (players, mode, victory, waves) stay in view; only the rest folds away.
+   Both stand on the parchment, no dark box: the basics two to a row under the two team
+   columns (the gap is the teams' "vs" column) */
+.mechili-menu .m-session.m-has-lobby-settings .m-lobby-basic { display: grid; }
+.mechili-menu .m-lobby-settings {
+    background: none;
+    border: none;
+    padding: 0;
+}
+.mechili-menu :is(.m-lobby-basic, .m-lobby-advanced) {
+    /* four settings to a row: the basics, and the advanced ones under them */
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    column-gap: 10px;
+    row-gap: 8px;
+}
+/* phones: two to a row */
+@media (max-width: 719px) {
+    .mechili-menu :is(.m-lobby-basic, .m-lobby-advanced) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* Back on the left, Start on the right, across the room's full width */
+.mechili-menu .m-lobby-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+}
+.mechili-menu .m-lobby-footer > .m-cancel { flex: none; width: auto; align-self: center; }
+.mechili-menu .m-lobby-footer > [data-mode="startstar"] {
+    flex: 1;
+    width: auto;
+    max-width: 60%;
+    margin-inline-start: auto;
+    justify-content: center;
+    padding: 12px 18px;
+    font-size: 15px;
+}
 .mechili-menu .m-lobby-settings .m-field { min-width: 0; }
 /* a room setting off its default: a brass box, so a changed match reads at a glance */
 .mechili-menu .m-lobby-settings select.is-changed {
-    border-color: ${u.brassLight};
-    box-shadow: 0 0 0 1px rgba(212, 184, 120, 0.45), 0 0 8px rgba(212, 184, 120, 0.25);
+    /* a setting off its default: tinted brass, so a changed match reads at a glance */
+    background: linear-gradient(180deg, #6a4f22 0%, #4a3616 100%);
+    border: 2px solid ${u.brassLight};
+    color: #ffe7b0;
+    font-weight: bold;
+    box-shadow: 0 0 0 1px rgba(212, 184, 120, 0.35), 0 0 10px rgba(212, 184, 120, 0.35);
 }
-/* a room setting that doesn't apply to this match (the Komtur outside a Siege): kept in place, dimmed */
-.mechili-menu .m-lobby-settings .m-field.is-off { opacity: 0.45; }
+/* the advanced toggle on the left, Reset on the right */
+.mechili-menu .m-lobby-settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
 .mechili-menu .m-lobby-settings-reset {
     grid-column: 1 / -1;
     justify-self: start;
@@ -2689,23 +2781,15 @@ ${chatFloatStyles(u, pc, ec)}
     color: ${u.text};
     cursor: pointer;
 }
-/* Desktop lobby: give name seats more room; widen further when advanced
-   settings sit beside the roster */
+/* Desktop lobby: one column — seats, the basics, the advanced settings folded
+   under them, Back / Start — wide enough for four settings to a row, and the
+   same width open or closed (nothing jumps) */
 @media (min-width: 720px) {
     .mechili-menu:has(.m-session.is-active) {
         width: min(440px, 92vw);
     }
-    .mechili-menu:has(.m-session.is-active.m-has-lobby-settings.m-lobby-settings-open) {
+    .mechili-menu:has(.m-session.is-active.m-has-lobby-settings) {
         width: min(760px, 94vw);
-    }
-    .mechili-menu .m-session.m-has-lobby-settings.m-lobby-settings-open .m-session-layout {
-        display: grid;
-        grid-template-columns: minmax(260px, 1.2fr) minmax(200px, 0.85fr);
-        gap: 14px 18px;
-        align-items: start;
-    }
-    .mechili-menu .m-session.m-has-lobby-settings.m-lobby-settings-open .m-lobby-settings {
-        max-width: none;
     }
 }
 /* Narrow / single-column lobby: use more horizontal room so advanced

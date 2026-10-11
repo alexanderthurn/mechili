@@ -161,7 +161,8 @@ try {
             const normal = T.shopFor(air);
             if (
                 !komtur ||
-                T.commanders.some((c) => c.id === 'cursed') ||
+                // offered only to the Komtur's army, never in the Standard pool
+                !T.commanders.some((c) => c.id === 'cursed' && c.army === 'komtur') ||
                 !shop.includes('hordeKomtur') ||
                 shop.some((id) => T.shopUnitIds.includes(id)) ||
                 normal.includes('hordeKomtur') ||

@@ -192,5 +192,11 @@
   "terrainWall": "Sánc",
   "terrainWallDesc": "dombos sánc réseken át középen, a többi sík",
   "money": "Ellátmány",
-  "startMoney": "Kezdő ellátmány"
+  "startMoney": "Kezdő ellátmány",
+  "armies": {
+    "standard": "Normál sereg",
+    "komtur": "A Komtur serege"
+  },
+  "armyPick": "Sereg váltása",
+  "rolePick": "Szerep váltása"
 }
