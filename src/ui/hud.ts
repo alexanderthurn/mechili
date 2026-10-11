@@ -127,6 +127,8 @@ interface ActionTile {
     state: 'buy' | 'locked' | 'owned';
     /** small extra line in the hover frame (e.g. why it's locked) */
     note?: string;
+    /** a switch that is on (shows ✓ but stays clickable, to switch it off) */
+    on?: boolean;
 }
 
 /** what the stats panel shows for a selected pack or single mech */
@@ -269,6 +271,8 @@ export interface SelectionInfo {
     wallWalk?: { cost: number; affordable: boolean; built: boolean };
     /** experiment: archers posted on that walkway */
     wallPosts?: { cost: number; owned: number; max: number; affordable: boolean };
+    /** an enemy wall: whether my units go for it (my target mark) — offered while I deploy */
+    targetMark?: { on: boolean };
     /** the once-per-round level-2 recruit switch (Research Center only) */
     recruit?: { cost: number; active: boolean; affordable: boolean };
     /** +1 deployment for the running round (Command Tower only) */
@@ -348,6 +352,8 @@ export class Hud {
     onUpgradeTower: (() => void) | null = null;
     onBuildWallWalk: (() => void) | null = null;
     onBuyWallPost: (() => void) | null = null;
+    /** the selected enemy wall's Target switch */
+    onToggleTargetMark: (() => void) | null = null;
     onBuySellAbility: (() => void) | null = null;
     onBuyRallyRouteAbility: (() => void) | null = null;
     onBuyForgeSpell: ((tacticId: string) => void) | null = null;
@@ -1114,6 +1120,7 @@ export class Hud {
             else if (button.dataset.towerupgrade) this.onUpgradeTower?.();
             else if (button.dataset.wallwalk) this.onBuildWallWalk?.();
             else if (button.dataset.wallpost) this.onBuyWallPost?.();
+            else if (button.dataset.targetmark) this.onToggleTargetMark?.();
             else if (button.dataset.sellability) this.onBuySellAbility?.();
             else if (button.dataset.rallyroute) this.onBuyRallyRouteAbility?.();
             else if (button.dataset.forgespell) this.onBuyForgeSpell?.(button.dataset.forgespell);
@@ -3349,6 +3356,24 @@ export class Hud {
                 state: full ? 'owned' : wp.affordable ? 'buy' : 'locked',
             });
         }
+        if (info.targetMark) {
+            const on = info.targetMark.on;
+            tiles.push({
+                data: 'data-targetmark="1"',
+                // placeholder icon until the right one is picked
+                icon: 'ability-atk-boost',
+                title: t('hud:targetMark', { defaultValue: 'Target' }),
+                desc: on
+                    ? t('hud:targetMarkOn', {
+                          defaultValue: 'Marked: your units attack this wall, nearest target first. Click to lift the mark.',
+                      })
+                    : t('hud:targetMarkDesc', {
+                          defaultValue: 'Mark this wall as a target: your units attack it, nearest target first. Free.',
+                      }),
+                state: 'buy',
+                on,
+            });
+        }
         for (const b of info.boosts ?? []) {
             tiles.push({
                 data: `data-boost="${b.id}"`,
@@ -3751,7 +3776,7 @@ export class Hud {
             tiles
                 .map((t) => {
                     const badge =
-                        t.state === 'owned'
+                        t.state === 'owned' || t.on
                             ? `<span class="at-badge">✓</span>`
                             : t.cost !== undefined
                               ? `<span class="at-cost${t.cost < 0 ? ' refund' : ''}">${t.cost < 0 ? `+${-t.cost}` : t.cost}</span>`
@@ -3760,7 +3785,7 @@ export class Hud {
                     const icoClass = levelIcon ? 'at-icon m-icon mask-ico' : 'at-icon m-icon';
                     const icoStyle = levelIcon ? iconMaskCss(t.icon) : iconCss(t.icon);
                     return (
-                        `<button class="action-tile ${t.state}" ${t.data}` +
+                        `<button class="action-tile ${t.state}${t.on ? ' on' : ''}" ${t.data}` +
                         ` data-ttitle="${escapeAttr(t.title)}" data-tdesc="${escapeAttr(t.desc)}"` +
                         ` data-ticon="${escapeAttr(t.icon)}" data-tcost="${t.cost ?? ''}"` +
                         ` data-tstate="${t.state}" data-tnote="${escapeAttr(t.note ?? '')}">` +

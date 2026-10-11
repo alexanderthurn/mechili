@@ -5558,6 +5558,7 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-panel .action-tile:focus-visible { outline: none; border-color: #8a7f74; box-shadow: 0 0 0 3px rgba(90, 48, 16, 0.4); }
 .mechili-panel .action-tile.locked { opacity: 0.42; }
 .mechili-panel .action-tile.owned { border-color: #5c7a2c; cursor: default; }
+.mechili-panel .action-tile.on { border-color: #c0392b; box-shadow: 0 0 0 1px #c0392b inset; }
 .mechili-panel .action-tile.owned .at-icon { opacity: 0.7; }
 .mechili-panel .action-tile.owned.hexed,
 .mechili-panel .action-tile.buy.hexed,

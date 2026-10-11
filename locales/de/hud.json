@@ -256,5 +256,8 @@
   "wallWalkDesc": "Baut einen Wehrgang hinter diese Mauer, hoch genug, um darüber zu schießen.",
   "wallPosts": "Mauerschützen {{n}}/{{m}}",
   "wallPostsDesc": "Einen Bogenschützen auf den Wehrgang stellen: Er schießt über die Mauer und fällt mit ihr.",
-  "wallPostsFull": "Alle Posten auf diesem Wehrgang sind besetzt."
+  "wallPostsFull": "Alle Posten auf diesem Wehrgang sind besetzt.",
+  "targetMark": "Ziel",
+  "targetMarkDesc": "Diese Mauer als Ziel markieren: deine Einheiten greifen sie an, das nächste Ziel zuerst. Kostenlos.",
+  "targetMarkOn": "Markiert: deine Einheiten greifen diese Mauer an, das nächste Ziel zuerst. Klicken hebt die Markierung auf."
 }

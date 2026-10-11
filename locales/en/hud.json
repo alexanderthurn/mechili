@@ -256,5 +256,8 @@
   "wallWalkDesc": "Build a walkway behind this wall, high enough to shoot over it.",
   "wallPosts": "Wall archers {{n}}/{{m}}",
   "wallPostsDesc": "Post an archer on the walkway: he shoots over the wall and falls with it.",
-  "wallPostsFull": "Every post on this walkway is manned."
+  "wallPostsFull": "Every post on this walkway is manned.",
+  "targetMark": "Target",
+  "targetMarkDesc": "Mark this wall as a target: your units attack it, nearest target first. Free.",
+  "targetMarkOn": "Marked: your units attack this wall, nearest target first. Click to lift the mark."
 }

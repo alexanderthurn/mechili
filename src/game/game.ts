@@ -197,6 +197,7 @@ import { freezeAllCrowWingRates, crowWingDeathSplay, setCrowWingDeathSplay } fro
 import { GROUND_UNIT_Y } from './groundQuality';
 import { RANGE_ELEV_MAX_BONUS, reachToward } from './terrainCombat';
 import { FireCoverage } from './fireCoverage';
+import { TargetMarkers, type TargetMarkerView } from './targetMarkers';
 import { getUnitVisualHeight, modelGeometryFingerprint, modelGeometrySnapshot, usesWingFlapModel } from './unitModels';
 import { BirdFlocks } from './birdFlocks';
 import { WallJoins } from './wallJoins';
@@ -296,6 +297,8 @@ import {
     strongholdArcherSlotWorld,
     formationHeadcount,
     isPlayerBuyable,
+    isTargetMarked,
+    wallShiftOffset,
     techDescription,
     techIcon,
     type BattleTeam,
@@ -633,6 +636,8 @@ export class Game {
     private readonly battleRangeMesh;
     /** where the selected ranged unit can actually hit (see FireCoverage) */
     private readonly fireCoverage: FireCoverage;
+    /** red arrows at marked walls (setTargetMark, the battle's auto-marks) */
+    private readonly targetMarkers: TargetMarkers;
     private readonly battleFovMesh;
     /** inner dead-zone (min-range) ring under the selected battle mech */
     private readonly battleMinRangeMesh;
@@ -930,6 +935,8 @@ export class Game {
         items: string[];
         tactics: string[];
         sellAbilityOwned: boolean;
+        /** the enemy seats' target marks (setTargetMark) — on my walls, never fogged themselves */
+        targetMarks: { unitId: number; seat: SeatId }[];
     } | null = null;
     /**
      * Owned techs at deployment-phase start (all seats). Fogged packs show
@@ -1972,6 +1979,7 @@ export class Game {
         this.applyShadowQuality();
         this.battleRangeMesh = createRangeRing(this.scene);
         this.fireCoverage = new FireCoverage(this.scene);
+        this.targetMarkers = new TargetMarkers(this.scene);
         this.battleFovMesh = createFovWedge(this.scene);
         this.battleMinRangeMesh = createRangeRing(this.scene);
         (this.battleMinRangeMesh.material as import('three').MeshBasicMaterial).color.setHex(0xff6a44);
@@ -2586,6 +2594,12 @@ export class Game {
             const unit = this.placement.selectedUnit;
             if (!unit || this.phase !== 'build' || unit.team !== 'player' || !unit.type.wall) return;
             this.dispatchPlayer({ kind: 'buyWallPost', team: 'player', unitId: unit.id });
+        };
+        this.hud.onToggleTargetMark = () => {
+            const unit = this.placement.selectedUnit;
+            if (!unit || this.phase !== 'build' || unit.team === 'player' || !unit.type.wall) return;
+            const on = !isTargetMarked(unit, this.humanSeat);
+            this.dispatchPlayer({ kind: 'setTargetMark', team: 'player', unitId: unit.id, on });
         };
         this.hud.onBuildWallWalk = () => {
             const unit = this.placement.selectedUnit;
@@ -8662,6 +8676,7 @@ export class Game {
             items: this.itemsForTeam('enemy'),
             tactics: this.tacticsForTeam('enemy'),
             sellAbilityOwned: this.sellAbilityOwnedForTeam('enemy'),
+            targetMarks: this.targetMarksBy(new Set(seatIdsOf(this.seats, 'enemy'))),
         };
     }
 
@@ -12541,6 +12556,75 @@ export class Game {
      * {@link FIRE_COVERAGE_BATTLE_MS}; in deployment for the selected ranged
      * pack, asked of a sim holding just it and the board's buildings.
      */
+    /** the target marks these seats set, on any unit (see setTargetMark) */
+    private targetMarksBy(seats: ReadonlySet<SeatId>): { unitId: number; seat: SeatId }[] {
+        const out: { unitId: number; seat: SeatId }[] = [];
+        for (const u of this.placement.allUnits()) {
+            u.targetBy.forEach((_v, seat) => {
+                if (seats.has(seat) && isTargetMarked(u, seat)) out.push({ unitId: u.id, seat });
+            });
+        }
+        return out;
+    }
+
+    /**
+     * Red arrows at marked walls: while deploying, mine and my ally's live,
+     * the enemy's as they stood at the phase start while his deployment is
+     * fogged (revealEnemyDeployIntel); in battle every mark of the battle,
+     * auto-marks fainter, until the wall falls. None in cinema mode.
+     */
+    private updateTargetMarkers(): void {
+        const views: TargetMarkerView[] = [];
+        if (!this.hud.isUiHidden) {
+            const marks: { unit: Unit; faint: boolean }[] = [];
+            if (this.phase === 'battle' && this.sim) {
+                for (const a of this.sim.actors) {
+                    if (!a.alive || !a.unit.type.wall) continue;
+                    const def = a.unit.type.target ?? true;
+                    (a.targetBy ?? a.unit.targetBy).forEach((v, seat) => {
+                        if (v === undefined || v === def) return;
+                        marks.push({ unit: a.unit, faint: a.unit.targetBy[seat] !== v });
+                    });
+                }
+            } else {
+                const live = this.revealEnemyDeployIntel();
+                const enemySeats = new Set(seatIdsOf(this.seats, 'enemy'));
+                for (const u of this.placement.allUnits()) {
+                    if (!u.type.wall || u.destroyed) continue;
+                    u.targetBy.forEach((_v, seat) => {
+                        if (!isTargetMarked(u, seat) || (!live && enemySeats.has(seat))) return;
+                        marks.push({ unit: u, faint: false });
+                    });
+                }
+                if (!live) {
+                    for (const m of this.enemyIntelSnapshot?.targetMarks ?? []) {
+                        const u = this.placement.unitById(m.unitId);
+                        if (u?.type.wall && !u.destroyed) marks.push({ unit: u, faint: false });
+                    }
+                }
+            }
+            // in front of each wall's face, side by side when several seats marked it
+            const perWall = new Map<Unit, number>();
+            for (const m of marks) perWall.set(m.unit, (perWall.get(m.unit) ?? 0) + 1);
+            const placed = new Map<Unit, number>();
+            for (const m of marks) {
+                const u = m.unit;
+                const wall = u.type.wall!;
+                const k = placed.get(u) ?? 0;
+                placed.set(u, k + 1);
+                const along = (k - (perWall.get(u)! - 1) / 2) * 3;
+                const off = wallShiftOffset(u.facing, wall.shift ?? 0);
+                // its front looks down (−sin, −cos) of its facing — toward whoever attacks it
+                const fx = -Math.sin(u.facing);
+                const fz = -Math.cos(u.facing);
+                const x = u.world.x + off.x + fx * wall.halfDepth + (u.rotated ? 0 : along);
+                const z = u.world.z + off.z + fz * wall.halfDepth + (u.rotated ? along : 0);
+                views.push({ x, z, y: this.map.heightAt(x, z) + 0.8, dirX: -fx, dirZ: -fz, faint: m.faint });
+            }
+        }
+        this.targetMarkers.update(views, performance.now() / 1000);
+    }
+
     private updateFireCoverage(): void {
         const battle = this.phase === 'battle' && this.sim !== null;
         let unit: Unit | null = null;
@@ -12678,6 +12762,7 @@ export class Game {
         if (this.disposed) return;
         this.updateBattleRangeRing();
         this.updateFireCoverage();
+        this.updateTargetMarkers();
         if (this.phase === 'battle' && this.sim) {
             if (this.selectedActor && !this.selectedActor.alive) this.selectedActor = null;
             this.hpBars.update(
@@ -12942,6 +13027,11 @@ export class Game {
                     affordable: this.economy.balance(this.humanSeat) >= posts.cost,
                 };
             })(),
+            // an enemy wall: my Target switch, while I deploy
+            targetMark:
+                u.type.wall && u.team === 'enemy' && this.phase === 'build' && this.playerCanAct
+                    ? { on: isTargetMarked(u, this.humanSeat) }
+                    : undefined,
             // the next level is a purchase: needs banked XP and supply
             levelUp: this.levelUpInfo(u, lv),
             techs: this.techSelection(u),
