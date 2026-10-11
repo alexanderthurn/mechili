@@ -43,6 +43,7 @@
   "cardsFull": "Đầy đủ — vòng 2–4 rune, 5–7 Pack đơn vị, 8–10 phép thuật",
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} HP (cả hai đội)",
+    "commanderHpFixedOption": "{{hp}} HP mỗi bên",
     "timersTitle": "Bộ hẹn giờ & HP",
     "deploymentPhase": "Giai đoạn triển khai",
     "battlePhase": "Giai đoạn chiến đấu",

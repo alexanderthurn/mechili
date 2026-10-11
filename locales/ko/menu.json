@@ -40,6 +40,7 @@
   "start": "시작",
   "startWithAi": "AI와 시작",
   "waitingReady": "플레이어 준비를 기다리는 중…",
+  "waitingScenario": "시나리오를 기다리는 중…",
   "cancel": "취소",
   "ok": "확인",
   "roomMode": "모드",

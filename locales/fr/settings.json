@@ -43,6 +43,7 @@
   "cardsFull": "Complet — tours 2 à 4 runes, 5 à 7 packs d'unités, 8 à 10 sorts",
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} HP (les deux équipes)",
+    "commanderHpFixedOption": "{{hp}} HP par camp",
     "timersTitle": "Minuteurs et HP",
     "deploymentPhase": "Phase de déploiement",
     "battlePhase": "Phase de combat",

@@ -43,6 +43,7 @@
   "cardsFull": "完整 — 第 2–4 回合文，5–7 編隊，8–10 法術",
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} 生命值（雙方共用）",
+    "commanderHpFixedOption": "每方 {{hp}} 生命值",
     "timersTitle": "計時與生命值",
     "deploymentPhase": "部署階段",
     "battlePhase": "戰鬥階段",

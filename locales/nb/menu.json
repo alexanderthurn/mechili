@@ -40,6 +40,7 @@
   "start": "Start",
   "startWithAi": "Start med AI",
   "waitingReady": "Venter på at spillerne skal gjøre seg klare…",
+  "waitingScenario": "Venter på scenarioet…",
   "cancel": "Kansellere",
   "ok": "OK",
   "roomMode": "Modus",

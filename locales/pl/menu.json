@@ -40,6 +40,7 @@
   "start": "Start",
   "startWithAi": "Zacznij od AI",
   "waitingReady": "Czekamy, aż gracze będą gotowi…",
+  "waitingScenario": "Oczekiwanie na scenariusz…",
   "cancel": "Anuluj",
   "ok": "OK",
   "roomMode": "Tryb",

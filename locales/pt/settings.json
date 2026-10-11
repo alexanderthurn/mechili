@@ -43,6 +43,7 @@
   "cardsFull": "Completo — rodadas 2–4 runas, 5–7 Packs de unidades, 8–10 feitiços",
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} HP (ambas as equipes)",
+    "commanderHpFixedOption": "{{hp}} HP por lado",
     "timersTitle": "Temporizadores e HP",
     "deploymentPhase": "Fase de mobilização",
     "battlePhase": "Fase de batalha",

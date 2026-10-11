@@ -40,6 +40,7 @@
   "start": "开始",
   "startWithAi": "用 AI 开始",
   "waitingReady": "等待玩家准备…",
+  "waitingScenario": "等待剧本…",
   "cancel": "取消",
   "ok": "确定",
   "roomMode": "模式",

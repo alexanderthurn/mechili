@@ -43,6 +43,7 @@
   "cardsFull": "Πλήρες — γύροι 2–4 ρούνες, 5–7 πακέτα μονάδων, 8–10 ξόρκια",
   "sheet": {
     "commanderHpOption": "{{label}} HP {{commander}} (και οι δύο ομάδες)",
+    "commanderHpFixedOption": "{{hp}} HP ανά πλευρά",
     "timersTitle": "Χρονόμετρα & HP",
     "deploymentPhase": "Φάση ανάπτυξης",
     "battlePhase": "Φάση μάχης",

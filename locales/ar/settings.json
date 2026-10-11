@@ -43,6 +43,7 @@
   "cardsFull": "كامل — الجولات 2–4 رونات، 5–7 حزم وحدات، 8–10 تعويذات",
   "sheet": {
     "commanderHpOption": "صحة {{commander}} {{label}} (كلا الفريقين)",
+    "commanderHpFixedOption": "{{hp}} نقطة صحة لكل جانب",
     "timersTitle": "المؤقتات والصحة",
     "deploymentPhase": "مرحلة الانتشار",
     "battlePhase": "مرحلة المعركة",

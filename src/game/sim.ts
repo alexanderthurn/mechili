@@ -1320,6 +1320,17 @@ export class BattleSim {
      *  buildings (a square around each one's circle), so a wall run into a tower
      *  or the Stronghold is one obstacle */
     private readonly routeBoxes: WallBox[] = [];
+    /**
+     * The way-round graph per walker size (see planWallRoute): its corners and
+     * which corner sees which (0 = not asked yet, 1 = clear, 2 = blocked).
+     * Depends only on routeBoxes' rectangles, so it is kept until one of them
+     * changes (routeSig) — the same tests, asked once instead of every plan.
+     */
+    private readonly routeGraphs = new Map<number, { nodes: { x: number; z: number }[]; seen: Uint8Array }>();
+    /** routeBoxes' rectangles the routeGraphs were worked out for (x0, x1, z0, z1 per box) */
+    private readonly routeSig: number[] = [];
+    /** wallWaypoint's boxes the walker or its goal stands in (scratch) */
+    private readonly routeEnds: WallBox[] = [];
     /** scratch buffers to avoid per-call allocations in hot paths */
     private readonly nearbyScratch: Actor[] = [];
     private readonly segmentScratch: Actor[] = [];
@@ -5214,7 +5225,12 @@ export class BattleSim {
             // rather than walking closer (into its own dead zone, and back out)
             if (a.unit.type.projectileSpeed && lineBlocked && this.wallBoxes.length > 0) {
                 const wall = this.blockingWall(a, target.x, target.z, stats.range);
-                if (wall && this.shootWall(a, wall, stats, d.attackMult, dt, true)) continue;
+                if (wall && this.shootWall(a, wall, stats, d.attackMult, dt, true)) {
+                    // breaking the wall is progress: don't give up on the foe behind it
+                    // (trackProgress would shun him every few seconds and flip the slide)
+                    a.progressAt = this.elapsed;
+                    continue;
+                }
             }
             // no foe in reach: help break a wall the side is breaking, if one is in range
             // (standing to shoot it) — else close in as usual
@@ -6933,8 +6949,12 @@ export class BattleSim {
         }
         // what the unit stands pressed into, or the goal stands in (a building it
         // attacks), doesn't block the way to it
-        const ends = this.routeBoxes.filter((r) => insideBox(a.x, a.z, r, pad) || insideBox(goalX, goalZ, r, pad));
-        if (!segmentHitsWall(a.x, a.z, goalX, goalZ, this.routeBoxes, pad, ends)) {
+        const ends = this.routeEnds;
+        ends.length = 0;
+        for (const r of this.routeBoxes) {
+            if (insideBox(a.x, a.z, r, pad) || insideBox(goalX, goalZ, r, pad)) ends.push(r);
+        }
+        if (!segmentHitsWall(a.x, a.z, goalX, goalZ, this.routeBoxes, pad, ends.length > 0 ? ends : null)) {
             a.wallRoute = undefined;
             a.breachWall = null;
             return null;
@@ -6944,7 +6964,9 @@ export class BattleSim {
             a.wallRouteUntil !== undefined &&
             this.elapsed < a.wallRouteUntil &&
             hypot((a.wallRouteGoalX ?? 0) - goalX, (a.wallRouteGoalZ ?? 0) - goalZ) < WALL_ROUTE_GOAL_SLACK &&
-            (wp === null || (wp !== undefined && hypot(wp.x - a.x, wp.z - a.z) > WALL_ROUTE_REACHED));
+            (wp === null || (wp !== undefined && hypot(wp.x - a.x, wp.z - a.z) > WALL_ROUTE_REACHED)) &&
+            // the wall it was breaking fell: think again now, not at the next replan
+            !(wp === null && a.breachWall != null && !a.breachWall.alive);
         if (fresh) {
             if (wp === null && a.breachWall?.alive) a.breachSeenAt = this.elapsed;
             return wp ?? 'walled';
@@ -7062,20 +7084,29 @@ export class BattleSim {
         pad: number,
     ): { next: { x: number; z: number } | 'direct' | null; len: number } {
         const boxes = this.routeBoxes;
-        // corners a little outside each wall / building, grown by the actor's size
-        const out = a.radius + AVOID_MARGIN;
-        const nodes: { x: number; z: number }[] = [];
-        for (const r of boxes) {
-            for (const [x, z] of [
-                [r.x0 - out, r.z0 - out],
-                [r.x1 + out, r.z0 - out],
-                [r.x1 + out, r.z1 + out],
-                [r.x0 - out, r.z1 + out],
-            ] as const) {
-                // a corner inside another wall (at a joint) is no place to stand
-                if (!insideWallBox(x, z, boxes, pad)) nodes.push({ x, z });
+        // corners a little outside each wall / building, grown by the actor's size —
+        // and which of them see each other — kept per size (see routeGraphs)
+        let graph = this.routeGraphs.get(a.radius);
+        if (!graph) {
+            const out = a.radius + AVOID_MARGIN;
+            const corners: { x: number; z: number }[] = [];
+            for (const r of boxes) {
+                for (const [x, z] of [
+                    [r.x0 - out, r.z0 - out],
+                    [r.x1 + out, r.z0 - out],
+                    [r.x1 + out, r.z1 + out],
+                    [r.x0 - out, r.z1 + out],
+                ] as const) {
+                    // a corner inside another wall (at a joint) is no place to stand
+                    if (!insideWallBox(x, z, boxes, pad)) corners.push({ x, z });
+                }
             }
+            graph = { nodes: corners, seen: new Uint8Array(corners.length * corners.length) };
+            this.routeGraphs.set(a.radius, graph);
         }
+        const nodes = graph.nodes;
+        const seen = graph.seen;
+        const m = nodes.length;
         // the start or the goal pressed into a wall (a crowd shove, a foe hugging
         // the far side): that wall doesn't block the stretch leaving / reaching it
         const startIn = boxes.filter((r) => insideBox(a.x, a.z, r, pad));
@@ -7098,8 +7129,15 @@ export class BattleSim {
                 const pv = pts[v]!;
                 const nd = dist[u]! + hypot(pv.x - pu.x, pv.z - pu.z);
                 if (nd >= dist[v]!) continue;
-                const skip = u === 0 ? startIn : v === n - 1 ? goalIn : null;
-                if (segmentHitsWall(pu.x, pu.z, pv.x, pv.z, boxes, pad, skip)) continue;
+                if (u > 0 && v < n - 1) {
+                    // corner to corner: asked once per graph (see routeGraphs)
+                    const e = (u - 1) * m + (v - 1);
+                    if (seen[e] === 0) seen[e] = segmentHitsWall(pu.x, pu.z, pv.x, pv.z, boxes, pad, null) ? 2 : 1;
+                    if (seen[e] === 2) continue;
+                } else {
+                    const skip = u === 0 ? startIn : v === n - 1 ? goalIn : null;
+                    if (segmentHitsWall(pu.x, pu.z, pv.x, pv.z, boxes, pad, skip)) continue;
+                }
                 dist[v] = nd;
                 prev[v] = u;
             }
@@ -7281,6 +7319,22 @@ export class BattleSim {
                 this.routeBoxes.push({ owner: a, x0: a.x - r, x1: a.x + r, z0: a.z - r, z1: a.z + r, top: 0 });
             }
         }
+        // a wall or building fell (or one stands elsewhere): the way-round graphs are stale
+        const sig = this.routeSig;
+        let changed = sig.length !== this.routeBoxes.length * 4;
+        if (changed) sig.length = this.routeBoxes.length * 4;
+        let k = 0;
+        for (const r of this.routeBoxes) {
+            if (sig[k] !== r.x0 || sig[k + 1] !== r.x1 || sig[k + 2] !== r.z0 || sig[k + 3] !== r.z1) {
+                sig[k] = r.x0;
+                sig[k + 1] = r.x1;
+                sig[k + 2] = r.z0;
+                sig[k + 3] = r.z1;
+                changed = true;
+            }
+            k += 4;
+        }
+        if (changed) this.routeGraphs.clear();
         // which walls each side is breaking through (melee at it lately) — its ranged units help
         this.breachMarks.clear();
         if (this.wallBoxes.length > 0) {

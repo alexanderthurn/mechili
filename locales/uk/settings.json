@@ -43,6 +43,7 @@
   "cardsFull": "Повний — раунди 2–4 руни, 5–7 пачок юнітів, 8–10 заклинань",
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} HP (обидві команди)",
+    "commanderHpFixedOption": "{{hp}} HP на сторону",
     "timersTitle": "Таймери та HP",
     "deploymentPhase": "Фаза розгортання",
     "battlePhase": "Фаза битви",

@@ -350,8 +350,6 @@ export interface CustomGameConfig {
     startMoney: number;
     /** what the Stronghold is worth this match; see GameSettings.strongholdMode */
     strongholdMode: StrongholdMode;
-    /** a static map (assets/data/landscapes/<id>.json); unset / '' = the procedural terrain */
-    landscape?: string;
     /**
      * The map: a saved scenario's terrain (its package goes to every seat).
      * Unset = the generated terrain. `board` is the size the terrain was made for.

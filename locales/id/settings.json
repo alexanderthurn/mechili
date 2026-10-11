@@ -43,6 +43,7 @@
   "cardsFull": "Lengkap — ronde 2–4 rune, 5–7 Pack unit, 8–10 mantra",
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} HP (kedua tim)",
+    "commanderHpFixedOption": "{{hp}} HP tiap sisi",
     "timersTitle": "Pengatur Waktu & HP",
     "deploymentPhase": "Fase penyebaran",
     "battlePhase": "Fase pertempuran",

@@ -43,6 +43,7 @@
   "cardsFull": "Полный — 2–4 руны, 5–7 отряды, 8–10 заклинания",
   "sheet": {
     "commanderHpOption": "{{label}} ОЗ {{commander}} (обе команды)",
+    "commanderHpFixedOption": "{{hp}} ОЗ на сторону",
     "timersTitle": "Таймеры и ОЗ",
     "deploymentPhase": "Фаза развёртки",
     "battlePhase": "Фаза боя",

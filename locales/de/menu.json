@@ -40,6 +40,7 @@
   "start": "Start",
   "startWithAi": "Starte mit KI",
   "waitingReady": "Warten, bis die Spieler bereit sind…",
+  "waitingScenario": "Warten auf das Szenario…",
   "cancel": "Abbrechen",
   "ok": "OK",
   "roomMode": "Modus",

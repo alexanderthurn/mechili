@@ -43,6 +43,7 @@
   "cardsFull": "Penuh — pusingan 2–4 rune, 5–7 Pack unit, 8–10 jampi",
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} HP (kedua-dua pasukan)",
+    "commanderHpFixedOption": "{{hp}} HP setiap pihak",
     "timersTitle": "Pemasa & HP",
     "deploymentPhase": "Fasa pelaksanaan",
     "battlePhase": "Fasa pertempuran",

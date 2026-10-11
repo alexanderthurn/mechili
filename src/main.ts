@@ -126,6 +126,7 @@ import {
     STRONGHOLD_MODE_OPTIONS,
     DEFAULT_STRONGHOLD_MODE,
     formatStrongholdModeOption,
+    strongholdModeName,
     strongholdModeOption,
     CUSTOM_GAME_PACE_PRESETS,
     CLIMB_ROUNDS,
@@ -154,6 +155,7 @@ import {
     customGamePaceById,
     formatCommanderHpFactorOption,
     formatCustomGamePaceOption,
+    customGamePaceName,
     formatMoneyFactorOption,
     formatStartMoneyOption,
     hordeAlgorithmById,
@@ -1781,10 +1783,6 @@ function isNonDefaultAdvanced(cfg: CustomGameConfig, defaults = defaultLobbySett
     return isNonDefaultLobbySettings({ ...cfg, hordePreset: defaults.hordePreset }, defaults);
 }
 
-/** a Siege room's own setting (who attacks) shows only in a Siege */
-function syncSiegeFields(cfg: CustomGameConfig): void {
-    for (const field of menu.querySelectorAll<HTMLElement>('.m-year-field')) field.style.display = cfg.siege ? '' : 'none';
-}
 const cgResetEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-reset')!;
 /**
  * Web testing only: scenario zips can be imported (Single Player → Editor)
@@ -2095,8 +2093,9 @@ function applyLobbySettingsExpanded(): void {
 
 /** Short closed-select label — full blurb lives after " — ". */
 function shortSelectLabel(full: string): string {
-    const i = full.indexOf(' — ');
-    return i >= 0 ? full.slice(0, i) : full;
+    // CJK locales close up the space before the dash ("（稀疏）— …")
+    const m = /\s*— /.exec(full);
+    return m ? full.slice(0, m.index) : full;
 }
 
 /** Closed state shows a short name; opening the list reveals the full blurb. */
@@ -2121,80 +2120,35 @@ function wireSelectShortLabels(select: HTMLSelectElement): void {
     select.addEventListener('change', () => syncSelectOptionLabels(select, false));
 }
 
-for (const pace of CUSTOM_GAME_PACE_PRESETS) {
-    const opt = document.createElement('option');
-    opt.value = pace.id;
-    fillSelectOption(opt, pace.label, formatCustomGamePaceOption(pace));
-    cgPaceEl.appendChild(opt);
-}
-wireSelectShortLabels(cgPaceEl);
+/** the advanced selects whose options carry a short label and a full blurb */
+const LOBBY_BLURB_SELECTS = [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl, cgMoneyEl, cgStartMoneyEl, cgStrongholdEl];
 
-for (const algo of HORDE_ALGORITHMS) {
-    const opt = document.createElement('option');
-    opt.value = algo.id;
-    const full = algo.describe();
-    fillSelectOption(opt, shortSelectLabel(full), full);
-    cgHordeEl.appendChild(opt);
-}
-wireSelectShortLabels(cgHordeEl);
-
-for (const algo of ROUND_CARD_ALGORITHMS) {
-    const opt = document.createElement('option');
-    opt.value = algo.id;
-    const full = algo.describe();
-    fillSelectOption(opt, shortSelectLabel(full), full);
-    cgRoundCardsEl.appendChild(opt);
-}
-wireSelectShortLabels(cgRoundCardsEl);
-
-for (const optHp of COMMANDER_HP_FACTOR_OPTIONS) {
-    const opt = document.createElement('option');
-    opt.value = optHp.id;
-    fillSelectOption(opt, optHp.label, formatCommanderHpFactorOption(optHp));
-    cgCommanderHpEl.appendChild(opt);
-}
-wireSelectShortLabels(cgCommanderHpEl);
-
-for (const optMoney of MONEY_FACTOR_OPTIONS) {
-    const opt = document.createElement('option');
-    opt.value = String(optMoney.factor);
-    fillSelectOption(opt, optMoney.label, formatMoneyFactorOption(optMoney));
-    cgMoneyEl.appendChild(opt);
-}
-wireSelectShortLabels(cgMoneyEl);
-
-for (const optStart of START_MONEY_OPTIONS) {
-    const opt = document.createElement('option');
-    opt.value = String(optStart.amount);
-    fillSelectOption(opt, optStart.label, formatStartMoneyOption(optStart));
-    cgStartMoneyEl.appendChild(opt);
-}
-wireSelectShortLabels(cgStartMoneyEl);
-
-for (const optSh of STRONGHOLD_MODE_OPTIONS) {
-    const opt = document.createElement('option');
-    opt.value = optSh.mode;
-    fillSelectOption(opt, optSh.label, formatStrongholdModeOption(optSh));
-    cgStrongholdEl.appendChild(opt);
-}
-wireSelectShortLabels(cgStrongholdEl);
-
-/** The Year's room options — their labels follow the language (see refreshYearLobbyOptions) */
-function refreshYearLobbyOptions(): void {
-    const fill = (select: HTMLSelectElement, options: [string, string][]) => {
+/** the room's preset options in the current language (rebuilt on a language change) */
+function fillLobbySettingOptions(): void {
+    const fill = (select: HTMLSelectElement, options: readonly [string, string, string][]) => {
         const value = select.value;
         select.replaceChildren(
-            ...options.map(([v, label]) => {
+            ...options.map(([id, short, full]) => {
                 const opt = document.createElement('option');
-                opt.value = v;
-                opt.textContent = label;
+                opt.value = id;
+                fillSelectOption(opt, short, full);
                 return opt;
             }),
         );
         if (value) select.value = value;
     };
+    const fromBlurb = (full: string): [string, string] => [shortSelectLabel(full), full];
+    fill(cgPaceEl, CUSTOM_GAME_PACE_PRESETS.map((p) => [p.id, customGamePaceName(p), formatCustomGamePaceOption(p)]));
+    fill(cgHordeEl, HORDE_ALGORITHMS.map((a) => [a.id, ...fromBlurb(a.describe())]));
+    fill(cgRoundCardsEl, ROUND_CARD_ALGORITHMS.map((a) => [a.id, ...fromBlurb(a.describe())]));
+    fill(cgCommanderHpEl, COMMANDER_HP_FACTOR_OPTIONS.map((o) => [o.id, o.label, formatCommanderHpFactorOption(o)]));
+    fill(cgMoneyEl, MONEY_FACTOR_OPTIONS.map((o) => [String(o.factor), o.label, formatMoneyFactorOption(o)]));
+    fill(cgStartMoneyEl, START_MONEY_OPTIONS.map((o) => [String(o.amount), o.label, formatStartMoneyOption(o)]));
+    fill(cgStrongholdEl, STRONGHOLD_MODE_OPTIONS.map((o) => [o.mode, strongholdModeName(o), formatStrongholdModeOption(o)]));
 }
-refreshYearLobbyOptions();
+fillLobbySettingOptions();
+onLanguageChange(fillLobbySettingOptions);
+for (const sel of LOBBY_BLURB_SELECTS) wireSelectShortLabels(sel);
 
 const TERRAIN_SHAPE_TEXT: Record<TerrainShape, { name: [string, string]; desc: [string, string] }> = {
     standard: { name: ['terrainStandard', 'Standard'], desc: ['terrainStandardDesc', 'a few low mounds'] },
@@ -2258,11 +2212,8 @@ function isNonDefaultLobbySettings(cfg: CustomGameConfig, defaults = defaultLobb
     );
 }
 
-/** Custom Game's mode (1v1/2v2/2v2ai) is now fixed at the moment
- *  one of the 4 host buttons is clicked — pace/horde/round-cards are the
- *  only pieces still read from/written to a <select> form, and they now
- *  live in the waiting-room's .m-lobby-settings panel instead of the
- *  pre-host screen (see hostCustomGame's own doc comment). */
+/** shows `cfg` in every room-settings box (basic and advanced), marks the
+ *  changed ones gold and syncs Reset — host and guest alike */
 function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     cgSiegeEl.value = cfg.siege ? 'siege' : 'standard';
     cgVictoryEl.value = cfg.victory === 'rounds' ? 'rounds' : 'hp';
@@ -2275,17 +2226,13 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     cgMoneyEl.value = String(moneyFactorOption(cfg.moneyFactor));
     cgStartMoneyEl.value = String(startMoneyOption(cfg.startMoney));
     cgStrongholdEl.value = strongholdModeOption(cfg.strongholdMode);
-    refreshYearLobbyOptions();
     mapChoice.refresh(cfg.map);
     refreshTerrainOptions();
     cgTerrainEl.value = terrainShapeOption(cfg.terrainShape);
     syncSelectOptionLabels(cgTerrainEl, false);
-    syncSiegeFields(cfg);
     // Always short in the closed box — hosts open the list for details;
     // guests get a hover/tap tip (see wireLobbySettingTips).
-    for (const sel of [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl, cgMoneyEl, cgStartMoneyEl]) {
-        syncSelectOptionLabels(sel, false);
-    }
+    for (const sel of LOBBY_BLURB_SELECTS) syncSelectOptionLabels(sel, false);
     syncLobbySettingsResetVisibility(cfg);
     markChangedLobbySettings(cfg);
 }
@@ -2320,7 +2267,8 @@ function changedLobbySettings(cfg: CustomGameConfig): [HTMLSelectElement, boolea
 
 /** Host-only: "Reset to defaults" shows whenever any setting is gold (off its default) */
 function syncLobbySettingsResetVisibility(cfg: CustomGameConfig): void {
-    cgResetEl.hidden = !activeLobbyHost || !changedLobbySettings(cfg).some(([, on]) => on);
+    // a locked box (the player count, once someone joined) is nothing Reset can undo
+    cgResetEl.hidden = !activeLobbyHost || !changedLobbySettings(cfg).some(([select, on]) => on && !select.disabled);
 }
 
 function selectedLobbyOptionFull(select: HTMLSelectElement): string {
@@ -2380,7 +2328,7 @@ function showLobbySettingTip(anchor: HTMLElement, text: string, sticky: boolean)
  *  tap — disabled <select>s don't receive pointer events, so the parent
  *  .m-field owns the interaction. */
 function wireLobbySettingTips(): void {
-    for (const sel of [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl, cgMoneyEl, cgStartMoneyEl]) {
+    for (const sel of [...LOBBY_BLURB_SELECTS, cgTerrainEl]) {
         const field = sel.closest<HTMLElement>('.m-field');
         if (!field) continue;
         field.addEventListener('pointerenter', (e) => {
@@ -2936,13 +2884,9 @@ let activeLobbyHost: { config: CustomGameConfig; onChange: () => void; save?: (c
     cgStrongholdEl.addEventListener('change', onChange);
     cgLandscapeEl.addEventListener('change', onChange);
     cgTerrainEl.addEventListener('change', onChange);
-    // Mode / Victory / Fog are settings like the rest (Siege shows its own rows)
-    const onShapeChange = () => {
-        onChange();
-        if (activeLobbyHost) syncSiegeFields(activeLobbyHost.config);
-    };
-    cgSiegeEl.addEventListener('change', onShapeChange);
-    cgVictoryEl.addEventListener('change', onShapeChange);
+    // Mode / Victory / Fog are settings like the rest (a Siege's role chips redraw with the roster)
+    cgSiegeEl.addEventListener('change', onChange);
+    cgVictoryEl.addEventListener('change', onChange);
     cgFogEl.addEventListener('change', onChange);
     // other players is a new room: Practice lays its seats out again; a hosted
     // room is closed and opened afresh (only while nobody has joined it)
@@ -3073,7 +3017,7 @@ function clearLobbySettings(): void {
     lobbyReadyRowEl.style.display = 'none';
     lobbyReadyCheckEl.checked = false;
     lobbyReadyCheckEl.onchange = null;
-    lobbyYear = null;
+    lobbySiege = false;
     lobbyArmy = null;
     lastRosterRender = null;
 }
@@ -3133,15 +3077,16 @@ const OPEN_SEAT_NAME = 'Waiting…';
  * always about the LOCAL viewer's own seat.
  */
 /**
- * A Year room on screen (host or guest): its settings, and how this client
- * asks for a role (the host sets its own seat, a guest asks the host).
+ * The room on screen (host or guest) is a Siege: its seats show the role they
+ * ask for (see lobbyArmy.pickRole for who may change it and how).
  */
-let lobbyYear: { config: CustomGameConfig; pick: (role: 'attacker' | 'defender' | null) => void } | null = null;
-/** the roster table as last drawn — redrawn when the room's Year settings arrive */
+let lobbySiege = false;
+/** the roster table as last drawn — redrawn when the room's Siege setting arrives */
 let lastRosterRender: Parameters<typeof renderRosterTable> | null = null;
 
-function setLobbyYear(next: typeof lobbyYear): void {
-    lobbyYear = next;
+function setLobbySiege(siege: boolean): void {
+    if (siege === lobbySiege) return;
+    lobbySiege = siege;
     if (lastRosterRender) renderRosterTable(...lastRosterRender);
 }
 
@@ -3164,11 +3109,6 @@ function armyName(army: string): string {
     return t(`menu:armies.${army}`, { defaultValue: army });
 }
 
-/**
- * Who may change which seat's army in the room on screen, and how a change
- * travels: Practice sets every seat, a host its own and the AI / open ones,
- * a guest its own (asking the host). null outside a room.
- */
 /** room seats' MMR by name, loaded once each (null = none / not found) — redraws the seats when it arrives */
 const roomMmr = new Map<string, number | null>();
 function roomMmrOf(name: string): number | null | undefined {
@@ -3182,6 +3122,11 @@ function roomMmrOf(name: string): number | null | undefined {
     return undefined;
 }
 
+/**
+ * Who may change which seat's army in the room on screen, and how a change
+ * travels: Practice sets every seat, a host its own and the AI / open ones,
+ * a guest its own (asking the host). null outside a room.
+ */
 let lobbyArmy: {
     canEdit: (seat: SeatId) => boolean;
     pick: (seat: SeatId, army: string) => void;
@@ -3314,7 +3259,7 @@ function renderRosterTable(
             }
             // a Siege: the role this seat asks for — every player picks its own, the host
             // any seat's; sides left without a clear attacker / defender are tossed at Start
-            if (lobbyYear) {
+            if (lobbySiege) {
                 const role = roster[seat]!.yearRole;
                 const editable = !!(lobbyArmy?.canEditRole ?? lobbyArmy?.canEdit)?.(seat);
                 const badge = document.createElement(editable ? 'button' : 'span');
@@ -4898,8 +4843,6 @@ function wireHostedHub(
         announceRosterChanges(roster);
         const levelsReady = syncGuestLevels(roster);
         const joined = hub.connectedSeats().length + 1;
-        // the room's player count can't change under someone who already joined it
-        cgPlayersEl.disabled = joined > 1;
         // the host sets its own army and the AI / still-open seats'; a guest sets its own
         lobbyArmy = {
             canEdit: (seat) => {
@@ -4921,17 +4864,7 @@ function wireHostedHub(
                 refresh();
             },
         };
-        lobbyYear =
-            customConfig?.siege
-                ? {
-                      config: customConfig,
-                      pick: (role) => {
-                          const own = hub.currentRoster()[0];
-                          if (own) hub.setRosterEntry(0, { ...own, yearRole: role ?? undefined });
-                          refresh();
-                      },
-                  }
-                : null;
+        lobbySiege = !!customConfig?.siege;
         renderRosterTable(
             roster,
             0,
@@ -4949,6 +4882,10 @@ function wireHostedHub(
                 resetReadyOnSettingsChange(hub);
                 refresh();
             });
+            // the room's player count can't change under someone who already joined it
+            // (after showHostLobbySettings, which enables every box)
+            cgPlayersEl.disabled = joined > 1;
+            syncLobbySettingsResetVisibility(customConfig);
             // re-sent on every refresh (not just on an actual edit) so a
             // freshly-joined guest sees the current settings immediately,
             // without waiting for the host to change something first
@@ -5308,7 +5245,7 @@ function openPracticeLobby(mode: CustomGameMode): void {
     practiceLobby = { config, roster };
     // every seat is yours to set: your own army, and the AI's
     const redraw = () => {
-        lobbyYear = config.siege ? { config, pick: () => undefined } : null;
+        lobbySiege = !!config.siege;
         renderRosterTable(roster, 0, 1);
     };
     lobbyArmy = {
@@ -5612,7 +5549,7 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
                 pendingReady = ready;
                 session.send({ type: 'lobbyReady', ready });
             });
-            setLobbyYear(config.siege ? { config, pick: (role) => session.send({ type: 'lobbyRole', role }) } : null);
+            setLobbySiege(!!config.siege);
             return;
         }
         // Anything besides the handshake message types below is only ever

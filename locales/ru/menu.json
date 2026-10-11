@@ -40,6 +40,7 @@
   "start": "Старт",
   "startWithAi": "Начать с ИИ",
   "waitingReady": "Ждём готовности игроков…",
+  "waitingScenario": "Ожидание сценария…",
   "cancel": "Отмена",
   "ok": "OK",
   "roomMode": "Режим",

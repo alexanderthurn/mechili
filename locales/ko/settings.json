@@ -43,6 +43,7 @@
   "cardsFull": "전체 — 2–4라운드 룬, 5–7 유닛 편대, 8–10 주문",
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} 체력 (양팀)",
+    "commanderHpFixedOption": "양측 체력 {{hp}}",
     "timersTitle": "타이머 & 체력",
     "deploymentPhase": "배치 단계",
     "battlePhase": "전투 단계",

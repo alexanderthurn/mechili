@@ -43,6 +43,7 @@
   "cardsFull": "Pełna — rundy 2–4 runy, 5–7 Packów jednostek, 8–10 zaklęć",
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} HP (obie drużyny)",
+    "commanderHpFixedOption": "{{hp}} HP na stronę",
     "timersTitle": "Timery i HP",
     "deploymentPhase": "Faza wdrażania",
     "battlePhase": "Faza bitwy",

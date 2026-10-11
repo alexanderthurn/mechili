@@ -43,6 +43,7 @@
   "cardsFull": "フル — ラウンド 2–4 ルーン、5–7 ユニットパック、8–10 スペル",
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} HP（両チーム）",
+    "commanderHpFixedOption": "各陣営 {{hp}} HP",
     "timersTitle": "タイマーと HP",
     "deploymentPhase": "配備フェーズ",
     "battlePhase": "戦闘フェーズ",

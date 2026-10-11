@@ -40,6 +40,7 @@
   "start": "เริ่ม",
   "startWithAi": "เริ่มพร้อม AI",
   "waitingReady": "รอผู้เล่นกดพร้อม…",
+  "waitingScenario": "กำลังรอสถานการณ์…",
   "cancel": "ยกเลิก",
   "ok": "ตกลง",
   "roomMode": "โหมด",

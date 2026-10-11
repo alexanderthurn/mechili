@@ -507,8 +507,8 @@ export function customGamePaceById(id: string | undefined | null): CustomGamePac
     return found ?? CUSTOM_GAME_PACE_PRESETS.find((p) => p.id === DEFAULT_CUSTOM_GAME_PACE_ID)!;
 }
 
-/** Select-option text: name plus the four timings from the preset. */
-export function formatCustomGamePaceOption(p: CustomGamePacePreset): string {
+/** the preset's name in the current language (the closed select's short label) */
+export function customGamePaceName(p: CustomGamePacePreset): string {
     const paceKey =
         p.id === 'blitz'
             ? 'paceBlitz'
@@ -521,7 +521,12 @@ export function formatCustomGamePaceOption(p: CustomGamePacePreset): string {
                   : p.id === 'long'
                     ? 'paceLong'
                     : null;
-    const localized = paceKey ? t(`settings:${paceKey}`, { defaultValue: p.label }) : p.label;
+    return paceKey ? t(`settings:${paceKey}`, { defaultValue: p.label }) : p.label;
+}
+
+/** Select-option text: name plus the four timings from the preset. */
+export function formatCustomGamePaceOption(p: CustomGamePacePreset): string {
+    const localized = customGamePaceName(p);
     return t('settings:paceOption', {
         label: localized,
         build: p.buildSeconds,
@@ -567,14 +572,19 @@ export function strongholdModeOption(raw: unknown): StrongholdMode {
         : DEFAULT_STRONGHOLD_MODE;
 }
 
-export function formatStrongholdModeOption(o: StrongholdModeOption): string {
+/** the mode's name in the current language (the closed select's short label) */
+export function strongholdModeName(o: StrongholdModeOption): string {
     const labelKey =
         o.mode === 'lifeline'
             ? 'strongholdLifeline'
             : o.mode === 'standard'
               ? 'strongholdStandard'
               : 'strongholdNone';
-    const label = t(`settings:${labelKey}`, { defaultValue: o.label });
+    return t(`settings:${labelKey}`, { defaultValue: o.label });
+}
+
+export function formatStrongholdModeOption(o: StrongholdModeOption): string {
+    const label = strongholdModeName(o);
     return t('settings:strongholdOption', {
         label,
         defaultValue: `Stronghold: ${label}`,

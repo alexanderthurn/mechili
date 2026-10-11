@@ -33,7 +33,7 @@
   "strongholdNone": "Nimeni pe tablă",
   "strongholdOption": "Fortăreață: {{label}}",
   "hordeOff": "Oprit — fără valuri",
-  "hordeLow": "Valuri joase pe 3 și noaptea Mamă ({{final}})",
+  "hordeLow": "Scăzut — valuri la 3 și Mamă noapte ({{final}})",
   "hordeMedium": "Mediu — puiet la 2, țesători la 4, fermieri la 5, Mamă noapte (6 / 12+ Hans)",
   "hordeHigh": "Sus — un val în fiecare rundă",
   "hordeUltra": "Ultra — fiecare rundă, Packul dublu contează",
@@ -43,6 +43,7 @@
   "cardsFull": "Complet — runde 2–4 rune, 5–7 Pack-uri de unități, 8–10 vrăji",
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} HP (ambele echipe)",
+    "commanderHpFixedOption": "{{hp}} HP pe fiecare parte",
     "timersTitle": "Cronometre și CP",
     "deploymentPhase": "Faza de desfășurare",
     "battlePhase": "Faza de luptă",

@@ -45,6 +45,7 @@
   "start": "Start",
   "startWithAi": "Start with AI",
   "waitingReady": "Waiting for players to ready up…",
+  "waitingScenario": "Waiting for scenario…",
   "cancel": "Cancel",
   "ok": "OK",
   "roomMode": "Mode",

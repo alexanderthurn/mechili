@@ -43,6 +43,7 @@
   "cardsFull": "Tamamı — 2-4. tur rünleri, 5-7. tur birim Packleri, 8-10. tur büyüleri",
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} HP (her iki takım)",
+    "commanderHpFixedOption": "Taraf başına {{hp}} HP",
     "timersTitle": "Zamanlayıcılar ve HP",
     "deploymentPhase": "Dağıtım aşaması",
     "battlePhase": "Savaş aşaması",

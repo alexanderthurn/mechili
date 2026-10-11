@@ -33,7 +33,7 @@
   "strongholdNone": "Ingen på tavlen",
   "strongholdOption": "Fæstning: {{label}}",
   "hordeOff": "Fra — ingen bølger",
-  "hordeLow": "Lave bølger på 3 og Mors nat ({{final}})",
+  "hordeLow": "Lav — bølger på 3 og Mors nat ({{final}})",
   "hordeMedium": "Mellem — yngel på 2, vævere på 4, landmænd på 5, Mors nat (6 / 12+ Hans)",
   "hordeHigh": "Høj — en bølge hver runde",
   "hordeUltra": "Ultra — hver runde, dobbeltpakke tæller",
@@ -43,6 +43,7 @@
   "cardsFull": "Fuld — runder 2–4 runer, 5–7 enhedspakker, 8–10 trylleformularer",
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} HP (begge hold)",
+    "commanderHpFixedOption": "{{hp}} HP til hver side",
     "timersTitle": "Timere og HP",
     "deploymentPhase": "Opstillingsfase",
     "battlePhase": "Kampfase",

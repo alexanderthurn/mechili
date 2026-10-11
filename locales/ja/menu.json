@@ -40,6 +40,7 @@
   "start": "開始",
   "startWithAi": "AI で開始",
   "waitingReady": "プレイヤーの準備待ち…",
+  "waitingScenario": "シナリオを待っています…",
   "cancel": "キャンセル",
   "ok": "OK",
   "roomMode": "モード",

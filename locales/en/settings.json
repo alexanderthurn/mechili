@@ -43,6 +43,7 @@
   "cardsFull": "Full — rounds 2–4 advanced runes, 5–7 unit packs, 8–10 spells",
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} HP (both teams)",
+    "commanderHpFixedOption": "{{hp}} HP each side",
     "moneyOption": "{{label}} supply income (both teams)",
     "startMoneyOption": "{{label}} start money (both teams)",
     "timersTitle": "Timers & HP",

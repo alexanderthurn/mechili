@@ -43,6 +43,7 @@
   "cardsFull": "Volledig — rondes 2–4 runen, 5–7 eenhedenPacks, 8–10 spreuken",
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} HP (beide teams)",
+    "commanderHpFixedOption": "{{hp}} HP per kant",
     "timersTitle": "Timers en HP",
     "deploymentPhase": "Opstellingsfase",
     "battlePhase": "Gevechtsfase",

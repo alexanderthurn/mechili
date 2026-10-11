@@ -33,7 +33,7 @@
   "strongholdNone": "Ingen på tavlan",
   "strongholdOption": "Fäste: {{label}}",
   "hordeOff": "Av — inga vågor",
-  "hordeLow": "Låga vågor på 3 och Mors natt ({{final}})",
+  "hordeLow": "Låg — vågor på 3 och Mors natt ({{final}})",
   "hordeMedium": "Medel — yngel på 2, vävare på 4, bönder på 5, Mors natt (6 / 12+ Hans)",
   "hordeHigh": "Hög — en våg varje varv",
   "hordeUltra": "Ultra — varje runda, dubbelpaket räknas",
@@ -43,6 +43,7 @@
   "cardsFull": "Full — rundor 2–4 runor, 5–7 enhetspaket, 8–10 trollformler",
   "sheet": {
     "commanderHpOption": "{{label}} {{commander}} HP (båda lagen)",
+    "commanderHpFixedOption": "{{hp}} HP per sida",
     "timersTitle": "Timers och HP",
     "deploymentPhase": "Uppställningsfas",
     "battlePhase": "Stridsfas",
