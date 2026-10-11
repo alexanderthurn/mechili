@@ -61,6 +61,7 @@ import {
     wallPostWorld,
     levelBasisOf,
     isPlayerBuyable,
+    isTargetMarked,
     type Team,
     type Unit,
     type UnitType,
@@ -154,6 +155,16 @@ export interface BuyWallPostAction {
     kind: 'buyWallPost';
     team: Team;
     unitId: number;
+}
+/**
+ * Marks an enemy object as a target for my units (or lifts the mark) — free,
+ * any number; for now the UI offers it on enemy walls. See WALL_PLAN.md.
+ */
+export interface SetTargetMarkAction {
+    kind: 'setTargetMark';
+    team: Team;
+    unitId: number;
+    on: boolean;
 }
 /** experiment: a walkway behind one of my walls (archers' place later) */
 export interface BuildWallWalkAction {
@@ -405,6 +416,7 @@ type ActionVariant =
     | RecruitLevelAction
     | UpgradeTowerAction
     | BuildWallWalkAction
+    | SetTargetMarkAction
     | BuyWallPostAction
     | BuySellAbilityAction
     | BuyRallyRouteAbilityAction
@@ -512,6 +524,8 @@ interface LogEntry extends LoggedAction {
     oilStamp?: OilStamp;
     /** placeSpell / removeSpell */
     spellStamp?: SpellStamp;
+    /** setTargetMark: the seat's entry before (undefined = the type's default) */
+    markBefore?: boolean;
     /** buyStrongholdArcher: the archer that was raised (for undo) */
     strongholdArcherUnit?: Unit;
     /**
@@ -1131,6 +1145,15 @@ export class ActionDispatcher {
                 const archer = spawnWallPost(placement, postedType, wall, action.team, seat);
                 if (!archer) return false;
                 entry.strongholdArcherUnit = archer;
+                return true;
+            }
+            case 'setTargetMark': {
+                const unit = placement.unitById(action.unitId);
+                // an enemy wall that stands on the board (the property is general; walls only, for now)
+                if (!unit || !unit.type.wall || unit.team === action.team || unit.team === 'horde') return false;
+                if (isTargetMarked(unit, seat) === action.on) return false;
+                entry.markBefore = unit.targetBy[seat];
+                unit.targetBy[seat] = action.on ? !(unit.type.target ?? true) : undefined;
                 return true;
             }
             case 'buildWallWalk': {
@@ -1962,6 +1985,11 @@ export class ActionDispatcher {
             case 'buyWallPost': {
                 if (e.strongholdArcherUnit) placement.removeUnit(e.strongholdArcherUnit);
                 economy.credit(seat, e.paid!);
+                break;
+            }
+            case 'setTargetMark': {
+                const unit = placement.unitById(action.unitId);
+                if (unit) unit.targetBy[seat] = e.markBefore;
                 break;
             }
             case 'buildWallWalk': {

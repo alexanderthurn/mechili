@@ -527,6 +527,12 @@ export interface UnitType {
      */
     extra?: boolean;
     /**
+     * Whether enemies attack it on their own (the nearest-target rule). Omit =
+     * true. A wall is not: a seat's mark (Unit.targetBy) makes it one for that
+     * seat's units — the horde attacks walls regardless (see the sim's targetFor).
+     */
+    target?: boolean;
+    /**
      * Never CHOSEN as a target — an enemy walks past looking for something
      * else. Unlike {@link extra} this is only about acquisition: the unit is
      * still in the target hash, so a shot crossing it connects, and splash,
@@ -1365,6 +1371,17 @@ export function wallShiftOffset(facing: number, shift: number): { x: number; z: 
     return { x: -detSin(facing) * shift, z: -detCos(facing) * shift };
 }
 
+/** whether `seat`'s units attack this unit: its mark for that seat, else its type's default */
+export function targetedBy(unit: Unit, seat: number): boolean {
+    return unit.targetBy[seat] ?? unit.type.target ?? true;
+}
+
+/** a mark: `seat` sees it otherwise than the type's default */
+export function isTargetMarked(unit: Unit, seat: number): boolean {
+    const v = unit.targetBy[seat];
+    return v !== undefined && v !== (unit.type.target ?? true);
+}
+
 /** a wall's next quarter turn (the rotate button walks all four) */
 export function nextWallTurn(rotated: boolean, flipped: boolean): { rotated: boolean; flipped: boolean } {
     const step = ((rotated ? 1 : 0) + (flipped ? 2 : 0) + 1) % 4;
@@ -1586,6 +1603,12 @@ export class Unit {
     private wallEndHeights: [WallMeetHeight | null, WallMeetHeight | null] = [null, null];
     /** experiment: this wall has the walkway behind it (bought; see wallWalk.ts) */
     wallWalk = false;
+    /**
+     * Per seat: whether that seat's units attack it — a mark (setTargetMark)
+     * set against the type's default (`type.target`). Unset = the default.
+     * See {@link targetedBy}.
+     */
+    targetBy: (boolean | undefined)[] = [];
     /**
      * A wall turned the other way round: its back — the walkway, its archer —
      * on the side it would face otherwise. With `rotated`, its four quarter

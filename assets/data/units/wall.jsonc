@@ -8,6 +8,8 @@
     "meshScale": 1,
     "structure": true,
     "extra": true,
+    // nobody attacks it on their own: a seat's mark makes it a target for that seat (the horde attacks it anyway)
+    "target": false,
     "burn": { "takenMult": 0 },
     "targets": { "ground": false, "air": false },
     // solid for ground units, world units from the centre: tower to tower (the towers stand on

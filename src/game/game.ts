@@ -7488,6 +7488,13 @@ export class Game {
             // catches a peer disagreeing about who owns the Aegis tech / Bulwark rune
             mix(a.shieldHp);
             mix(a.unit.level);
+            // target marks (setTargetMark): which seats attack it — a sum over
+            // canonical seat ranks, so each peer's own seat numbering doesn't matter
+            let marked = 0;
+            a.unit.targetBy.forEach((v, seat) => {
+                if (v !== undefined) marked += (this.seatRank(seat) + 1) * (v ? 3 : 7);
+            });
+            mix(marked);
         }
         // Tech / boost / speciality / item divergence: without this the hash
         // passes at battle start (same units, same positions, same hp) and the

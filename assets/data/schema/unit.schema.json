@@ -63,6 +63,10 @@
           "type": "boolean",
           "description": "board extras (shield, rocket): bought like units but never targeted or damaged by ordinary fire, exempt from the deploy limit and recruiting"
         },
+        "target": {
+          "type": "boolean",
+          "description": "Whether enemies attack it on their own (the nearest-target rule). Omit = true. A wall is not: a seat's mark (Unit.targetBy) makes it one for that seat's units — the horde attacks walls regardless (see the sim's targetFor)."
+        },
         "notAcquired": {
           "type": "boolean",
           "description": "Never CHOSEN as a target — an enemy walks past looking for something else. Unlike extra this is only about acquisition: the unit is still in the target hash, so a shot crossing it connects, and splash, blasts and fire all reach it. A Stronghold archer on a keep: you besiege the keep, and he takes what lands near him."
