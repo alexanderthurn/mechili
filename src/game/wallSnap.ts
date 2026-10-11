@@ -26,6 +26,19 @@ export const WALL_SNAP = {
     endColor: 0xf2ead8,
 } as const;
 
+/**
+ * How walls may be placed. Switches, the same on every peer (they decide
+ * which placements are legal):
+ * - snap: a carried wall snaps onto an open end of a placed one, with the
+ *   rings showing where (off: a wall lands where the cursor is, no rings)
+ * - endJoinsOnly: walls may share only an end tile — a straight join or a
+ *   corner (off: walls overlap each other freely)
+ */
+export const WALL_PLACEMENT = {
+    snap: false,
+    endJoinsOnly: false,
+} as const;
+
 /** a wall's two tower tiles: the first and last tile along its length */
 export function wallEnds(anchor: Cell, fp: GridExtent): [Cell, Cell] {
     return [

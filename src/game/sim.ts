@@ -1357,6 +1357,8 @@ export class BattleSim {
      *  buildings (a square around each one's circle), so a wall run into a tower
      *  or the Stronghold is one obstacle */
     private readonly routeBoxes: WallBox[] = [];
+    /** scratch for pushOutOfWall's wallMoveBox (no box per unit per wall per step) */
+    private readonly pushBox: WallBox = { owner: null as unknown as Actor, x0: 0, x1: 0, z0: 0, z1: 0, top: 0 };
     /**
      * The way-round graph per walker size (see planWallRoute): its corners and
      * which corner sees which (0 = not asked yet, 1 = clear, 2 = blocked).
@@ -5088,6 +5090,10 @@ export class BattleSim {
                 target = this.closestEnemy(a, true);
             }
 
+            // a siege engine puts the wall its melee break through before any foe
+            // (they counted on it: breachDps)
+            if (a.unit.type.breachFirst && this.trySiegeShot(a, stats, d.attackMult, dt, true)) continue;
+
             if (onPath && a.pathDestX !== null && a.pathDestZ !== null) {
                 const destX = a.pathDestX;
                 const destZ = a.pathDestZ;
@@ -5380,7 +5386,13 @@ export class BattleSim {
         if (a.altitude === 0) {
             // only as far as it means to go: a shooter stopping at its range plans
             // to the spot it would shoot from, not round to the target itself
-            const routeDist = Math.max(0, goalDist - stopMargin);
+            let routeDist = Math.max(0, goalDist - stopMargin);
+            // …unless that spot is in a wall (a foe right across it): out of the
+            // stone it would come on this unit's own side, with nothing left to
+            // walk round — plan to the foe himself, who stands on his side
+            if (routeDist < goalDist && this.inWallMoveBox(a.x + seekX * routeDist, a.z + seekZ * routeDist, a.radius * 0.95)) {
+                routeDist = goalDist;
+            }
             const goalX = a.x + seekX * routeDist;
             const goalZ = a.z + seekZ * routeDist;
             const detour = this.wallWaypoint(a, goalX, goalZ);
@@ -6894,12 +6906,47 @@ export class BattleSim {
             : { hx: wall.halfLength, hz: wall.halfDepth };
     }
 
-    /** out of a wall's rectangle (grown by the actor's radius), the shortest way */
-    private pushOutOfWall(a: Actor, w: Actor, wall: { halfLength: number; halfDepth: number }): void {
-        const dx = a.x - w.x;
-        const dz = a.z - w.z;
-        const r = a.radius;
+    /**
+     * A wall's rectangle for walkers (into `out`): the stone, grown by
+     * wall.walkBack on its back side while it has its walkway. Its back looks
+     * down (sin, cos) of its facing, a quarter turn — so one axis, rounded.
+     */
+    private wallMoveBox(w: Actor, wall: NonNullable<UnitType['wall']>, out: WallBox): WallBox {
         const { hx, hz } = this.wallHalfExtents(w, wall);
+        out.owner = w;
+        out.x0 = w.x - hx;
+        out.x1 = w.x + hx;
+        out.z0 = w.z - hz;
+        out.z1 = w.z + hz;
+        const back = w.unit.wallWalk ? (wall.walkBack ?? 0) : 0;
+        if (back > 0) {
+            const bx = Math.round(detSin(w.unit.facing));
+            const bz = Math.round(detCos(w.unit.facing));
+            if (bx > 0) out.x1 += back;
+            else if (bx < 0) out.x0 -= back;
+            if (bz > 0) out.z1 += back;
+            else if (bz < 0) out.z0 -= back;
+        }
+        return out;
+    }
+
+    /** whether a point is in some wall's walkers' box (walkway included), grown by `pad` */
+    private inWallMoveBox(x: number, z: number, pad: number): boolean {
+        for (const r of this.routeBoxes) {
+            if (r.owner.unit.type.wall && insideBox(x, z, r, pad)) return true;
+        }
+        return false;
+    }
+
+    /** out of a wall's rectangle (grown by the actor's radius), the shortest way */
+    private pushOutOfWall(a: Actor, w: Actor, wall: NonNullable<UnitType['wall']>): void {
+        // its solid rectangle for walkers, walkway included — as a centre and half extents
+        const box = this.wallMoveBox(w, wall, this.pushBox);
+        const hx = (box.x1 - box.x0) / 2;
+        const hz = (box.z1 - box.z0) / 2;
+        const dx = a.x - (box.x0 + box.x1) / 2;
+        const dz = a.z - (box.z0 + box.z1) / 2;
+        const r = a.radius;
         const cx = Math.max(-hx, Math.min(hx, dx));
         const cz = Math.max(-hz, Math.min(hz, dz));
         const qx = dx - cx;
@@ -6935,8 +6982,9 @@ export class BattleSim {
         let first = Infinity;
         const dx = goalX - a.x;
         const dz = goalZ - a.z;
-        for (const r of this.wallBoxes) {
-            if (insideBox(a.x, a.z, r, pad)) continue;
+        // walkers' boxes (walkway included): where the unit actually stands against it
+        for (const r of this.routeBoxes) {
+            if (!r.owner.unit.type.wall || insideBox(a.x, a.z, r, pad)) continue;
             const t = segmentEntry(a.x, a.z, dx, dz, r, pad);
             if (t !== null && t < first) {
                 first = t;
@@ -7008,8 +7056,8 @@ export class BattleSim {
         // reached on its own side: out of the stone there, then round like any other
         // goal — else the wall it stands in would be skipped below, and the unit
         // would push straight into the stone from the wrong side
-        for (const r of this.wallBoxes) {
-            if (!insideBox(goalX, goalZ, r, pad)) continue;
+        for (const r of this.routeBoxes) {
+            if (!r.owner.unit.type.wall || !insideBox(goalX, goalZ, r, pad)) continue;
             const reach = pad + WALL_GOAL_CLEAR;
             const toX0 = goalX - (r.x0 - pad);
             const toX1 = r.x1 + pad - goalX;
@@ -7209,7 +7257,7 @@ export class BattleSim {
             if (st.damage <= 0) continue;
             const dps = this.wallDps(x, st, wall);
             if (xt.projectileSpeed || xt.convertRay || xt.rampBeam) {
-                if (x.siegeShotWall === wall) ranged += dps;
+                if (x.siegeShotWall === wall || (xt.breachFirst && this.canShootWall(x, st, r))) ranged += dps;
                 continue;
             }
             const atIt = x.breachWall === wall && this.elapsed - (x.breachSeenAt ?? -Infinity) <= BREACH.stale;
@@ -7466,7 +7514,8 @@ export class BattleSim {
                 const top = (wall.crown ?? WALL_CROWN) * wall.height * a.unit.visualHeightScale();
                 const box = { owner: a, x0: a.x - hx, x1: a.x + hx, z0: a.z - hz, z1: a.z + hz, top };
                 this.wallBoxes.push(box);
-                this.routeBoxes.push(box);
+                // walking round it: the stone plus its walkway behind (wall.walkBack)
+                this.routeBoxes.push(this.wallMoveBox(a, wall, { owner: a, x0: 0, x1: 0, z0: 0, z1: 0, top }));
             } else if (a.altitude === 0 && a.radius > 0) {
                 const r = a.radius;
                 this.routeBoxes.push({ owner: a, x0: a.x - r, x1: a.x + r, z0: a.z - r, z1: a.z + r, top: 0 });
@@ -7607,11 +7656,25 @@ export class BattleSim {
             const pz = Math.max(r.z0, Math.min(r.z1, a.z));
             const gap = hypot(px - a.x, pz - a.z) - a.radius;
             if (gap > stats.range || gap >= bestD) continue;
+            if (stats.minRange > 0 && gap < stats.minRange) continue; // its dead zone
             bestD = gap;
             best = r;
         }
         if (!best) return false;
         return this.shootWall(a, best.owner, stats, attackMult, dt, face);
+    }
+
+    /**
+     * Whether ranged `x` could shoot this wall from where it stands: in range,
+     * outside its dead zone, over a clear arc — a helper the melee can count on.
+     */
+    private canShootWall(x: Actor, stats: ResolvedStats, r: WallBox): boolean {
+        if (!x.unit.type.projectileSpeed || !r.owner.alive) return false;
+        const px = Math.max(r.x0, Math.min(r.x1, x.x));
+        const pz = Math.max(r.z0, Math.min(r.z1, x.z));
+        const gap = hypot(px - x.x, pz - x.z) - x.radius;
+        if (gap > stats.range || (stats.minRange > 0 && gap < stats.minRange)) return false;
+        return this.shotLoft(x, r.owner) > 0;
     }
 
     /**

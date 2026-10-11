@@ -657,6 +657,12 @@ export interface UnitType {
          */
         shift?: number;
         /**
+         * World units its walkway adds behind it that ground units can't walk
+         * into — movement only: shots still meet just the stone (halfDepth),
+         * so the archers posted up there stay hittable. Omit = 0.
+         */
+        walkBack?: number;
+        /**
          * Archers posted on the walkway (experiment), bought from the wall's
          * panel. Their spots are fixed numbers, not read off the mesh, so every
          * peer puts them in the same place: `spacing` world units either side
@@ -801,6 +807,12 @@ export interface UnitType {
      * Omit = 1.
      */
     buildingDamageMult?: number;
+    /**
+     * A siege engine: a wall its side's melee are breaking through, in range,
+     * comes before any foe — and the melee count on it when they choose to
+     * break through rather than walk round (see breachDps). Omit = false.
+     */
+    breachFirst?: boolean;
     /**
      * Ballistic launch elevation in degrees (e.g. 40). When set, muzzle speed
      * is derived from range so the lob angle stays constant.

@@ -40,7 +40,7 @@ import { elementalLevel } from './runeMix';
 /** horde unit ids start here — far above anything the parity counters reach */
 const HORDE_ID_BASE = 1_000_000;
 import { getUnitInstanceRenderer } from './unitInstances';
-import { snapWallAnchor, openWallEnds, wallEnds, WallSnapMarkers, type PlacedWall } from './wallSnap';
+import { snapWallAnchor, openWallEnds, wallEnds, WallSnapMarkers, WALL_PLACEMENT, type PlacedWall } from './wallSnap';
 import type { TypeRegistry } from './content/typeRegistry';
 
 /** frozen enemy intel captured at deployment-phase start */
@@ -2921,10 +2921,11 @@ export class PlacementController {
      * may share at most one tile with any other wall, and that tile must be an
      * end tile (a tower's) of both — a straight join or a corner. No crossing
      * through a wall's middle, no T onto it, no lying along it. `self` / `group`
-     * are moving and don't count.
+     * are moving and don't count. Only with WALL_PLACEMENT.endJoinsOnly; off,
+     * walls overlap freely.
      */
     private wallOverlapOk(type: UnitType, cells: readonly Cell[], self: Unit | null, group: readonly Unit[] = []): boolean {
-        if (!type.wall || cells.length === 0) return true;
+        if (!WALL_PLACEMENT.endJoinsOnly || !type.wall || cells.length === 0) return true;
         const mine = new Set(cells.map(cellKey));
         const myEnds = new Set([cellKey(cells[0]!), cellKey(cells[cells.length - 1]!)]);
         for (const u of this.units) {
@@ -2968,7 +2969,7 @@ export class PlacementController {
      */
     private landingAnchor(type: UnitType, rotated: boolean, cell: Cell, moving: Unit | null): { anchor: Cell; socket: Cell | null } {
         const free = this.centeredAnchor(type, rotated, cell);
-        if (!type.wall) return { anchor: free, socket: null };
+        if (!type.wall || !WALL_PLACEMENT.snap) return { anchor: free, socket: null };
         const fp = this.footprintOf(type, rotated);
         const seat = moving?.seat ?? this.localSeat;
         return snapWallAnchor(
@@ -3002,6 +3003,11 @@ export class PlacementController {
         moving: Unit | null,
         timeSeconds: number,
     ): void {
+        if (!WALL_PLACEMENT.snap) {
+            this.lastWallSnap = null;
+            this.wallMarkers.hide();
+            return;
+        }
         const snapKey = landing.socket ? cellKey(landing.socket) : null;
         if (snapKey && snapKey !== this.prevWallSnap) this.onWallSnap?.();
         this.lastWallSnap = snapKey;

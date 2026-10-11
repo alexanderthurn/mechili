@@ -24,6 +24,9 @@
         "autoWalk": true,
         // the wall stands this far toward its front, so wall + walkway fill the tile row
         "shift": 0.7,
+        // nobody walks onto the walkway: solid this far behind the stone (to the tile row's
+        // back edge), for movement only — shots still meet just the stone
+        "walkBack": 1.4,
         // solid to shots below the crown (× the model's height): flat shots stop in it, lobs pass over
         "crown": 0.8,
         // archers on the walkway — two, ±spacing from the wall's middle (a single post would
