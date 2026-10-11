@@ -4121,7 +4121,8 @@ class AudioBus {
         this.master.gain.value = mute * clamp01(p.masterVolume);
         const sfx = clamp01(p.sfxVolume);
         this.groups.sfx.gain.value = sfx * sfxTimeDuck(this.timeScale);
-        this.loopBus.gain.value = sfx;
+        // paused: hold the world beds (dragon wings/breath, fire, beams) silent
+        this.loopBus.gain.value = this.timeScale <= 0 ? 0 : sfx;
         this.groups.music.gain.value = clamp01(p.musicVolume);
         this.groups.ui.gain.value = clamp01(p.uiVolume);
         // mute stops the bed, unmute brings back whatever the state wants
@@ -4130,7 +4131,8 @@ class AudioBus {
 
     /**
      * Match one-shot SFX to battle/replay speed.
-     * Loops (fire/acid/beams) stay at real time and ignore the fast-forward duck.
+     * Loops (fire/acid/beams) stay at real time and ignore the fast-forward duck;
+     * at 0 (paused) they are muted.
      */
     setTimeScale(scale: number): void {
         const next = Number.isFinite(scale) ? Math.max(0, scale) : 1;
@@ -4147,6 +4149,7 @@ class AudioBus {
         }
         if (this.ctx) {
             this.groups.sfx.gain.value = clamp01(prefs().sfxVolume) * sfxTimeDuck(next);
+            this.loopBus.gain.value = next <= 0 ? 0 : clamp01(prefs().sfxVolume);
         }
     }
 

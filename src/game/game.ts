@@ -340,6 +340,8 @@ import { getUnitInstanceRenderer } from './unitInstances';
 import { storeDraft } from './scenario/editorDraft';
 
 /** menu→match camera fly-in (fresh starts only) */
+/** in battle the fire coverage follows its shooter, worked out again at most this often (ms) */
+const FIRE_COVERAGE_BATTLE_MS = 250;
 const MATCH_INTRO_SEC = 1.0;
 /** card overlays begin fading in during the tail of the fly-in (t = 0..1) */
 const MATCH_INTRO_CARDS_START = 0.55;
@@ -3533,6 +3535,8 @@ export class Game {
         this.meteorFx.dispose();
         this.cloudFx.dispose();
         this.dragonFx.dispose();
+        // quitting from the pause menu must not leave the menu's SFX frozen
+        audio.setTimeScale(1);
         this.conversionFx.dispose();
         this.oilDripFx.dispose();
         this.acidFx.dispose();
@@ -12525,16 +12529,21 @@ export class Game {
 
     /**
      * Where the selected ranged unit can hit, cell by cell (FireCoverage). In
-     * battle only for a posted shooter (a walking one would need it worked out
-     * again every step), asked of the live sim; in deployment for the selected
-     * ranged pack, asked of a sim holding just it and the board's buildings.
+     * battle for any selected shooter (either side), asked of the live sim and
+     * followed as it walks — worked out again at most every
+     * {@link FIRE_COVERAGE_BATTLE_MS}; in deployment for the selected ranged
+     * pack, asked of a sim holding just it and the board's buildings.
      */
     private updateFireCoverage(): void {
         const battle = this.phase === 'battle' && this.sim !== null;
         let unit: Unit | null = null;
+        let live: Actor | null = null;
         if (battle) {
             const a = this.selectedActor;
-            if (a?.alive && a.unit.type.projectileSpeed && a.unit.pinnedY != null) unit = a.unit;
+            if (a?.alive && a.unit.type.projectileSpeed) {
+                unit = a.unit;
+                live = a;
+            }
         } else if (this.sim === null && !this.placement.repositioning) {
             const u = this.placement.selectedUnit;
             if (u && !u.destroyed && u.type.projectileSpeed) unit = u;
@@ -12544,12 +12553,20 @@ export class Game {
             return;
         }
         const shooter = unit;
-        const board = this.placement
-            .allUnits()
-            .filter((u) => u.type.structure && !u.destroyed)
-            .map((u) => `${u.id}:${u.cell.col},${u.cell.row},${u.rotated ? 1 : 0},${u.flipped ? 1 : 0},${u.level}`)
-            .join('|');
-        const key = `${battle ? 'b' : 'd'}:${shooter.id}:${shooter.world.x.toFixed(2)},${shooter.world.z.toFixed(2)},${shooter.level}:${board}`;
+        let key: string;
+        if (live && this.sim) {
+            // battle: where it stands now (half-unit steps) and which buildings still stand
+            let standing = 0;
+            for (const s of this.sim.actors) if (s.alive && s.unit.type.structure) standing++;
+            key = `b:${live.index}:${Math.round(live.x * 2)},${Math.round(live.z * 2)}:${standing}`;
+        } else {
+            const board = this.placement
+                .allUnits()
+                .filter((u) => u.type.structure && !u.destroyed)
+                .map((u) => `${u.id}:${u.cell.col},${u.cell.row},${u.rotated ? 1 : 0},${u.flipped ? 1 : 0},${u.level}`)
+                .join('|');
+            key = `d:${shooter.id}:${shooter.world.x.toFixed(2)},${shooter.world.z.toFixed(2)},${shooter.level}:${board}`;
+        }
         const team: BattleTeam = shooter.team === 'horde' ? 'horde' : shooter.team;
         this.fireCoverage.show(key, colorForBattleTeam(team).hex, () => {
             let sim = this.sim;
@@ -12561,7 +12578,7 @@ export class Game {
                 sim = new BattleSim(units, this.probeSimConfig());
                 sim.prepareProbe();
             }
-            const actor = sim?.actorNear(shooter, shooter.world.x, shooter.world.z) ?? null;
+            const actor = live ?? sim?.actorNear(shooter, shooter.world.x, shooter.world.z) ?? null;
             if (!sim || !actor) return null;
             const probe = sim;
             const range = this.resolvedStats(shooter).range * this.levelScaleOf(shooter, 'range');
@@ -12571,7 +12588,9 @@ export class Game {
                 radius: range + shooter.type.collisionRadius + RANGE_ELEV_MAX_BONUS,
                 covers: (x, z) => probe.shotCovers(actor, x, z),
             };
-        });
+        },
+            live ? { shooter: `b:${live.index}`, everyMs: FIRE_COVERAGE_BATTLE_MS } : undefined,
+        );
     }
 
     /** a sim that never fights: just to ask where a shooter can hit (updateFireCoverage) */
@@ -12615,7 +12634,7 @@ export class Game {
         const own = a.unit.type.collisionRadius;
         // ranged: the ring bulges down onto low ground and pulls in up a slope, like the sim's reach
         const radius: RangeShape =
-            a.unit.type.projectileSpeed && a.altitude === 0
+            a.unit.type.projectileSpeed && (a.altitude === 0 || a.unit.pinnedY != null)
                 ? (dx, dz) => reachToward(a.footY, a.rx, a.rz, dx, dz, range, own)
                 : range + own;
         const tint = colorForBattleTeam(actorTeam(a)).hex;

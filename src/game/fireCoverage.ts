@@ -47,24 +47,37 @@ export class FireCoverage {
     hide(): void {
         this.mesh.visible = false;
         this.key = '';
+        this.shooter = '';
     }
+
+    /** when the cells were last worked out (performance.now), and for which shooter */
+    private builtAt = -Infinity;
+    private shooter = '';
 
     /**
      * Show the coverage for `key` (who, where, what stands on the board). Only
      * when the key changes is `area` asked for the centre, the radius and the
-     * per-cell test, and the cells worked out again.
+     * per-cell test, and the cells worked out again. With `follow` (a shooter
+     * walking in battle) the same shooter is worked out no more often than
+     * `everyMs`: in between its last shape stays up.
      */
     show(
         key: string,
         color: number,
         area: () => { x: number; z: number; radius: number; covers: (x: number, z: number) => boolean } | null,
+        follow?: { shooter: string; everyMs: number },
     ): void {
         (this.mesh.material as MeshBasicMaterial).color.setHex(color);
-        if (key === this.key) {
+        const now = performance.now();
+        const shooter = follow?.shooter ?? '';
+        const wait = follow !== undefined && shooter === this.shooter && now - this.builtAt < follow.everyMs;
+        if (key === this.key || wait) {
             this.mesh.visible = this.shown;
             return;
         }
+        this.shooter = shooter;
         this.key = key;
+        this.builtAt = now;
         const got = area();
         this.shown = got !== null;
         this.mesh.visible = this.shown;

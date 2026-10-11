@@ -1,4 +1,5 @@
 import { quantizeWorld, quantizeYaw, type Action } from './actions';
+import { detCos, detSin } from './detMath';
 import { unlockCostFor } from './cards';
 import type { RoundCard, SpecialityId, StartCard } from './cards';
 import type { PlacementController } from './placement';
@@ -454,11 +455,31 @@ export class AiOpponent implements Opponent {
                     endZ: b.z,
                 });
             } else if (usesSpellPlacement(tactic)) {
-                const p = foePoint();
+                let p = foePoint();
                 if (tactic.targeting === 'point') {
                     ok = dispatch({ kind: 'placeSpell', team, seat: this.seat, tacticId, x: p.x, z: p.z });
                 } else if (tactic.targeting === 'two-point') {
-                    const q = foePoint();
+                    let q = foePoint();
+                    // a path spell (the dragon) is drawn at its full length:
+                    // the line through both foes, centred between them —
+                    // two picks close together made a stubby strafe. The
+                    // dispatcher keeps it on the board and within maxSpan.
+                    if (tactic.maxSpan) {
+                        let dx = q.x - p.x;
+                        let dz = q.z - p.z;
+                        let len = Math.sqrt(dx * dx + dz * dz);
+                        if (len < 1) {
+                            const yaw = rng() * Math.PI * 2;
+                            dx = detCos(yaw);
+                            dz = detSin(yaw);
+                            len = 1;
+                        }
+                        const half = tactic.maxSpan / 2 / len;
+                        const mx = (p.x + q.x) / 2;
+                        const mz = (p.z + q.z) / 2;
+                        p = { x: quantizeWorld(mx - dx * half), z: quantizeWorld(mz - dz * half) };
+                        q = { x: quantizeWorld(mx + dx * half), z: quantizeWorld(mz + dz * half) };
+                    }
                     ok = dispatch({
                         kind: 'placeSpell',
                         team,

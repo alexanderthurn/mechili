@@ -4066,10 +4066,27 @@ export class BattleSim {
             // No spell takes a building — not the hammer, not a meteor, not the
             // dragon's breath. Towers and strongholds fall to armies only, so a
             // charge can never trigger the stronghold lifeline on its own.
-            if (a.unit.type.structure) continue;
-            const inArea = strike
-                ? strikeHits(strike, a.x, a.z, a.radius)
-                : hypot(a.x - x, a.z - z) <= radius + a.radius;
+            // Walls are the exception: a hammer or a dragon can break one.
+            let inArea: boolean;
+            if (a.unit.type.wall) {
+                // the long stone, not its centre: the spot of it nearest the blast
+                let box: WallBox | null = null;
+                for (const r of this.wallBoxes) {
+                    if (r.owner === a) {
+                        box = r;
+                        break;
+                    }
+                }
+                if (!box) continue;
+                const px = Math.max(box.x0, Math.min(box.x1, x));
+                const pz = Math.max(box.z0, Math.min(box.z1, z));
+                inArea = strike ? strikeHits(strike, px, pz, 0) : hypot(px - x, pz - z) <= radius;
+            } else {
+                if (a.unit.type.structure) continue;
+                inArea = strike
+                    ? strikeHits(strike, a.x, a.z, a.radius)
+                    : hypot(a.x - x, a.z - z) <= radius + a.radius;
+            }
             if (!inArea) continue;
             const dome = domes.find(
                 (d) => hypot(a.x - d.x, a.z - d.z) <= d.unit.type.shield!.radius,
@@ -5232,6 +5249,16 @@ export class BattleSim {
                     continue;
                 }
             }
+            // a foe posted on a wall in range that no arc reaches (the stone is in
+            // the way): bring his wall down — he falls with it — rather than walk
+            // on past him into his own range
+            if (a.unit.type.projectileSpeed && this.wallBoxes.length > 0) {
+                const wall = this.postedWallInRange(a, stats.range);
+                if (wall && this.shootWall(a, wall, stats, d.attackMult, dt, true)) {
+                    a.progressAt = this.elapsed;
+                    continue;
+                }
+            }
             // no foe in reach: help break a wall the side is breaking, if one is in range
             // (standing to shoot it) — else close in as usual
             if (a.unit.type.projectileSpeed && this.trySiegeShot(a, stats, d.attackMult, dt, true)) continue;
@@ -5789,7 +5816,9 @@ export class BattleSim {
      * nothing — but a hill still helps against a flyer below it.
      */
     private elevationCounts(shooter: Actor, target: Actor): ElevationMode {
-        if (!shooter.unit.type.projectileSpeed || shooter.altitude > 0) return 'none';
+        // a shooter posted on a wall or a building stands on it: its altitude
+        // is real high ground (the deploy range ring has always shown it so)
+        if (!shooter.unit.type.projectileSpeed || (shooter.altitude > 0 && shooter.unit.pinnedY == null)) return 'none';
         return this.airborne(target) ? 'gainOnly' : 'full';
     }
 
@@ -7488,6 +7517,36 @@ export class BattleSim {
             this.beginRangedFire(a, wall, damage, speed);
         }
         return true;
+    }
+
+    /**
+     * The nearest enemy wall in weapon range carrying a posted foe that `a`
+     * can't shoot directly (every arc to him is stopped) — the wall is the way
+     * to get him.
+     */
+    private postedWallInRange(a: Actor, range: number): Actor | null {
+        const team = actorTeam(a);
+        let best: Actor | null = null;
+        let bestD = Infinity;
+        for (const p of this.actors) {
+            if (!p.alive || !p.cover || p.unit.hostUnitId === null || actorTeam(p) === team) continue;
+            let host: WallBox | null = null;
+            for (const r of this.wallBoxes) {
+                if (r.owner.unit.id === p.unit.hostUnitId) {
+                    host = r;
+                    break;
+                }
+            }
+            if (!host || !host.owner.alive) continue;
+            const px = Math.max(host.x0, Math.min(host.x1, a.x));
+            const pz = Math.max(host.z0, Math.min(host.z1, a.z));
+            const gap = hypot(px - a.x, pz - a.z) - a.radius;
+            if (gap > range || gap >= bestD) continue;
+            if (this.attackLineOpen(a, p)) continue;
+            bestD = gap;
+            best = host.owner;
+        }
+        return best;
     }
 
     /**

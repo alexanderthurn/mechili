@@ -1440,7 +1440,7 @@ ${chatFloatStyles(u, pc, ec)}
     inset: 0;
     background: center / cover no-repeat;
     transform-origin: 75% 40%;
-    animation: m-backdrop-zoom 26s ease-in-out infinite alternate;
+    animation: m-backdrop-zoom 52s ease-in-out infinite alternate;
     animation-play-state: paused;
     will-change: transform;
 }

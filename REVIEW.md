@@ -110,3 +110,17 @@ Two reviews on top of `81b6fe55` (room work). The no-brainer fixes are in the sa
 8. **Design notes:**
    - A melee unit in front of a wall still targets the posted archer and walks all the way round to his side.
    - The old big-actor swerve in `steerToward` adds on top of the wall waypoint near towers.
+
+---
+
+## C. bugs.txt (Desktop)
+
+| Bug | Status |
+|---|---|
+| Dragon sound loops endlessly in pause | **Fixed.** World loops (dragon wings and breath, fire, acid, beams) are muted while the game is paused (`audio.ts`). Quitting from the pause menu resets the audio time scale. |
+| Bot draws the dragon short | **Fixed.** The AI now draws two-point path spells at full `maxSpan`, along the line through its two foe picks and centred between them (`ai.ts`). The dispatcher still keeps the path on the board. |
+| Line at lake shores on medium graphics | **Left alone.** I couldn't find the cause without looking at it. |
+| Fire coverage ignores height advantage; not shown in battle for enemies | **Cause:** a posted shooter (on a wall or tower) has `altitude = pinnedY`. The sim's `elevationCounts` therefore treated it like a flyer and gave it no height bonus, while the range ring did show one. **Fixed:** posted shooters now get the high-ground bonus in the sim. ⚠ This is a balance change: archers on walls and towers reach further. To revert, undo that one line in `elevationCounts`. The battle range ring now bulges for them too. **Battle overlay:** now shown for any selected ranged unit on either side. It follows the unit live and is worked out again at most every 250 ms (`FIRE_COVERAGE_BATTLE_MS`) and whenever a building falls. |
+| Ballista walks into a wall archer's range | **Fixed.** A ranged unit with no foe to fire at now shoots the wall under a posted foe that it can't hit directly, if that wall is in range. The foe falls with his wall. This applies to all ranged units, not only the ballista (`postedWallInRange` in `sim.ts`). |
+| Hammer and dragon can't break walls | **Fixed.** Spell damage now hits walls, measured to the nearest point of the stone. Towers and strongholds stay immune. Meteors use the same function, so they hit walls too. |
+| Main menu zoom too fast | **Fixed.** The backdrop zoom now runs at half speed (26 s → 52 s per sweep). |
