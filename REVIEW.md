@@ -111,6 +111,15 @@ Two reviews on top of `81b6fe55` (room work). The no-brainer fixes are in the sa
    - A melee unit in front of a wall still targets the posted archer and walks all the way round to his side.
    - The old big-actor swerve in `steerToward` adds on top of the wall waypoint near towers.
 
+### Status after `WALL_PLAN.md` (2026-10-11)
+- **1 (lockstep):** fixed earlier. Crown and post heights come from `wall.height` in the data.
+- **2 (melee through walls):** still open.
+- **3, 5, 6:** still open.
+- **4 (`siegeWall` / `breachChoice`) and 7 (`breachDps` cost):** obsolete. That logic is removed: walls are now targets only by mark (see `WALL_PLAN.md`).
+- **8 (design notes):**
+  - First note, a melee unit walking round to an archer posted on the walkway: still true. Marking his wall is now the way to get at him.
+  - Second note, the big-actor swerve in `steerToward`: still open.
+
 ---
 
 ## C. bugs.txt (Desktop)
