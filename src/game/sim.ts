@@ -1035,6 +1035,12 @@ function strikeHits(s: SpellStrike, x: number, z: number, pad: number): boolean 
 // movement tuning
 const AVOID_LOOKAHEAD = 16; // how far ahead a mech watches for big blockers
 const AVOID_MARGIN = 0.6; // extra clearance kept around obstacles
+/**
+ * Auto-marks (walled in at battle start, see autoMarkWalledIn): walls this
+ * close, centre to centre, count as one way out — the one more packs picked
+ * stays. Tweak live.
+ */
+const AUTO_MARK_MERGE = 22;
 /** a wall's rectangle on the board */
 interface WallBox {
     /** the wall's actor (its side, its HP) */
@@ -1362,6 +1368,10 @@ export class BattleSim {
      *  buildings (a square around each one's circle), so a wall run into a tower
      *  or the Stronghold is one obstacle */
     private readonly routeBoxes: WallBox[] = [];
+    /** the walled-in check ran (once, on the battle's first step) */
+    private autoMarked = false;
+    /** this battle's auto-marks (autoMarkWalledIn): which seat goes for which wall — for the overlay */
+    readonly autoMarks: { wall: Actor; seat: number }[] = [];
     /** scratch for aimAt (see there) */
     private readonly aimOut = { x: 0, z: 0 };
     private readonly aimBox: WallBox = { owner: null as unknown as Actor, x0: 0, x1: 0, z0: 0, z1: 0, top: 0 };
@@ -5074,6 +5084,10 @@ export class BattleSim {
         this.rebuildHash();
         this.rebuildTargetHash();
         this.rebuildStructureList();
+        if (!this.autoMarked) {
+            this.autoMarked = true;
+            this.autoMarkWalledIn();
+        }
         if (this.stepIndex % 60 === 0) {
             for (const [key, v] of this.losCache) if (v.until <= this.elapsed) this.losCache.delete(key);
         }
@@ -6922,6 +6936,135 @@ export class BattleSim {
         return w.unit.rotated
             ? { hx: wall.halfDepth, hz: wall.halfLength }
             : { hx: wall.halfLength, hz: wall.halfDepth };
+    }
+
+    /**
+     * Walled in at battle start: a pack (a player's or a bot's — never the
+     * horde's, which goes for any wall) that can't walk to any foe, the walls
+     * its seat marked counting as open, marks the enemy walls on the straight
+     * line to its nearest foe — for this battle only (Actor.targetBy). Per
+     * seat, first walls close together merge (AUTO_MARK_MERGE): the one more
+     * packs picked stays, and the packs of the others go for it by the nearest
+     * rule. Own walls are never marked: who walls himself in stays in.
+     */
+    private autoMarkWalledIn(): void {
+        if (this.wallBoxes.length === 0) return;
+        // one walker per pack: its first ground member on the board
+        const reps = new Map<Unit, Actor>();
+        for (const a of this.actors) {
+            if (!a.alive || a.unit.type.structure || a.altitude > 0 || a.unit.marchIn || a.unit.pinnedY != null) continue;
+            if (actorTeam(a) === 'horde' || reps.has(a.unit)) continue;
+            reps.set(a.unit, a);
+        }
+        const picks: { seat: number; walls: Actor[] }[] = [];
+        for (const r of reps.values()) {
+            const team = actorTeam(r);
+            // foes on the ground it would go for: units and buildings, no walls
+            const foes = this.actors.filter(
+                (f) =>
+                    f.alive &&
+                    actorTeam(f) !== team &&
+                    !f.unit.type.extra &&
+                    !f.unit.marchIn &&
+                    f.altitude === 0 &&
+                    this.targetFor(f, r),
+            );
+            if (foes.length === 0) continue;
+            // in its way: walls and buildings, less the walls its seat marked
+            const boxes = this.routeBoxes.filter((b) => !(b.owner.unit.type.wall && this.targetFor(b.owner, r)));
+            if (this.walksToAny(r, foes, boxes)) continue;
+            // the nearest foe, straight; the enemy walls on that line, in order
+            let near = foes[0]!;
+            let nearD = Infinity;
+            for (const f of foes) {
+                const d = hypot(f.x - r.x, f.z - r.z);
+                if (d < nearD) {
+                    nearD = d;
+                    near = f;
+                }
+            }
+            const pad = r.radius * 0.95;
+            const crossed: { wall: Actor; t: number }[] = [];
+            for (const b of boxes) {
+                const w = b.owner;
+                if (!w.unit.type.wall || actorTeam(w) === team) continue;
+                const t = segmentEntry(r.x, r.z, near.x - r.x, near.z - r.z, b, pad);
+                if (t !== null) crossed.push({ wall: w, t });
+            }
+            if (crossed.length === 0) continue; // only its own walls (or nothing) in the way: stuck
+            crossed.sort((p, q) => p.t - q.t || p.wall.index - q.wall.index);
+            picks.push({ seat: actorSeat(r), walls: crossed.map((c) => c.wall) });
+        }
+        // per seat: the first walls, most picked first; close ones merge
+        const seats = [...new Set(picks.map((p) => p.seat))];
+        for (const seat of seats) {
+            const own = picks.filter((p) => p.seat === seat);
+            const count = new Map<Actor, number>();
+            for (const p of own) count.set(p.walls[0]!, (count.get(p.walls[0]!) ?? 0) + 1);
+            const order = [...count.keys()].sort((p, q) => count.get(q)! - count.get(p)! || p.index - q.index);
+            const kept: Actor[] = [];
+            for (const w of order) {
+                if (kept.some((k) => hypot(k.x - w.x, k.z - w.z) < AUTO_MARK_MERGE)) continue;
+                kept.push(w);
+            }
+            for (const p of own) {
+                if (!kept.includes(p.walls[0]!)) continue;
+                for (const w of p.walls) {
+                    w.targetBy ??= [...w.unit.targetBy];
+                    if (w.targetBy[seat] === true) continue;
+                    w.targetBy[seat] = true;
+                    this.autoMarks.push({ wall: w, seat });
+                }
+            }
+        }
+    }
+
+    /**
+     * Whether `start` can walk to any of `foes` round `boxes`: from it over the
+     * boxes' corners (as planWallRoute lays them), until a corner — or the
+     * start — sees a foe straight. No cache: asked once a battle.
+     */
+    private walksToAny(start: Actor, foes: readonly Actor[], boxes: readonly WallBox[]): boolean {
+        const pad = start.radius * 0.95;
+        const out = start.radius + AVOID_MARGIN;
+        const nodes: { x: number; z: number }[] = [];
+        for (const r of boxes) {
+            for (const [x, z] of [
+                [r.x0 - out, r.z0 - out],
+                [r.x1 + out, r.z0 - out],
+                [r.x1 + out, r.z1 + out],
+                [r.x0 - out, r.z1 + out],
+            ] as const) {
+                if (!insideWallBox(x, z, boxes, pad)) nodes.push({ x, z });
+            }
+        }
+        // a foe pressed into a box (a building's own, a wall it hugs): that box doesn't hide him
+        const foeIn = foes.map((f) => boxes.filter((r) => insideBox(f.x, f.z, r, pad)));
+        const seesFoe = (x: number, z: number, skip: readonly WallBox[]): boolean =>
+            foes.some((f, i) => !segmentHitsWall(x, z, f.x, f.z, boxes, pad, skip.length > 0 ? [...skip, ...foeIn[i]!] : foeIn[i]!));
+        const startIn = boxes.filter((r) => insideBox(start.x, start.z, r, pad));
+        if (seesFoe(start.x, start.z, startIn)) return true;
+        const reached = new Uint8Array(nodes.length);
+        const queue: number[] = [];
+        for (let i = 0; i < nodes.length; i++) {
+            const n = nodes[i]!;
+            if (!segmentHitsWall(start.x, start.z, n.x, n.z, boxes, pad, startIn)) {
+                reached[i] = 1;
+                queue.push(i);
+            }
+        }
+        for (let q = 0; q < queue.length; q++) {
+            const u = nodes[queue[q]!]!;
+            if (seesFoe(u.x, u.z, [])) return true;
+            for (let v = 0; v < nodes.length; v++) {
+                if (reached[v]) continue;
+                const n = nodes[v]!;
+                if (segmentHitsWall(u.x, u.z, n.x, n.z, boxes, pad, null)) continue;
+                reached[v] = 1;
+                queue.push(v);
+            }
+        }
+        return false;
     }
 
     /**
