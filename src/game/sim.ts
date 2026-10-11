@@ -447,6 +447,11 @@ export interface Actor {
     prevFacing: number;
     /** sticky attack target — held while in range; closest search when not */
     cachedEnemy: Actor | null;
+    /**
+     * This battle's target marks (see Unit.targetBy), when they differ from
+     * the unit's — the auto-marks of a walled-in side. Unset = the unit's own.
+     */
+    targetBy?: (boolean | undefined)[];
     /** approach lane: world offset from {@link cachedEnemy} center after a same-target crowd push */
     approachOx: number;
     approachOz: number;
@@ -1357,6 +1362,9 @@ export class BattleSim {
      *  buildings (a square around each one's circle), so a wall run into a tower
      *  or the Stronghold is one obstacle */
     private readonly routeBoxes: WallBox[] = [];
+    /** scratch for aimAt (see there) */
+    private readonly aimOut = { x: 0, z: 0 };
+    private readonly aimBox: WallBox = { owner: null as unknown as Actor, x0: 0, x1: 0, z0: 0, z1: 0, top: 0 };
     /** scratch for pushOutOfWall's wallMoveBox (no box per unit per wall per step) */
     private readonly pushBox: WallBox = { owner: null as unknown as Actor, x0: 0, x1: 0, z0: 0, z1: 0, top: 0 };
     /**
@@ -2300,7 +2308,7 @@ export class BattleSim {
         // Ground swat: swing still happens (caller burned cooldown); bird often escapes.
         if (!this.groundSwatConnects(a, target)) return;
         const radius = this.cleaveRadiusOf(a);
-        if (radius > 0) {
+        if (radius > 0 && !target.unit.type.wall) {
             this.cleaveStrike(a, radius, damage, target);
             return;
         }
@@ -2316,8 +2324,9 @@ export class BattleSim {
         }
         const nx = dx / dist;
         const nz = dz / dist;
-        const hitX = target.x - nx * target.radius;
-        const hitZ = target.z - nz * target.radius;
+        const aim = this.aimAt(target, a.x, a.z);
+        const hitX = aim.x - nx * target.radius;
+        const hitZ = aim.z - nz * target.radius;
         // Structures: contact at the attacker's height on the near face so chips
         // read as coming from the fight, not mid-tower. Units keep torso aim.
         let hitY = target.footY + target.unit.type.meshScale * 1.1;
@@ -2474,7 +2483,7 @@ export class BattleSim {
         // shot started downhill isn't dropped when it lands
         const inReach = (t: Actor): boolean =>
             !this.wallBlocksMelee(a, t) &&
-            hypot(t.x - a.x, t.z - a.z) <=
+            hypot(this.aimAt(t, a.x, a.z).x - a.x, this.aimOut.z - a.z) <=
             effectiveWeaponReach(
                 this.weaponRange(a, t, stats.range),
                 a.radius,
@@ -2500,11 +2509,13 @@ export class BattleSim {
             return;
         }
 
-        const tdx = target.x - a.x;
-        const tdz = target.z - a.z;
+        const aim = this.aimAt(target, a.x, a.z);
+        const tdx = aim.x - a.x;
+        const tdz = aim.z - a.z;
         const tDist = hypot(tdx, tdz) || 1e-6;
         const radius = this.cleaveRadiusOf(a);
-        if (radius > 0) {
+        // a wall takes the blow itself (cleaves pass over extras)
+        if (radius > 0 && !target.unit.type.wall) {
             this.cleaveStrike(a, radius, damage, target);
             return;
         }
@@ -2517,7 +2528,7 @@ export class BattleSim {
     private armMeleeRetreat(a: Actor, target: Actor): void {
         const gap = a.unit.type.meleeRetreat ?? 0;
         if (gap <= 0) return;
-        if (target.altitude > 0) return;
+        if (target.altitude > 0 || target.unit.type.wall) return;
         a.meleeRetreatGoal = gap + a.radius + target.radius;
     }
 
@@ -5130,8 +5141,9 @@ export class BattleSim {
 
                 let firedAtFoe = false;
                 if (target) {
-                    const tdx = target.x - a.x;
-                    const tdz = target.z - a.z;
+                    const aim = this.aimAt(target, a.x, a.z);
+                    const tdx = aim.x - a.x;
+                    const tdz = aim.z - a.z;
                     const tDist = hypot(tdx, tdz) || 1e-6;
                     const reach = effectiveWeaponReach(
                         this.weaponRange(a, target, stats.range),
@@ -5208,8 +5220,10 @@ export class BattleSim {
                 continue;
             }
 
-            const tdx = target.x - a.x;
-            const tdz = target.z - a.z;
+            // a wall: measured to its nearest face (aimAt), like any unit's surface
+            const aim = this.aimAt(target, a.x, a.z);
+            const tdx = aim.x - a.x;
+            const tdz = aim.z - a.z;
             const tDist = hypot(tdx, tdz) || 1e-6;
             // range is surface-to-surface: collision circles must not keep
             // melee mechs from ever "reaching" wide targets like towers
@@ -5961,8 +5975,12 @@ export class BattleSim {
         if (loft > 1 && !at.projectileBallistic) return null;
         if (loft > (at.projectileMaxLoft ?? CLASSIC_LOFT_TIME.length)) return null;
         const tt = target.unit.type;
-        const dirX = target.x - a.x;
-        const dirZ = target.z - a.z;
+        // a wall: at the nearest of its stone (aimAt)
+        const aimAt = this.aimAt(target, a.x, a.z, true);
+        const targetX = aimAt.x;
+        const targetZ = aimAt.z;
+        const dirX = targetX - a.x;
+        const dirZ = targetZ - a.z;
         const flat = hypot(dirX, dirZ) || 1e-6;
         // arrows spawn from the unit center so they don't pop out ahead of the mesh
         const fromCenter = at.projectileStyle === 'arrow' || at.projectileStyle === 'largeArrow';
@@ -5999,8 +6017,8 @@ export class BattleSim {
             }
         }
         const aimLocalY = projectileAimY(tt);
-        let aimX = target.x;
-        let aimZ = target.z;
+        let aimX = targetX;
+        let aimZ = targetZ;
         let aimYOff = 0;
         let dx = aimX - mx;
         let dz = aimZ - mz;
@@ -6074,8 +6092,8 @@ export class BattleSim {
 
                 let muzzle: number;
                 if (aimNow) {
-                    aimX = target.x;
-                    aimZ = target.z;
+                    aimX = targetX;
+                    aimZ = targetZ;
                     aimAlt = target.altitude;
                     dx = aimX - mx;
                     dz = aimZ - mz;
@@ -6086,8 +6104,8 @@ export class BattleSim {
                     if (muzzle < 0) muzzle = speed;
                     flightTime = Math.max(1e-3, flatDist / (muzzle * cosT));
                     for (let i = 0; i < 2; i++) {
-                        aimX = target.x + tvx * flightTime;
-                        aimZ = target.z + tvz * flightTime;
+                        aimX = targetX + tvx * flightTime;
+                        aimZ = targetZ + tvz * flightTime;
                         aimAlt = target.altitude + tvy * flightTime;
                         dx = aimX - mx;
                         dz = aimZ - mz;
@@ -6135,8 +6153,8 @@ export class BattleSim {
                 flightTime = Math.max(1e-3, flatDist / hSpeed);
                 // one refine so closing enemies still get clipped without homing
                 for (let i = 0; i < 2; i++) {
-                    aimX = target.x + tvx * flightTime;
-                    aimZ = target.z + tvz * flightTime;
+                    aimX = targetX + tvx * flightTime;
+                    aimZ = targetZ + tvz * flightTime;
                     aimAlt = target.altitude + tvy * flightTime;
                     dx = aimX - mx;
                     dz = aimZ - mz;
@@ -6907,18 +6925,60 @@ export class BattleSim {
     }
 
     /**
+     * Whether `from` goes for `t` by the nearest-target rule: its mark for
+     * from's seat, else its type's default (a wall: no). The horde attacks
+     * walls regardless — monsters.
+     */
+    private targetFor(t: Actor, from: Actor): boolean {
+        if (t.unit.type.wall && actorTeam(from) === 'horde') return true;
+        const v = (t.targetBy ?? t.unit.targetBy)[actorSeat(from)];
+        return v ?? t.unit.type.target ?? true;
+    }
+
+    /** a fighter that can take a wall: shoots or strikes on the ground (no rays, no free flyers) */
+    private hitsWalls(from: Actor): boolean {
+        const ft = from.unit.type;
+        return !ft.convertRay && !ft.rampBeam && !ft.freeFlight;
+    }
+
+    /**
+     * Where `from` (at fx, fz) measures, walks and strikes at `t`: its centre —
+     * for a wall the nearest point of its walkers' box (stone and walkway; for a
+     * `shot` the stone only), pulled in by its radius, so distance − radius is
+     * the gap to its face as for any unit. Into a shared scratch: read it at once.
+     */
+    private aimAt(t: Actor, fx: number, fz: number, shot = false): { x: number; z: number } {
+        const out = this.aimOut;
+        const wall = t.unit.type.wall;
+        if (!wall) {
+            out.x = t.x;
+            out.z = t.z;
+            return out;
+        }
+        const box = this.wallMoveBox(t, wall, this.aimBox, shot);
+        const r = t.radius;
+        const lx = box.x0 + r;
+        const hx = box.x1 - r;
+        const lz = box.z0 + r;
+        const hz = box.z1 - r;
+        out.x = lx <= hx ? Math.max(lx, Math.min(hx, fx)) : (box.x0 + box.x1) / 2;
+        out.z = lz <= hz ? Math.max(lz, Math.min(hz, fz)) : (box.z0 + box.z1) / 2;
+        return out;
+    }
+
+    /**
      * A wall's rectangle for walkers (into `out`): the stone, grown by
      * wall.walkBack on its back side while it has its walkway. Its back looks
      * down (sin, cos) of its facing, a quarter turn — so one axis, rounded.
      */
-    private wallMoveBox(w: Actor, wall: NonNullable<UnitType['wall']>, out: WallBox): WallBox {
+    private wallMoveBox(w: Actor, wall: NonNullable<UnitType['wall']>, out: WallBox, stoneOnly = false): WallBox {
         const { hx, hz } = this.wallHalfExtents(w, wall);
         out.owner = w;
         out.x0 = w.x - hx;
         out.x1 = w.x + hx;
         out.z0 = w.z - hz;
         out.z1 = w.z + hz;
-        const back = w.unit.wallWalk ? (wall.walkBack ?? 0) : 0;
+        const back = w.unit.wallWalk && !stoneOnly ? (wall.walkBack ?? 0) : 0;
         if (back > 0) {
             const bx = Math.round(detSin(w.unit.facing));
             const bz = Math.round(detCos(w.unit.facing));
@@ -7413,6 +7473,11 @@ export class BattleSim {
 
     /** seek point while approaching — target center plus any active crowd lane */
     private approachGoal(a: Actor, target: Actor): { x: number; z: number } {
+        if (target.unit.type.wall) {
+            // its nearest face — out of the stone on this unit's side (see steerToward)
+            const p = this.aimAt(target, a.x, a.z);
+            return { x: p.x, z: p.z };
+        }
         if (a.cachedEnemy !== target || a.approachOffsetUntil <= this.elapsed) {
             a.approachOx = 0;
             a.approachOz = 0;
@@ -7967,6 +8032,7 @@ export class BattleSim {
                 target.alive &&
                 actorTeam(target) !== team &&
                 !target.unit.type.extra &&
+                this.targetFor(target, caster) &&
                 !this.unaimable(target) &&
                 (target.unit.type.structure ||
                     (this.airborne(target) ? targets.air : targets.ground)) &&
@@ -8104,6 +8170,7 @@ export class BattleSim {
                 target.alive &&
                 actorTeam(target) !== team &&
                 !target.unit.type.extra &&
+                this.targetFor(target, caster) &&
                 !this.unaimable(target) &&
                 (target.unit.type.structure ||
                     (this.airborne(target) ? targets.air : targets.ground));
@@ -8401,7 +8468,8 @@ export class BattleSim {
     private inFieldOfFire(from: Actor, target: Actor): boolean {
         const fov = from.unit.fovYaw;
         if (fov == null) return true;
-        const ang = detAtan2(target.x - from.x, target.z - from.z);
+        const p = this.aimAt(target, from.x, from.z);
+        const ang = detAtan2(p.x - from.x, p.z - from.z);
         return Math.abs(wrapPi(ang - fov)) <= STRONGHOLD_ARCHER_FOV_HALF;
     }
 
@@ -8472,7 +8540,8 @@ export class BattleSim {
         const cacheOk = (cached: Actor): boolean =>
             cached.alive &&
             actorTeam(cached) !== actorTeam(from) &&
-            !cached.unit.type.extra &&
+            (cached.unit.type.wall ? this.hitsWalls(from) : !cached.unit.type.extra) &&
+            this.targetFor(cached, from) &&
             !this.unaimable(cached) &&
             this.inFieldOfFire(from, cached) &&
             this.allowsEnemyLayer(from, cached, wantAir, wantGround, native);
@@ -8482,8 +8551,9 @@ export class BattleSim {
         const inDeadZone = (cached: Actor): boolean => {
             if (minRange <= 0) return false;
             const minReach = minRange + from.radius + cached.radius;
-            const dx = cached.x - from.x;
-            const dz = cached.z - from.z;
+            const p = this.aimAt(cached, from.x, from.z);
+            const dx = p.x - from.x;
+            const dz = p.z - from.z;
             return dx * dx + dz * dz < minReach * minReach;
         };
         const inWeaponRange = (cached: Actor): boolean => {
@@ -8499,8 +8569,9 @@ export class BattleSim {
                 this.feetY(cached),
                 this.elevationCounts(from, cached),
             );
-            const dx = cached.x - from.x;
-            const dz = cached.z - from.z;
+            const p = this.aimAt(cached, from.x, from.z);
+            const dx = p.x - from.x;
+            const dz = p.z - from.z;
             const d2 = dx * dx + dz * dz;
             if (d2 > reach * reach) return false;
             if (inDeadZone(cached)) return false;
@@ -8541,14 +8612,17 @@ export class BattleSim {
         const cx = Math.floor(from.x / HASH_CELL);
         const cz = Math.floor(from.z / HASH_CELL);
 
-        const consider = (a: Actor): void => {
+        // `ax, az`: where it is measured to (a wall: its nearest face, see aimAt)
+        const consider = (a: Actor, ax = a.x, az = a.z): void => {
             if (!a.alive || actorTeam(a) === team) return;
             // in the hash so shots can cross him, but never picked to shoot at
             if (this.unaimable(a)) return;
+            // not one we go for on our own (a wall nobody of ours marked)
+            if (!this.targetFor(a, from)) return;
             if (!this.allowsEnemyLayer(from, a, wantAir, wantGround, native)) return;
             if (!this.inFieldOfFire(from, a)) return;
-            const ddx = a.x - from.x;
-            const ddz = a.z - from.z;
+            const ddx = ax - from.x;
+            const ddz = az - from.z;
             const d = ddx * ddx + ddz * ddz;
             if (d < bestAnyD || (d === bestAnyD && bestAny !== null && a.index < bestAny.index)) {
                 bestAnyD = d;
@@ -8612,6 +8686,16 @@ export class BattleSim {
             for (let dz = -ring + 1; dz <= ring - 1; dz++) {
                 scanCell(cx - ring, cz + dz);
                 scanCell(cx + ring, cz + dz);
+            }
+        }
+        // walls aren't in the grid (it goes by centres, a wall reaches 11 from
+        // its own): the ones we go for, measured to their nearest face
+        if (this.wallBoxes.length > 0 && this.hitsWalls(from)) {
+            for (const r of this.wallBoxes) {
+                const w = r.owner;
+                if (actorTeam(w) === team || !this.targetFor(w, from)) continue; // the cheap no first
+                const p = this.aimAt(w, from.x, from.z);
+                consider(w, p.x, p.z);
             }
         }
         // Prefer outside-dead-zone (shoot or approach); only then kite the
