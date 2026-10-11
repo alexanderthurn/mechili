@@ -206,6 +206,10 @@
               "type": "number",
               "description": "The wall's height at level 1, world units — fixed here rather than measured off the loaded model, so the crown (what stops a shot) and the posts on its walkway (where their archers stand and shoot from) come out the same on every peer, model loaded or not. Keep it equal to the model's height (procedural height × the model's scale)."
             },
+            "gate": {
+              "type": "boolean",
+              "description": "A gate: its own side's units walk through it (allies and converts too — whoever fights on its side); for the enemy it is a wall. Shots it stops like any wall. Omit = false."
+            },
             "crown": {
               "type": "number",
               "description": "where shots pass over: the crown, × its height (its level height included); omit = 0.8"

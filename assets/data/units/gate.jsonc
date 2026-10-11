@@ -1,0 +1,59 @@
+{
+    "id": "gate",
+    "name": "Gate",
+    // the wall's model until the wooden gate is built
+    "modelId": "wall",
+    "cost": 50,
+    // a wall its own side walks through (wall.gate) — otherwise just like the Stone Wall
+    // one 6-cell piece (two tower tiles, four between), lying across the battlefield
+    "footprint": { "cols": 6, "rows": 1 },
+    "formation": { "cols": 1, "rows": 1 },
+    "meshScale": 1,
+    "structure": true,
+    "extra": true,
+    // nobody attacks it on their own: a seat's mark makes it a target for that seat (the horde attacks it anyway)
+    "target": false,
+    "burn": { "takenMult": 0 },
+    "targets": { "ground": false, "air": false },
+    // solid for ground units, world units from the centre: tower to tower (the towers stand on
+    // the centres of the end tiles, ±10), as deep as the towers
+    "wall": {
+        // its own side's units walk through it; shots it stops like any wall
+        "gate": true,
+        "halfLength": 10.9,
+        "halfDepth": 1.3,
+        // its height at level 1, world units: the model's (procedural tower 5.0 × the model's
+        // scale 0.87). Fixed so the crown and the archer posts don't depend on a loaded model.
+        "height": 4.35,
+        "upgradeCost": 25,
+        "heightPerLevel": 0.25,
+        // every wall comes with its walkway (free): it shows which side is the back
+        "autoWalk": true,
+        // the wall stands this far toward its front, so wall + walkway fill the tile row
+        "shift": 0.7,
+        // nobody walks onto the walkway: solid this far behind the stone (to the tile row's
+        // back edge), for movement only — shots still meet just the stone
+        "walkBack": 1.4,
+        // solid to shots below the crown (× the model's height): flat shots stop in it, lobs pass over
+        "crown": 0.8,
+        // archers on the walkway — two, ±spacing from the wall's middle (a single post would
+        // stand in the middle), on the walkway's top (≈ 0.48 of the
+        // wall's height), behind its middle.
+        // The plain archer (same unit, same upgrades); the wall covers him: blasts × splash,
+        // melee from its front side × meleeFront — and only weapons reaching ≥ frontReach
+        // get over the stone from the front (the ogre's 3.4; a knight's 3 not)
+        "posts": {
+            "count": 2, "unitTypeId": "archer", "cost": 100, "spacing": 5, "back": 1.4, "top": 0.48, "crown": 0.8, "rise": 0.8,
+            "cover": { "splash": 0.2, "meleeFront": 0.3, "frontReach": 3.2 },
+        },
+    },
+    "collisionRadius": 1,
+    "soundSize": "large",
+    "colliders": [], // nothing aims at it — its solid box (wall.crown) stops shots instead
+    "hp": 6000,
+    "damage": 0,
+    "range": 0,
+    "attackInterval": 1,
+    "speed": 0,
+    "proceduralModel": "tower",
+}

@@ -646,6 +646,12 @@ export interface UnitType {
          * to the model's height (procedural height × the model's scale).
          */
         height: number;
+        /**
+         * A gate: its own side's units walk through it (allies and converts
+         * too — whoever fights on its side); for the enemy it is a wall. Shots
+         * it stops like any wall. Omit = false.
+         */
+        gate?: boolean;
         /** where shots pass over: the crown, × its height (its level height included); omit = 0.8 */
         crown?: number;
         /** supply per level up, the same for every level (base buildings climb a price ladder instead) */

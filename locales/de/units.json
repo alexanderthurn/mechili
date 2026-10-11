@@ -79,5 +79,8 @@
   },
   "wall": {
     "name": "Steinmauer"
+  },
+  "gate": {
+    "name": "Tor"
   }
 }

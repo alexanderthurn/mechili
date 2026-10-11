@@ -79,5 +79,8 @@
   },
   "wall": {
     "name": "Stone Wall"
+  },
+  "gate": {
+    "name": "Gate"
   }
 }

@@ -1303,6 +1303,13 @@ export class BattleSim {
      *  buildings (a square around each one's circle), so a wall run into a tower
      *  or the Stronghold is one obstacle */
     private readonly routeBoxes: WallBox[] = [];
+    /**
+     * routeBoxes as one side walks them: less its own gates (wall.gate) —
+     * filled per side on demand, this step; empty while no gate stands
+     */
+    private readonly sideRouteBoxes = new Map<BattleTeam, WallBox[]>();
+    /** a gate stands this step (see sideRouteBoxes) */
+    private gates = false;
     /** counts the walls' layout changes (a wall fell): ways round planned before are stale */
     private routeEpoch = 0;
     /** the walled-in check ran (once, on the battle's first step) */
@@ -1315,12 +1322,12 @@ export class BattleSim {
     /** scratch for pushOutOfWall's wallMoveBox (no box per unit per wall per step) */
     private readonly pushBox: WallBox = { owner: null as unknown as Actor, x0: 0, x1: 0, z0: 0, z1: 0, top: 0 };
     /**
-     * The way-round graph per walker size (see planWallRoute): its corners and
+     * The way-round graph per side and walker size (see planWallRoute): its corners and
      * which corner sees which (0 = not asked yet, 1 = clear, 2 = blocked).
      * Depends only on routeBoxes' rectangles, so it is kept until one of them
      * changes (routeSig) — the same tests, asked once instead of every plan.
      */
-    private readonly routeGraphs = new Map<number, { nodes: { x: number; z: number }[]; seen: Uint8Array }>();
+    private readonly routeGraphs = new Map<string, { nodes: { x: number; z: number }[]; seen: Uint8Array }>();
     /** routeBoxes' rectangles the routeGraphs were worked out for (x0, x1, z0, z1 per box) */
     private readonly routeSig: number[] = [];
     /** wallWaypoint's boxes the walker or its goal stands in (scratch) */
@@ -5319,7 +5326,7 @@ export class BattleSim {
             // …unless that spot is in a wall (a foe right across it): out of the
             // stone it would come on this unit's own side, with nothing left to
             // walk round — plan to the foe himself, who stands on his side
-            if (routeDist < goalDist && this.inWallMoveBox(a.x + seekX * routeDist, a.z + seekZ * routeDist, a.radius * 0.95)) {
+            if (routeDist < goalDist && this.inWallMoveBox(actorTeam(a), a.x + seekX * routeDist, a.z + seekZ * routeDist, a.radius * 0.95)) {
                 routeDist = goalDist;
             }
             const goalX = a.x + seekX * routeDist;
@@ -6787,7 +6794,8 @@ export class BattleSim {
                 if (!s.alive) continue;
                 if (s.unit.type.wall) {
                     // archers posted on its walkway stand there on purpose
-                    if (a.unit.pinnedY == null) this.pushOutOfWall(a, s, s.unit.type.wall);
+                    // …and its own side walks through its gates
+                    if (a.unit.pinnedY == null && !this.opensFor(s, actorTeam(a))) this.pushOutOfWall(a, s, s.unit.type.wall);
                 } else this.pushApart(a, s);
             }
         }
@@ -6870,7 +6878,8 @@ export class BattleSim {
             );
             if (foes.length === 0) continue;
             // in its way: walls and buildings, less the walls its seat marked
-            const boxes = this.routeBoxes.filter((b) => !(b.owner.unit.type.wall && this.targetFor(b.owner, r)));
+            // (its own side's gates it walks through anyway)
+            const boxes = this.routeBoxesFor(team).filter((b) => !(b.owner.unit.type.wall && this.targetFor(b.owner, r)));
             if (this.walksToAny(r, foes, boxes)) continue;
             // the nearest foe, straight; the enemy walls on that line, in order
             let near = foes[0]!;
@@ -7032,9 +7041,28 @@ export class BattleSim {
         return out;
     }
 
+    /**
+     * What `team`'s walkers go round: walls and buildings — less the gates
+     * of its own side, which it walks through.
+     */
+    private routeBoxesFor(team: BattleTeam): WallBox[] {
+        if (!this.gates) return this.routeBoxes;
+        let boxes = this.sideRouteBoxes.get(team);
+        if (!boxes) {
+            boxes = this.routeBoxes.filter((r) => !this.opensFor(r.owner, team));
+            this.sideRouteBoxes.set(team, boxes);
+        }
+        return boxes;
+    }
+
+    /** a gate of `team`'s side: its walkers pass */
+    private opensFor(w: Actor, team: BattleTeam): boolean {
+        return !!w.unit.type.wall?.gate && actorTeam(w) === team;
+    }
+
     /** whether a point is in some wall's walkers' box (walkway included), grown by `pad` */
-    private inWallMoveBox(x: number, z: number, pad: number): boolean {
-        for (const r of this.routeBoxes) {
+    private inWallMoveBox(team: BattleTeam, x: number, z: number, pad: number): boolean {
+        for (const r of this.routeBoxesFor(team)) {
             if (r.owner.unit.type.wall && insideBox(x, z, r, pad)) return true;
         }
         return false;
@@ -7083,11 +7111,13 @@ export class BattleSim {
         // without walls, buildings keep their own simple swerve (see steerToward)
         if (this.wallBoxes.length === 0) return null;
         const pad = a.radius * 0.95;
+        // what its side goes round (its own gates it walks through)
+        const boxes = this.routeBoxesFor(actorTeam(a));
         // a goal on or against a wall (an archer on its walkway, a foe hugging it) is
         // reached on its own side: out of the stone there, then round like any other
         // goal — else the wall it stands in would be skipped below, and the unit
         // would push straight into the stone from the wrong side
-        for (const r of this.routeBoxes) {
+        for (const r of boxes) {
             if (!r.owner.unit.type.wall || !insideBox(goalX, goalZ, r, pad)) continue;
             const reach = pad + WALL_GOAL_CLEAR;
             const toX0 = goalX - (r.x0 - pad);
@@ -7104,10 +7134,10 @@ export class BattleSim {
         // attacks), doesn't block the way to it
         const ends = this.routeEnds;
         ends.length = 0;
-        for (const r of this.routeBoxes) {
+        for (const r of boxes) {
             if (insideBox(a.x, a.z, r, pad) || insideBox(goalX, goalZ, r, pad)) ends.push(r);
         }
-        if (!segmentHitsWall(a.x, a.z, goalX, goalZ, this.routeBoxes, pad, ends.length > 0 ? ends : null)) {
+        if (!segmentHitsWall(a.x, a.z, goalX, goalZ, boxes, pad, ends.length > 0 ? ends : null)) {
             a.wallRoute = undefined;
             return null;
         }
@@ -7146,10 +7176,12 @@ export class BattleSim {
         goalZ: number,
         pad: number,
     ): { next: { x: number; z: number } | 'direct' | null; len: number } {
-        const boxes = this.routeBoxes;
+        const team = actorTeam(a);
+        const boxes = this.routeBoxesFor(team);
         // corners a little outside each wall / building, grown by the actor's size —
-        // and which of them see each other — kept per size (see routeGraphs)
-        let graph = this.routeGraphs.get(a.radius);
+        // and which of them see each other — kept per side and size (see routeGraphs)
+        const key = this.gates ? `${team}:${a.radius}` : `${a.radius}`;
+        let graph = this.routeGraphs.get(key);
         if (!graph) {
             const out = a.radius + AVOID_MARGIN;
             const corners: { x: number; z: number }[] = [];
@@ -7165,7 +7197,7 @@ export class BattleSim {
                 }
             }
             graph = { nodes: corners, seen: new Uint8Array(corners.length * corners.length) };
-            this.routeGraphs.set(a.radius, graph);
+            this.routeGraphs.set(key, graph);
         }
         const nodes = graph.nodes;
         const seen = graph.seen;
@@ -7370,6 +7402,8 @@ export class BattleSim {
         this.structures.length = 0;
         this.wallBoxes.length = 0;
         this.routeBoxes.length = 0;
+        this.sideRouteBoxes.clear();
+        this.gates = false;
         for (const a of this.actors) {
             // board extras take no space — except a wall, which is all about space
             if (!a.alive || !a.unit.type.structure || (a.unit.type.extra && !a.unit.type.wall)) continue;
@@ -7381,6 +7415,7 @@ export class BattleSim {
                 const top = (wall.crown ?? WALL_CROWN) * wall.height * a.unit.visualHeightScale();
                 const box = { owner: a, x0: a.x - hx, x1: a.x + hx, z0: a.z - hz, z1: a.z + hz, top };
                 this.wallBoxes.push(box);
+                if (wall.gate) this.gates = true;
                 // walking round it: the stone plus its walkway behind (wall.walkBack)
                 this.routeBoxes.push(this.wallMoveBox(a, wall, { owner: a, x0: 0, x1: 0, z0: 0, z1: 0, top }));
             } else if (a.altitude === 0 && a.radius > 0) {
