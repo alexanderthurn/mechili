@@ -37,6 +37,8 @@ export interface SceneUnit {
     level: number;
     /** runes on this pack */
     items?: string[];
+    /** a wall: how many of its posts are manned (its posts' unit type) */
+    posts?: number;
     /** hooks for objectives */
     tags?: string[];
 }

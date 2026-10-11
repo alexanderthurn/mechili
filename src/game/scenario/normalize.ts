@@ -175,6 +175,10 @@ export function normalizeScenario(raw: unknown, types: TypeRegistry): Normalized
             error(u.team === 'horde' ? `${where}: too far outside the board` : `${where}: outside the ${cols}×${rows} board`);
         }
         if (u.level < 1) error(`${where}: level must be at least 1`);
+        if (u.posts !== undefined) {
+            const slots = type.wall?.posts?.count ?? 0;
+            if (u.posts < 0 || u.posts > slots) error(`${where}: posts ${u.posts} but it has ${slots}`);
+        }
         if (u.items) {
             const kept = u.items.filter((id) => types.rune(id) !== null);
             for (const id of u.items) if (!kept.includes(id)) warn(`${where}: no rune "${id}" — dropped`);

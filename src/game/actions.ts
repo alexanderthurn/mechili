@@ -1124,27 +1124,12 @@ export class ActionDispatcher {
                 const wall = placement.unitById(action.unitId);
                 const posts = wall?.type.wall?.posts;
                 if (!wall || !posts || wall.team !== action.team || wall.seat !== seat || !wall.wallWalk) return false;
-                const taken = new Set<number>();
-                for (const u of placement.allUnits()) {
-                    if (u.hostUnitId === wall.id && u.strongholdArcherSlot !== null) taken.add(u.strongholdArcherSlot);
-                }
-                let slot = -1;
-                for (let i = 0; i < posts.count; i++) {
-                    if (!taken.has(i)) {
-                        slot = i;
-                        break;
-                    }
-                }
-                const spot = slot >= 0 ? wallPostWorld(wall, slot) : null;
                 const postedType = this.ctx.types.byId(posts.unitTypeId);
-                if (!spot || !postedType) return false;
+                if (!postedType || freeWallPost(placement, wall) < 0) return false;
                 if (!economy.spend(seat, posts.cost)) return false;
                 entry.paid = posts.cost;
-                const archer = placement.spawnAtWorld(postedType, spot.x, spot.z, action.team, seat);
-                archer.strongholdArcherSlot = slot;
-                archer.hostUnitId = wall.id;
-                archer.pinnedY = spot.y;
-                archer.seatMembers();
+                const archer = spawnWallPost(placement, postedType, wall, action.team, seat);
+                if (!archer) return false;
                 entry.strongholdArcherUnit = archer;
                 return true;
             }
@@ -2424,6 +2409,41 @@ export function spawnGarrisonPost(
     archer.hostUnitId = keep.id;
     archer.pinnedY = spot.y;
     archer.fovYaw = garrisonFovYaw(keep, spot);
+    archer.seatMembers();
+    return archer;
+}
+
+/** a wall's first unmanned post (slot), or −1 when all are taken or it has none */
+function freeWallPost(placement: PlacementController, wall: Unit): number {
+    const posts = wall.type.wall?.posts;
+    if (!posts || !wall.wallWalk) return -1;
+    const taken = new Set<number>();
+    for (const u of placement.allUnits()) {
+        if (u.hostUnitId === wall.id && u.strongholdArcherSlot !== null) taken.add(u.strongholdArcherSlot);
+    }
+    for (let i = 0; i < posts.count; i++) if (!taken.has(i)) return i;
+    return -1;
+}
+
+/**
+ * Man a wall's next free post with `postedType` (on its walkway, see
+ * wallPostWorld). Null when every post is taken. Shared by the purchase
+ * action and scenario setup.
+ */
+export function spawnWallPost(
+    placement: PlacementController,
+    postedType: UnitType,
+    wall: Unit,
+    team: Team,
+    seat: SeatId,
+): Unit | null {
+    const slot = freeWallPost(placement, wall);
+    const spot = slot >= 0 ? wallPostWorld(wall, slot) : null;
+    if (!spot) return null;
+    const archer = placement.spawnAtWorld(postedType, spot.x, spot.z, team, seat);
+    archer.strongholdArcherSlot = slot;
+    archer.hostUnitId = wall.id;
+    archer.pinnedY = spot.y;
     archer.seatMembers();
     return archer;
 }

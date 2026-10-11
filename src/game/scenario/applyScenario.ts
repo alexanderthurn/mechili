@@ -5,7 +5,7 @@
  * ids come out the same on every client and on every resume or replay. Runs in
  * the Game constructor before any logged action is applied.
  */
-import { spawnGarrisonPost } from '../actions';
+import { spawnGarrisonPost, spawnWallPost } from '../actions';
 import type { TypeRegistry } from '../content/typeRegistry';
 import type { PlacementController } from '../placement';
 import type { SeatId } from '../seats';
@@ -92,6 +92,12 @@ export function applyScenario(host: ScenarioHost, def: ScenarioDef): AppliedScen
             // authored packs count as deployed before round 1 — placed, not this round's buys
             unit.deployedRound = 0;
             if (placed.level > 1) setLevel(unit, placed.level);
+            // after the level: the posts stand on its walkway's (level) height
+            const posts = type.wall?.posts;
+            const postedType = posts ? host.types.byId(posts.unitTypeId) : null;
+            for (let i = 0; postedType && team !== 'horde' && i < (placed.posts ?? 0); i++) {
+                if (!spawnWallPost(host.placement, postedType, unit, team, host.primarySeat(team))) break;
+            }
             if (!type.structure) {
                 for (const itemId of placed.items ?? []) {
                     unit.items.push(itemId);

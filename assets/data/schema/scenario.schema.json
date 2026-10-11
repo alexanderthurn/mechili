@@ -526,6 +526,10 @@
           },
           "description": "runes on this pack"
         },
+        "posts": {
+          "type": "number",
+          "description": "a wall: how many of its posts are manned (its posts' unit type)"
+        },
         "tags": {
           "type": "array",
           "items": {

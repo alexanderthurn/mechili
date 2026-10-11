@@ -401,6 +401,18 @@ export interface Actor {
     wallRouteGoalX?: number;
     wallRouteGoalZ?: number;
     wallRouteUntil?: number;
+    /** a ranged unit's way round the walls to its target, in seconds beyond the straight line — and until when that holds (see rangedDetourSeconds) */
+    detourSeconds?: number;
+    detourUntil?: number;
+    detourTarget?: Actor | null;
+    /** its last rangedBreachWorth answer: for which wall, what, until when */
+    worthWall?: Actor | null;
+    worthPosted?: boolean;
+    worth?: boolean;
+    worthUntil?: number;
+    /** its last postedWallInRange answer, until when */
+    postedWall?: Actor | null;
+    postedUntil?: number;
     /**
      * Breaking through (see breachChoice): the enemy wall this melee unit hits
      * its way through instead of walking round, and the sim time it last meant
@@ -410,6 +422,8 @@ export interface Actor {
     breachSeenAt?: number;
     /** a ranged unit shooting at a wall its side breaks through (see trySiegeShot), this step */
     siegeShotWall?: Actor | null;
+    /** the wall it shot at the step before (sticks to it: see rangedBreachWorth) */
+    prevSiegeShotWall?: Actor | null;
     /**
      * Posted on a wall's walkway: what the wall does for it (UnitType.wall.posts.cover).
      * Set at battle start from its host.
@@ -1155,7 +1169,13 @@ const WALL_GOAL_CLEAR = 0.3;
 const WALL_MELEE_REACH = 1.2;
 
 /** seconds a unit keeps its way round walls before planning it again */
-const WALL_ROUTE_REPLAN = 0.5;
+const WALL_ROUTE_REPLAN = 5;
+/**
+ * seconds a ranged unit sticks to its wall decisions (rangedBreachWorth, the
+ * posted foe it can't hit) before thinking again — they loop over the army
+ * and test shots, too much to ask every step
+ */
+const RANGED_WALL_RETHINK = 1;
 
 /**
  * Breaking through a wall instead of walking round it (melee only, see
@@ -1172,6 +1192,23 @@ const BREACH = {
     minSave: 3,
     gather: 10,
     stale: 0.3,
+} as const;
+/**
+ * When a ranged unit thinks a wall worth shooting down (see rangedBreachWorth).
+ * Tweak live:
+ * - gain / keep / minSave: a foe behind a wall — break it when that's
+ *   quicker than the way round: break time < way round × gain, saving at
+ *   least minSave seconds; once shooting it, while < way round × keep
+ * - postedSeconds / shareOfLeft: a foe posted on a wall it can't hit (nothing
+ *   to walk round to) — only a wall that falls within postedSeconds, and
+ *   within this share of the battle time left
+ */
+const RANGED_BREACH = {
+    gain: 0.9,
+    keep: 1.3,
+    minSave: 2,
+    postedSeconds: 35,
+    shareOfLeft: 0.4,
 } as const;
 /** world units the goal may drift before the way round walls is planned again */
 const WALL_ROUTE_GOAL_SLACK = 4;
@@ -5041,6 +5078,7 @@ export class BattleSim {
 
             const onPath = this.updatePathProgress(a, dt);
             const stats = this.statsOf(a);
+            a.prevSiegeShotWall = a.siegeShotWall ?? null;
             a.siegeShotWall = null;
 
             let canAttack = true;
@@ -5242,7 +5280,11 @@ export class BattleSim {
             // rather than walking closer (into its own dead zone, and back out)
             if (a.unit.type.projectileSpeed && lineBlocked && this.wallBoxes.length > 0) {
                 const wall = this.blockingWall(a, target.x, target.z, stats.range);
-                if (wall && this.shootWall(a, wall, stats, d.attackMult, dt, true)) {
+                if (
+                    wall &&
+                    this.rangedBreachWorth(a, wall, stats, this.rangedDetourSeconds(a, target, stats, tDist)) &&
+                    this.shootWall(a, wall, stats, d.attackMult, dt, true)
+                ) {
                     // breaking the wall is progress: don't give up on the foe behind it
                     // (trackProgress would shun him every few seconds and flip the slide)
                     a.progressAt = this.elapsed;
@@ -5254,7 +5296,7 @@ export class BattleSim {
             // on past him into his own range
             if (a.unit.type.projectileSpeed && this.wallBoxes.length > 0) {
                 const wall = this.postedWallInRange(a, stats.range);
-                if (wall && this.shootWall(a, wall, stats, d.attackMult, dt, true)) {
+                if (wall && this.rangedBreachWorth(a, wall, stats, null) && this.shootWall(a, wall, stats, d.attackMult, dt, true)) {
                     a.progressAt = this.elapsed;
                     continue;
                 }
@@ -5336,8 +5378,11 @@ export class BattleSim {
         // a wall between here and the goal: walk round it, corner by corner —
         // or, walled in by the foe's walls, break through the one in the way
         if (a.altitude === 0) {
-            const goalX = a.x + seekX * goalDist;
-            const goalZ = a.z + seekZ * goalDist;
+            // only as far as it means to go: a shooter stopping at its range plans
+            // to the spot it would shoot from, not round to the target itself
+            const routeDist = Math.max(0, goalDist - stopMargin);
+            const goalX = a.x + seekX * routeDist;
+            const goalZ = a.z + seekZ * routeDist;
             const detour = this.wallWaypoint(a, goalX, goalZ);
             if (detour === 'walled') {
                 if (this.siegeWall(a, goalX, goalZ, stats, d.attackMult ?? 1, dt)) return;
@@ -7068,6 +7113,85 @@ export class BattleSim {
     }
 
     /**
+     * Damage per second this unit deals this wall: a hit as it really lands
+     * (its level, upgrades and debuffs — hitDamage), its volley, × its siege
+     * bonus (buildingDamageMult).
+     */
+    private wallDps(x: Actor, st: ResolvedStats, wall: Actor): number {
+        const volley = x.unit.type.projectileSpeed ? Math.max(1, Math.floor(st.projectileCount)) : 1;
+        const hit = this.hitDamage(x, wall, st.damage, 1);
+        return (hit * volley * (x.unit.type.buildingDamageMult ?? 1)) / Math.max(0.05, st.attackInterval);
+    }
+
+    /**
+     * Whether ranged `a` should shoot this enemy wall down. How long its side
+     * would take — `a`'s whole pack (they think alike), the ranged already
+     * shooting it, the melee breaking it — against `around`: the seconds the
+     * way round would cost (rangedDetourSeconds), or null for a foe posted on
+     * the wall, where there is nothing to walk round to and RANGED_BREACH's
+     * fixed limit applies. Never a wall that outlasts the battle.
+     */
+    private rangedBreachWorth(a: Actor, wall: Actor, stats: ResolvedStats, around: number | null): boolean {
+        if (!wall.alive) return false;
+        const posted = around === null;
+        if (a.worthWall === wall && a.worthPosted === posted && a.worthUntil !== undefined && this.elapsed < a.worthUntil) {
+            return a.worth ?? false;
+        }
+        const worth = this.weighRangedBreach(a, wall, stats, around);
+        a.worthWall = wall;
+        a.worthPosted = posted;
+        a.worth = worth;
+        a.worthUntil = this.elapsed + RANGED_WALL_RETHINK;
+        return worth;
+    }
+
+    private weighRangedBreach(a: Actor, wall: Actor, stats: ResolvedStats, around: number | null): boolean {
+        const team = actorTeam(a);
+        let dps = 0;
+        for (const x of this.actors) {
+            if (!x.alive || actorTeam(x) !== team || x.unit.type.structure) continue;
+            const xt = x.unit.type;
+            const ranged = !!xt.projectileSpeed;
+            let joins: boolean;
+            if (x === a || (ranged && x.unit === a.unit)) joins = true;
+            else if (ranged) joins = x.siegeShotWall === wall || x.prevSiegeShotWall === wall;
+            else joins = x.breachWall === wall && this.elapsed - (x.breachSeenAt ?? -Infinity) <= BREACH.stale;
+            if (!joins) continue;
+            const st = x === a ? stats : this.statsOf(x);
+            if (st.damage > 0) dps += this.wallDps(x, st, wall);
+        }
+        if (dps <= 0) return false;
+        const through = wall.hp / dps;
+        const left = this.config.battleSeconds - this.elapsed;
+        if (through > left) return false;
+        const keep = a.prevSiegeShotWall === wall;
+        if (around === null) {
+            const limit = Math.min(RANGED_BREACH.postedSeconds, left * RANGED_BREACH.shareOfLeft);
+            return through <= (keep ? limit * RANGED_BREACH.keep : limit);
+        }
+        if (keep) return through < around * RANGED_BREACH.keep;
+        return through < around * RANGED_BREACH.gain && around - through > RANGED_BREACH.minSave;
+    }
+
+    /**
+     * What walking round the walls to `target` would cost a ranged unit: the
+     * planned way round (planWallRoute) beyond the straight line, in seconds
+     * at its speed — Infinity when there's no way round. Planned again at the
+     * route's own pace (WALL_ROUTE_REPLAN) or for a new target.
+     */
+    private rangedDetourSeconds(a: Actor, target: Actor, stats: ResolvedStats, tDist: number): number {
+        if (a.detourTarget === target && a.detourUntil !== undefined && this.elapsed < a.detourUntil) {
+            return a.detourSeconds ?? 0;
+        }
+        const route = this.planWallRoute(a, target.x, target.z, a.radius * 0.95);
+        const seconds = route.len === Infinity ? Infinity : Math.max(0, route.len - tDist) / Math.max(0.1, stats.speed);
+        a.detourTarget = target;
+        a.detourSeconds = seconds;
+        a.detourUntil = this.elapsed + WALL_ROUTE_REPLAN;
+        return seconds;
+    }
+
+    /**
      * Damage per second a wall would take if `a` set about breaking it: `a`
      * and its side's melee already at it or close by (as many as fit along the
      * wall), plus its ranged units shooting at it.
@@ -7083,7 +7207,7 @@ export class BattleSim {
             const xt = x.unit.type;
             const st = this.statsOf(x);
             if (st.damage <= 0) continue;
-            const dps = st.damage / Math.max(0.05, st.attackInterval);
+            const dps = this.wallDps(x, st, wall);
             if (xt.projectileSpeed || xt.convertRay || xt.rampBeam) {
                 if (x.siegeShotWall === wall) ranged += dps;
                 continue;
@@ -7525,6 +7649,16 @@ export class BattleSim {
      * to get him.
      */
     private postedWallInRange(a: Actor, range: number): Actor | null {
+        if (a.postedUntil !== undefined && this.elapsed < a.postedUntil) {
+            return a.postedWall?.alive ? a.postedWall : null;
+        }
+        const found = this.findPostedWall(a, range);
+        a.postedWall = found;
+        a.postedUntil = this.elapsed + RANGED_WALL_RETHINK;
+        return found;
+    }
+
+    private findPostedWall(a: Actor, range: number): Actor | null {
         const team = actorTeam(a);
         let best: Actor | null = null;
         let bestD = Infinity;

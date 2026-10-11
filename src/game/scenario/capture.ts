@@ -95,6 +95,8 @@ export function captureScene(
     for (const team of ['player', 'enemy'] as const) {
         for (const id of baseBuildingIds) buildings[team][id] = false;
     }
+    // a wall's manned posts travel with the wall (its archers are skipped below)
+    const postsOf = (unit: Unit) => (unit.type.wall ? all.filter((u) => u.hostUnitId === unit.id).length : 0);
     for (const unit of all) {
         // wave packs and one-battle summons leave the board; posted archers are their building's garrison
         if (unit.consumed || unit.summoned || unit.hostUnitId !== null) continue;
@@ -120,6 +122,7 @@ export function captureScene(
             },
             level: unit.level,
             ...(unit.items.length > 0 ? { items: [...unit.items] } : {}),
+            ...(postsOf(unit) > 0 ? { posts: postsOf(unit) } : {}),
         });
         unitOf.push(unit);
     }

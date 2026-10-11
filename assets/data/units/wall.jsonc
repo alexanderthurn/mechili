@@ -1,9 +1,9 @@
 {
     "id": "wall",
     "name": "Stone Wall",
-    "cost": 100,
-    // experiment: one 4-cell piece, lying across the battlefield
-    "footprint": { "cols": 4, "rows": 1 },
+    "cost": 50,
+    // one 6-cell piece (two tower tiles, four between), lying across the battlefield
+    "footprint": { "cols": 6, "rows": 1 },
     "formation": { "cols": 1, "rows": 1 },
     "meshScale": 1,
     "structure": true,
@@ -11,14 +11,14 @@
     "burn": { "takenMult": 0 },
     "targets": { "ground": false, "air": false },
     // solid for ground units, world units from the centre: tower to tower (the towers stand on
-    // the centres of the end tiles, ±6), as deep as the towers
+    // the centres of the end tiles, ±10), as deep as the towers
     "wall": {
-        "halfLength": 6.9,
+        "halfLength": 10.9,
         "halfDepth": 1.3,
         // its height at level 1, world units: the model's (procedural tower 5.0 × the model's
         // scale 0.87). Fixed so the crown and the archer posts don't depend on a loaded model.
         "height": 4.35,
-        "upgradeCost": 50,
+        "upgradeCost": 25,
         "heightPerLevel": 0.25,
         // every wall comes with its walkway (free): it shows which side is the back
         "autoWalk": true,
@@ -26,21 +26,21 @@
         "shift": 0.7,
         // solid to shots below the crown (× the model's height): flat shots stop in it, lobs pass over
         "crown": 0.8,
-        // experiment: an archer on the walkway — one, in the middle of the wall (a single
-        // post stands there; more spread ±spacing), on the walkway's top (≈ 0.48 of the
+        // archers on the walkway — two, ±spacing from the wall's middle (a single post would
+        // stand in the middle), on the walkway's top (≈ 0.48 of the
         // wall's height), behind its middle.
         // The plain archer (same unit, same upgrades); the wall covers him: blasts × splash,
         // melee from its front side × meleeFront — and only weapons reaching ≥ frontReach
         // get over the stone from the front (the ogre's 3.4; a knight's 3 not)
         "posts": {
-            "count": 1, "unitTypeId": "archer", "cost": 100, "spacing": 3, "back": 1.4, "top": 0.48, "crown": 0.8, "rise": 0.8,
+            "count": 2, "unitTypeId": "archer", "cost": 100, "spacing": 5, "back": 1.4, "top": 0.48, "crown": 0.8, "rise": 0.8,
             "cover": { "splash": 0.2, "meleeFront": 0.3, "frontReach": 3.2 },
         },
     },
     "collisionRadius": 1,
     "soundSize": "large",
     "colliders": [], // nothing aims at it — its solid box (wall.crown) stops shots instead
-    "hp": 4000,
+    "hp": 6000,
     "damage": 0,
     "range": 0,
     "attackInterval": 1,

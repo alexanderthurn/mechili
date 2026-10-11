@@ -206,7 +206,8 @@ export function armyValue(
         if (!type) continue;
         const levels = Math.max(0, u.level - 1) * Math.round((type.levelBasis ?? type.cost) * prices.levelCostFactor);
         const runes = (u.items ?? []).reduce((sum, id) => sum + (types.rune(id)?.cardCost ?? 0), 0);
-        value[u.team] += type.cost + levels + runes;
+        const posts = (u.posts ?? 0) * (type.wall?.posts?.cost ?? 0);
+        value[u.team] += type.cost + levels + runes + posts;
     }
     for (const side of ['player', 'enemy'] as const) {
         for (const ids of Object.values(def.scene.techs[side])) {
