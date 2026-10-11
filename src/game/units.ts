@@ -632,7 +632,15 @@ export interface UnitType {
     wall?: {
         halfLength: number;
         halfDepth: number;
-        /** where shots pass over: the crown, × the model's height (its level height included); omit = 0.8 */
+        /**
+         * The wall's height at level 1, world units — fixed here rather than
+         * measured off the loaded model, so the crown (what stops a shot) and
+         * the posts on its walkway (where their archers stand and shoot from)
+         * come out the same on every peer, model loaded or not. Keep it equal
+         * to the model's height (procedural height × the model's scale).
+         */
+        height: number;
+        /** where shots pass over: the crown, × its height (its level height included); omit = 0.8 */
         crown?: number;
         /** supply per level up, the same for every level (base buildings climb a price ladder instead) */
         upgradeCost?: number;
@@ -1384,7 +1392,7 @@ export function wallPostWorld(wall: Unit, slot: number): { x: number; y: number;
     const backX = detSin(wall.facing);
     const backZ = detCos(wall.facing);
     // the walkway keeps its gap below the crown as the wall grows (see setWallWalkLevel)
-    const height = getUnitVisualHeight(wall.type.modelId ?? wall.type.id) * wall.type.meshScale;
+    const height = wall.type.wall!.height * wall.type.meshScale;
     const top = posts.top + posts.crown * posts.rise * (wall.wallLevelScale() - 1);
     return {
         x: lineX + backX * posts.back,

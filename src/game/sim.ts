@@ -7338,8 +7338,8 @@ export class BattleSim {
             const wall = a.unit.type.wall;
             if (wall) {
                 const { hx, hz } = this.wallHalfExtents(a, wall);
-                const modelHeight = getUnitVisualHeight(a.unit.type.modelId ?? a.unit.type.id);
-                const top = (wall.crown ?? WALL_CROWN) * modelHeight * a.unit.visualHeightScale();
+                // a fixed height from the data, never the measured model: see wall.height
+                const top = (wall.crown ?? WALL_CROWN) * wall.height * a.unit.visualHeightScale();
                 const box = { owner: a, x0: a.x - hx, x1: a.x + hx, z0: a.z - hz, z1: a.z + hz, top };
                 this.wallBoxes.push(box);
                 this.routeBoxes.push(box);

@@ -198,9 +198,13 @@
             "halfDepth": {
               "type": "number"
             },
+            "height": {
+              "type": "number",
+              "description": "The wall's height at level 1, world units — fixed here rather than measured off the loaded model, so the crown (what stops a shot) and the posts on its walkway (where their archers stand and shoot from) come out the same on every peer, model loaded or not. Keep it equal to the model's height (procedural height × the model's scale)."
+            },
             "crown": {
               "type": "number",
-              "description": "where shots pass over: the crown, × the model's height (its level height included); omit = 0.8"
+              "description": "where shots pass over: the crown, × its height (its level height included); omit = 0.8"
             },
             "upgradeCost": {
               "type": "number",
@@ -274,7 +278,8 @@
           },
           "required": [
             "halfLength",
-            "halfDepth"
+            "halfDepth",
+            "height"
           ],
           "additionalProperties": false,
           "description": "wall extra: a solid rectangle ground units can't cross — they are pushed out of it and steer around its nearer end. World units from the centre, `halfLength` along x (across the battlefield), `halfDepth` along z. Flyers pass over. Nothing aims at it, but it is solid to shots: one that meets it below its `crown` stops in the stone (either side's)."

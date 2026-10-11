@@ -2686,6 +2686,7 @@ ${chatFloatStyles(u, pc, ec)}
     font-size: 15px;
 }
 .mechili-menu .m-lobby-settings .m-field { min-width: 0; }
+.mechili-menu .m-lobby-settings .m-field[hidden] { display: none; }
 /* a room setting off its default: a brass box, so a changed match reads at a glance */
 .mechili-menu .m-lobby-settings select.is-changed {
     /* a setting off its default: tinted brass, so a changed match reads at a glance */

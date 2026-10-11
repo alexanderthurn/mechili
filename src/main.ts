@@ -2215,6 +2215,7 @@ function isNonDefaultLobbySettings(cfg: CustomGameConfig, defaults = defaultLobb
 /** shows `cfg` in every room-settings box (basic and advanced), marks the
  *  changed ones gold and syncs Reset — host and guest alike */
 function populateLobbySettingsForm(cfg: CustomGameConfig): void {
+    syncSilentLobbySettings(cfg);
     cgSiegeEl.value = cfg.siege ? 'siege' : 'standard';
     cgVictoryEl.value = cfg.victory === 'rounds' ? 'rounds' : 'hp';
     cgPlayersEl.value = cfg.mode === '2v2' ? '2v2' : '1v1';
@@ -2235,6 +2236,16 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     for (const sel of LOBBY_BLURB_SELECTS) syncSelectOptionLabels(sel, false);
     syncLobbySettingsResetVisibility(cfg);
     markChangedLobbySettings(cfg);
+}
+
+/**
+ * Settings that do nothing in this combination are hidden: Commander HP with
+ * Victory = Rounds (each side has one life a round), Terrain once a Map is
+ * picked (the map brings its own ground).
+ */
+function syncSilentLobbySettings(cfg: CustomGameConfig): void {
+    cgCommanderHpEl.closest('label')!.hidden = cfg.victory === 'rounds';
+    cgTerrainEl.closest('label')!.hidden = mapValue(cfg.map) !== '';
 }
 
 /**
@@ -2268,7 +2279,10 @@ function changedLobbySettings(cfg: CustomGameConfig): [HTMLSelectElement, boolea
 /** Host-only: "Reset to defaults" shows whenever any setting is gold (off its default) */
 function syncLobbySettingsResetVisibility(cfg: CustomGameConfig): void {
     // a locked box (the player count, once someone joined) is nothing Reset can undo
-    cgResetEl.hidden = !activeLobbyHost || !changedLobbySettings(cfg).some(([select, on]) => on && !select.disabled);
+    // nor is a hidden one (see syncSilentLobbySettings)
+    cgResetEl.hidden =
+        !activeLobbyHost ||
+        !changedLobbySettings(cfg).some(([select, on]) => on && !select.disabled && !select.closest('label')!.hidden);
 }
 
 function selectedLobbyOptionFull(select: HTMLSelectElement): string {
@@ -2871,6 +2885,7 @@ let activeLobbyHost: { config: CustomGameConfig; onChange: () => void; save?: (c
         if (!activeLobbyHost) return;
         Object.assign(activeLobbyHost.config, readLobbySettingsForm());
         (activeLobbyHost.save ?? saveCustomGameConfig)(activeLobbyHost.config);
+        syncSilentLobbySettings(activeLobbyHost.config);
         syncLobbySettingsResetVisibility(activeLobbyHost.config);
         markChangedLobbySettings(activeLobbyHost.config);
         activeLobbyHost.onChange();

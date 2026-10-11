@@ -15,6 +15,9 @@
     "wall": {
         "halfLength": 6.9,
         "halfDepth": 1.3,
+        // its height at level 1, world units: the model's (procedural tower 5.0 × the model's
+        // scale 0.87). Fixed so the crown and the archer posts don't depend on a loaded model.
+        "height": 4.35,
         "upgradeCost": 50,
         "heightPerLevel": 0.25,
         // every wall comes with its walkway (free): it shows which side is the back
