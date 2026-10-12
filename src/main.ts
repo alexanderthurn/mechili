@@ -631,15 +631,6 @@ function clearIntroCover(): void {
     introCoverEl = null;
 }
 
-/** Pixi Melodan wordmark back on the menu (after intro cover / resume cancel) */
-function restoreMenuTitle(): void {
-    title.visible = true;
-    title.alpha = 1;
-    logo.alpha = 1;
-    layoutTitle();
-    app.render();
-}
-
 function applyRandomMenuZoomOrigin(bg: HTMLElement): void {
     // Full plate — any XY on the menu bg (slight inset so edges don't pin).
     const originX = 0.08 + Math.random() * 0.84; // 0.08–0.92
@@ -1438,7 +1429,6 @@ const rosterTableEl = menu.querySelector<HTMLDivElement>('.m-roster-table')!;
 const cancelEl = menu.querySelector<HTMLButtonElement>('.m-cancel')!;
 const spModeEl = menu.querySelector<HTMLDivElement>('[data-view="sp"]')!;
 const spScenariosEl = menu.querySelector<HTMLDivElement>('[data-view="sp-editor"]')!;
-const spScenarioListEl = spScenariosEl.querySelector<HTMLDivElement>('.m-scenario-list')!;
 const spCampaignsEl = menu.querySelector<HTMLDivElement>('[data-view="sp-campaigns"]')!;
 const spCampaignListEl = spCampaignsEl.querySelector<HTMLDivElement>('.m-campaign-list')!;
 const spEditorContinueEl = spScenariosEl.querySelector<HTMLButtonElement>('.m-editor-continue')!;
@@ -1480,7 +1470,6 @@ const tutorialEl = menu.querySelector<HTMLDivElement>('[data-view="tutorial"]')!
 const mainButtonsEl = menu.querySelector<HTMLDivElement>('.m-main')!;
 const mmModeEl = menu.querySelector<HTMLDivElement>('.m-matchmaking')!;
 const mmHordeEl = menu.querySelector<HTMLInputElement>('.mm-horde')!;
-const mmYouNameEl = menu.querySelector<HTMLSpanElement>('.mm-you-name')!;
 const mmInviteEl = menu.querySelector<HTMLButtonElement>('.m-seat-invite')!;
 const mmLinkEl = menu.querySelector<HTMLDivElement>('.m-mm-link')!;
 const mmSimpleEl = menu.querySelector<HTMLDivElement>('.m-mm-simple')!;
