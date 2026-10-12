@@ -645,6 +645,8 @@ export interface Projectile {
     gravity?: number;
     /** homing shots chase this actor and hit nothing else */
     target?: Actor;
+    /** a shot at a wall: stone it meets within {@link WALL_AIM_PAD} of this wall's strikes this wall */
+    aimWall?: Actor;
     ttl: number;
     /** a physical stone (bounces, rolls, keeps striking) — see {@link StoneState} */
     stone?: StoneState;
@@ -979,6 +981,12 @@ const LOS_RECHECK_S = 0.3;
 const LOS_SAMPLE_WU = 1;
 /** a shot must pass at least this high over the ground (wu) */
 const LOS_CLEARANCE = 0.05;
+/**
+ * World units around a targeted wall's stone where another wall's stone
+ * counts as the target's: pieces placed freely overlap or touch at their ends,
+ * and a shot at one would otherwise stop in its neighbour just before it.
+ */
+const WALL_AIM_PAD = 1;
 /** no progress toward the target for this long, with terrain in the way → stuck (s) */
 const STUCK_SECONDS = 3;
 /** getting this much closer counts as progress (wu) */
@@ -5671,6 +5679,7 @@ export class BattleSim {
             })(),
             gravity,
             target: at.homing ? target : undefined,
+            ...(target.unit.type.wall ? { aimWall: target } : {}),
             // a real rock (not the hammerer's swelling blast disc) is a body once it lands
             ...((at.projectileStyle ?? 'bolt') === 'stone' && at.projectileScaleEnd == null && !at.homing
                 ? {
@@ -5821,7 +5830,8 @@ export class BattleSim {
     }
 
     /** whether a planned flight stays above the ground between the shooter and the target */
-    private shotClears(p: ShotPlan, a: Actor, target: Actor): boolean {
+    /** `why` (debug): where and on what the flight is stopped */
+    private shotClears(p: ShotPlan, a: Actor, target: Actor, why?: string[]): boolean {
         const flat = hypot(p.vx, p.vz);
         const flight = p.expectedFlight;
         if (flat < 1e-6 || flight <= 0) return true;
@@ -5839,12 +5849,27 @@ export class BattleSim {
             const x = p.mx + p.vx * t;
             const z = p.mz + p.vz * t;
             const y = p.muzzleY + p.vy * t - 0.5 * g * t * (t + dt);
-            if (buildings.length > 0 && this.insideBuilding(buildings, x, y, z)) return false;
+            const at = why ? ` at ${x.toFixed(1)},${z.toFixed(1)} y ${y.toFixed(1)} (${(flat * t).toFixed(1)} of ${total.toFixed(1)})` : '';
+            if (buildings.length > 0 && this.insideBuilding(buildings, x, y, z)) {
+                why?.push(`building${at}`);
+                return false;
+            }
             // a wall shot at (a marked one) is where the flight is meant to end, not in its way
-            if (walls && this.insideWallStone(x, y, z, a.unit.hostUnitId, target.unit.type.wall ? target : null)) return false;
+            if (walls && this.insideWallStone(x, y, z, a.unit.hostUnitId, target.unit.type.wall ? target : null)) {
+                // at the marked wall already (a neighbour overlapping its end): arrived
+                if (target.unit.type.wall && this.nearWallStone(target, x, z)) return true;
+                if (why) {
+                    const r = this.wallBoxes.find((b) => b.owner !== target && insideBox(x, z, b, 0));
+                    why.push(`wall #${r?.owner.unit.id ?? '?'} stone${at}`);
+                }
+                return false;
+            }
             const along = flat * t;
             if (along < skipStart || total - along < skipEnd) continue;
-            if (y < simGroundHeightAt(x, z) + LOS_CLEARANCE) return false;
+            if (y < simGroundHeightAt(x, z) + LOS_CLEARANCE) {
+                why?.push(`ground ${simGroundHeightAt(x, z).toFixed(1)}${at}`);
+                return false;
+            }
         }
         return true;
     }
@@ -6992,6 +7017,61 @@ export class BattleSim {
         return !ft.convertRay && !ft.rampBeam && !ft.freeFlight;
     }
 
+    /** debug: what `a` goes for right now and where it aims at it (a wall: its nearest face), or null */
+    debugTarget(a: Actor): { target: Actor; x: number; z: number } | null {
+        const t = a.cachedEnemy;
+        if (!a.alive || !t || !t.alive) return null;
+        const p = this.aimAt(t, a.x, a.z, !!a.unit.type.projectileSpeed);
+        return { target: t, x: p.x, z: p.z };
+    }
+
+    /**
+     * Debug: the enemy walls `a` would go for (marked by its seat, or the
+     * horde's), each with why it is or isn't its pick — 'pick', 'deadZone',
+     * 'blocked' (with where the shot stops), 'outOfReach' or 'farther'.
+     */
+    debugWalls(a: Actor): { wall: Actor; x: number; z: number; status: string; why: string }[] {
+        const out: { wall: Actor; x: number; z: number; status: string; why: string }[] = [];
+        if (!a.alive || !this.hitsWalls(a)) return out;
+        const stats = this.statsOf(a);
+        for (const r of this.wallBoxes) {
+            const w = r.owner;
+            if (!w.alive || actorTeam(w) === actorTeam(a) || !this.targetFor(w, a)) continue;
+            const p = this.aimAt(w, a.x, a.z);
+            const px = p.x;
+            const pz = p.z;
+            const d = hypot(px - a.x, pz - a.z);
+            const reach = effectiveWeaponReach(
+                this.weaponRange(a, w, stats.range),
+                a.radius,
+                w.radius,
+                this.feetY(a),
+                this.feetY(w),
+                this.elevationCounts(a, w),
+            );
+            const why: string[] = [`d ${d.toFixed(1)} reach ${reach.toFixed(1)}`];
+            let status = a.cachedEnemy === w ? 'pick' : 'farther';
+            if (stats.minRange > 0 && d < stats.minRange + a.radius + w.radius) status = 'deadZone';
+            else if (d > reach) status = a.cachedEnemy === w ? 'pick' : 'outOfReach';
+            else if (a.unit.type.projectileSpeed) {
+                let clear = false;
+                for (let level = 1; level <= CLASSIC_LOFT_TIME.length && !clear; level++) {
+                    const plan = this.planShot(a, w, a.unit.type.projectileSpeed, 0, level, false);
+                    if (!plan) {
+                        why.push(`loft ${level}: no plan`);
+                        break;
+                    }
+                    const stop: string[] = [];
+                    clear = this.shotClears(plan, a, w, stop);
+                    why.push(`loft ${level}: ${clear ? 'clear' : stop.join(', ')}`);
+                }
+                if (!clear) status = 'blocked';
+            }
+            out.push({ wall: w, x: px, z: pz, status, why: why.join(' · ') });
+        }
+        return out;
+    }
+
     /**
      * Where `from` (at fx, fz) measures, walks and strikes at `t`: its centre —
      * for a wall the nearest point of its walkers' box (stone and walkway; for a
@@ -7569,7 +7649,18 @@ export class BattleSim {
             else continue;
             if (!best || t < best.t) best = { building: r.owner, t };
         }
+        // a neighbour's stone at the wall shot at: the hit is that wall's
+        const aim = p.aimWall;
+        if (best && aim && best.building !== aim && aim.alive && this.nearWallStone(aim, p.x + sx * best.t, p.z + sz * best.t)) {
+            best = { building: aim, t: best.t };
+        }
         return best;
+    }
+
+    /** whether (x, z) is at `wall`'s stone, within {@link WALL_AIM_PAD} */
+    private nearWallStone(wall: Actor, x: number, z: number): boolean {
+        for (const r of this.wallBoxes) if (r.owner === wall) return insideBox(x, z, r, WALL_AIM_PAD);
+        return false;
     }
 
     /** never chosen as a target (UnitType.notAcquired, or posted on a building) */

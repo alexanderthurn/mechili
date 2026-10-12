@@ -1020,7 +1020,7 @@ export class TestBattleBar {
 
     constructor(
         wrapper: HTMLElement,
-        cb: { onBack(): void; onSkip(): void },
+        cb: { onBack(): void; onSkip(): void; onRestart(): void },
         /** the board being tested (to mark results of other boards) */
         private readonly board: string = '',
     ) {
@@ -1029,10 +1029,12 @@ export class TestBattleBar {
         this.root.addEventListener('pointerdown', (e) => e.stopPropagation());
         this.root.innerHTML =
             `<div class="tb-row"><span class="tb-title">${t('editor:testBattle', { defaultValue: 'Test battle' })}</span>` +
+            `<button type="button" class="tb-restart">${t('editor:restartTest', { defaultValue: 'Restart' })}</button>` +
             `<button type="button" class="tb-skip">${t('editor:skipToResult', { defaultValue: 'Skip to result' })}</button>` +
             `<button type="button" class="tb-back">${t('editor:backToEditor', { defaultValue: 'Back to editor' })}</button></div>` +
             `<div class="tb-result"></div>`;
         this.root.querySelector('.tb-back')!.addEventListener('click', () => cb.onBack());
+        this.root.querySelector('.tb-restart')!.addEventListener('click', () => cb.onRestart());
         this.root.querySelector('.tb-skip')!.addEventListener('click', () => cb.onSkip());
         wrapper.appendChild(this.root);
     }

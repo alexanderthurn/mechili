@@ -39,6 +39,8 @@ export interface SceneUnit {
     items?: string[];
     /** a wall: how many of its posts are manned (its posts' unit type) */
     posts?: number;
+    /** an enemy wall: the other side's target mark on it (Unit.targetBy, its first seat) */
+    marked?: boolean;
     /** hooks for objectives */
     tags?: string[];
 }

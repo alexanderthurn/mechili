@@ -530,6 +530,10 @@
           "type": "number",
           "description": "a wall: how many of its posts are manned (its posts' unit type)"
         },
+        "marked": {
+          "type": "boolean",
+          "description": "an enemy wall: the other side's target mark on it (Unit.targetBy, its first seat)"
+        },
         "tags": {
           "type": "array",
           "items": {

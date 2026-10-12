@@ -15,7 +15,7 @@ import type { PlacementController } from '../placement';
 import type { SeatId } from '../seats';
 import type { GameSettings } from '../settings';
 import type { TechTree } from '../tech';
-import type { Team, Unit } from '../units';
+import { isTargetMarked, type Team, type Unit } from '../units';
 import type { Atmosphere } from '../weather';
 import {
     SCENARIO_VERSION,
@@ -123,6 +123,9 @@ export function captureScene(
             level: unit.level,
             ...(unit.items.length > 0 ? { items: [...unit.items] } : {}),
             ...(postsOf(unit) > 0 ? { posts: postsOf(unit) } : {}),
+            ...(unit.type.wall && team !== 'horde' && isTargetMarked(unit, host.primarySeat(team === 'player' ? 'enemy' : 'player'))
+                ? { marked: true }
+                : {}),
         });
         unitOf.push(unit);
     }

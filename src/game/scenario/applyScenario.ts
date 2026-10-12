@@ -98,6 +98,9 @@ export function applyScenario(host: ScenarioHost, def: ScenarioDef): AppliedScen
             for (let i = 0; postedType && team !== 'horde' && i < (placed.posts ?? 0); i++) {
                 if (!spawnWallPost(host.placement, postedType, unit, team, host.primarySeat(team))) break;
             }
+            if (placed.marked && team !== 'horde') {
+                unit.targetBy[host.primarySeat(team === 'player' ? 'enemy' : 'player')] = !(type.target ?? true);
+            }
             if (!type.structure) {
                 for (const itemId of placed.items ?? []) {
                     unit.items.push(itemId);

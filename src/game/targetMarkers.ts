@@ -2,24 +2,21 @@ import { BoxGeometry, ConeGeometry, Group, Mesh, MeshBasicMaterial, type Scene }
 
 /**
  * The red arrows of target marks (see WALL_PLAN.md): the yellow level-up
- * arrow's shape (placement.ts updateLevelArrows), lying just above the ground
- * in front of a marked wall and pointing at it, bobbing toward it. Render
- * only — fed each frame with what to show.
+ * arrow's shape (placement.ts updateLevelArrows), upside down above a marked
+ * wall, pointing down at it and bobbing. Render only — fed each frame with
+ * what to show.
  */
 export interface TargetMarkerView {
-    /** where the arrow's tip points: the wall's face, on the ground */
+    /** where the arrow's tip points: the wall's top */
     x: number;
     z: number;
     y: number;
-    /** unit direction from the arrow toward the wall (flat) */
-    dirX: number;
-    dirZ: number;
     /** an auto-mark (walled in): drawn fainter */
     faint: boolean;
 }
 
 const COLOR = 0xd8312b;
-/** world units the arrow's tip stays off the face, and how far it bobs */
+/** world units the arrow's tip stays above the wall, and how far it bobs */
 const GAP = 1.2;
 const BOB = 0.5;
 const SCALE = 3;
@@ -38,12 +35,10 @@ export class TargetMarkers {
             const arrow = this.arrows[i] ?? this.make();
             const mat = v.faint ? this.faint : this.solid;
             for (const child of arrow.children) (child as Mesh).material = mat;
-            // tip (1 up the built arrow, × SCALE) GAP off the face, swinging toward it
+            // built pointing +y with its tip 1 up (× SCALE): turned over, the tip hangs GAP above the top
             const bob = (Math.sin(timeSeconds * 3 + i) * 0.5 + 0.5) * BOB;
-            const back = GAP + bob + SCALE;
-            arrow.position.set(v.x - v.dirX * back, v.y, v.z - v.dirZ * back);
-            // built pointing +y: tip it over onto +z (x), then turn +z toward the wall (y)
-            arrow.rotation.set(Math.PI / 2, Math.atan2(v.dirX, v.dirZ), 0, 'YXZ');
+            arrow.position.set(v.x, v.y + GAP + bob + SCALE, v.z);
+            arrow.rotation.set(Math.PI, 0, 0);
             arrow.visible = true;
         }
         for (let i = views.length; i < this.arrows.length; i++) this.arrows[i]!.visible = false;

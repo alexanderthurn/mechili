@@ -117,6 +117,7 @@ export class EditorSession {
                 {
                     onBack: () => host.links()?.open('author', draft),
                     onSkip: () => host.skipTest(),
+                    onRestart: () => host.links()?.open('test', draft),
                 },
                 JSON.stringify(draft.scene) + JSON.stringify(draft.rules),
             );

@@ -198,6 +198,7 @@ import { GROUND_UNIT_Y } from './groundQuality';
 import { RANGE_ELEV_MAX_BONUS, reachToward } from './terrainCombat';
 import { FireCoverage } from './fireCoverage';
 import { TargetMarkers, type TargetMarkerView } from './targetMarkers';
+import { TargetLine, type TargetLineSegment } from './targetLine';
 import { getUnitVisualHeight, modelGeometryFingerprint, modelGeometrySnapshot, usesWingFlapModel } from './unitModels';
 import { BirdFlocks } from './birdFlocks';
 import { WallJoins } from './wallJoins';
@@ -638,6 +639,10 @@ export class Game {
     private readonly fireCoverage: FireCoverage;
     /** red arrows at marked walls (setTargetMark, the battle's auto-marks) */
     private readonly targetMarkers: TargetMarkers;
+    /** debug: the selected battle unit's line to its target */
+    private readonly targetLine: TargetLine;
+    /** what the target line last logged (logged again on a change) */
+    private targetLineLog = '';
     private readonly battleFovMesh;
     /** inner dead-zone (min-range) ring under the selected battle mech */
     private readonly battleMinRangeMesh;
@@ -1980,6 +1985,7 @@ export class Game {
         this.battleRangeMesh = createRangeRing(this.scene);
         this.fireCoverage = new FireCoverage(this.scene);
         this.targetMarkers = new TargetMarkers(this.scene);
+        this.targetLine = new TargetLine(this.scene);
         this.battleFovMesh = createFovWedge(this.scene);
         this.battleMinRangeMesh = createRangeRing(this.scene);
         (this.battleMinRangeMesh.material as import('three').MeshBasicMaterial).color.setHex(0xff6a44);
@@ -12603,7 +12609,7 @@ export class Game {
                     }
                 }
             }
-            // in front of each wall's face, side by side when several seats marked it
+            // above each wall, side by side along it when several seats marked it
             const perWall = new Map<Unit, number>();
             for (const m of marks) perWall.set(m.unit, (perWall.get(m.unit) ?? 0) + 1);
             const placed = new Map<Unit, number>();
@@ -12614,15 +12620,47 @@ export class Game {
                 placed.set(u, k + 1);
                 const along = (k - (perWall.get(u)! - 1) / 2) * 3;
                 const off = wallShiftOffset(u.facing, wall.shift ?? 0);
-                // its front looks down (−sin, −cos) of its facing — toward whoever attacks it
-                const fx = -Math.sin(u.facing);
-                const fz = -Math.cos(u.facing);
-                const x = u.world.x + off.x + fx * wall.halfDepth + (u.rotated ? 0 : along);
-                const z = u.world.z + off.z + fz * wall.halfDepth + (u.rotated ? along : 0);
-                views.push({ x, z, y: this.map.heightAt(x, z) + 0.8, dirX: -fx, dirZ: -fz, faint: m.faint });
+                const x = u.world.x + off.x + (u.rotated ? 0 : along);
+                const z = u.world.z + off.z + (u.rotated ? along : 0);
+                const top = (wall.height ?? 4) * (u.visualHeightScale() / u.type.meshScale);
+                views.push({ x, z, y: this.map.heightAt(x, z) + top, faint: m.faint });
             }
         }
         this.targetMarkers.update(views, performance.now() / 1000);
+    }
+
+    /**
+     * Debug (?debug / the debug overlay): lines from the selected battle unit —
+     * yellow to its target; to each wall it may go for (marked by its seat):
+     * red blocked shot, orange dead zone, grey out of reach, blue farther.
+     * The walls' reasons go to the console when they change.
+     */
+    private updateTargetLine(): void {
+        const a = this.selectedActor;
+        const sim = this.sim;
+        if (!debugEnabled() || this.hud.isUiHidden || this.phase !== 'battle' || !sim || !a?.alive) {
+            this.targetLine.update(null, []);
+            this.targetLineLog = '';
+            return;
+        }
+        const lift = 1.5;
+        const at = (x: number, z: number, alt = 0) => ({ x, y: this.map.heightAt(x, z) + alt + lift, z });
+        const segments: TargetLineSegment[] = [];
+        const aim = sim.debugTarget(a);
+        if (aim) segments.push({ to: at(aim.x, aim.z, aim.target.altitude), color: 0xffe14a });
+        const walls = sim.debugWalls(a);
+        const color: Record<string, number> = { blocked: 0xff3030, deadZone: 0xff9a2e, outOfReach: 0x9a9a9a, farther: 0x4aa8ff };
+        for (const w of walls) if (w.status !== 'pick') segments.push({ to: at(w.x, w.z), color: color[w.status] ?? 0xffffff });
+        this.targetLine.update(at(a.x, a.z, a.altitude), segments);
+        const log =
+            `${a.unit.type.id} #${a.unit.id} → ${aim ? `${aim.target.unit.type.id} #${aim.target.unit.id}` : 'nothing'}` +
+            walls.map((w) => `\n  wall #${w.wall.unit.id}: ${w.status} · ${w.why}`).join('');
+        // logged when the pick or a wall's status changes, not on every step of a walk
+        const key = `${a.unit.id}>${aim?.target.unit.id ?? '-'}` + walls.map((w) => `${w.wall.unit.id}:${w.status}`).join();
+        if (key !== this.targetLineLog) {
+            this.targetLineLog = key;
+            console.info(`[target] ${log}`);
+        }
     }
 
     private updateFireCoverage(): void {
@@ -12763,6 +12801,7 @@ export class Game {
         this.updateBattleRangeRing();
         this.updateFireCoverage();
         this.updateTargetMarkers();
+        this.updateTargetLine();
         if (this.phase === 'battle' && this.sim) {
             if (this.selectedActor && !this.selectedActor.alive) this.selectedActor = null;
             this.hpBars.update(
