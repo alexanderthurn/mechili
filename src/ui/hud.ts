@@ -34,7 +34,7 @@ import { CardSpellTips, encodeTipRows, spellInfoFrameHtml, startCardFaceHtml } f
 import { registerHoverTipClearer } from './hoverTips';
 import { roundCardFaceHtml } from './roundCardFace';
 import { speedKeyHint } from './speedKeys';
-import { hudStyles } from '../theme';
+import { hudStyles } from '../styles/hudStyles';
 import { yearMarksHtml, yearProgressHtml, yearRoleName, type YearProgress } from './yearTally';
 import { yearWinner } from '../game/settings';
 import { audio } from '../game/audio';
@@ -66,7 +66,7 @@ type CommanderChip = {
     avatar: string | null;
 };
 
-/** Compact / phone chrome — MUST match the size media query in theme.ts */
+/** Compact / phone chrome — MUST match the size media query in styles/hudStyles.ts */
 const PHONE_MQ =
     typeof matchMedia === 'function'
         ? matchMedia('(max-width: 599px), (max-height: 540px)')

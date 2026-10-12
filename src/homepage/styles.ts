@@ -1,6 +1,6 @@
 import { THEME } from '../theme';
 
-/** Homepage layout CSS. Card face styles come from hudStyles(); menu accents from menuStyles(). */
+/** Homepage layout CSS. Card face styles come from hudStyles() (styles/hudStyles.ts); menu accents from menuStyles() (styles/menuStyles.ts). */
 export function homepageStyles(): string {
     const u = THEME.ui;
     const sky = THEME.scenery.skyHorizon;

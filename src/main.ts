@@ -175,7 +175,8 @@ import {
 } from './game/roundCardAlgorithms';
 import { duoSeats, localizeRoster, type CanonicalSeatDef, type SeatId } from './game/seats';
 import { initI18n, onLanguageChange, t } from './i18n';
-import { THEME, applyLanguageFont, FONT_FAMILY, menuStyles } from './theme';
+import { THEME, applyLanguageFont, FONT_FAMILY } from './theme';
+import { menuStyles } from './styles/menuStyles';
 import { assetUrl } from './game/assets';
 
 const { isElectron, lan, lobby: steamLobby, steam, storage, win } = sebNative;

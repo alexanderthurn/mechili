@@ -44,7 +44,9 @@ import {
     unitName,
 } from '../i18n/format';
 import { prefs, updatePrefs, applySteamLanguageDefault } from '../game/prefs';
-import { applyLanguageFont, hudStyles, menuStyles } from '../theme';
+import { applyLanguageFont } from '../theme';
+import { hudStyles } from '../styles/hudStyles';
+import { menuStyles } from '../styles/menuStyles';
 import { CardSpellTips, startCardFaceHtml } from '../ui/cardSpellTip';
 import { roundCardFaceHtml } from '../ui/roundCardFace';
 import { cssUrl, iconHtml, moneyHtml } from '../ui/iconAtlas';

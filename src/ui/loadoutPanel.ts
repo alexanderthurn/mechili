@@ -335,7 +335,7 @@ export function createLoadoutPanel(onClose: () => void): LoadoutPanel {
         const type = selected();
         if (!isOpen || !type) return;
         // Short viewports hide the stage entirely (see the max-height rule in
-        // theme.ts). A display:none canvas measures 0, so there is nothing to
+        // styles/menuStyles.ts). A display:none canvas measures 0, so there is nothing to
         // render — and a renderer left running against it would burn a WebGL
         // context and a rAF loop for something nobody can see.
         if (stage.clientWidth < 1 || stage.clientHeight < 1) {
