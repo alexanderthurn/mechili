@@ -1166,8 +1166,12 @@ const WALL_GOAL_CLEAR = 0.3;
 /** seconds a unit keeps its way round walls before planning it again */
 const WALL_ROUTE_REPLAN = 5;
 
-/** world units the goal may drift before the way round walls is planned again */
+/** world units the goal may drift before the way round walls is planned again (at least) */
 const WALL_ROUTE_GOAL_SLACK = 4;
+/** …or this share of the way to it, when farther: a far foe walking about doesn't replan every second */
+const WALL_ROUTE_GOAL_SLACK_SHARE = 0.15;
+/** unit sizes share a way-round graph per this step (world units), rounded up: few graphs to build */
+const WALL_ROUTE_RADIUS_STEP = 0.5;
 /** world units from the corner it heads for that count as reached */
 const WALL_ROUTE_REACHED = 1;
 const AVOID_STRENGTH = 2.4;
@@ -1244,6 +1248,8 @@ const CROWD_EVERY_STEPS = 1;
 const CROWD_OVERLOAD_EVERY_STEPS = perSeconds(0.2);
 /** re-run closestEnemy only every 1s of sim time (staggered by actor index) */
 const TARGET_REFRESH_STEPS = perSeconds(1);
+/** after a wall falls, units plan their way round again spread over this many steps, not all in one */
+const WALL_ROUTE_EPOCH_SPREAD = perSeconds(1);
 
 /**
  * Ground-only vs diving free-flyers (bats): opportunistic contact swat.
@@ -7222,15 +7228,19 @@ export class BattleSim {
             return null;
         }
         const wp = a.wallRoute;
+        const slack = Math.max(WALL_ROUTE_GOAL_SLACK, hypot(goalX - a.x, goalZ - a.z) * WALL_ROUTE_GOAL_SLACK_SHARE);
         const fresh =
             a.wallRouteUntil !== undefined &&
             this.elapsed < a.wallRouteUntil &&
-            hypot((a.wallRouteGoalX ?? 0) - goalX, (a.wallRouteGoalZ ?? 0) - goalZ) < WALL_ROUTE_GOAL_SLACK &&
+            hypot((a.wallRouteGoalX ?? 0) - goalX, (a.wallRouteGoalZ ?? 0) - goalZ) < slack &&
             (wp === null || (wp !== undefined && hypot(wp.x - a.x, wp.z - a.z) > WALL_ROUTE_REACHED)) &&
-            // a wall fell (or stands elsewhere) since: a shorter way may be open now
-            a.wallRouteEpoch === this.routeEpoch;
+            // a wall fell (or stands elsewhere) since: a shorter way may be open now —
+            // asked again in this unit's own step of the next second, not all at once
+            (a.wallRouteEpoch === this.routeEpoch || (this.stepIndex + a.index) % WALL_ROUTE_EPOCH_SPREAD !== 0);
         if (fresh) return wp ?? null;
+        const t0 = this.profileEnabled ? performance.now() : 0;
         const planned = this.planWallRoute(a, goalX, goalZ, pad);
+        if (this.profileEnabled) this.lastProfile.routes = (this.lastProfile.routes ?? 0) + (performance.now() - t0);
         if (planned.next === 'direct') {
             a.wallRoute = undefined;
             return null;
@@ -7259,11 +7269,14 @@ export class BattleSim {
         const team = actorTeam(a);
         const boxes = this.routeBoxesFor(team);
         // corners a little outside each wall / building, grown by the actor's size —
-        // and which of them see each other — kept per side and size (see routeGraphs)
-        const key = this.gates ? `${team}:${a.radius}` : `${a.radius}`;
+        // and which of them see each other — kept per side and size class (see
+        // routeGraphs): sizes rounded up, so a graph's corners clear every size in it
+        const size = Math.ceil(a.radius / WALL_ROUTE_RADIUS_STEP) * WALL_ROUTE_RADIUS_STEP;
+        const sizePad = size * 0.95;
+        const key = this.gates ? `${team}:${size}` : `${size}`;
         let graph = this.routeGraphs.get(key);
         if (!graph) {
-            const out = a.radius + AVOID_MARGIN;
+            const out = size + AVOID_MARGIN;
             const corners: { x: number; z: number }[] = [];
             for (const r of boxes) {
                 for (const [x, z] of [
@@ -7273,7 +7286,7 @@ export class BattleSim {
                     [r.x0 - out, r.z1 + out],
                 ] as const) {
                     // a corner inside another wall (at a joint) is no place to stand
-                    if (!insideWallBox(x, z, boxes, pad)) corners.push({ x, z });
+                    if (!insideWallBox(x, z, boxes, sizePad)) corners.push({ x, z });
                 }
             }
             graph = { nodes: corners, seen: new Uint8Array(corners.length * corners.length) };
@@ -7307,7 +7320,7 @@ export class BattleSim {
                 if (u > 0 && v < n - 1) {
                     // corner to corner: asked once per graph (see routeGraphs)
                     const e = (u - 1) * m + (v - 1);
-                    if (seen[e] === 0) seen[e] = segmentHitsWall(pu.x, pu.z, pv.x, pv.z, boxes, pad, null) ? 2 : 1;
+                    if (seen[e] === 0) seen[e] = segmentHitsWall(pu.x, pu.z, pv.x, pv.z, boxes, sizePad, null) ? 2 : 1;
                     if (seen[e] === 2) continue;
                 } else {
                     const skip = u === 0 ? startIn : v === n - 1 ? goalIn : null;
