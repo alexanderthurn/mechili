@@ -83,7 +83,7 @@ export interface MapSize {
 export const STANDARD_MAP: MapSize = {
     zoneCols: 60,
     zoneRows: 30,
-    neutralRows: 4,
+    neutralRows: 10,
     flankCols: 6,
     rimCells: 4,
 };

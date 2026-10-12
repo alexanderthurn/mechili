@@ -14,6 +14,9 @@ import { answerLevelMessage, LevelDownload, matchLevelOffer } from './levelSync'
 import type { GameSettings, StrongholdMode } from './settings';
 import type { MapSize } from './map';
 import type { TerrainShape } from './terrainShapes';
+
+/** the board sizes a generated-terrain room can pick (MAP_PRESETS in scenario/editorDraft.ts) */
+export type GeneratedBoardSize = 'compact' | 'standard' | 'wide' | 'deep';
 import type { Team } from './units';
 import { t } from '../i18n';
 import { activeAssetOverlay } from './assets';
@@ -355,6 +358,8 @@ export interface CustomGameConfig {
      * Unset = the generated terrain. `board` is the size the terrain was made for.
      */
     map?: { id: string; hash: string; scenario: string; name: string; board: MapSize };
+    /** the generated terrain's board size (the editor's presets); unset = standard. A `map` brings its own. */
+    boardSize?: GeneratedBoardSize;
     /** the generated board relief; see GameSettings.terrainShape */
     terrainShape?: TerrainShape;
 }

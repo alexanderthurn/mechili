@@ -122,10 +122,15 @@ export interface TutorialCorridorZone {
     filled?: boolean;
 }
 
+/** the middle strip the tutorial lessons were built on (the standard map has 10 rows now) */
+const TUTORIAL_NEUTRAL_ROWS = 4;
+
 /** Apply match knobs shared by every tutorial lesson entry. */
 export function applyTutorialMode(settings: GameSettings, id: number): void {
     const lesson: TutorialSettings = { id, sideHp: 1 };
     settings.tutorial = lesson;
+    // the lessons were laid out on the old 4-row middle strip: keep their distances
+    settings.map = { ...settings.map, neutralRows: TUTORIAL_NEUTRAL_ROWS };
     settings.roundCardPreset = 'off';
     if (id === TUTORIAL_1_ID) {
         settings.strongholdMode = 'none';
@@ -463,6 +468,9 @@ export function tutorial3R3EnemyDwarfCells(map: BattleMap): Cell[] {
     return cells;
 }
 
+/** tiles between Tutorial 3's two mortar pads (was 3: both sat right behind the Garrison) */
+const TUTORIAL_3_MORTAR_GAP = 11;
+
 /**
  * Tutorial 3 round 4: two mortar pads on the player's back rim, spaced apart
  * behind the Garrison so both can shell the melee chewing the tower.
@@ -479,7 +487,8 @@ export function tutorial3R4MortarSlots(map: BattleMap): TutorialPlaceSlot[] {
     );
     const playerNear = !map.ownAtFar;
     const row = playerNear ? rimCells : map.rows - rimCells - fp.rows;
-    const gap = 3;
+    // tiles between the two pads: one toward the flank, one toward the centre, the Garrison between
+    const gap = TUTORIAL_3_MORTAR_GAP;
     const leftCol = Math.max(
         rimCells,
         Math.min(map.cols - rimCells - fp.cols * 2 - gap, garrison.col - Math.floor(gap / 2) - fp.cols),

@@ -106,7 +106,7 @@ import {
 import { readZip, writeZip } from './game/content/zip';
 import { applyScenarioToSettings } from './game/scenario/scenarioSettings';
 import { initDraftStore, loadStoredDraft } from './game/scenario/editorDraft';
-import { MapChoice, mapOption, mapValue } from './menu/mapChoice';
+import { MapChoice, boardSizeOption, generatedBoard, mapOption, mapValue } from './menu/mapChoice';
 import { downloadScenarioPackage, editorLinks, editSavedScenario, initEditorMenu, openNewScenarioEditor, openStoredScenarioEditor, savedScenarioDef } from './menu/editorMenu';
 import { BASE_TYPES } from './game/units';
 import type { ScenarioDef } from './game/scenario/scenarioDef';
@@ -336,6 +336,7 @@ function loadCustomGameConfig(): CustomGameConfig {
             startMoney: startMoneyOption(parsed.startMoney),
             strongholdMode: strongholdModeOption(parsed.strongholdMode),
             map: mapOption(parsed.map),
+            boardSize: boardSizeOption(parsed.boardSize),
             terrainShape: terrainShapeOption(parsed.terrainShape),
             siege: parsed.siege === true,
             victory: parsed.victory === 'rounds' ? 'rounds' : 'hp',
@@ -369,6 +370,8 @@ function applyCustomGameConfig(settings: GameSettings, cfg: CustomGameConfig): v
     settings.startMoney = resolveStartMoney(cfg.startMoney);
     settings.strongholdMode = strongholdModeOption(cfg.strongholdMode);
     settings.terrainShape = terrainShapeOption(cfg.terrainShape);
+    // the generated terrain's board size (a saved map replaces it with its own, see lobbyMatchSettings)
+    settings.map = generatedBoard(cfg.boardSize);
     // Custom Game rooms play the base game (scenarios are single player: Single Player → Editor)
     // deleted, not set to undefined: the room's transport turns undefined into null
     delete settings.level;
@@ -2181,10 +2184,11 @@ const mapChoice = new MapChoice(cgLandscapeEl);
 
 function defaultLobbySettings(): Pick<
     CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'fixedSideHp' | 'moneyFactor' | 'startMoney' | 'strongholdMode' | 'terrainShape' | 'map'
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'fixedSideHp' | 'moneyFactor' | 'startMoney' | 'strongholdMode' | 'terrainShape' | 'map' | 'boardSize'
 > {
     return {
         map: undefined,
+        boardSize: 'standard',
         pace: DEFAULT_CUSTOM_GAME_PACE_ID,
         hordePreset: DEFAULT_HORDE_PRESET_ID,
         roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
@@ -2208,7 +2212,8 @@ function isNonDefaultLobbySettings(cfg: CustomGameConfig, defaults = defaultLobb
         cfg.startMoney !== defaults.startMoney ||
         cfg.strongholdMode !== defaults.strongholdMode ||
         terrainShapeOption(cfg.terrainShape) !== defaults.terrainShape ||
-        mapValue(cfg.map) !== mapValue(defaults.map)
+        mapValue(cfg.map) !== mapValue(defaults.map) ||
+        (!cfg.map && boardSizeOption(cfg.boardSize) !== defaults.boardSize)
     );
 }
 
@@ -2227,7 +2232,7 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     cgMoneyEl.value = String(moneyFactorOption(cfg.moneyFactor));
     cgStartMoneyEl.value = String(startMoneyOption(cfg.startMoney));
     cgStrongholdEl.value = strongholdModeOption(cfg.strongholdMode);
-    mapChoice.refresh(cfg.map);
+    mapChoice.refresh(cfg.map, boardSizeOption(cfg.boardSize));
     refreshTerrainOptions();
     cgTerrainEl.value = terrainShapeOption(cfg.terrainShape);
     syncSelectOptionLabels(cgTerrainEl, false);
@@ -2272,7 +2277,7 @@ function changedLobbySettings(cfg: CustomGameConfig): [HTMLSelectElement, boolea
         [cgStartMoneyEl, cfg.startMoney !== d.startMoney],
         [cgStrongholdEl, cfg.strongholdMode !== d.strongholdMode],
         [cgTerrainEl, terrainShapeOption(cfg.terrainShape) !== d.terrainShape],
-        [cgLandscapeEl, mapValue(cfg.map) !== mapValue(d.map)],
+        [cgLandscapeEl, mapValue(cfg.map) !== mapValue(d.map) || (!cfg.map && boardSizeOption(cfg.boardSize) !== d.boardSize)],
     ];
 }
 
@@ -2377,7 +2382,7 @@ registerHoverTipClearer(() => hideLobbySettingTip());
 function readLobbySettingsForm(): Pick<
     CustomGameConfig,
     | 'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'fixedSideHp' | 'moneyFactor' | 'startMoney' | 'strongholdMode'
-    | 'map' | 'terrainShape' | 'siege' | 'victory' | 'fog'
+    | 'map' | 'boardSize' | 'terrainShape' | 'siege' | 'victory' | 'fog'
 > {
     const hpOpt = commanderHpOptionById(cgCommanderHpEl.value);
     return {
@@ -2385,6 +2390,7 @@ function readLobbySettingsForm(): Pick<
         victory: cgVictoryEl.value === 'rounds' ? 'rounds' : 'hp',
         fog: cgFogEl.value !== 'off',
         map: mapChoice.value,
+        boardSize: mapChoice.boardSize,
         terrainShape: terrainShapeOption(cgTerrainEl.value),
         pace: customGamePaceById(cgPaceEl.value).id,
         hordePreset: hordeAlgorithmById(cgHordeEl.value).id,
@@ -5237,6 +5243,7 @@ function loadPracticeConfig(): CustomGameConfig {
             startMoney: startMoneyOption(parsed.startMoney ?? defaults.startMoney),
             strongholdMode: strongholdModeOption(parsed.strongholdMode ?? defaults.strongholdMode),
             map: mapOption(parsed.map),
+            boardSize: boardSizeOption(parsed.boardSize ?? defaults.boardSize),
             terrainShape: terrainShapeOption(parsed.terrainShape ?? defaults.terrainShape),
         });
     } catch {

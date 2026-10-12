@@ -15,11 +15,11 @@ export type MapPresetId = 'tiny' | 'compact' | 'standard' | 'wide' | 'deep';
 
 /** plan §7.1 — small boards leave no room for the base buildings */
 export const MAP_PRESETS: Record<MapPresetId, MapSize> = {
-    tiny: { zoneCols: 16, zoneRows: 10, neutralRows: 4, flankCols: 0, rimCells: 4 },
+    tiny: { zoneCols: 16, zoneRows: 10, neutralRows: 2, flankCols: 0, rimCells: 4 },
     compact: { zoneCols: 32, zoneRows: 18, neutralRows: 4, flankCols: 4, rimCells: 4 },
     standard: { ...STANDARD_MAP },
-    wide: { zoneCols: 80, zoneRows: 30, neutralRows: 4, flankCols: 10, rimCells: 4 },
-    deep: { zoneCols: 60, zoneRows: 44, neutralRows: 8, flankCols: 6, rimCells: 4 },
+    wide: { zoneCols: 80, zoneRows: 30, neutralRows: 10, flankCols: 10, rimCells: 4 },
+    deep: { zoneCols: 60, zoneRows: 44, neutralRows: 20, flankCols: 10, rimCells: 4 },
 };
 
 export function mapPresetOf(map: MapSize): MapPresetId | null {
