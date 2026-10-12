@@ -7508,11 +7508,16 @@ export class Game {
             // catches a peer disagreeing about who owns the Aegis tech / Bulwark rune
             mix(a.shieldHp);
             mix(a.unit.level);
-            // target marks (setTargetMark): which seats attack it — a sum over
-            // canonical seat ranks, so each peer's own seat numbering doesn't matter
+            // target marks (setTargetMark): which seats attack it — a bit per
+            // canonical seat rank and value, so each peer's own seat numbering
+            // doesn't matter and no two mark sets mix the same
             let marked = 0;
             a.unit.targetBy.forEach((v, seat) => {
-                if (v !== undefined) marked += (this.seatRank(seat) + 1) * (v ? 3 : 7);
+                if (v === undefined) return;
+                const rank = this.seatRank(seat);
+                // side × 8 + seat within it (seatRank is side × 1000 + within), two bits each
+                const slot = Math.min(25, Math.floor(rank / 1000) * 8 + (rank % 1000));
+                marked += 2 ** (slot * 2 + (v ? 1 : 0));
             });
             mix(marked);
         }
@@ -12555,13 +12560,6 @@ export class Game {
         return bestRay ?? bestScreen;
     }
 
-    /**
-     * Where the selected ranged unit can hit, cell by cell (FireCoverage). In
-     * battle for any selected shooter (either side), asked of the live sim and
-     * followed as it walks — worked out again at most every
-     * {@link FIRE_COVERAGE_BATTLE_MS}; in deployment for the selected ranged
-     * pack, asked of a sim holding just it and the board's buildings.
-     */
     /** the target marks these seats set, on any unit (see setTargetMark) */
     private targetMarksBy(seats: ReadonlySet<SeatId>): { unitId: number; seat: SeatId }[] {
         const out: { unitId: number; seat: SeatId }[] = [];
@@ -12663,6 +12661,13 @@ export class Game {
         }
     }
 
+    /**
+     * Where the selected ranged unit can hit, cell by cell (FireCoverage). In
+     * battle for any selected shooter (either side), asked of the live sim and
+     * followed as it walks — worked out again at most every
+     * {@link FIRE_COVERAGE_BATTLE_MS}; in deployment for the selected ranged
+     * pack, asked of a sim holding just it and the board's buildings.
+     */
     private updateFireCoverage(): void {
         const battle = this.phase === 'battle' && this.sim !== null;
         let unit: Unit | null = null;
