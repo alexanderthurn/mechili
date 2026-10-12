@@ -1040,6 +1040,20 @@ interface WallBox {
     top: number;
 }
 
+/** a seat's walkers of one size and the corner graph round its obstacles (BattleSim.wallReach) */
+interface WallReach {
+    pad: number;
+    foes: readonly Actor[];
+    boxes: readonly WallBox[];
+    nodes: { x: number; z: number }[];
+    /** per foe: the boxes it stands pressed into (they don't hide him) */
+    foeIn: WallBox[][];
+    /** per corner: its group of corners that reach each other */
+    group: Int32Array;
+    /** per group: whether one of its corners sees a foe */
+    groupSees: boolean[];
+}
+
 function insideBox(x: number, z: number, r: WallBox, pad: number): boolean {
     return x > r.x0 - pad && x < r.x1 + pad && z > r.z0 - pad && z < r.z1 + pad;
 }
@@ -6895,23 +6909,33 @@ export class BattleSim {
             reps.set(a.unit, a);
         }
         const picks: { seat: number; walls: Actor[] }[] = [];
+        // packs of one seat and size share their foes, obstacles and corner graph (see WallReach)
+        const reaches = new Map<string, WallReach | null>();
+        const t0 = this.profileEnabled ? performance.now() : 0;
         for (const r of reps.values()) {
             const team = actorTeam(r);
-            // foes on the ground it would go for: units and buildings, no walls
-            const foes = this.actors.filter(
-                (f) =>
-                    f.alive &&
-                    actorTeam(f) !== team &&
-                    !f.unit.type.extra &&
-                    !f.unit.marchIn &&
-                    f.altitude === 0 &&
-                    this.targetFor(f, r),
-            );
-            if (foes.length === 0) continue;
-            // in its way: walls and buildings, less the walls its seat marked
-            // (its own side's gates it walks through anyway)
-            const boxes = this.routeBoxesFor(team).filter((b) => !(b.owner.unit.type.wall && this.targetFor(b.owner, r)));
-            if (this.walksToAny(r, foes, boxes)) continue;
+            const groupKey = `${actorSeat(r)}:${r.radius}`;
+            let reach = reaches.get(groupKey);
+            if (reach === undefined) {
+                // foes on the ground it would go for: units and buildings, no walls
+                const foes = this.actors.filter(
+                    (f) =>
+                        f.alive &&
+                        actorTeam(f) !== team &&
+                        !f.unit.type.extra &&
+                        !f.unit.marchIn &&
+                        f.altitude === 0 &&
+                        this.targetFor(f, r),
+                );
+                // in its way: walls and buildings, less the walls its seat marked
+                // (its own side's gates it walks through anyway)
+                const boxes = this.routeBoxesFor(team).filter((b) => !(b.owner.unit.type.wall && this.targetFor(b.owner, r)));
+                reach = foes.length > 0 ? this.wallReach(r.radius, foes, boxes) : null;
+                reaches.set(groupKey, reach);
+            }
+            if (!reach) continue;
+            const { foes, boxes } = reach;
+            if (this.walksToAny(r, reach)) continue;
             // the nearest foe, straight; the enemy walls on that line, in order
             let near = foes[0]!;
             let nearD = Infinity;
@@ -6934,6 +6958,7 @@ export class BattleSim {
             crossed.sort((p, q) => p.t - q.t || p.wall.index - q.wall.index);
             picks.push({ seat: actorSeat(r), walls: crossed.map((c) => c.wall) });
         }
+        if (this.profileEnabled) this.lastProfile.autoMark = (this.lastProfile.autoMark ?? 0) + (performance.now() - t0);
         // per seat: the first walls, most picked first; close ones merge
         const seats = [...new Set(picks.map((p) => p.seat))];
         for (const seat of seats) {
@@ -6959,13 +6984,14 @@ export class BattleSim {
     }
 
     /**
-     * Whether `start` can walk to any of `foes` round `boxes`: from it over the
-     * boxes' corners (as planWallRoute lays them), until a corner — or the
-     * start — sees a foe straight. No cache: asked once a battle.
+     * The corner graph of `boxes` for walkers of this size, as planWallRoute
+     * lays it, split into the groups of corners that reach each other — and
+     * whether a group's corners see one of `foes` straight. Worked out once
+     * per seat and size at battle start (autoMarkWalledIn), then asked per pack.
      */
-    private walksToAny(start: Actor, foes: readonly Actor[], boxes: readonly WallBox[]): boolean {
-        const pad = start.radius * 0.95;
-        const out = start.radius + AVOID_MARGIN;
+    private wallReach(radius: number, foes: readonly Actor[], boxes: readonly WallBox[]): WallReach {
+        const pad = radius * 0.95;
+        const out = radius + AVOID_MARGIN;
         const nodes: { x: number; z: number }[] = [];
         for (const r of boxes) {
             for (const [x, z] of [
@@ -6979,29 +7005,47 @@ export class BattleSim {
         }
         // a foe pressed into a box (a building's own, a wall it hugs): that box doesn't hide him
         const foeIn = foes.map((f) => boxes.filter((r) => insideBox(f.x, f.z, r, pad)));
-        const seesFoe = (x: number, z: number, skip: readonly WallBox[]): boolean =>
-            foes.some((f, i) => !segmentHitsWall(x, z, f.x, f.z, boxes, pad, skip.length > 0 ? [...skip, ...foeIn[i]!] : foeIn[i]!));
-        const startIn = boxes.filter((r) => insideBox(start.x, start.z, r, pad));
-        if (seesFoe(start.x, start.z, startIn)) return true;
-        const reached = new Uint8Array(nodes.length);
-        const queue: number[] = [];
+        const reach: WallReach = { pad, foes, boxes, nodes, foeIn, group: new Int32Array(nodes.length).fill(-1), groupSees: [] };
         for (let i = 0; i < nodes.length; i++) {
-            const n = nodes[i]!;
-            if (!segmentHitsWall(start.x, start.z, n.x, n.z, boxes, pad, startIn)) {
-                reached[i] = 1;
-                queue.push(i);
+            if (reach.group[i] !== -1) continue;
+            const g = reach.groupSees.length;
+            let sees = false;
+            reach.group[i] = g;
+            const queue = [i];
+            for (let q = 0; q < queue.length; q++) {
+                const u = nodes[queue[q]!]!;
+                if (!sees && this.seesFoe(reach, u.x, u.z, [])) sees = true;
+                for (let v = 0; v < nodes.length; v++) {
+                    if (reach.group[v] !== -1) continue;
+                    const n = nodes[v]!;
+                    if (segmentHitsWall(u.x, u.z, n.x, n.z, boxes, pad, null)) continue;
+                    reach.group[v] = g;
+                    queue.push(v);
+                }
             }
+            reach.groupSees.push(sees);
         }
-        for (let q = 0; q < queue.length; q++) {
-            const u = nodes[queue[q]!]!;
-            if (seesFoe(u.x, u.z, [])) return true;
-            for (let v = 0; v < nodes.length; v++) {
-                if (reached[v]) continue;
-                const n = nodes[v]!;
-                if (segmentHitsWall(u.x, u.z, n.x, n.z, boxes, pad, null)) continue;
-                reached[v] = 1;
-                queue.push(v);
-            }
+        return reach;
+    }
+
+    /** whether one of the reach's foes is in sight from (x, z), past the boxes in `skip` */
+    private seesFoe(reach: WallReach, x: number, z: number, skip: readonly WallBox[]): boolean {
+        const { foes, foeIn, boxes, pad } = reach;
+        return foes.some((f, i) => !segmentHitsWall(x, z, f.x, f.z, boxes, pad, skip.length > 0 ? [...skip, ...foeIn[i]!] : foeIn[i]!));
+    }
+
+    /**
+     * Whether `start` can walk to any of the reach's foes round its boxes: it
+     * sees one straight, or it sees a corner whose group sees one.
+     */
+    private walksToAny(start: Actor, reach: WallReach): boolean {
+        const { boxes, pad, nodes } = reach;
+        const startIn = boxes.filter((r) => insideBox(start.x, start.z, r, pad));
+        if (this.seesFoe(reach, start.x, start.z, startIn)) return true;
+        for (let i = 0; i < nodes.length; i++) {
+            if (!reach.groupSees[reach.group[i]!]) continue;
+            const n = nodes[i]!;
+            if (!segmentHitsWall(start.x, start.z, n.x, n.z, boxes, pad, startIn)) return true;
         }
         return false;
     }
