@@ -140,6 +140,8 @@ export interface SelectionInfo {
     owner: string;
     /** what layers this unit can attack — shown as the first stat row */
     hits: string;
+    /** what it is especially strong against ("5x Walls"), after {@link hits} on its line; empty = none */
+    strengths?: string;
     hp: number;
     maxHp: number;
     damage: number;
@@ -3686,7 +3688,7 @@ export class Hud {
                   liveRow(t('hud:kills'), String(info.record.kills), 'kills')
                 : '') +
             (!combatless
-                ? `<div class="row"><span class="v">${escapeHtml(info.hits)}</span></div>`
+                ? `<div class="row"><span class="v">${escapeHtml(info.strengths ? `${info.hits}, ${info.strengths}` : info.hits)}</span></div>`
                 : '') +
             techSlots +
             actions +

@@ -16,6 +16,7 @@
     "projectileStyle": "stone",
     // wide blast vs packed dwarves (3× the ballista's old splash radius of 3)
     "splashRadius": 3,
+    "buildingDamageMult": 5, // stones: × damage against buildings and walls
     "hp": 45,
     "damage": 35,
     "range": 12,

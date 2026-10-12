@@ -23,6 +23,7 @@
     // its bolts fly flat, like the frame aims them: ≈ 7° at full range instead of ≈ 23°
     "projectileGravityMult": 0.35,
     "splashRadius": 5, // bolts shatter — everything near the impact takes the hit
+    "buildingDamageMult": 2, // × damage against buildings and walls
     // heavy chassis would stamp hard from cost/bulk — keep a light track
     "sandWeight": 1.1,
     "deathWear": "ash", // wood/iron siege — burns, no blood

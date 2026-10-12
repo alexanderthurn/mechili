@@ -80,6 +80,7 @@
   "groundAir": "Attacks ground + air",
   "airOnly": "Attacks air only",
   "groundOnly": "Attacks ground only",
+  "vsWalls": "{{mult}}x vs walls",
   "none": "None",
   "levelUpDesc": "Spend supply to raise this pack one level.",
   "levelAll": "Level All ({{n}})",

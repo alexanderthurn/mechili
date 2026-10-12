@@ -19,6 +19,7 @@
     "projectileStyle": "stone",
     "projectileScale": 0.6,
     "splashRadius": 4,
+    "buildingDamageMult": 5, // stones: × damage against buildings and walls
     "hp": 700,
     "damage": 120,
     "range": 4, // drops on what is (almost) right below it

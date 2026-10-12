@@ -78,6 +78,7 @@
   "groundAir": "Greift Boden + Luft an",
   "airOnly": "Greift nur Luft an",
   "groundOnly": "Greift nur Boden an",
+  "vsWalls": "{{mult}}x gegen Mauern",
   "none": "Keine",
   "levelUpDesc": "Setze Vorräte ein, um dieses Pack um eine Stufe zu erhöhen.",
   "levelAll": "Alle aufwerten ({{n}})",

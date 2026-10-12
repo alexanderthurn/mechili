@@ -12965,6 +12965,7 @@ export class Game {
             team,
             owner: this.ownerName(team, seat),
             hits: targetsLabel(effectiveTargets(u.type, seat, hasTech, this.types)),
+            strengths: strengthsLabel(u.type),
             hp: a.hp,
             maxHp: a.maxHp,
             damage: rs.damage * lv.statMult * this.levelScaleOf(u, 'damage', lv.level, empDisabled),
@@ -13004,6 +13005,7 @@ export class Game {
             name: unitName(u.type.id, u.type.name),
             team: u.team,
             owner: this.ownerName(u.team, u.seat),
+            strengths: strengthsLabel(u.type),
             hits: targetsLabel(
                 effectiveTargets(
                     u.type,
@@ -13760,6 +13762,17 @@ interface BuildingIntelSeat {
     sellOwned: boolean;
     rallyBought: number;
     movePackOwned: boolean;
+}
+
+/**
+ * The details pane's "Hits" line, after the layers: what the unit is especially strong
+ * against, joined (only buildings and walls so far — UnitType.buildingDamageMult).
+ */
+function strengthsLabel(type: UnitType): string {
+    const parts: string[] = [];
+    const walls = type.buildingDamageMult ?? 1;
+    if (walls !== 1) parts.push(t('hud:vsWalls', { mult: Math.round(walls * 10) / 10, defaultValue: '{{mult}}x vs walls' }));
+    return parts.join(', ');
 }
 
 /** Short label for the details-pane "Hits" row. */
