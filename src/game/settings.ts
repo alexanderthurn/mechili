@@ -478,6 +478,12 @@ export interface EconomySettings {
     startingSupply: number;
     /** how much the round income GROWS each round: round N grants startingSupply + (N-1) * growth */
     supplyGrowthPerRound: number;
+    /**
+     * Flat supply on top of every round's income, whatever the supply factor
+     * ({@link GameSettings.moneyFactor} doesn't scale it). Absent = {@link DEFAULT_FLAT_INCOME_PER_ROUND};
+     * tutorials and scenarios set 0 (their amounts are authored).
+     */
+    flatIncomePerRound?: number;
     /** every owned tech of a unit type raises the price of its remaining techs by this */
     techCostEscalation: number;
 }
@@ -685,6 +691,8 @@ export const MONEY_FACTOR_OPTIONS: readonly MoneyFactorOption[] = [
 ];
 
 export const DEFAULT_MONEY_FACTOR = 1;
+/** see {@link EconomySettings.flatIncomePerRound} */
+export const DEFAULT_FLAT_INCOME_PER_ROUND = 100;
 
 /** Snap unknown / legacy values onto a known lobby option (default ×1). */
 export function moneyFactorOption(raw: unknown): number {
@@ -757,6 +765,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
     economy: {
         startingSupply: 200,
         supplyGrowthPerRound: 200,
+        flatIncomePerRound: DEFAULT_FLAT_INCOME_PER_ROUND,
         techCostEscalation: 200,
     },
     towers: {
@@ -978,14 +987,14 @@ export class Economy {
         return this.balances[seat] ?? 0;
     }
 
-    /** escalating income: round 1 grants 200, round 2 grants 400, ... — every seat, full share */
+    /** escalating income: round 1 grants 200 + 100 flat, round 2 grants 400 + 100, ... — every seat, full share */
     grantRoundIncome(round: number): void {
         const base =
             this.settings.startingSupply + (round - 1) * this.settings.supplyGrowthPerRound;
         // Rounded to a whole number: balances ride in the round hash, so every
         // peer has to credit the identical integer, not a float that differs
         // in the last bit.
-        const income = Math.round(base * this.moneyFactor);
+        const income = Math.round(base * this.moneyFactor) + this.flatIncome;
         for (let s = 0; s < this.balances.length; s++) this.balances[s]! += income;
     }
 
@@ -1018,7 +1027,12 @@ export class Economy {
      * is the per-round money, just the climb variant of it.
      */
     creditRoundIncome(seat: SeatId, amount: number): void {
-        this.credit(seat, Math.round(amount * this.moneyFactor));
+        this.credit(seat, Math.round(amount * this.moneyFactor) + this.flatIncome);
+    }
+
+    /** the flat supply on top of each round's income (not scaled by the supply factor) */
+    private get flatIncome(): number {
+        return Math.round(this.settings.flatIncomePerRound ?? DEFAULT_FLAT_INCOME_PER_ROUND);
     }
 
     /** always deducts (Credit debt); may leave a negative balance */
@@ -1170,6 +1184,16 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
                     }),
                     note: t('settings:sheet.incomeGrowthNote', {
                         defaultValue: 'round N grants startingSupply + (N-1) × growth',
+                    }),
+                },
+                {
+                    label: t('settings:sheet.flatIncome', { defaultValue: 'Flat income' }),
+                    value: t('settings:sheet.flatIncomeValue', {
+                        amount: settings.economy.flatIncomePerRound ?? DEFAULT_FLAT_INCOME_PER_ROUND,
+                        defaultValue: `+${settings.economy.flatIncomePerRound ?? DEFAULT_FLAT_INCOME_PER_ROUND}/round`,
+                    }),
+                    note: t('settings:sheet.flatIncomeNote', {
+                        defaultValue: 'on top of every round’s income, not scaled by the supply factor',
                     }),
                 },
                 {

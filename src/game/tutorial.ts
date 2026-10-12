@@ -178,6 +178,8 @@ export function applyTutorialMode(settings: GameSettings, id: number): void {
             startingSupply: 500,
         };
     }
+    // the lessons' purses are exact: no flat income on top
+    settings.economy = { ...settings.economy, flatIncomePerRound: 0 };
 }
 
 /**

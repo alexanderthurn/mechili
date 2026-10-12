@@ -22,7 +22,8 @@ export function applyScenarioToSettings(
     const r = def.rules;
     settings.map = { ...def.map };
     settings.seed = def.seed;
-    settings.economy = { ...settings.economy, startingSupply: r.income.round1, supplyGrowthPerRound: r.income.growth };
+    // the authored income exactly: no flat income on top
+    settings.economy = { ...settings.economy, startingSupply: r.income.round1, supplyGrowthPerRound: r.income.growth, flatIncomePerRound: 0 };
     settings.deploy = {
         ...settings.deploy,
         unitsPerRound: r.deploy.unitsPerRound,
