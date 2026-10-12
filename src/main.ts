@@ -36,7 +36,6 @@ import {
     isSameBuild,
     formatBuild,
     ourBuild,
-    currentContentHash,
     hostStarRoom,
     isMelodanPlayHost,
     joinAsSpectator,
@@ -92,11 +91,9 @@ import {
 import { bootGameAssets } from './game/bootAssets';
 import {
     activeLevel,
-    activeLevelRef,
     isLevelActive,
     ensureLevel,
     isLevelAvailable,
-    levelFiles,
     levelFilesFromArchive,
     loadLevel,
     prepareLevel,
@@ -106,22 +103,23 @@ import {
 import { readZip, writeZip } from './game/content/zip';
 import { applyScenarioToSettings } from './game/scenario/scenarioSettings';
 import { initDraftStore, loadStoredDraft } from './game/scenario/editorDraft';
-import { MapChoice, boardSizeOption, mapOption, mapValue } from './menu/mapChoice';
+import { MapChoice, boardSizeOption, mapValue } from './menu/mapChoice';
 import {
-    applyClimbMode,
-    applyCustomGameConfig,
-    applyHordeMode,
+    defaultLobbySettings,
+    defaultPracticeSettings,
+    isNonDefaultLobbySettings,
     loadCustomGameConfig,
+    loadPracticeConfig,
+    lobbyMatchSettings,
     localMatchSettings,
     roomConfig,
     saveCustomGameConfig,
-    settingsFromUrl,
-    widenMapForDuo,
+    savePracticeConfig,
     type LocalMatchOpts,
 } from './menu/matchSettings';
+import { OPEN_SEAT_NAME, opponentDisplayName, rosterWithBots, rosterWithWiredAvatars, starAiName } from './menu/lobbyRoster';
 import { downloadScenarioPackage, editorLinks, editSavedScenario, initEditorMenu, openNewScenarioEditor, openStoredScenarioEditor, savedScenarioDef } from './menu/editorMenu';
 import { BASE_TYPES } from './game/units';
-import type { ScenarioDef } from './game/scenario/scenarioDef';
 import { scenarioSlug } from './game/scenario/package';
 import { answerLevelMessage, LevelDownload, levelOfferMessage } from './game/levelSync';
 import { builtInCampaigns, campaignLevel, campaignSummary, completedLevels, isBuiltInCampaign, markLevelCompleted } from './game/campaign';
@@ -136,7 +134,6 @@ import { DEFAULT_TERRAIN_SHAPE, TERRAIN_SHAPES, terrainShapeOption, type Terrain
 import {
     COMMANDER_HP_FACTOR_OPTIONS,
     STRONGHOLD_MODE_OPTIONS,
-    DEFAULT_STRONGHOLD_MODE,
     formatStrongholdModeOption,
     strongholdModeName,
     strongholdModeOption,
@@ -145,19 +142,11 @@ import {
     yearTotal,
     isSiege,
     roundsVictory,
-    CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
     climbAttackerTeam,
-    yearAttackerFromSeats,
     type YearRoundWinner,
-    DEFAULT_COMMANDER_HP_FACTOR,
-    DEFAULT_CUSTOM_GAME_PACE_ID,
-    DEFAULT_HORDE_PRESET_ID,
-    DEFAULT_MONEY_FACTOR,
-    DEFAULT_START_MONEY,
     HORDE_ALGORITHMS,
     MONEY_FACTOR_OPTIONS,
     START_MONEY_OPTIONS,
-    commanderHpFactorOption,
     commanderHpOptionById,
     commanderHpSelectId,
     customGamePaceById,
@@ -169,11 +158,9 @@ import {
     hordeAlgorithmById,
     moneyFactorOption,
     startMoneyOption,
-    resolveFixedSideHp,
     type GameSettings,
 } from './game/settings';
 import {
-    DEFAULT_ROUND_CARD_PRESET_ID,
     ROUND_CARD_ALGORITHMS,
     roundCardAlgorithmById,
 } from './game/roundCardAlgorithms';
@@ -1945,41 +1932,6 @@ wireSelectShortLabels(cgTerrainEl);
 /** the lobby's Map setting (a saved scenario's terrain, or generated) */
 const mapChoice = new MapChoice(cgLandscapeEl);
 
-function defaultLobbySettings(): Pick<
-    CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'fixedSideHp' | 'moneyFactor' | 'startMoney' | 'strongholdMode' | 'terrainShape' | 'map' | 'boardSize'
-> {
-    return {
-        map: undefined,
-        boardSize: 'standard',
-        pace: DEFAULT_CUSTOM_GAME_PACE_ID,
-        hordePreset: DEFAULT_HORDE_PRESET_ID,
-        roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
-        commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
-        fixedSideHp: null,
-        moneyFactor: DEFAULT_MONEY_FACTOR,
-        startMoney: DEFAULT_START_MONEY,
-        strongholdMode: DEFAULT_STRONGHOLD_MODE,
-        terrainShape: DEFAULT_TERRAIN_SHAPE,
-    };
-}
-
-function isNonDefaultLobbySettings(cfg: CustomGameConfig, defaults = defaultLobbySettings()): boolean {
-    return (
-        cfg.pace !== defaults.pace ||
-        cfg.hordePreset !== defaults.hordePreset ||
-        cfg.roundCardPreset !== defaults.roundCardPreset ||
-        cfg.commanderHpFactor !== defaults.commanderHpFactor ||
-        (cfg.fixedSideHp ?? null) !== (defaults.fixedSideHp ?? null) ||
-        cfg.moneyFactor !== defaults.moneyFactor ||
-        cfg.startMoney !== defaults.startMoney ||
-        cfg.strongholdMode !== defaults.strongholdMode ||
-        terrainShapeOption(cfg.terrainShape) !== defaults.terrainShape ||
-        mapValue(cfg.map) !== mapValue(defaults.map) ||
-        (!cfg.map && boardSizeOption(cfg.boardSize) !== defaults.boardSize)
-    );
-}
-
 /** shows `cfg` in every room-settings box (basic and advanced), marks the
  *  changed ones gold and syncs Reset — host and guest alike */
 function populateLobbySettingsForm(cfg: CustomGameConfig): void {
@@ -2822,13 +2774,6 @@ function resetReadyOnSettingsChange(hub: HostHub): void {
 function allSeatsReady(roster: CanonicalSeatDef[]): boolean {
     return roster.every((s, i) => i === 0 || s.name === OPEN_SEAT_NAME || s.ready === true);
 }
-
-/** a seat's roster entry starts (and stays, until joined) at this exact
- *  placeholder — see initialStarRoster/initial1v1Roster — so "does this
- *  seat have a real name" is a reliable, host-and-guest-alike way to
- *  tell a filled seat from an open one without needing a separate
- *  connectedSeats list (which only the host can compute directly). */
-const OPEN_SEAT_NAME = 'Waiting…';
 
 /**
  * A visible "who's actually here" table, usable from EITHER the host's
@@ -4369,31 +4314,6 @@ function initial1v1Roster(hostName: string): CanonicalSeatDef[] {
     ];
 }
 
-/** Drop untrusted avatar payloads from wire/roster copies. */
-function rosterWithWiredAvatars(roster: CanonicalSeatDef[]): CanonicalSeatDef[] {
-    return roster.map((s) => {
-        const avatar = wireAvatar(s.avatar);
-        return avatar ? { ...s, avatar } : { ...s, avatar: undefined };
-    });
-}
-/** fallback name for a still-empty seat when the host clicks Start —
- *  derived from side (host's own side = 'Ally', the other = 'Foe'), so
- *  this works for any roster size, not just the hardcoded 4-seat layout */
-function starAiName(seat: SeatId, roster: CanonicalSeatDef[]): string {
-    const mySide = roster[0]!.side;
-    if (roster[seat]!.side === mySide) return t('menu:aiNameAlly');
-    const foeSeats = roster.map((_, i) => i).filter((i) => roster[i]!.side !== mySide);
-    if (foeSeats.length <= 1) return t('menu:aiNameFoe');
-    return foeSeats.indexOf(seat) === 0 ? t('menu:aiNameFoeWest') : t('menu:aiNameFoeEast');
-}
-/** the HUD's "opponent" name field only ever makes sense for a genuine
- *  2-seat (1v1-via-star) roster — a real 2v2+ has no single opponent to
- *  name, so it keeps the generic '2v2' label the HUD already expects. */
-function opponentDisplayName(roster: CanonicalSeatDef[], mySeat: SeatId): string {
-    if (roster.length !== 2) return '2v2';
-    return roster[mySeat === 0 ? 1 : 0]?.name ?? '2v2';
-}
-
 function cancelHost(): void {
     // cleanup() first, in its own try: it is the externally visible "room is
     // gone" signal (web/LAN send ?action=leave), and running hub.close() first
@@ -4869,72 +4789,6 @@ async function beginHost(opts: {
     wireHostedHub(hosted.hub, { hostName, waitForJoined, offerAiStart, mode, customConfig });
 }
 
-/** host clicks Start: AI-fill empty seats, send each guest its own setup, launch locally */
-/**
- * The settings every lobby match starts from — hosted rooms and local ones
- * (Practice, a Custom Game with only bots) alike, so the two can't drift apart.
- */
-function lobbyMatchSettings(
-    config: CustomGameConfig | null,
-    horde: boolean,
-    /** the room's final roster (bots filled in) — its size, and the roles players asked for */
-    roster: readonly CanonicalSeatDef[],
-): GameSettings & { seed: number } {
-    const settings = settingsFromUrl();
-    delete settings.seats; // the roster travels separately (localized per client)
-    if (config) applyCustomGameConfig(settings, config);
-    else if (horde) applyHordeMode(settings);
-    // the lobby's map: a saved scenario's terrain — its package is the match's
-    // level (every seat has it by now) and the board is the size it was made for
-    const map = config?.map;
-    const mapRef = map ? { id: map.id, hash: map.hash } : undefined;
-    const onMap = !!map && isLevelAvailable(mapRef);
-    if (onMap) {
-        settings.level = mapRef;
-        settings.terrainOf = map.scenario;
-        settings.map = { ...map.board };
-    }
-    const seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
-    // Siege and / or Rounds: The Year's rules, each one on its own (see ClimbSettings)
-    const room = config ? roomConfig(config) : null;
-    const siege = !!room?.siege;
-    const rounds = room?.victory === 'rounds';
-    if (room && (siege || rounds)) {
-        applyClimbMode(settings, {
-            role: 'attacker',
-            // a Standard Rounds match has no attacker: its first side stands in for one on the tally
-            attackerSide: siege ? resolveYearAttackerSide(roster, seed) : 0,
-            keepHorde: true,
-        });
-        if (!siege) settings.climb!.siege = false;
-        if (!rounds) settings.climb!.victory = 'hp';
-    }
-    if (room?.fog === false) settings.fogOfWar = false;
-    // 2v2 / duo only — 1v1 must keep the standard map width; a map keeps the board it was made for
-    if (roster.length > 2 && !onMap) widenMapForDuo(settings);
-    return { ...settings, seed };
-}
-
-/**
- * Who attacks in a Siege room: from the roles its seats asked for (players
- * pick their own, the host any seat's) — each side's wishes are weighed, and
- * sides left without a clear attacker or defender toss for it on the match
- * seed, so every client that receives the settings agrees.
- */
-function resolveYearAttackerSide(roster: readonly CanonicalSeatDef[], seed: number): number {
-    const wishes = (side: 'a' | 'b') => roster.filter((s) => s.side === side).map((s) => s.yearRole);
-    return yearAttackerFromSeats(wishes('a'), wishes('b'), seed);
-}
-
-/** empty seats of a lobby roster become bots, each with its own rolled loadout */
-function rosterWithBots(roster: readonly CanonicalSeatDef[]): CanonicalSeatDef[] {
-    return roster.map((s, i) =>
-        i > 0 && s.controller === 'human' && s.name === OPEN_SEAT_NAME
-            ? { side: s.side, controller: 'ai' as const, name: starAiName(i, [...roster]), loadout: randomLoadout(), ...(s.army ? { army: s.army } : {}) }
-            : s,
-    );
-}
-
 /** a lobby match played on this machine only: no room, no spectators, single-player features on */
 function startLocalLobbyMatch(config: CustomGameConfig, roster: readonly CanonicalSeatDef[]): void {
     // the map's package may only be in the scenario cache — load it first, or
@@ -4957,48 +4811,6 @@ function startLocalLobbyMatch(config: CustomGameConfig, roster: readonly Canonic
 }
 
 // ---- Practice: the Custom Game lobby, local, every other seat a bot
-
-const PRACTICE_KEY = 'melodan-practice';
-
-/** Practice's own defaults: the Custom Game ones, without a clock to race */
-function defaultPracticeSettings(): ReturnType<typeof defaultLobbySettings> {
-    return { ...defaultLobbySettings(), pace: 'long' };
-}
-
-function loadPracticeConfig(): CustomGameConfig {
-    try {
-        const raw = localStorage.getItem(PRACTICE_KEY);
-        const parsed = raw ? (JSON.parse(raw) as Partial<CustomGameConfig>) : {};
-        const defaults = defaultPracticeSettings();
-        return roomConfig({
-            mode: parsed.mode === '2v2' || parsed.mode === 'year' || parsed.mode === '2v2ai' ? parsed.mode : '1v1',
-            siege: parsed.siege === true,
-            victory: parsed.victory === 'rounds' ? 'rounds' : 'hp',
-            fog: parsed.fog !== false,
-            pace: customGamePaceById(parsed.pace ?? defaults.pace).id,
-            hordePreset: hordeAlgorithmById(parsed.hordePreset ?? defaults.hordePreset).id,
-            roundCardPreset: roundCardAlgorithmById(parsed.roundCardPreset ?? defaults.roundCardPreset).id,
-            commanderHpFactor: commanderHpFactorOption(parsed.commanderHpFactor ?? defaults.commanderHpFactor),
-            fixedSideHp: resolveFixedSideHp(parsed.fixedSideHp ?? defaults.fixedSideHp),
-            moneyFactor: moneyFactorOption(parsed.moneyFactor ?? defaults.moneyFactor),
-            startMoney: startMoneyOption(parsed.startMoney ?? defaults.startMoney),
-            strongholdMode: strongholdModeOption(parsed.strongholdMode ?? defaults.strongholdMode),
-            map: mapOption(parsed.map),
-            boardSize: boardSizeOption(parsed.boardSize ?? defaults.boardSize),
-            terrainShape: terrainShapeOption(parsed.terrainShape ?? defaults.terrainShape),
-        });
-    } catch {
-        return { mode: '1v1', ...defaultPracticeSettings() };
-    }
-}
-
-function savePracticeConfig(config: CustomGameConfig): void {
-    try {
-        localStorage.setItem(PRACTICE_KEY, JSON.stringify(config));
-    } catch {
-        /* private browsing */
-    }
-}
 
 /** Single Player → Practice: the Custom Game lobby, locally, with bots in every other seat (1v1, 2v2 or The Year). */
 function openPracticeLobby(mode: CustomGameMode): void {
@@ -5047,6 +4859,7 @@ function startPracticeMatch(): void {
     startLocalLobbyMatch(lobby.config, lobby.roster);
 }
 
+/** host clicks Start: AI-fill empty seats, send each guest its own setup, launch locally */
 function startHostedMatch(): void {
     if (!hosting) return;
     const { hub, transport } = hosting;

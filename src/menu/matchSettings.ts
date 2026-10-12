@@ -30,11 +30,14 @@ import {
     resolveFixedSideHp,
     resolveMoneyFactor,
     resolveStartMoney,
+    yearAttackerFromSeats,
     type GameSettings,
 } from '../game/settings';
 import { applyTutorialMode } from '../game/tutorial';
 import { DEFAULT_ROUND_CARD_PRESET_ID, roundCardAlgorithmById } from '../game/roundCardAlgorithms';
-import { duoSeats } from '../game/seats';
+import { isLevelAvailable } from '../game/level';
+import { duoSeats, type CanonicalSeatDef } from '../game/seats';
+import { mapValue } from './mapChoice';
 
 // the only mode right now (Single Player / Matchmaking both force this) —
 // PvPvE: a neutral dwarf horde spawns from the forest ring outside the
@@ -298,4 +301,137 @@ export function localMatchSettings(opts: LocalMatchOpts = {}): GameSettings {
     if (opts.climb) applyClimbMode(settings, opts.climb);
     if (opts.tutorial != null) applyTutorialMode(settings, opts.tutorial);
     return settings;
+}
+
+export function defaultLobbySettings(): Pick<
+    CustomGameConfig,
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'fixedSideHp' | 'moneyFactor' | 'startMoney' | 'strongholdMode' | 'terrainShape' | 'map' | 'boardSize'
+> {
+    return {
+        map: undefined,
+        boardSize: 'standard',
+        pace: DEFAULT_CUSTOM_GAME_PACE_ID,
+        hordePreset: DEFAULT_HORDE_PRESET_ID,
+        roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
+        commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
+        fixedSideHp: null,
+        moneyFactor: DEFAULT_MONEY_FACTOR,
+        startMoney: DEFAULT_START_MONEY,
+        strongholdMode: DEFAULT_STRONGHOLD_MODE,
+        terrainShape: DEFAULT_TERRAIN_SHAPE,
+    };
+}
+
+export function isNonDefaultLobbySettings(cfg: CustomGameConfig, defaults = defaultLobbySettings()): boolean {
+    return (
+        cfg.pace !== defaults.pace ||
+        cfg.hordePreset !== defaults.hordePreset ||
+        cfg.roundCardPreset !== defaults.roundCardPreset ||
+        cfg.commanderHpFactor !== defaults.commanderHpFactor ||
+        (cfg.fixedSideHp ?? null) !== (defaults.fixedSideHp ?? null) ||
+        cfg.moneyFactor !== defaults.moneyFactor ||
+        cfg.startMoney !== defaults.startMoney ||
+        cfg.strongholdMode !== defaults.strongholdMode ||
+        terrainShapeOption(cfg.terrainShape) !== defaults.terrainShape ||
+        mapValue(cfg.map) !== mapValue(defaults.map) ||
+        (!cfg.map && boardSizeOption(cfg.boardSize) !== defaults.boardSize)
+    );
+}
+
+/**
+ * The settings every lobby match starts from — hosted rooms and local ones
+ * (Practice, a Custom Game with only bots) alike, so the two can't drift apart.
+ */
+export function lobbyMatchSettings(
+    config: CustomGameConfig | null,
+    horde: boolean,
+    /** the room's final roster (bots filled in) — its size, and the roles players asked for */
+    roster: readonly CanonicalSeatDef[],
+): GameSettings & { seed: number } {
+    const settings = settingsFromUrl();
+    delete settings.seats; // the roster travels separately (localized per client)
+    if (config) applyCustomGameConfig(settings, config);
+    else if (horde) applyHordeMode(settings);
+    // the lobby's map: a saved scenario's terrain — its package is the match's
+    // level (every seat has it by now) and the board is the size it was made for
+    const map = config?.map;
+    const mapRef = map ? { id: map.id, hash: map.hash } : undefined;
+    const onMap = !!map && isLevelAvailable(mapRef);
+    if (onMap) {
+        settings.level = mapRef;
+        settings.terrainOf = map.scenario;
+        settings.map = { ...map.board };
+    }
+    const seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
+    // Siege and / or Rounds: The Year's rules, each one on its own (see ClimbSettings)
+    const room = config ? roomConfig(config) : null;
+    const siege = !!room?.siege;
+    const rounds = room?.victory === 'rounds';
+    if (room && (siege || rounds)) {
+        applyClimbMode(settings, {
+            role: 'attacker',
+            // a Standard Rounds match has no attacker: its first side stands in for one on the tally
+            attackerSide: siege ? resolveYearAttackerSide(roster, seed) : 0,
+            keepHorde: true,
+        });
+        if (!siege) settings.climb!.siege = false;
+        if (!rounds) settings.climb!.victory = 'hp';
+    }
+    if (room?.fog === false) settings.fogOfWar = false;
+    // 2v2 / duo only — 1v1 must keep the standard map width; a map keeps the board it was made for
+    if (roster.length > 2 && !onMap) widenMapForDuo(settings);
+    return { ...settings, seed };
+}
+
+/**
+ * Who attacks in a Siege room: from the roles its seats asked for (players
+ * pick their own, the host any seat's) — each side's wishes are weighed, and
+ * sides left without a clear attacker or defender toss for it on the match
+ * seed, so every client that receives the settings agrees.
+ */
+export function resolveYearAttackerSide(roster: readonly CanonicalSeatDef[], seed: number): number {
+    const wishes = (side: 'a' | 'b') => roster.filter((s) => s.side === side).map((s) => s.yearRole);
+    return yearAttackerFromSeats(wishes('a'), wishes('b'), seed);
+}
+
+export const PRACTICE_KEY = 'melodan-practice';
+
+/** Practice's own defaults: the Custom Game ones, without a clock to race */
+export function defaultPracticeSettings(): ReturnType<typeof defaultLobbySettings> {
+    return { ...defaultLobbySettings(), pace: 'long' };
+}
+
+export function loadPracticeConfig(): CustomGameConfig {
+    try {
+        const raw = localStorage.getItem(PRACTICE_KEY);
+        const parsed = raw ? (JSON.parse(raw) as Partial<CustomGameConfig>) : {};
+        const defaults = defaultPracticeSettings();
+        return roomConfig({
+            mode: parsed.mode === '2v2' || parsed.mode === 'year' || parsed.mode === '2v2ai' ? parsed.mode : '1v1',
+            siege: parsed.siege === true,
+            victory: parsed.victory === 'rounds' ? 'rounds' : 'hp',
+            fog: parsed.fog !== false,
+            pace: customGamePaceById(parsed.pace ?? defaults.pace).id,
+            hordePreset: hordeAlgorithmById(parsed.hordePreset ?? defaults.hordePreset).id,
+            roundCardPreset: roundCardAlgorithmById(parsed.roundCardPreset ?? defaults.roundCardPreset).id,
+            commanderHpFactor: commanderHpFactorOption(parsed.commanderHpFactor ?? defaults.commanderHpFactor),
+            fixedSideHp: resolveFixedSideHp(parsed.fixedSideHp ?? defaults.fixedSideHp),
+            moneyFactor: moneyFactorOption(parsed.moneyFactor ?? defaults.moneyFactor),
+            startMoney: startMoneyOption(parsed.startMoney ?? defaults.startMoney),
+            strongholdMode: strongholdModeOption(parsed.strongholdMode ?? defaults.strongholdMode),
+            map: mapOption(parsed.map),
+            boardSize: boardSizeOption(parsed.boardSize ?? defaults.boardSize),
+            terrainShape: terrainShapeOption(parsed.terrainShape ?? defaults.terrainShape),
+        });
+    } catch {
+        return { mode: '1v1', ...defaultPracticeSettings() };
+    }
+}
+
+export function savePracticeConfig(config: CustomGameConfig): void {
+    try {
+        localStorage.setItem(PRACTICE_KEY, JSON.stringify(config));
+    } catch {
+        /* private browsing */
+    }
 }
