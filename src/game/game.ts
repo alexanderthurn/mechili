@@ -12646,15 +12646,24 @@ export class Game {
         const segments: TargetLineSegment[] = [];
         const aim = sim.debugTarget(a);
         if (aim) segments.push({ to: at(aim.x, aim.z, aim.target.altitude), color: 0xffe14a });
+        // a beam (the prism's, the wizard's) locks on by itself, apart from where it walks: magenta
+        const beamList = a.unit.type.convertRay ? a.convertTargets : a.rampBeamTargets;
+        const beams = beamList.filter((t) => t.alive);
+        beamList.forEach((t, i) => {
+            if (!t.alive) return;
+            const wall = t.unit.type.wall && a.beamAims.length >= i * 3 + 3;
+            segments.push({ to: wall ? at(a.beamAims[i * 3]!, a.beamAims[i * 3 + 2]!) : at(t.x, t.z, t.altitude), color: 0xff4af0 });
+        });
         const walls = sim.debugWalls(a);
         const color: Record<string, number> = { blocked: 0xff3030, deadZone: 0xff9a2e, outOfReach: 0x9a9a9a, farther: 0x4aa8ff };
         for (const w of walls) if (w.status !== 'pick') segments.push({ to: at(w.x, w.z), color: color[w.status] ?? 0xffffff });
         this.targetLine.update(at(a.x, a.z, a.altitude), segments);
         const log =
             `${a.unit.type.id} #${a.unit.id} → ${aim ? `${aim.target.unit.type.id} #${aim.target.unit.id}` : 'nothing'}` +
+            (beams.length > 0 ? `; beam → ${beams.map((t) => `${t.unit.type.id} #${t.unit.id}`).join(', ')}` : '') +
             walls.map((w) => `\n  wall #${w.wall.unit.id}: ${w.status} · ${w.why}`).join('');
         // logged when the pick or a wall's status changes, not on every step of a walk
-        const key = `${a.unit.id}>${aim?.target.unit.id ?? '-'}` + walls.map((w) => `${w.wall.unit.id}:${w.status}`).join();
+        const key = `${a.unit.id}>${aim?.target.unit.id ?? '-'}|${beams.map((t) => t.unit.id).join()}` + walls.map((w) => `${w.wall.unit.id}:${w.status}`).join();
         if (key !== this.targetLineLog) {
             this.targetLineLog = key;
             console.info(`[target] ${log}`);

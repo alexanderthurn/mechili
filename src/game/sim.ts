@@ -500,6 +500,8 @@ export interface Actor {
     rampBeamLockTs: number[];
     /** Primary sticky ramp-beam victim (null = hunting); mirrors targets[0]. */
     rampBeamTarget: Actor | null;
+    /** where each {@link rampBeamTargets} / {@link convertTargets} entry is hit, x y z per entry (a wall: its nearest stretch) — for the render */
+    beamAims: number[];
     /**
      * Attack windup: damage (melee) or volley (ranged) waiting to resolve
      * ({@link UnitType.meleeHitDelay}). 0 = none pending. Anim starts on
@@ -1599,6 +1601,7 @@ export class BattleSim {
                     rampBeamTargets: [],
                     rampBeamLockTs: [],
                     rampBeamTarget: null,
+                    beamAims: [],
                     meleePendingDamage: 0,
                     meleePendingAt: 0,
                     meleePendingFocus: 0,
@@ -2560,6 +2563,10 @@ export class BattleSim {
 
     /** Torso / hover height a free-flyer aims its path at. */
     private freeFlightAimY(target: Actor): number {
+        // a wall: skim its crown (lower would only run into the stone)
+        if (target.unit.type.wall) {
+            for (const r of this.wallBoxes) if (r.owner === target) return simGroundHeightAt(target.x, target.z) + r.top;
+        }
         if (target.altitude > 0) {
             return target.altitude + target.unit.type.meshScale * 0.35;
         }
@@ -2641,8 +2648,12 @@ export class BattleSim {
         }
 
         const aimY = this.freeFlightAimY(target);
-        const tdx = target.x - a.x;
-        const tdz = target.z - a.z;
+        // a wall: dive at its nearest stretch, as every attacker goes for it
+        const p = this.aimAt(target, a.x, a.z, true);
+        const tx = p.x;
+        const tz = p.z;
+        const tdx = tx - a.x;
+        const tdz = tz - a.z;
         const tDist = hypot(tdx, tdz) || 1e-6;
         const touch = this.weaponRange(a, target, stats.range) + a.radius + target.radius;
         const commit = touch + (a.unit.type.meleeLunge ?? 3);
@@ -2676,7 +2687,7 @@ export class BattleSim {
 
         // --- pass: locked heading through the foe ---
         if (a.flyPassPhase === 1) {
-            this.updateFreeFlight(a, dt, { x: target.x, y: aimY, z: target.z });
+            this.updateFreeFlight(a, dt, { x: tx, y: aimY, z: tz });
             this.flyAlongHeading(a, a.flyPassHx, a.flyPassHz, stats, d, dt);
             // Touch damage once while overlapping the body volume
             if (!a.flyPassStruck && tDist <= touch * 1.15) {
@@ -2691,7 +2702,7 @@ export class BattleSim {
                 a.cooldown -= dt;
             }
             // Past the target along the pass heading → coast
-            const behind = (a.x - target.x) * a.flyPassHx + (a.z - target.z) * a.flyPassHz;
+            const behind = (a.x - tx) * a.flyPassHx + (a.z - tz) * a.flyPassHz;
             if (
                 behind >= FLY_PASS_CLEAR ||
                 (a.flyPassStruck && tDist >= FLY_PASS_CLEAR) ||
@@ -2704,7 +2715,7 @@ export class BattleSim {
         }
 
         // --- chase: point (slowly) at target and commit a pierce ---
-        this.updateFreeFlight(a, dt, { x: target.x, y: aimY, z: target.z });
+        this.updateFreeFlight(a, dt, { x: tx, y: aimY, z: tz });
         const aimYaw = detAtan2(-tdx, -tdz);
         const off = Math.abs(deltaAngle(a.facing, aimYaw));
         faceToward(a, aimYaw, dt);
@@ -3351,6 +3362,7 @@ export class BattleSim {
                 rampBeamTargets: [],
                 rampBeamLockTs: [],
                 rampBeamTarget: null,
+                beamAims: [],
                 meleePendingDamage: 0,
                 meleePendingAt: 0,
                 meleePendingFocus: 0,
@@ -5754,30 +5766,39 @@ export class BattleSim {
     }
 
     /**
-     * Line of fire for a beam (the wizard's convert ray): a straight segment
-     * from the caster's staff height to the target's hit point must stay above
-     * the board relief. Uses sim positions only; held for {@link LOS_RECHECK_S}.
+     * Line of fire for a beam (the wizard's convert ray, the prism's beam): a
+     * straight segment from where the beam leaves (its muzzle, see
+     * {@link beamRayOrigin}) to the target's hit point must stay above the
+     * board relief and clear of buildings and wall stone. Uses sim positions
+     * only; held for {@link LOS_RECHECK_S}.
      */
     private rayLineOpen(a: Actor, target: Actor): boolean {
         const key = a.index * 1048576 + target.index;
         const known = this.losCache.get(key);
         if (known && known.until > this.elapsed) return known.loft > 0;
-        const fy = this.feetY(a) + Math.max(1.6, a.unit.type.meshScale * 1.15);
+        // the muzzle's height, not a guess: the prism's sits at 3.6, just over a wall's crown
+        const fy = this.beamRayOrigin(a).y - a.footY + this.feetY(a);
         const tt = target.unit.type;
-        const ty = this.feetY(target) + projectileAimY(tt) * tt.meshScale;
-        const dx = target.x - a.x;
-        const dz = target.z - a.z;
+        const wall = !!tt.wall;
+        let tx = target.x;
+        let tz = target.z;
+        let ty = this.feetY(target) + projectileAimY(tt) * tt.meshScale;
+        if (wall) ({ x: tx, y: ty, z: tz } = this.beamAim(a, target));
+        const dx = tx - a.x;
+        const dz = tz - a.z;
         const total = hypot(dx, dz);
         const skipStart = a.radius + 0.5;
-        const skipEnd = target.radius + 0.8;
+        const skipEnd = wall ? 0.8 : target.radius + 0.8;
         const n = Math.min(160, Math.max(2, Math.ceil(total / LOS_SAMPLE_WU)));
-        const buildings = this.buildingsNearLine(a, target, a.x, a.z, target.x, target.z);
+        const buildings = this.buildingsNearLine(a, target, a.x, a.z, tx, tz);
         let open = true;
         for (let i = 1; i < n && open; i++) {
             const f = i / n;
             const x = a.x + dx * f;
             const y = fy + (ty - fy) * f;
             const z = a.z + dz * f;
+            // a marked wall: reaching its stone (or a neighbour's overlapping it) is the hit
+            if (wall && this.nearWallStone(target, x, z)) break;
             if (buildings.length > 0 && this.insideBuilding(buildings, x, y, z)) open = false;
             if (this.wallBoxes.length > 0 && this.insideWallStone(x, y, z, a.unit.hostUnitId)) open = false;
             const along = total * f;
@@ -5786,6 +5807,22 @@ export class BattleSim {
         }
         this.losCache.set(key, { until: this.elapsed + LOS_RECHECK_S, loft: open ? 1 : 0 });
         return open;
+    }
+
+    /**
+     * Where a beam hits `target`: its aim height over its centre — for a wall
+     * the middle of its stone at the stretch nearest the caster, half its
+     * crown up. A fresh object.
+     */
+    private beamAim(caster: Actor, target: Actor): { x: number; y: number; z: number } {
+        const tt = target.unit.type;
+        if (!tt.wall) return { x: target.x, y: target.footY + projectileAimY(tt) * tt.meshScale, z: target.z };
+        const p = this.aimAt(target, caster.x, caster.z, true);
+        const x = p.x;
+        const z = p.z;
+        let top = 0;
+        for (const r of this.wallBoxes) if (r.owner === target) top = r.top;
+        return { x, y: simGroundHeightAt(x, z) + top * 0.5, z };
     }
 
     /**
@@ -7061,12 +7098,6 @@ export class BattleSim {
         return v ?? t.unit.type.target ?? true;
     }
 
-    /** a fighter that can take a wall: shoots or strikes on the ground (no rays, no free flyers) */
-    private hitsWalls(from: Actor): boolean {
-        const ft = from.unit.type;
-        return !ft.convertRay && !ft.rampBeam && !ft.freeFlight;
-    }
-
     /** debug: what `a` goes for right now and where it aims at it (a wall: its nearest face), or null */
     debugTarget(a: Actor): { target: Actor; x: number; z: number } | null {
         const t = a.cachedEnemy;
@@ -7082,7 +7113,7 @@ export class BattleSim {
      */
     debugWalls(a: Actor): { wall: Actor; x: number; z: number; status: string; why: string }[] {
         const out: { wall: Actor; x: number; z: number; status: string; why: string }[] = [];
-        if (!a.alive || !this.hitsWalls(a)) return out;
+        if (!a.alive) return out;
         const stats = this.statsOf(a);
         for (const r of this.wallBoxes) {
             const w = r.owner;
@@ -7873,7 +7904,7 @@ export class BattleSim {
             const stillOk = (target: Actor): boolean =>
                 target.alive &&
                 actorTeam(target) !== team &&
-                !target.unit.type.extra &&
+                (target.unit.type.wall ? true : !target.unit.type.extra) &&
                 this.targetFor(target, caster) &&
                 !this.unaimable(target) &&
                 (target.unit.type.structure ||
@@ -7890,8 +7921,9 @@ export class BattleSim {
                     }
                     const reach =
                         this.weaponRange(caster, target, ray.range) + caster.radius + target.radius;
-                    const dx = target.x - caster.x;
-                    const dz = target.z - caster.z;
+                    const p = this.aimAt(target, caster.x, caster.z, true);
+                    const dx = p.x - caster.x;
+                    const dz = p.z - caster.z;
                     // out of reach, or a hill / building now stands between them
                     if (dx * dx + dz * dz > reach * reach || !this.rayLineOpen(caster, target)) {
                         target.convertProgress = 0;
@@ -7928,11 +7960,11 @@ export class BattleSim {
                 const intensity =
                     this.hitDamage(caster, target, stats.damage, d.attackMult) * tuning.intensityMult;
 
-                const tt = target.unit.type;
-                const toY = target.footY + projectileAimY(tt) * tt.meshScale;
-                const sx = target.x - from.x;
+                const aim = this.beamAim(caster, target);
+                const toY = aim.y;
+                const sx = aim.x - from.x;
                 const sy = toY - from.y;
-                const sz = target.z - from.z;
+                const sz = aim.z - from.z;
                 const block = this.enemyShieldHitOnSegment(from.x, from.y, from.z, sx, sy, sz, team);
 
                 anyActive = true;
@@ -7954,9 +7986,9 @@ export class BattleSim {
 
                 // prefer tip on first unblocked channel (overwrite a blocked primary tip)
                 if (!tipSet || tipBlocked) {
-                    caster.convertRayTipX = target.x;
+                    caster.convertRayTipX = aim.x;
                     caster.convertRayTipY = toY;
-                    caster.convertRayTipZ = target.z;
+                    caster.convertRayTipZ = aim.z;
                     tipSet = true;
                     tipBlocked = false;
                 }
@@ -7981,6 +8013,12 @@ export class BattleSim {
 
             if (anyActive) caster.convertRayActive = true;
             caster.convertTarget = caster.convertTargets[0] ?? null;
+            // after the loop: a conversion may have dropped a channel
+            caster.beamAims.length = 0;
+            for (const t of caster.convertTargets) {
+                const p = this.beamAim(caster, t);
+                caster.beamAims.push(p.x, p.y, p.z);
+            }
         }
     }
 
@@ -8011,22 +8049,26 @@ export class BattleSim {
             const stillOk = (target: Actor): boolean =>
                 target.alive &&
                 actorTeam(target) !== team &&
-                !target.unit.type.extra &&
+                (target.unit.type.wall ? true : !target.unit.type.extra) &&
                 this.targetFor(target, caster) &&
                 !this.unaimable(target) &&
                 (target.unit.type.structure ||
                     (this.airborne(target) ? targets.air : targets.ground));
 
+            // a wall: measured and aimed at its nearest stretch, as every shooter does
             const inReach = (target: Actor): boolean => {
                 const reach =
                     this.weaponRange(caster, target, stats.range) + caster.radius + target.radius;
-                const dx = target.x - caster.x;
-                const dz = target.z - caster.z;
+                const p = this.aimAt(target, caster.x, caster.z, true);
+                const dx = p.x - caster.x;
+                const dz = p.z - caster.z;
                 return dx * dx + dz * dz <= reach * reach;
             };
 
-            const aimYawOf = (target: Actor): number =>
-                detAtan2(-(target.x - caster.x), -(target.z - caster.z));
+            const aimYawOf = (target: Actor): number => {
+                const p = this.aimAt(target, caster.x, caster.z, true);
+                return detAtan2(-(p.x - caster.x), -(p.z - caster.z));
+            };
 
             const inFireYaw = (target: Actor): boolean =>
                 Math.abs(deltaAngle(caster.facing, aimYawOf(target))) <= fireHalf;
@@ -8067,6 +8109,7 @@ export class BattleSim {
             }
 
             caster.rampBeamTarget = caster.rampBeamTargets[0] ?? null;
+            caster.beamAims.length = 0;
             if (caster.rampBeamTargets.length === 0) {
                 caster.convertRayActive = false;
                 continue;
@@ -8083,12 +8126,13 @@ export class BattleSim {
 
             for (let i = 0; i < caster.rampBeamTargets.length; i++) {
                 const target = caster.rampBeamTargets[i]!;
-                const tt = target.unit.type;
-                const toY = target.footY + projectileAimY(tt) * tt.meshScale;
+                const aim = this.beamAim(caster, target);
+                const toY = aim.y;
+                caster.beamAims.push(aim.x, aim.y, aim.z);
                 // Multi-channel: aim each ray at its victim (all within the fire cone).
-                const sx = target.x - from.x;
+                const sx = aim.x - from.x;
                 const sy = toY - from.y;
-                const sz = target.z - from.z;
+                const sz = aim.z - from.z;
                 const block = this.enemyShieldHitOnSegment(from.x, from.y, from.z, sx, sy, sz, team);
 
                 const rawDps = Math.min(
@@ -8116,18 +8160,23 @@ export class BattleSim {
 
                 caster.rampBeamLockTs[i] = (caster.rampBeamLockTs[i] ?? 0) + dt;
                 if (!tipSet) {
-                    caster.convertRayTipX = target.x;
+                    caster.convertRayTipX = aim.x;
                     caster.convertRayTipY = toY;
-                    caster.convertRayTipZ = target.z;
+                    caster.convertRayTipZ = aim.z;
                     tipSet = true;
                 }
 
+                // a wall (a board extra, so not in the splash below) takes the beam in full
+                if (target.unit.type.wall) {
+                    const dealt = intensity * dt * this.damageTakenMult(target);
+                    if (dealt > 0) this.applyDamage(caster.unit, target, dealt, { x: sx, z: sz }, 'direct');
+                }
                 if (splash > 0) {
                     for (const a of this.actors) {
                         if (!a.alive || actorTeam(a) === team) continue;
                         if (a.unit.type.extra) continue;
                         if (this.airborne(a) ? !targets.air : !targets.ground) continue;
-                        if (hypot(a.x - target.x, a.z - target.z) > splash + a.radius) continue;
+                        if (hypot(a.x - aim.x, a.z - aim.z) > splash + a.radius) continue;
                         const frac = a === target ? 1 : splashFrac * this.coverMult(a, 'splash');
                         const dealt = intensity * dt * frac * this.damageTakenMult(a);
                         if (dealt <= 0) continue;
@@ -8139,7 +8188,7 @@ export class BattleSim {
                             'direct',
                         );
                     }
-                } else {
+                } else if (!target.unit.type.wall) {
                     const dealt = intensity * dt * this.damageTakenMult(target);
                     if (dealt > 0) {
                         this.applyDamage(caster.unit, target, dealt, { x: sx, z: sz }, 'direct');
@@ -8201,8 +8250,11 @@ export class BattleSim {
         for (const a of this.actors) {
             if (excluded?.has(a)) continue;
             if (!a.alive || actorTeam(a) === team) continue;
-            // board extras (wards) are hit via beam blocking, not as ray targets
-            if (a.unit.type.extra) continue;
+            // board extras (wards) are hit via beam blocking, not as ray targets —
+            // but a wall the caster's seat marked is a target as any (the wizard's ray burns it, as a building)
+            if (a.unit.type.wall) {
+                if (!this.targetFor(a, from)) continue;
+            } else if (a.unit.type.extra) continue;
             if (this.unaimable(a)) continue; // nobody aims a beam at him either
             if (a.unit.hostUnitId !== null) continue; // a posted unit can't be turned — he'd stand on the other side's wall
             if (a.unit.type.structure) {
@@ -8214,8 +8266,9 @@ export class BattleSim {
                 continue;
             }
             const maxR = this.weaponRange(from, a, range) + from.radius + a.radius;
-            const dx = a.x - from.x;
-            const dz = a.z - from.z;
+            const p = this.aimAt(a, from.x, from.z, true);
+            const dx = p.x - from.x;
+            const dz = p.z - from.z;
             const d = dx * dx + dz * dz;
             if (d > maxR * maxR) continue;
             if (fireYawHalf != null) {
@@ -8382,7 +8435,7 @@ export class BattleSim {
         const cacheOk = (cached: Actor): boolean =>
             cached.alive &&
             actorTeam(cached) !== actorTeam(from) &&
-            (cached.unit.type.wall ? this.hitsWalls(from) : !cached.unit.type.extra) &&
+            (cached.unit.type.wall || !cached.unit.type.extra) &&
             this.targetFor(cached, from) &&
             !this.unaimable(cached) &&
             this.inFieldOfFire(from, cached) &&
@@ -8532,7 +8585,7 @@ export class BattleSim {
         }
         // walls aren't in the grid (it goes by centres, a wall reaches 11 from
         // its own): the ones we go for, measured to their nearest face
-        if (this.wallBoxes.length > 0 && this.hitsWalls(from)) {
+        if (this.wallBoxes.length > 0) {
             for (const r of this.wallBoxes) {
                 const w = r.owner;
                 if (actorTeam(w) === team || !this.targetFor(w, from)) continue; // the cheap no first

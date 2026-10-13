@@ -64,8 +64,8 @@ const PRISM_BLOOM_CAP = 1.6;
 const PRISM_CAP_OFF = 1000;
 /** Sky shaft: much wider / much fainter than the attack pipe. */
 const PRISM_SKY_W = PRISM_ATTACK_W * 27;
-/** Half the prior sky HDR — shaft was reading too opaque/shiny vs the attack beam. */
-const PRISM_SKY_HDR = PRISM_ATTACK_HDR / 500;
+/** faint next to the attack beam: /50 read too opaque, /500 nearly vanished */
+const PRISM_SKY_HDR = PRISM_ATTACK_HDR / 150;
 
 /**
  * Crossed cards along +Y (beam length). More planes ≈ rounder pipe from the
@@ -156,6 +156,15 @@ function beamAimWorld(victim: Actor): { x: number; y: number; z: number } {
         y: mesh.position.y + projectileAimY(vt) * vt.meshScale,
         z: victim.unit.world.z + mesh.position.z,
     };
+}
+
+/** where a beam meets victim `vi`: a wall at the sim's aim (its nearest stretch), anyone else {@link beamAimWorld} */
+function victimAimWorld(caster: Actor, victim: Actor, vi: number): { x: number; y: number; z: number } {
+    const aims = caster.beamAims;
+    if (victim.unit.type.wall && aims.length >= vi * 3 + 3) {
+        return { x: aims[vi * 3]!, y: aims[vi * 3 + 1]!, z: aims[vi * 3 + 2]! };
+    }
+    return beamAimWorld(victim);
 }
 
 type RayLayer = {
@@ -472,7 +481,7 @@ export class ConversionFx {
                 for (let vi = 0; vi < victims.length; vi++) {
                     const victim = victims[vi]!;
                     if (!victim.alive) continue;
-                    const to = beamAimWorld(victim);
+                    const to = victimAimWorld(caster, victim, vi);
                     _dir.set(to.x - from.x, to.y - from.y, to.z - from.z);
                     const len = Math.max(_dir.length(), 0.35);
                     _dir.multiplyScalar(1 / len);
@@ -522,7 +531,7 @@ export class ConversionFx {
                         caster.convertRayTipZ - from.z,
                     );
                 } else if (victim?.alive) {
-                    const to = beamAimWorld(victim);
+                    const to = victimAimWorld(caster, victim, vi);
                     _dir.set(to.x - from.x, to.y - from.y, to.z - from.z);
                 } else {
                     continue;
