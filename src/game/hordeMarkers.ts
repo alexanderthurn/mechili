@@ -60,7 +60,7 @@ export type HordeMarkerSpot = {
  * Off-screen packs get a small `ui-horde` icon on the viewport edge.
  */
 export class HordeMarkers {
-    /** the pips' own layer — mount over the HUD (see theme.ts) */
+    /** the pips' own layer — mount over the HUD (see styles/hudStyles.ts) */
     readonly edgeView = document.createElement('div');
     private readonly pool: Sprite[] = [];
     private readonly pipPool: HTMLDivElement[] = [];

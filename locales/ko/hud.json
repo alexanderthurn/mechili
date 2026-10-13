@@ -172,8 +172,6 @@
   "forgeCancelRefund": "클릭해 취소하고 보급을 돌려받습니다.",
   "returnToBagTouch": "밖으로 드래그하면 이 {{item}}이(가) 가방으로 돌아갑니다 (이번 배치만).",
   "returnToBag": "클릭하거나 밖으로 드래그하면 이 {{item}}이(가) 가방으로 돌아갑니다 (이번 배치만).",
-  "reconnectTitle": "연결 끊김 — 재연결 중…",
-  "opponentReturn": "상대가 돌아올 시간 {{n}}초",
   "tacticCooldown": "쿨다운 {{n}}",
   "tacticAim": "조준 {{n}}",
   "tacticMaxPath": "최대 경로 {{n}}",

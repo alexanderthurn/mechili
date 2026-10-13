@@ -172,8 +172,6 @@
   "forgeCancelRefund": "İptal edip tedariki geri almak için tıklayın.",
   "returnToBagTouch": "Bu {{item}} öğesini çantanıza geri döndürmek için sürükleyin (bu yalnızca bu dağıtım için geçerlidir).",
   "returnToBag": "Bu {{item}} öğesini çantanıza geri döndürmek için üzerine tıklayın veya sürükleyin (yalnızca bu uygulama için geçerlidir).",
-  "reconnectTitle": "Bağlantı kesildi — yeniden bağlanılıyor…",
-  "opponentReturn": "Rakibin geri dönmesi gereken {{n}}'ı var.",
   "tacticCooldown": "Soğuma süresi {{n}}",
   "tacticAim": "Hedef {{n}}",
   "tacticMaxPath": "Maksimum yol {{n}}",

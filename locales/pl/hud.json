@@ -172,8 +172,6 @@
   "forgeCancelRefund": "Kliknij, aby anulować i odzyskać zaopatrzenie.",
   "returnToBagTouch": "Przeciągnij, aby odłożyć ten {{item}} do torby (tylko przy tym rozłożeniu).",
   "returnToBag": "Kliknij lub przeciągnij, aby zwrócić {{item}} do torby (tylko w tym przypadku).",
-  "reconnectTitle": "Utracono połączenie — ponowne łączenie…",
-  "opponentReturn": "Przeciwnik ma {{n}}s do zwrotu",
   "tacticCooldown": "Czas odnowienia {{n}}",
   "tacticAim": "Cel {{n}}",
   "tacticMaxPath": "Maksymalna ścieżka {{n}}",

@@ -24,19 +24,15 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { setAerialHazeBoard, setDeployShade, setHeightFogStrength } from '../engine/heightFog'; // patches three's fog chunks on import
 import { EffectToggles } from './effectToggles';
 import { DISPLAY } from './displayNames';
-import { t, itemDescription, itemName, tacticDescription, tacticName, techName, unitName } from '../i18n';
+import { t, techName } from '../i18n';
 import { THEME } from '../theme';
 import { CameraRig, type RigState } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { GamepadCursor } from '../engine/gamepadCursor';
 import { disposeScene } from '../engine/disposeScene';
-import { ActionDispatcher, buildingMaxLevel, buildingUpgradeFor, garrisonFovYaw, garrisonSeatManned, garrisonSeatSlots, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpThresholdFor, type Action, type LoggedAction, type TacticIdSource } from './actions';
+import { ActionDispatcher, type ActionContext, garrisonFovYaw, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, xpThresholdFor, type Action, type LoggedAction, type TacticIdSource } from './actions';
 import {
     emptyForgeSlots,
-    forgeHintText,
-    forgeIngredientIcons,
-    forgeProductInfo,
-    forgeRecipesCraftableFromBag,
     forgeSeatCanInsert,
     forgeTeamCapacity,
     resolveForge,
@@ -52,9 +48,6 @@ import {
     tutorial1HeightAt,
     tutorial5HeightAt,
     TUTORIAL_1_ID,
-    TUTORIAL_2_ID,
-    TUTORIAL_3_ID,
-    TUTORIAL_4_ID,
     TUTORIAL_5_ID,
 } from './tutorial';
 import { TutorialRuntime, type TutorialHost } from './tutorialRuntime';
@@ -104,9 +97,6 @@ import {
     unlockCostFor,
     SKIP_CARD_REWARD,
     NO_COMMANDER_CARD_ID,
-    TUTORIAL_2_START_CARD_ID,
-    TUTORIAL_3_START_CARD_ID,
-    TUTORIAL_START_CARD_ID,
     roundOfferTitle,
     type RoundCard,
     type SpecialityId,
@@ -141,7 +131,7 @@ import { StrongholdCollapseFx } from './strongholdCollapseFx';
 import { TowerDebuffFx } from './towerDebuffFx';
 import { itemSlotLimit } from './items';
 import { parseElementalId, RUNE_MAX_LEVEL } from './runeMix';
-import { BASE_ANCHORS, BattleMap, CELL, type GroundBenchFeature, groundHeightAt, mulberry32, outerHeightAt, registerOuterHeight, simGroundSupportAt, worldHeightAt } from './map';
+import { BASE_ANCHORS, BattleMap, CELL, type GroundBenchFeature, groundHeightAt, mulberry32, registerOuterHeight, simGroundSupportAt, worldHeightAt } from './map';
 import { OilVisuals } from './oilVisuals';
 import { inputMode, noteGamepadActivity, onInputModeChange, touchFirstDevice } from './inputCapabilities';
 import {
@@ -195,10 +185,10 @@ import {
 } from './buildingCollapse';
 import { freezeAllCrowWingRates, crowWingDeathSplay, setCrowWingDeathSplay } from './crowWingFlap';
 import { GROUND_UNIT_Y } from './groundQuality';
-import { RANGE_ELEV_MAX_BONUS, reachToward } from './terrainCombat';
-import { FireCoverage } from './fireCoverage';
-import { TargetMarkers, type TargetMarkerView } from './targetMarkers';
-import { TargetLine, type TargetLineSegment } from './targetLine';
+import { reachToward } from './terrainCombat';
+import { BattleOverlays, type BattleOverlaysHost } from './battleOverlays';
+import { HudViews, type EnemyIntelSnapshot, type HudViewsHost } from './hudViews';
+import { SelectionInfoBuilder, type BuildingIntelSeat, type BuildingIntelSnapshot, type SelectionInfoHost } from './selectionInfo';
 import { getUnitVisualHeight, modelGeometryFingerprint, modelGeometrySnapshot, usesWingFlapModel } from './unitModels';
 import { BirdFlocks } from './birdFlocks';
 import { WallJoins } from './wallJoins';
@@ -217,13 +207,7 @@ import {
 } from './landscape';
 import type { Weather } from './weather';
 import {
-    createFovWedge,
-    createRangeRing,
     screenToTerrain,
-    type RangeShape,
-    placeFovWedge,
-    placeRangeRing,
-    pulseAuraRing,
     PlacementController,
 } from './placement';
 import { RallyVisuals, type RallyDraft } from './rallyVisuals';
@@ -237,7 +221,6 @@ import {
     climbAttackerTeam,
     yearBoardExtraAllowed,
     boardExtrasFor,
-    rallyRouteBuyMax,
     yearWinner,
     isSiege,
     roundsVictory,
@@ -253,15 +236,13 @@ import {
     type LevelingSettings,
     type GameSettings,
 } from './settings';
-import { detAtan2, detCos, detSin } from './detMath';
+import { detCos, detSin } from './detMath';
 import { hordeWavePlan } from './hordeRoster';
+import { HORDE_RING_NEAR, HORDE_RING_SPAN, findHordeSpotNear, hordeCampSpots, type HordeWave } from './hordeCamps';
 import {
     BattleSim,
     BATTLE_START_FREEZE,
-    actorSeat,
-    actorTeam,
     type Actor,
-    type SimConfig,
     type SimEvent,
     SOFT_CROWD_LIMIT,
 } from './sim';
@@ -287,19 +268,16 @@ import {
     type RallyRoute,
     type SpellStamp,
 } from './tactics';
-import { TechTree, effectiveTargets, effectiveFlying, levelScaleMult } from './tech';
-import { activeLoadout, loadoutShowsAll, openLoadout, randomLoadout, scenarioLoadout } from './loadouts';
-import { ownedCleaveTechs, ownedProduceTechs, techSlotLimit, techsForUnit, allowedTechIds, type Loadout } from './techCatalog';
+import { TechTree, effectiveFlying, levelScaleMult } from './tech';
+import { activeLoadout, openLoadout, randomLoadout, scenarioLoadout } from './loadouts';
+import { ownedCleaveTechs, ownedProduceTechs, techsForUnit, type Loadout } from './techCatalog';
 import { forEachPickSphere, rayMeshT, raySphereT } from './pick';
 import {
-    STRONGHOLD_ARCHER_FOV_HALF,
     hasAbility,
-    type BuildingAbilityId,
     strongholdArcherSlotWorld,
     formationHeadcount,
     isPlayerBuyable,
     isTargetMarked,
-    wallShiftOffset,
     techDescription,
     techIcon,
     type BattleTeam,
@@ -341,11 +319,8 @@ import type { ScenarioDef } from './scenario/scenarioDef';
 import { applyScenario, type AppliedScene, type ScenarioHost } from './scenario/applyScenario';
 import type { TestBattleSummary } from '../ui/scenarioEditor';
 import { getUnitInstanceRenderer } from './unitInstances';
-import { storeDraft } from './scenario/editorDraft';
 
 /** menu→match camera fly-in (fresh starts only) */
-/** in battle the fire coverage follows its shooter, worked out again at most this often (ms) */
-const FIRE_COVERAGE_BATTLE_MS = 250;
 const MATCH_INTRO_SEC = 1.0;
 /** card overlays begin fading in during the tail of the fly-in (t = 0..1) */
 const MATCH_INTRO_CARDS_START = 0.55;
@@ -365,66 +340,6 @@ const HP_DRAW_BATTLE_SETTLE = 0.52;
  * the last pack has already gone down — this only covers the dust settling.
  */
 const HP_DRAW_COLLAPSE_SETTLE = 1.2;
-
-// --- horde forest camps (see spawnHordeWave / hordeCampSpots) ---
-/**
- * Camps sit this far past the board edge: already inside the tree line (the
- * belt ramps up from 8), and nearer than the closest lake (~66, see
- * scenery.ts), so a wave walks in out of the woods, arrives soon, and has no
- * water to wade through.
- */
-const HORDE_CAMP_NEAR = 40;
-const HORDE_CAMP_FAR = 55;
-/** a pack may scatter around its camp within this band past the edge */
-const HORDE_PACK_NEAR = 18;
-const HORDE_PACK_FAR = 58; // (scenery.ts LAKE_CLEAR_OUT keeps every lake past this band — change them together)
-/**
- * Where the two camps stand, as an angle either side of the direction the
- * leader's half lies in (seen from the middle of the board). Even standing
- * puts them at a right angle — pure left and right, the same walk for both
- * players; a growing lead swings both toward the leader until they come out
- * of the woods behind their keep. They never close past the minimum, or the
- * two camps would be one pile.
- */
-const HORDE_CAMP_SPREAD_EVEN = Math.PI / 2;
-const HORDE_CAMP_SPREAD_MIN = (20 * Math.PI) / 180;
-/** nudges tried when a camp spot would start in (or walk through) water */
-const HORDE_CAMP_RETRIES = 12;
-
-/**
- * A point `out` world units past the board's edge, seen from the middle of the
- * board along `angle` (0 = +z, growing toward +x). "Past the edge" is the same
- * metric the forest belt and the lakes use: how far outside the rectangle the
- * point lies, so a camp is as deep in the woods on a diagonal as head-on.
- */
-function hordeSpotOnRay(
-    angle: number,
-    out: number,
-    halfW: number,
-    halfH: number,
-): { x: number; z: number } {
-    const dx = detSin(angle);
-    const dz = detCos(angle);
-    const lx = Math.abs(dx) > 1e-6 ? (halfW + out) / Math.abs(dx) : Infinity;
-    const lz = Math.abs(dz) > 1e-6 ? (halfH + out) / Math.abs(dz) : Infinity;
-    const len = Math.min(lx, lz);
-    return { x: dx * len, z: dz * len };
-}
-
-/** ring starts this far past the board edge (world units) — well into the
- *  treeline (medium quality's forest belt already ramps up by 25 past the
- *  edge), so the wave visibly emerges from the woods instead of appearing
- *  right at the board's doorstep */
-const HORDE_RING_NEAR = 45;
-/** ring extends this much further past HORDE_RING_NEAR */
-const HORDE_RING_SPAN = 80;
-/** bounded, deterministic retries when a candidate spot's straight walk to
- *  center would cross deep water */
-const HORDE_SPAWN_ATTEMPTS = 24;
-/** points sampled along that straight walk (besides the spawn point itself) */
-const HORDE_PATH_SAMPLES = 8;
-/** worldHeightAt below this reads as deep water (per HORDE_MODE_NOTES.md) */
-const HORDE_LAKE_HEIGHT = -0.5;
 
 /** SP cheat (Shift+U): tactic ids topped up for free testing (see cheatGrantAllTactics) */
 const CHEAT_TACTIC_GRANTS = [
@@ -476,7 +391,6 @@ const TEXTURE_UPLOAD_BUDGET_MS = 6;
 
 /** seconds for the deployment focus shade outside the board to fade in / out */
 const DEPLOY_SHADE_FADE_S = 0.4;
-
 
 /**
  * A pack set down in deployment (placed, moved, bought): a dust puff around its
@@ -625,29 +539,15 @@ export class Game {
     private hpDrawElapsed = 0;
     private hpDrawDisplayPlayer = 0;
     private hpDrawDisplayEnemy = 0;
-    private hpDrawPrePlayer = 0;
-    private hpDrawPreEnemy = 0;
     private hpDrawAfterMatchOver = false;
     /** Seconds left before HP-draw souls launch (death settle beat). */
     private hpDrawSettleRemaining = 0;
-    /** Sim elapsed when battle ended — keeps death anims on the same clock. */
-    private postBattleDeathElapsed = 0;
-    private postBattleDeathTimeBase = 0;
-    /** attack-range ring under the selected battle mech */
-    private readonly battleRangeMesh;
-    /** where the selected ranged unit can actually hit (see FireCoverage) */
-    private readonly fireCoverage: FireCoverage;
-    /** red arrows at marked walls (setTargetMark, the battle's auto-marks) */
-    private readonly targetMarkers: TargetMarkers;
-    /** debug: the selected battle unit's line to its target */
-    private readonly targetLine: TargetLine;
-    /** what the target line last logged (logged again on a change) */
-    private targetLineLog = '';
-    private readonly battleFovMesh;
-    /** inner dead-zone (min-range) ring under the selected battle mech */
-    private readonly battleMinRangeMesh;
-    /** gold aura-range ring under a selected battle mech with a special skill */
-    private readonly battleAuraMesh;
+    /** rings, fire coverage, target arrows and debug lines for the selected unit (see BattleOverlays) */
+    private readonly overlays: BattleOverlays;
+    /** the unit details pane's contents (see SelectionInfoBuilder) */
+    private readonly selectionInfo: SelectionInfoBuilder;
+    /** the HUD's inventory, tactics, enemy intel and round-card views (see HudViews) */
+    private readonly hudViews: HudViews;
     /** tech tile currently hovered/peeked in the detail panel (drives aura ring) */
     private hoveredTech: string | null = null;
 
@@ -840,7 +740,7 @@ export class Game {
      *  reconstruct or persist anything explicitly. */
     private lastSeqSeen: number[] = [];
     /** star guest only: aborts an in-flight redial loop if we give up first
-     *  (quitToMenu) — mirrors classic 1v1's onReconnectTimeout callback */
+     *  (quitToMenu) */
     private starRedialAbort: AbortController | null = null;
     /** star host only: seats that explicitly quit (see handleSeatQuit) — the
      *  connection dropping moments later (the quitting client's own
@@ -919,11 +819,11 @@ export class Game {
     private readonly itemInventory: string[][];
     /** per-SEAT tactical order charges (rally routes, etc.) — separate from pack items, never shared */
     private readonly tacticInventory: string[][];
-    /** shared Stronghold forge oven per side (3 slots; burn at next deploy start) */
-    /** who paid to fire each oven — null = unlit, cleared when it resolves */
     /** a lifeline collapse played this battle — hold the round-end beat for it */
     private collapseEndedRound = false;
+    /** who paid to fire each oven — null = unlit, cleared when it resolves */
     private readonly forgeLitBy: Record<Team, SeatId | null> = { player: null, enemy: null };
+    /** shared Stronghold forge oven per side (3 slots; burn at next deploy start) */
     private readonly forgeSlots: Record<Team, (ForgeSlot | null)[]> = {
         player: emptyForgeSlots(),
         enemy: emptyForgeSlots(),
@@ -936,13 +836,7 @@ export class Game {
     /** per-SEAT: at most one shop unlock per deployment round */
     private readonly unlockUsedThisRound: boolean[];
     /** frozen enemy inventory intel captured at deployment-phase start */
-    private enemyIntelSnapshot: {
-        items: string[];
-        tactics: string[];
-        sellAbilityOwned: boolean;
-        /** the enemy seats' target marks (setTargetMark) — on my walls, never fogged themselves */
-        targetMarks: { unitId: number; seat: SeatId }[];
-    } | null = null;
+    private enemyIntelSnapshot: EnemyIntelSnapshot | null = null;
     /**
      * Owned techs at deployment-phase start (all seats). Fogged packs show
      * this view; live techTree applies once that pack's fog lifts.
@@ -993,10 +887,6 @@ export class Game {
         null;
     /** connection lost: everything pauses until the peer is back */
     private suspended = false;
-    /** seconds left before an unreturned opponent forfeits (null = no active grace window) */
-    private reconnectGraceRemaining: number | null = null;
-    /** set by main: fired the instant the grace window elapses, to cancel the in-flight redial */
-    onReconnectTimeout: (() => void) | null = null;
     /** the round-card offer drawn during hydration, shown once it finishes */
     private pendingOffer: RoundCard[] | null = null;
     /** the four specialist cards currently offered to the player (for auto-pick) */
@@ -1326,11 +1216,6 @@ export class Game {
             : null;
     }
 
-    /**
-     * mechiliBenchmark({ breakdown: true }): parts of the scenery to switch off one
-     * at a time (each returns how to put itself back). Measuring only — nothing
-     * here is a setting.
-     */
     /** the board ground shader, feature by feature (each row rebuilds it without that one) */
     private benchGroundKnockouts(): BenchmarkKnockout[] {
         const rows: [string, GroundBenchFeature[]][] = [
@@ -1353,6 +1238,11 @@ export class Game {
         ];
     }
 
+    /**
+     * mechiliBenchmark({ breakdown: true }): parts of the scenery to switch off one
+     * at a time (each returns how to put itself back). Measuring only — nothing
+     * here is a setting.
+     */
     private benchKnockouts(): BenchmarkKnockout[] {
         const hide = (objects: Object3D[]) => {
             const was = objects.map((o) => o.visible);
@@ -1675,7 +1565,7 @@ export class Game {
             session: SpectatorLink;
             /** the watching user's own name — distinct from `playerNames`,
              *  which for spectate mode holds the two PLAYERS' names (for
-             *  sideLabel/roster display, not "who is chatting") */
+             *  the roster display, not "who is chatting") */
             watcherName: string;
             initial: {
                 actions: LoggedAction[];
@@ -1982,15 +1872,9 @@ export class Game {
         this.unitInstances = new UnitInstanceRenderer(this.scene);
         setUnitInstanceRenderer(this.unitInstances);
         this.applyShadowQuality();
-        this.battleRangeMesh = createRangeRing(this.scene);
-        this.fireCoverage = new FireCoverage(this.scene);
-        this.targetMarkers = new TargetMarkers(this.scene);
-        this.targetLine = new TargetLine(this.scene);
-        this.battleFovMesh = createFovWedge(this.scene);
-        this.battleMinRangeMesh = createRangeRing(this.scene);
-        (this.battleMinRangeMesh.material as import('three').MeshBasicMaterial).color.setHex(0xff6a44);
-        this.battleAuraMesh = createRangeRing(this.scene);
-        (this.battleAuraMesh.material as import('three').MeshBasicMaterial).color.setHex(0xffcf5a);
+        this.overlays = new BattleOverlays(this.scene, this.overlaysHost());
+        this.selectionInfo = new SelectionInfoBuilder(this.selectionInfoHost());
+        this.hudViews = new HudViews(this.hudViewsHost());
 
         // input listens on the Pixi canvas — it's the top-most surface
         const surface = pixiApp.canvas;
@@ -2121,126 +2005,7 @@ export class Game {
         // Before the dispatcher: its forgeSpellsOf closure narrows the shelf
         // per lesson round, so the runtime has to exist by the time it runs.
         this.tutorial = isTutorial(settings) ? new TutorialRuntime(this.tutorialHost()) : null;
-        this.dispatcher = new ActionDispatcher({
-            types: this.types,
-            placement: this.placement,
-            economy: this.economy,
-            seats: this.seats,
-            techTree: this.techTree,
-            leveling: settings.leveling,
-            towers: settings.towers,
-            sellSettings: settings.sell,
-            rallyRouteSettings: settings.rallyRoute,
-            movePackSettings: settings.movePack,
-            deploySettings: settings.deploy,
-            boostSettings: settings.boosts,
-            recruitLevel: this.recruitLevel,
-            sellState: this.sellState,
-            rallyRouteBought: this.rallyRouteBought,
-            forgeSpellOwned: this.forgeSpellOwned,
-            forgeSpellsOf: (seat: SeatId) => this.forgeSpellsOf(seat),
-            movePackOwned: this.movePackOwned,
-            deployState: this.deployState,
-            boostState: this.boostState,
-            roundBoosts: this.roundBoosts,
-            creditUsed: this.creditUsed,
-            creditDebt: this.creditDebt,
-            speciality: this.speciality,
-            commander: this.commander,
-            flankSpawnMult: this.flankSpawnMult,
-            items: this.itemInventory,
-            tactics: this.tacticInventory,
-            forgeSlots: this.forgeSlots,
-            forgeLitBy: this.forgeLitBy,
-            forgePoolOf: (team: Team) => this.teamForgePool(team),
-            rallyRoutes: this.rallyRoutes,
-            rallyRouteIds: this.rallyRouteIds,
-            oilField: this.oilField,
-            oilBaseline: this.oilBaseline,
-            oilStamps: this.oilStamps,
-            oilStampIds: this.oilStampIds,
-            spellStamps: this.spellStamps,
-            spellStampIds: this.spellStampIds,
-            roundCardTaken: this.roundCardTaken,
-            deployReady: this.deployReady,
-            seatReady: this.seatReady,
-            starterPicked: this.starterPicked,
-            unlockedUnits: this.unlockedUnits,
-            // the scenario editor's own deployment buys anything, unlimited (see ActionContext)
-            editorSandbox: this.settings.scenario?.mode === 'author',
-            unlockUsedThisRound: this.unlockUsedThisRound,
-            hp: {
-                get: (team) => (team === 'player' ? this.playerHp : this.enemyHp),
-                set: (team, hp) => {
-                    if (team === 'player') this.playerHp = hp;
-                    else this.enemyHp = hp;
-                },
-            },
-            commanderHpFactor: settings.commanderHpFactor,
-            fixedSideHp: this.rules.fixedSideHp,
-            starterArmy: this.rules.commander.mode !== 'fixed' || this.rules.commander.starterArmy,
-            playerUnlocks: this.rules.playerUnlocks,
-            playerUnlockable: this.rules.playerUnlockable,
-            climbMode: isSiege(settings),
-            climbAttacker: isSiege(settings) ? this.yearAttackerTeam() : null,
-            clock: () => ({
-                round: this.round,
-                t: Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining),
-            }),
-            debugLog: (category, data) => this.debugLog.log(category, data),
-            onEndDeployment: (team) => {
-                if (this.phase !== 'build' || this.matchOver) return;
-                // watching: 'player' here just means "the host's endDeployment
-                // was applied to this simulation" — none of the "freeze MY OWN
-                // input, reveal MY OWN board early" side effects below make
-                // sense for a spectator (there's no local input, and an early
-                // reveal tied to one specific side locking in isn't the same
-                // as both sides locking in or battle actually starting).
-                if (team === 'player' && !this.watching) {
-                    // Cancel any pending placement/tactic and drop selection —
-                    // but do NOT disable placement entirely. `enabled = false`
-                    // gates the ENTIRE render-update loop (applyIntelFog,
-                    // level arrows, item badges — see PlacementController
-                    // .update's per-function `if (!enabled) return` checks),
-                    // which would freeze the whole board the instant we lock
-                    // in — same "action received but doesn't show" symptom
-                    // the spectator exemption above already avoids. Leaving
-                    // it enabled lets us keep inspecting any pack (ours or,
-                    // once visible, the enemy's — handleClick's own
-                    // enemyIntelVisible check already allows that) and see
-                    // the enemy's remaining moves render live as they arrive.
-                    // Actually placing/moving/buying is still safely refused
-                    // — dispatchPlayer rejects everything once
-                    // seatReady[humanSeat] is set, regardless of `enabled`
-                    // — and the shop stays disabled in the HUD (see
-                    // waitingForPeer/shopColumn), so nothing can re-arm a
-                    // pending buy after this point.
-                    this.placement.deselect();
-                    this.armedItem = null;
-                    this.cancelTacticPlacement();
-                    this.placement.hiddenPlacements = false;
-                    this.placement.revealAll();
-                    this.enemyIntelSnapshot = null;
-                    this.techIntelSnapshot = null;
-                    this.buildingIntelSnapshot = null;
-                }
-                // Star mode deliberately does NOT check maybeStartStarBattle
-                // here — this callback fires DURING dispatch, before the
-                // action that triggered it has been relayed onward. Every
-                // dispatch path (dispatchPlayer, AI, drainStarRemoteQueue)
-                // calls relayStarBuildMessage right after its own dispatch
-                // completes, and THAT'S where the check correctly lives —
-                // checking here too raced the battle-start broadcast ahead
-                // of the very action that completed the last lock-in.
-                if (!this.star) this.maybeStartBattleAfterDeploy();
-            },
-            // fires on the dispatching client AND on every other client
-            // that later applies the same logged forfeitSide action
-            // (live relay, or a resume/replay catch-up) — same "check HP,
-            // end the match" logic endBattlePhase already runs after a
-            // battle result, just triggered by a different cause
-            onForfeit: (team) => this.finishAfterForfeit(team),
-        });
+        this.dispatcher = new ActionDispatcher(this.actionContext(settings));
         if (this.watching) {
             // every seat's actions come from the replay log — no AI, no
             // human input, on any seat (same no-op used for a star guest,
@@ -2367,7 +2132,7 @@ export class Game {
         };
         this.placement.minRangeOf = (unit) => this.resolvedStatsView(unit).minRange;
         this.placement.itemArmed = () => this.armedItem !== null;
-        this.placement.auraRangeOf = (unit) => this.auraRadiusOf(unit);
+        this.placement.auraRangeOf = (unit) => this.overlays.auraRadiusOf(unit);
         this.controls.onRightClick = () => {
             if (this.cancelTacticPlacement()) return;
             this.placement.deselect();
@@ -2417,6 +2182,280 @@ export class Game {
         // Game instance's lifetime, so this is a one-time hide, not a toggle
         if (this.watching) this.hud.setSpeedButtonVisible(false);
         this.hud.setSpeedSteps(this.speedSteps);
+        this.wireHudCallbacks(!!spectate);
+        this.debug = new DebugOverlay(wrapper, debugEnabled());
+        if (this.debugLog.enabled && this.debugLog.isHost) {
+            this.debugDumpButton = new DebugDumpButton(wrapper, (opts) => this.debugLog.dump(opts));
+        }
+        if (debugEnabled()) this.sendReportButton = new SendReportButton(wrapper, () => this.sendManualReport());
+        this.syncDebugDumpButton();
+        this.debug.onCollapsedChange = () => this.syncDebugDumpButton();
+        pixiApp.stage.addChild(this.hpBars.view);
+        // the pips are HTML: they belong on the screen's rim, where the HUD
+        // would cover a canvas sprite — their own layer sits over it
+        wrapper.appendChild(this.hordeMarkers.edgeView);
+
+        // battle phase: left click selects a single mech, own or enemy
+        const listen = (type: string, handler: EventListener) => {
+            surface.addEventListener(type, handler);
+            this.inputDisposers.push(() => surface.removeEventListener(type, handler));
+        };
+        listen('pointerdown', ((e: PointerEvent) => {
+            if (e.button === 0) this.battleDown = { x: e.clientX, y: e.clientY };
+        }) as EventListener);
+        listen('pointerup', ((e: PointerEvent) => {
+            if (e.button !== 0 || this.phase !== 'battle' || !this.battleDown) return;
+            const moved = Math.hypot(e.clientX - this.battleDown.x, e.clientY - this.battleDown.y);
+            this.battleDown = null;
+            if (moved > 6) return;
+            const next = this.pickActor(e);
+            this.selectedActor = next;
+            if (next) {
+                if (next.unit.type.id === 'stronghold') {
+                    this.playStrongholdSelectBark(next.unit);
+                } else if (next.unit.type.structure) {
+                    audio.playBuildingSelect(next.unit.type.id);
+                } else if (next.unit.team === 'player') {
+                    audio.playUnitSelect(next.unit.type.id);
+                } else {
+                    audio.playUnitSelectRival(next.unit.type.id);
+                }
+            }
+        }) as EventListener);
+
+        // round 0: towers stand, then the loadout cards decide the starting
+        // armies — the first build phase begins once BOTH sides picked
+        this.spawnTowers();
+        this.placement.enabled = false;
+        if (resume) {
+            this.hydrate(resume.actions, resume.battleElapsed, !resume.local);
+            // replay always resets the round's clock to a fresh full timer
+            // time from whoever exported, so a rebuild can't hand either
+            // side extra deployment time
+            if (resume.phaseRemaining !== undefined && this.phase === 'build') {
+                this.phaseRemaining = resume.phaseRemaining;
+            }
+            // hydrate's intermediate startBuildPhase calls reset speed to 1× —
+            // restore the exporter's live multiplier without rebroadcasting
+            this.restoreSpeedMultiplier(resume.speedMultiplier);
+            if (!this.watching) void this.ensureRosterMmrs();
+        } else if (replay) {
+            this.replayLog = replay.actions;
+            // round 0 (starter pick) dispatches immediately, same as
+            // hydrate() does — a natural pace doesn't matter for a one-time
+            // card pick, and this gets straight to round 1's build phase,
+            // where the per-frame paced dispatch (see the main tick) takes
+            // over for everything after
+            while (
+                this.replayCursor < this.replayLog.length &&
+                this.replayLog[this.replayCursor]!.round === 0
+            ) {
+                this.dispatcher.dispatch(this.replayLog[this.replayCursor]!.action);
+                this.replayCursor++;
+            }
+            this.maybeStartMatch();
+            if (replay.jumpToRound !== undefined && replay.jumpToRound > 1) {
+                this.fastForwardReplayThroughRound(replay.jumpToRound);
+            }
+        } else if (spectate) {
+            // same catch-up machinery as a reconnecting player — no
+            // perspective swap, we render the match exactly as recorded
+            this.hydrate(spectate.initial.actions, spectate.initial.battleElapsed, false);
+            if (this.phase === 'build') {
+                this.phaseRemaining = spectate.initial.phaseRemaining;
+            }
+            this.restoreSpeedMultiplier(spectate.initial.speedMultiplier);
+        } else if (matchIntro) {
+            // hold the specialist overlay until the camera fly-in finishes
+            // Tutorial: skip the offer — auto commander is applied after intro.
+            this.deferredStarterOffer =
+                isTutorial(this.settings) || this.rules.commander.mode !== 'pick'
+                    ? null
+                    : this.starterOfferFor('player', this.rngCards.player);
+            if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
+        } else {
+            if (this.tutorial) this.tutorial.applyStarters();
+            else if (this.rules.commander.mode !== 'pick') this.applyRuleCommanders();
+            else this.showStarterPick(this.starterOfferFor('player', this.rngCards.player));
+            if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
+        }
+        if (this.editorMode) this.startScenarioEditing(wrapper, surface);
+        if (this.star?.role === 'host') this.startSpectatorHub();
+        if (this.star) this.wireStar(this.star);
+        if (resume && this.star?.role === 'guest' && !resume.local) {
+            // fires for BOTH a cold reconnect via the main menu (see the
+            // guest session's 'matchCatchUp' handling) and a mid-match
+            // Phase 7 full-rebuild resync (rebuildStarGuestGame, always
+            // constructed with matchIntro=false so this sends immediately,
+            // not deferred — see the branch below) — the host holds this
+            // seat suspended until it hears OUR 'ready' either way.
+            // hydrate() above already ran to completion synchronously, but
+            // see pendingReadyOnIntroFinish's doc comment for why the SEND
+            // itself still needs to wait for the fly-in when there IS one,
+            // not just the data hydrate.
+            const guestSession = this.star.session;
+            const sendReady = () => guestSession.send({ type: 'ready' });
+            if (matchIntro) this.pendingReadyOnIntroFinish = sendReady;
+            else sendReady();
+        }
+        if (spectate) this.wireSpectateSession(spectate.session);
+        // any of the hydrate/replay paths above may already have a non-
+        // empty log (resume/spectate) — seed once construction's own
+        // catch-up is fully done, not before
+        this.seedSeqTracking();
+
+        // Escape toggles the in-game menu (solo: freezes clocks; multiplayer: live)
+        window.addEventListener('keydown', this.onEscapeKey);
+        if (import.meta.env.DEV) window.addEventListener('pagehide', this.onPageHide);
+
+        this.resize(wrapper.clientWidth, wrapper.clientHeight);
+        window.addEventListener('resize', this.onWindowResize);
+        // Compile remaining cold programs (ground + point-light variants, weather,
+        // flame tongues) before the first tick — hides the hitch at match start
+        // rather than mid-battle. Boot already warmed the shared context when possible.
+        // Compile + upload everything (incl. the detailed ground / meadow, whose materials
+        // swap in a few microtasks later) without blocking the GPU, then start the loop —
+        // nothing draws until then, the intro cover stays up and keeps diving smoothly.
+        void this.warmUpForMatchStart().then(() => {
+            if (!this.disposed) this.warmedUp = true;
+        });
+        pixiApp.ticker.add(this.boundTick);
+    }
+
+    /**
+     * What the action system acts on: the board, economy and every seat's
+     * ledgers, and the hooks back into the match (battle start, forfeits,
+     * the HUD). Once, from the constructor.
+     */
+    private actionContext(settings: GameSettings): ActionContext {
+        return {
+            types: this.types,
+            placement: this.placement,
+            economy: this.economy,
+            seats: this.seats,
+            techTree: this.techTree,
+            leveling: settings.leveling,
+            towers: settings.towers,
+            sellSettings: settings.sell,
+            rallyRouteSettings: settings.rallyRoute,
+            movePackSettings: settings.movePack,
+            deploySettings: settings.deploy,
+            boostSettings: settings.boosts,
+            recruitLevel: this.recruitLevel,
+            sellState: this.sellState,
+            rallyRouteBought: this.rallyRouteBought,
+            forgeSpellOwned: this.forgeSpellOwned,
+            forgeSpellsOf: (seat: SeatId) => this.forgeSpellsOf(seat),
+            movePackOwned: this.movePackOwned,
+            deployState: this.deployState,
+            boostState: this.boostState,
+            roundBoosts: this.roundBoosts,
+            creditUsed: this.creditUsed,
+            creditDebt: this.creditDebt,
+            speciality: this.speciality,
+            commander: this.commander,
+            flankSpawnMult: this.flankSpawnMult,
+            items: this.itemInventory,
+            tactics: this.tacticInventory,
+            forgeSlots: this.forgeSlots,
+            forgeLitBy: this.forgeLitBy,
+            forgePoolOf: (team: Team) => this.teamForgePool(team),
+            rallyRoutes: this.rallyRoutes,
+            rallyRouteIds: this.rallyRouteIds,
+            oilField: this.oilField,
+            oilBaseline: this.oilBaseline,
+            oilStamps: this.oilStamps,
+            oilStampIds: this.oilStampIds,
+            spellStamps: this.spellStamps,
+            spellStampIds: this.spellStampIds,
+            roundCardTaken: this.roundCardTaken,
+            deployReady: this.deployReady,
+            seatReady: this.seatReady,
+            starterPicked: this.starterPicked,
+            unlockedUnits: this.unlockedUnits,
+            // the scenario editor's own deployment buys anything, unlimited (see ActionContext)
+            editorSandbox: this.settings.scenario?.mode === 'author',
+            unlockUsedThisRound: this.unlockUsedThisRound,
+            hp: {
+                get: (team) => (team === 'player' ? this.playerHp : this.enemyHp),
+                set: (team, hp) => {
+                    if (team === 'player') this.playerHp = hp;
+                    else this.enemyHp = hp;
+                },
+            },
+            commanderHpFactor: settings.commanderHpFactor,
+            fixedSideHp: this.rules.fixedSideHp,
+            starterArmy: this.rules.commander.mode !== 'fixed' || this.rules.commander.starterArmy,
+            playerUnlocks: this.rules.playerUnlocks,
+            playerUnlockable: this.rules.playerUnlockable,
+            climbMode: isSiege(settings),
+            climbAttacker: isSiege(settings) ? this.yearAttackerTeam() : null,
+            clock: () => ({
+                round: this.round,
+                t: Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining),
+            }),
+            debugLog: (category, data) => this.debugLog.log(category, data),
+            onEndDeployment: (team) => {
+                if (this.phase !== 'build' || this.matchOver) return;
+                // watching: 'player' here just means "the host's endDeployment
+                // was applied to this simulation" — none of the "freeze MY OWN
+                // input, reveal MY OWN board early" side effects below make
+                // sense for a spectator (there's no local input, and an early
+                // reveal tied to one specific side locking in isn't the same
+                // as both sides locking in or battle actually starting).
+                if (team === 'player' && !this.watching) {
+                    // Cancel any pending placement/tactic and drop selection —
+                    // but do NOT disable placement entirely. `enabled = false`
+                    // gates the ENTIRE render-update loop (applyIntelFog,
+                    // level arrows, item badges — see PlacementController
+                    // .update's per-function `if (!enabled) return` checks),
+                    // which would freeze the whole board the instant we lock
+                    // in — same "action received but doesn't show" symptom
+                    // the spectator exemption above already avoids. Leaving
+                    // it enabled lets us keep inspecting any pack (ours or,
+                    // once visible, the enemy's — handleClick's own
+                    // enemyIntelVisible check already allows that) and see
+                    // the enemy's remaining moves render live as they arrive.
+                    // Actually placing/moving/buying is still safely refused
+                    // — dispatchPlayer rejects everything once
+                    // seatReady[humanSeat] is set, regardless of `enabled`
+                    // — and the shop stays disabled in the HUD (see
+                    // waitingForPeer/shopColumn), so nothing can re-arm a
+                    // pending buy after this point.
+                    this.placement.deselect();
+                    this.armedItem = null;
+                    this.cancelTacticPlacement();
+                    this.placement.hiddenPlacements = false;
+                    this.placement.revealAll();
+                    this.enemyIntelSnapshot = null;
+                    this.techIntelSnapshot = null;
+                    this.buildingIntelSnapshot = null;
+                }
+                // Star mode deliberately does NOT check maybeStartStarBattle
+                // here — this callback fires DURING dispatch, before the
+                // action that triggered it has been relayed onward. Every
+                // dispatch path (dispatchPlayer, AI, drainStarRemoteQueue)
+                // calls relayStarBuildMessage right after its own dispatch
+                // completes, and THAT'S where the check correctly lives —
+                // checking here too raced the battle-start broadcast ahead
+                // of the very action that completed the last lock-in.
+                if (!this.star) this.maybeStartBattleAfterDeploy();
+            },
+            // fires on the dispatching client AND on every other client
+            // that later applies the same logged forfeitSide action
+            // (live relay, or a resume/replay catch-up) — same "check HP,
+            // end the match" logic endBattlePhase already runs after a
+            // battle result, just triggered by a different cause
+            onForfeit: (team) => this.finishAfterForfeit(team),
+        };
+    }
+
+    /**
+     * The HUD's buttons and panels, wired to the match: menus, buying,
+     * levelling, tactics, items, the forge, the round's end. Once, from the
+     * constructor (a spectator has no seat to grant vision from).
+     */
+    private wireHudCallbacks(spectating: boolean): void {
         this.hud.onMenuToggle = () => this.togglePauseMenu();
         // touch stand-in for middle-click (rotate)
         this.hud.onTouchRotate = () => this.placement.rotateSelected();
@@ -2438,7 +2477,7 @@ export class Game {
             if (nextScenario !== null) this.onNextScenario?.(nextScenario);
         };
         // a spectator has no seat of its own to grant vision from
-        if (!spectate) this.hud.onGrantSpectatorLive = (name, grant) => this.grantSpectatorLive(name, grant);
+        if (!spectating) this.hud.onGrantSpectatorLive = (name, grant) => this.grantSpectatorLive(name, grant);
         this.hud.setCommanders(this.commanderEntries(), this.humanSeat);
         this.hud.onEndDeployment = () => {
             if (this.phase !== 'build') return;
@@ -2732,143 +2771,6 @@ export class Game {
         this.hud.onTechHover = (techId) => {
             this.hoveredTech = techId;
         };
-        this.debug = new DebugOverlay(wrapper, debugEnabled());
-        if (this.debugLog.enabled && this.debugLog.isHost) {
-            this.debugDumpButton = new DebugDumpButton(wrapper, (opts) => this.debugLog.dump(opts));
-        }
-        if (debugEnabled()) this.sendReportButton = new SendReportButton(wrapper, () => this.sendManualReport());
-        this.syncDebugDumpButton();
-        this.debug.onCollapsedChange = () => this.syncDebugDumpButton();
-        pixiApp.stage.addChild(this.hpBars.view);
-        // the pips are HTML: they belong on the screen's rim, where the HUD
-        // would cover a canvas sprite — their own layer sits over it
-        wrapper.appendChild(this.hordeMarkers.edgeView);
-
-        // battle phase: left click selects a single mech, own or enemy
-        const listen = (type: string, handler: EventListener) => {
-            surface.addEventListener(type, handler);
-            this.inputDisposers.push(() => surface.removeEventListener(type, handler));
-        };
-        listen('pointerdown', ((e: PointerEvent) => {
-            if (e.button === 0) this.battleDown = { x: e.clientX, y: e.clientY };
-        }) as EventListener);
-        listen('pointerup', ((e: PointerEvent) => {
-            if (e.button !== 0 || this.phase !== 'battle' || !this.battleDown) return;
-            const moved = Math.hypot(e.clientX - this.battleDown.x, e.clientY - this.battleDown.y);
-            this.battleDown = null;
-            if (moved > 6) return;
-            const next = this.pickActor(e);
-            this.selectedActor = next;
-            if (next) {
-                if (next.unit.type.id === 'stronghold') {
-                    this.playStrongholdSelectBark(next.unit);
-                } else if (next.unit.type.structure) {
-                    audio.playBuildingSelect(next.unit.type.id);
-                } else if (next.unit.team === 'player') {
-                    audio.playUnitSelect(next.unit.type.id);
-                } else {
-                    audio.playUnitSelectRival(next.unit.type.id);
-                }
-            }
-        }) as EventListener);
-
-        // round 0: towers stand, then the loadout cards decide the starting
-        // armies — the first build phase begins once BOTH sides picked
-        this.spawnTowers();
-        this.placement.enabled = false;
-        if (resume) {
-            this.hydrate(resume.actions, resume.battleElapsed, !resume.local);
-            // replay always resets the round's clock to a fresh full timer
-            // time from whoever exported, so a rebuild can't hand either
-            // side extra deployment time
-            if (resume.phaseRemaining !== undefined && this.phase === 'build') {
-                this.phaseRemaining = resume.phaseRemaining;
-            }
-            // hydrate's intermediate startBuildPhase calls reset speed to 1× —
-            // restore the exporter's live multiplier without rebroadcasting
-            this.restoreSpeedMultiplier(resume.speedMultiplier);
-            if (!this.watching) void this.ensureRosterMmrs();
-        } else if (replay) {
-            this.replayLog = replay.actions;
-            // round 0 (starter pick) dispatches immediately, same as
-            // hydrate() does — a natural pace doesn't matter for a one-time
-            // card pick, and this gets straight to round 1's build phase,
-            // where the per-frame paced dispatch (see the main tick) takes
-            // over for everything after
-            while (
-                this.replayCursor < this.replayLog.length &&
-                this.replayLog[this.replayCursor]!.round === 0
-            ) {
-                this.dispatcher.dispatch(this.replayLog[this.replayCursor]!.action);
-                this.replayCursor++;
-            }
-            this.maybeStartMatch();
-            if (replay.jumpToRound !== undefined && replay.jumpToRound > 1) {
-                this.fastForwardReplayThroughRound(replay.jumpToRound);
-            }
-        } else if (spectate) {
-            // same catch-up machinery as a reconnecting player — no
-            // perspective swap, we render the match exactly as recorded
-            this.hydrate(spectate.initial.actions, spectate.initial.battleElapsed, false);
-            if (this.phase === 'build') {
-                this.phaseRemaining = spectate.initial.phaseRemaining;
-            }
-            this.restoreSpeedMultiplier(spectate.initial.speedMultiplier);
-        } else if (matchIntro) {
-            // hold the specialist overlay until the camera fly-in finishes
-            // Tutorial: skip the offer — auto commander is applied after intro.
-            this.deferredStarterOffer =
-                isTutorial(this.settings) || this.rules.commander.mode !== 'pick'
-                    ? null
-                    : this.starterOfferFor('player', this.rngCards.player);
-            if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
-        } else {
-            if (this.tutorial) this.tutorial.applyStarters();
-            else if (this.rules.commander.mode !== 'pick') this.applyRuleCommanders();
-            else this.showStarterPick(this.starterOfferFor('player', this.rngCards.player));
-            if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
-        }
-        if (this.editorMode) this.startScenarioEditing(wrapper, surface);
-        if (this.star?.role === 'host') this.startSpectatorHub();
-        if (this.star) this.wireStar(this.star);
-        if (resume && this.star?.role === 'guest' && !resume.local) {
-            // fires for BOTH a cold reconnect via the main menu (see the
-            // guest session's 'matchCatchUp' handling) and a mid-match
-            // Phase 7 full-rebuild resync (rebuildStarGuestGame, always
-            // constructed with matchIntro=false so this sends immediately,
-            // not deferred — see the branch below) — the host holds this
-            // seat suspended until it hears OUR 'ready' either way.
-            // hydrate() above already ran to completion synchronously, but
-            // see pendingReadyOnIntroFinish's doc comment for why the SEND
-            // itself still needs to wait for the fly-in when there IS one,
-            // not just the data hydrate.
-            const guestSession = this.star.session;
-            const sendReady = () => guestSession.send({ type: 'ready' });
-            if (matchIntro) this.pendingReadyOnIntroFinish = sendReady;
-            else sendReady();
-        }
-        if (spectate) this.wireSpectateSession(spectate.session);
-        // any of the hydrate/replay paths above may already have a non-
-        // empty log (resume/spectate) — seed once construction's own
-        // catch-up is fully done, not before
-        this.seedSeqTracking();
-
-        // Escape toggles the in-game menu (solo: freezes clocks; multiplayer: live)
-        window.addEventListener('keydown', this.onEscapeKey);
-        if (import.meta.env.DEV) window.addEventListener('pagehide', this.onPageHide);
-
-        this.resize(wrapper.clientWidth, wrapper.clientHeight);
-        window.addEventListener('resize', this.onWindowResize);
-        // Compile remaining cold programs (ground + point-light variants, weather,
-        // flame tongues) before the first tick — hides the hitch at match start
-        // rather than mid-battle. Boot already warmed the shared context when possible.
-        // Compile + upload everything (incl. the detailed ground / meadow, whose materials
-        // swap in a few microtasks later) without blocking the GPU, then start the loop —
-        // nothing draws until then, the intro cover stays up and keeps diving smoothly.
-        void this.warmUpForMatchStart().then(() => {
-            if (!this.disposed) this.warmedUp = true;
-        });
-        pixiApp.ticker.add(this.boundTick);
     }
 
     /** compile + upload the detailed ground / meadow once their materials are in */
@@ -2897,12 +2799,6 @@ export class Game {
                 fetched?.mmr ?? (cached?.name === name ? cached.mmr : DEFAULT_MMR),
             );
         }
-        this.rosterProfilesLoaded = true;
-    }
-
-    /** Intro-cover prefetch finished after Game construction — reuse that map. */
-    applyIntroRosterMmrs(mmrs: ReadonlyMap<string, number>): void {
-        for (const [name, mmr] of mmrs) this.rosterMmr.set(name, mmr);
         this.rosterProfilesLoaded = true;
     }
 
@@ -4344,7 +4240,10 @@ export class Game {
         // measure the angle from — the camps end up left and right anyway)
         const leaderSign =
             leader === 'player' ? ownSign : leader === 'enemy' ? -ownSign : ownSign;
-        const [bigCamp, smallCamp] = this.hordeCampSpots(rng, leaderSign, ahead);
+        const wave = hordeCampSpots(this.map, rng, leaderSign, ahead);
+        // read back with mechiliHorde() in the console
+        this.lastHordeWave = wave;
+        const [bigCamp, smallCamp] = wave.camps;
         // the angle says who is being hunted, so both camps field the same
         // number of packs (an odd one over goes to the leader's camp)
         const nBig = Math.ceil(plan.length / 2);
@@ -4354,7 +4253,7 @@ export class Game {
             const entry = plan[i]!;
             const camp = (i < nBig ? bigCamp : smallCamp)!;
             const campN = i < nBig ? nBig : nSmall;
-            const spot = this.findHordeSpotNear(rng, camp, campN) ?? camp;
+            const spot = findHordeSpotNear(this.map, rng, camp, campN) ?? camp;
             const unit = this.placement.spawnAtWorld(entry.type, spot.x, spot.z);
             unit.summoned = true;
             unit.deployedRound = this.round;
@@ -4368,12 +4267,6 @@ export class Game {
         );
     }
 
-    /**
-     * SP cheat (Shift+I): end the current round and advance — auto-lock
-     * deployment if needed, headless-resolve battle, skip HP-draw VFX.
-     * Restores both sides to peak (starting) HP so the skip never chips the
-     * bar. Solo only (no net / star / watch).
-     */
     /**
      * Single-player only: kill the enemy Stronghold outright.
      *
@@ -4391,6 +4284,12 @@ export class Game {
         );
     }
 
+    /**
+     * SP cheat (Shift+I): end the current round and advance — auto-lock
+     * deployment if needed, headless-resolve battle, skip HP-draw VFX.
+     * Restores both sides to peak (starting) HP so the skip never chips the
+     * bar. Solo only (no net / star / watch).
+     */
     private cheatSkipRound(): void {
         if (this.star || this.watching || this.matchOver || this.hydrating) return;
         if (this.introActive || this.outroActive) return;
@@ -4464,8 +4363,6 @@ export class Game {
         );
     }
 
-    /** local player input — refused once this deployment is locked in.
-     *  Build actions are buffered until the peer locks in (wire fog). */
     /** this battle's first melee clash has had its moment (see CLASH) */
     private clashDone = false;
 
@@ -4569,6 +4466,8 @@ export class Game {
         }
     }
 
+    /** local player input — refused once this deployment is locked in.
+     *  Build actions are buffered until the peer locks in (wire fog). */
     private dispatchPlayer(action: Action): boolean {
         // watch mode: nothing here is "my" input — every action comes from
         // the replay log (see the per-frame paced dispatch). The real guard,
@@ -4687,18 +4586,6 @@ export class Game {
     /** our canonical seat on the wire for spectator vision (`'a'` host, `'b'` guest) */
     private localSeat(): 'a' | 'b' {
         return this.side === 'a' ? 'a' : 'b';
-    }
-
-    /**
-     * The trusted canonical seat of whoever is on the other end of the star link
-     * — classic 1v1 has exactly one peer, so this is a fixed function of our
-     * own side, not something to trust from message *content*. Mirrors why
-     * `onStarMessage`'s host path uses the connection-derived `fromSeat`
-     * rather than `msg.action.seat` — a message's own claimed seat is never
-     * itself proof of who actually sent it.
-     */
-    private peerSeat(): SeatId {
-        return this.side === 'a' ? 1 : 0;
     }
 
     /** my own seat's canonical side */
@@ -5165,15 +5052,6 @@ export class Game {
         return this.tutorial?.forgeSpellsOf(seat) ?? this.starterCardOfSeat(seat)?.forgeSpells;
     }
 
-    /** the side's DISPLAYED specialist card — the primary seat's pick. Every
-     *  seat's own card still grants its own army/tactic/effects (per-seat,
-     *  see chooseCard); the persistent top-bar label and reveal screen only
-     *  have room for one face per side, so this shows the primary's, same
-     *  as speciality/HP already work. */
-    private starterCardOf(team: Team): StartCard | null {
-        return this.starterCardOfSeat(primarySeatOf(this.seats, team));
-    }
-
     /**
      * After souls / just before the next deploy: play a proud win bark from one
      * commander on the winning side (random seat in 2v2). Audible for everyone —
@@ -5373,7 +5251,7 @@ export class Game {
             afterStarterPick: () => this.afterStarterPick(),
             refreshShopHud: () => this.refreshShopHud(),
             updateSelectionUi: () => this.updateSelectionUi(),
-            unitInfo: (unit) => this.unitInfo(unit),
+            unitInfo: (unit) => this.selectionInfo.unitInfo(unit),
             strongholdArcherCount: (team) => this.strongholdArcherCount(team),
             starterForgeSpellsOf: (seat) => this.starterCardOfSeat(seat)?.forgeSpells,
             cancelTacticPlacement: () => this.cancelTacticPlacement(),
@@ -5842,7 +5720,6 @@ export class Game {
         const msg: NetMessage = { type: 'spectateGrant', spectatorName, seat, grant };
         if (this.star?.role === 'guest') this.star.session.send(msg);
     }
-
 
     /**
      * Wires the star (2v2+) transport, for either role and every network.
@@ -6782,7 +6659,6 @@ export class Game {
         this.suspended = false;
         this.suspendDeadline = null;
         this.hud.hideNotice();
-        this.hud.hideReconnectWait();
         if (!this.disposed && !this.outroActive) {
             this.playMenuOutro(() => this.onReturnToMenu?.());
             return;
@@ -6839,27 +6715,6 @@ export class Game {
         this.hud.flashCinemaHint(text, 3500);
         this.hud.setRematchState('gone');
     }
-
-    /** connection lost: pause behind a live countdown; forfeitWin() fires if
-     *  the peer hasn't reconnected by the time it hits zero */
-    beginReconnectGrace(seconds: number): void {
-        if (this.disposed || this.matchOver) return;
-        // a second onConnectionLost for the same drop (belt-and-suspenders
-        // alongside NetSession's own single-fire guard) shouldn't restart
-        // an already-running countdown
-        if (this.reconnectGraceRemaining !== null) return;
-        this.suspended = true;
-        this.hud.hidePauseMenu();
-        this.placement.deselect();
-        this.armedItem = null;
-        this.reconnectGraceRemaining = seconds;
-        this.hud.showReconnectWait(() => this.voluntaryQuit());
-        this.hud.updateReconnectWait(seconds);
-    }
-
-
-
-
 
     /** everything a rejoining peer needs to rebuild the match (our perspective) */
     exportResume(): {
@@ -7508,11 +7363,16 @@ export class Game {
             // catches a peer disagreeing about who owns the Aegis tech / Bulwark rune
             mix(a.shieldHp);
             mix(a.unit.level);
-            // target marks (setTargetMark): which seats attack it — a sum over
-            // canonical seat ranks, so each peer's own seat numbering doesn't matter
+            // target marks (setTargetMark): which seats attack it — a bit per
+            // canonical seat rank and value, so each peer's own seat numbering
+            // doesn't matter and no two mark sets mix the same
             let marked = 0;
             a.unit.targetBy.forEach((v, seat) => {
-                if (v !== undefined) marked += (this.seatRank(seat) + 1) * (v ? 3 : 7);
+                if (v === undefined) return;
+                const rank = this.seatRank(seat);
+                // side × 8 + seat within it (seatRank is side × 1000 + within), two bits each
+                const slot = Math.min(25, Math.floor(rank / 1000) * 8 + (rank % 1000));
+                marked += 2 ** (slot * 2 + (v ? 1 : 0));
             });
             mix(marked);
         }
@@ -7581,7 +7441,6 @@ export class Game {
         }
         return { total: h >>> 0, ...marks };
     }
-
 
     /**
      * The player may act: build phase, not locked in, match running.
@@ -7783,7 +7642,6 @@ export class Game {
         if (this.star?.role === 'host') this.star.hub.flushAllBuffers();
         this.startBuildPhase();
     }
-
 
     /**
      * The star transport's message handler
@@ -8061,7 +7919,6 @@ export class Game {
             this.finishAfterForfeit(team);
         }
     }
-
 
     /**
      * Drains build actions from other seats. The seat already tells us exactly
@@ -8413,275 +8270,12 @@ export class Game {
         return stats;
     }
 
-    /** the left-side item strip: one square per item instance, hidden outside build.
-     *  Items are per-SEAT — this shows only MY OWN seat's pool, not my ally's.
-     *  Same ids are grouped (catalog order), like the spells strip. */
-    private inventoryView(): {
-        id: string;
-        icon: string;
-        name: string;
-        armed: boolean;
-        index: number;
-    }[] {
-        if (!this.playerCanAct) return [];
-        const bag = this.itemInventory[this.humanSeat]!;
-        return this.sortedItemIndices(bag).map((index) => {
-            const id = bag[index]!;
-            const item = this.types.rune(id);
-            return {
-                id,
-                icon: item?.icon ?? '?',
-                name: item ? `${item.name} — ${item.description}` : id,
-                // duplicates share an id: highlight exactly the clicked slot
-                armed: this.armedItem === id && this.armedItemIndex === index,
-                index,
-            };
-        });
-    }
-
-    /** stable indices into `bag` grouped by rune catalog order (`pack.jsonc` "runes") */
-    private sortedItemIndices(bag: readonly string[]): number[] {
-        const order = [...this.types.runes.keys()];
-        const rank = (id: string) => {
-            const i = order.indexOf(id);
-            return i < 0 ? order.length : i;
-        };
-        return bag
-            .map((_, index) => index)
-            .sort((a, b) => {
-                const d = rank(bag[a]!) - rank(bag[b]!);
-                return d !== 0 ? d : a - b;
-            });
-    }
-
-    /** the left-side tactics strip: placed routes/oil + remaining slots */
-    private tacticsView(): {
-        id: string;
-        icon: string;
-        name: string;
-        armed: boolean;
-        placed?: boolean;
-        routeId?: number;
-        /**
-         * Corner badge: omit when ready to cast; `'cancel'` while placed/used
-         * this deploy; a positive number = rounds until the charge returns.
-         */
-        badge?: 'cancel' | number;
-        hint?: string;
-        index: number;
-    }[] {
-        if (!this.playerCanAct) return [];
-        const out: {
-            id: string;
-            icon: string;
-            name: string;
-            armed: boolean;
-            placed?: boolean;
-            routeId?: number;
-            badge?: 'cancel' | number;
-            hint?: string;
-            index: number;
-        }[] = [];
-        let slot = 0;
-
-        // where each 'placement' tactic keeps its resettable placements —
-        // MY OWN seat's, not an ally's (tactics are per-seat now)
-        const placementsOf: Record<string, () => readonly { id: number }[]> = {
-            [RALLY_ROUTE_ID]: () => this.rallyRoutes.filter((r) => r.seat === this.humanSeat),
-            [OIL_SPILL_ID]: () => this.oilStamps.filter((s) => s.seat === this.humanSeat),
-        };
-        // per-round ability charges layered on top of the inventory (sell only)
-        const abilityChargesOf = (tacticId: string): { max: number; used: number } => {
-            if (tacticId !== SELL_UNIT_ID || !this.sellState.owned[this.humanSeat]) {
-                return { max: 0, used: 0 };
-            }
-            const max = this.settings.sell.maxPerRound;
-            return { max, used: Math.min(this.sellState.used[this.humanSeat]!, max) };
-        };
-
-        for (const tactic of this.types.tactics) {
-            if (this.tutorial?.hidesTacticCharge(tactic.id)) continue;
-            const inventory = this.tacticInventory[this.humanSeat]!.filter(
-                (id) => id === tactic.id,
-            ).length;
-            const ability = abilityChargesOf(tactic.id);
-            // greyed and available entries are counted from separate sources,
-            // so using a charge turns an entry grey instead of removing it
-            let placedEntries: { routeId?: number; hint?: string; badge?: 'cancel' | number }[];
-            let avail: number;
-            if (tactic.kind === 'placement') {
-                // charge stays in the inventory; placements are right-click resettable
-                const placements = usesSpellPlacement(tactic)
-                    ? this.spellStamps.filter(
-                          (s) =>
-                              s.seat === this.humanSeat &&
-                              s.tacticId === tactic.id &&
-                              s.placedRound === this.round,
-                      )
-                    : (placementsOf[tactic.id]?.() ?? []);
-                // spells: past stamps cool the charge. oil: stamps wipe each round,
-                // so past uses come from the action log (same as one-shot).
-                const coolingStamps = usesSpellPlacement(tactic)
-                    ? this.spellStamps.filter(
-                          (s) =>
-                              s.seat === this.humanSeat &&
-                              s.tacticId === tactic.id &&
-                              s.placedRound < this.round &&
-                              s.placedRound >= this.round - tactic.cooldownRounds,
-                      )
-                    : [];
-                const oilUseRounds =
-                    tactic.id === OIL_SPILL_ID
-                        ? this.dispatcher
-                              .tacticUseRounds(
-                                  this.humanSeat,
-                                  OIL_SPILL_ID,
-                                  this.round - tactic.cooldownRounds,
-                              )
-                              .filter((r) => r < this.round)
-                        : [];
-                placedEntries = [
-                    ...placements.map((p) => ({
-                        routeId: p.id,
-                        badge: 'cancel' as const,
-                    })),
-                    ...coolingStamps.map((s) => {
-                        const readyIn = s.placedRound + tactic.cooldownRounds + 1 - this.round;
-                        const name = tacticName(tactic.id, tactic.name);
-                        return {
-                            badge: readyIn,
-                            hint: t('hud:tacticCoolingDown', {
-                                name,
-                                ready: t('hud:tacticReadyAgain', { n: readyIn }),
-                            }),
-                        };
-                    }),
-                    ...oilUseRounds.map((r) => {
-                        const readyIn = r + tactic.cooldownRounds + 1 - this.round;
-                        const name = tacticName(tactic.id, tactic.name);
-                        return {
-                            badge: readyIn,
-                            hint: t('hud:tacticCoolingDown', {
-                                name,
-                                ready: t('hud:tacticReadyAgain', { n: readyIn }),
-                            }),
-                        };
-                    }),
-                ];
-                // oil: this-round spend is on the stamp (cancel) AND the log —
-                // count inventory against log uses so we don't double-subtract
-                const blocked =
-                    tactic.id === OIL_SPILL_ID
-                        ? this.dispatcher.tacticUseRounds(
-                              this.humanSeat,
-                              OIL_SPILL_ID,
-                              this.round - tactic.cooldownRounds,
-                          ).length
-                        : placements.length + coolingStamps.length;
-                avail = inventory + ability.max - ability.used - blocked;
-            } else {
-                // one-shot: the charge stays in the inventory but cools down
-                // after use — both derived from the action log (undo restores)
-                const useRounds = this.dispatcher.tacticUseRounds(
-                    this.humanSeat,
-                    tactic.id,
-                    this.round - tactic.cooldownRounds,
-                );
-                const coolingHint = (usedRound: number, readyIn: number): string => {
-                    const name = tacticName(tactic.id, tactic.name);
-                    const ready = t('hud:tacticReadyAgain', { n: readyIn });
-                    return usedRound === this.round
-                        ? t('hud:tacticUsedThisRound', { name, ready })
-                        : t('hud:tacticCoolingDown', { name, ready });
-                };
-                // A spent one-shot has NO per-entry revert: its effect is already
-                // applied to a pack, and only the global undo can take it back.
-                // So it never shows the cancel badge — that badge is reserved for
-                // entries carrying a routeId, i.e. a placement this strip can
-                // actually clear. See the generic rule in `badge` above.
-                placedEntries = [
-                    ...Array.from({ length: ability.used }, () => ({
-                        badge: 1,
-                        hint: t('hud:tacticUsedThisRound', {
-                            name: tacticName(tactic.id, tactic.name),
-                            ready: t('hud:tacticReadyAgainNext'),
-                        }),
-                    })),
-                    ...useRounds.map((r) => {
-                        const readyIn = r + tactic.cooldownRounds + 1 - this.round;
-                        return { badge: readyIn, hint: coolingHint(r, readyIn) };
-                    }),
-                ];
-                avail = ability.max - ability.used + Math.max(0, inventory - useRounds.length);
-            }
-            for (const p of placedEntries) {
-                const name = tacticName(tactic.id, tactic.name);
-                out.push({
-                    id: tactic.id,
-                    icon: tactic.icon,
-                    name:
-                        tactic.kind === 'placement'
-                            ? t('hud:tacticPlaced', { name })
-                            : t('hud:tacticUsedLabel', { name }),
-                    armed: false,
-                    placed: true,
-                    index: slot,
-                    ...p,
-                });
-                slot++;
-            }
-            for (let i = 0; i < avail; i++) {
-                // duplicates share an id: this is exactly the clicked slot
-                const armed = this.armedTactic === tactic.id && this.armedTacticIndex === slot;
-                if (armed) {
-                    // picked up: the charge is on the cursor, not in the strip.
-                    // `slot` still advances so every other entry keeps its index
-                    // (armedTacticIndex is a slot number), and cancelling puts it
-                    // straight back.
-                    slot++;
-                    continue;
-                }
-                const desc = tacticDescription(tactic.id, tactic.description);
-                out.push({
-                    id: tactic.id,
-                    icon: tactic.icon,
-                    name: `${tacticName(tactic.id, tactic.name)} — ${desc}`,
-                    armed: false,
-                    index: slot,
-                    // one-shots aren't "placed on the map" — override the default hint
-                    hint: tactic.kind === 'oneShot' ? `${desc}\n${t('hud:rightClickCancel')}` : undefined,
-                });
-                slot++;
-            }
-        }
-
-        return out;
-    }
-
-    /** merged item pool across every seat on a side — for READ-ONLY display
-     *  only (intel/HUD). Consumption always targets one seat's own array
-     *  (see actions.ts applyItem) — this never feeds back into gameplay. */
-    private itemsForTeam(team: Team): string[] {
-        return seatIdsOf(this.seats, team).flatMap((seat) => this.itemInventory[seat]!);
-    }
-
-    /** true if ANY seat on the side owns the sell ability — read-only display merge, same idea as {@link itemsForTeam} */
-    private sellAbilityOwnedForTeam(team: Team): boolean {
-        return seatIdsOf(this.seats, team).some((seat) => this.sellState.owned[seat]);
-    }
-
-    /** merged tactic-charge pool across every seat on a side — read-only
-     *  display only, same idea as {@link itemsForTeam} */
-    private tacticsForTeam(team: Team): string[] {
-        return seatIdsOf(this.seats, team).flatMap((seat) => this.tacticInventory[seat]!);
-    }
-
     /** Records the enemy's unequipped items/tactics at deployment-phase start. */
     private captureEnemyIntelSnapshot(): void {
         this.enemyIntelSnapshot = {
-            items: this.itemsForTeam('enemy'),
-            tactics: this.tacticsForTeam('enemy'),
-            sellAbilityOwned: this.sellAbilityOwnedForTeam('enemy'),
+            items: this.hudViews.itemsForTeam('enemy'),
+            tactics: this.hudViews.tacticsForTeam('enemy'),
+            sellAbilityOwned: this.hudViews.sellAbilityOwnedForTeam('enemy'),
             targetMarks: this.targetMarksBy(new Set(seatIdsOf(this.seats, 'enemy'))),
         };
     }
@@ -8692,140 +8286,6 @@ export class Game {
      */
     private revealEnemyDeployIntel(): boolean {
         return this.deployReady.player || this.rules.enemyIntel === 'visible' || isTutorial(this.settings);
-    }
-
-    private enemyInventoryView(): {
-        items: { id: string; icon: string; name: string }[];
-        tactics: { id: string; icon: string; name: string; badge?: number; hint?: string }[];
-        sellAbility: boolean;
-    } {
-        if (this.phase !== 'build') {
-            return { items: [], tactics: [], sellAbility: false };
-        }
-        const live = this.revealEnemyDeployIntel();
-        const items = live ? this.itemsForTeam('enemy') : (this.enemyIntelSnapshot?.items ?? []);
-        const tacticIds = live
-            ? this.tacticsForTeam('enemy')
-            : (this.enemyIntelSnapshot?.tactics ?? []);
-        const sellAbility = live
-            ? this.sellAbilityOwnedForTeam('enemy')
-            : (this.enemyIntelSnapshot?.sellAbilityOwned ?? false);
-        const mapItem = (id: string) => {
-            const item = this.types.rune(id);
-            return {
-                id,
-                icon: item?.icon ?? '?',
-                name: item ? `${item.name} — ${item.description}` : id,
-            };
-        };
-        return {
-            items: this.sortedItemIndices(items).map((i) => mapItem(items[i]!)),
-            tactics: this.enemyTacticsStripView(tacticIds, live),
-            sellAbility,
-        };
-    }
-
-    /**
-     * Enemy right-strip charges: bag ids plus cooling badges (past-round CDs
-     * always; this-round spends only after deploy intel reveals).
-     */
-    private enemyTacticsStripView(
-        tacticIds: readonly string[],
-        revealThisRound: boolean,
-    ): { id: string; icon: string; name: string; badge?: number; hint?: string }[] {
-        const enemySeats = seatIdsOf(this.seats, 'enemy');
-        const out: { id: string; icon: string; name: string; badge?: number; hint?: string }[] = [];
-        for (const tactic of this.types.tactics) {
-            const inventory = tacticIds.filter((id) => id === tactic.id).length;
-            if (inventory < 1) continue;
-            const cooling: { badge: number; hint: string }[] = [];
-            if (usesSpellPlacement(tactic)) {
-                for (const s of this.spellStamps) {
-                    if (!enemySeats.includes(s.seat) || s.tacticId !== tactic.id) continue;
-                    if (s.placedRound > this.round) continue;
-                    if (s.placedRound === this.round && !revealThisRound) continue;
-                    if (s.placedRound < this.round - tactic.cooldownRounds) continue;
-                    const readyIn = s.placedRound + tactic.cooldownRounds + 1 - this.round;
-                    const name = tacticName(tactic.id, tactic.name);
-                    const ready = t('hud:tacticReadyAgain', { n: readyIn });
-                    cooling.push({
-                        badge: readyIn,
-                        hint:
-                            s.placedRound === this.round
-                                ? t('hud:tacticUsedThisRound', { name, ready })
-                                : t('hud:tacticCoolingDown', { name, ready }),
-                    });
-                }
-            } else if (tactic.id === OIL_SPILL_ID) {
-                // oil stamps wipe each round — CD lives on the action log
-                for (const seat of enemySeats) {
-                    for (const r of this.dispatcher
-                        .tacticUseRounds(seat, OIL_SPILL_ID, this.round - tactic.cooldownRounds)
-                        .filter((round) => round < this.round || revealThisRound)) {
-                        const readyIn = r + tactic.cooldownRounds + 1 - this.round;
-                        const name = tacticName(tactic.id, tactic.name);
-                        const ready = t('hud:tacticReadyAgain', { n: readyIn });
-                        cooling.push({
-                            badge: readyIn,
-                            hint:
-                                r === this.round
-                                    ? t('hud:tacticUsedThisRound', { name, ready })
-                                    : t('hud:tacticCoolingDown', { name, ready }),
-                        });
-                    }
-                }
-            } else {
-                for (const seat of enemySeats) {
-                    for (const r of this.dispatcher.tacticUseRounds(
-                        seat,
-                        tactic.id,
-                        this.round - tactic.cooldownRounds,
-                    )) {
-                        if (r >= this.round && !revealThisRound) continue;
-                        const readyIn = r + tactic.cooldownRounds + 1 - this.round;
-                        const name = tacticName(tactic.id, tactic.name);
-                        const ready = t('hud:tacticReadyAgain', { n: readyIn });
-                        cooling.push({
-                            badge: readyIn,
-                            hint:
-                                r === this.round
-                                    ? t('hud:tacticUsedThisRound', { name, ready })
-                                    : t('hud:tacticCoolingDown', { name, ready }),
-                        });
-                    }
-                }
-            }
-            const readyCount = Math.max(0, inventory - cooling.length);
-            for (let i = 0; i < readyCount; i++) {
-                out.push({
-                    id: tactic.id,
-                    icon: tactic.icon,
-                    name: tactic.name,
-                });
-            }
-            for (const c of cooling) {
-                out.push({
-                    id: tactic.id,
-                    icon: tactic.icon,
-                    name: tactic.name,
-                    badge: c.badge,
-                    hint: c.hint,
-                });
-            }
-        }
-        return out;
-    }
-
-    /** enemy forge tray ids visible to the local player (live or intel) */
-    private enemyForgeOvenView(): string[] {
-        if (this.phase !== 'build') return [];
-        if (this.revealEnemyDeployIntel()) {
-            return (this.forgeSlots.enemy ?? [])
-                .filter((s): s is ForgeSlot => !!s)
-                .map((s) => s.itemId);
-        }
-        const snap = this.buildingIntelSnapshot?.forge.enemy ?? [];
-        return snap.filter((id): id is string => !!id);
     }
 
     private resetPlacedRallyRoute(routeId: number): void {
@@ -9812,8 +9272,6 @@ export class Game {
         );
     }
 
-    /** HUD buy button: resolve a spawn spot, then run it through the action system.
-     *  Returns whether a buy / place-flow actually started (drives phone-sheet close). */
     /** The Year so far, for the HUD: round winners, length, the local side's role */
     private yearProgress(): YearProgress {
         const climb = roundsVictory(this.settings) ? this.settings.climb : undefined;
@@ -9877,6 +9335,8 @@ export class Game {
         return this.economy.costOf(type) <= left; // extras budget exhausted otherwise
     }
 
+    /** HUD buy button: resolve a spawn spot, then run it through the action system.
+     *  Returns whether a buy / place-flow actually started (drives phone-sheet close). */
     private buyUnit(type: UnitType): boolean {
         if (!this.playerCanAct) return false;
         if (type.extra && !this.humanMayBuyExtra(type)) return false;
@@ -10718,7 +10178,10 @@ export class Game {
         // measure the angle from — the camps end up left and right anyway)
         const leaderSign =
             leader === 'player' ? ownSign : leader === 'enemy' ? -ownSign : ownSign;
-        const [bigCamp, smallCamp] = this.hordeCampSpots(rng, leaderSign, ahead);
+        const wave = hordeCampSpots(this.map, rng, leaderSign, ahead);
+        // read back with mechiliHorde() in the console
+        this.lastHordeWave = wave;
+        const [bigCamp, smallCamp] = wave.camps;
         // the angle says who is being hunted, so both camps field the same
         // number of packs (an odd one over goes to the leader's camp)
         const nBig = Math.ceil(plan.length / 2);
@@ -10727,7 +10190,7 @@ export class Game {
             const entry = plan[i]!;
             const camp = (i < nBig ? bigCamp : smallCamp)!;
             const campN = i < nBig ? nBig : nSmall;
-            const spot = this.findHordeSpotNear(rng, camp, campN) ?? camp;
+            const spot = findHordeSpotNear(this.map, rng, camp, campN) ?? camp;
             const unit = this.placement.spawnAtWorld(entry.type, spot.x, spot.z);
             unit.summoned = true;
             unit.deployedRound = this.round;
@@ -10762,41 +10225,8 @@ export class Game {
         };
     }
 
-    /**
-     * The two camps of one wave. One angle either side of the leader's
-     * direction (see {@link HORDE_CAMP_SPREAD_EVEN}), turned into a point by
-     * walking out from the middle until the spot sits `HORDE_CAMP_NEAR..FAR`
-     * past the board edge.
-     *
-     * A spot whose straight walk hits water is pulled nearer first (lakes
-     * start further out than any camp) and only then nudged sideways, so the
-     * pair stays as symmetric as the ground allows.
-     */
-    private hordeCampSpots(
-        rng: () => number,
-        leaderSign: number,
-        ahead: number,
-    ): { x: number; z: number }[] {
-        const lead = Math.min(1, Math.abs(ahead));
-        const spread = HORDE_CAMP_SPREAD_MIN + (HORDE_CAMP_SPREAD_EVEN - HORDE_CAMP_SPREAD_MIN) * (1 - lead);
-        // 0 points along +z; the leader's half decides which way that is
-        const base = leaderSign >= 0 ? 0 : Math.PI;
-        const out = HORDE_CAMP_NEAR + rng() * (HORDE_CAMP_FAR - HORDE_CAMP_NEAR);
-        const camps = [base - spread, base + spread].map((angle) => this.hordeCampAt(angle, out));
-        // read back with mechiliHorde() in the console
-        this.lastHordeWave = { leaderSign, ahead, spread, base, out, camps };
-        return camps;
-    }
-
     /** what the last wave's camp maths decided — console only (mechiliHorde) */
-    private lastHordeWave: {
-        leaderSign: number;
-        ahead: number;
-        spread: number;
-        base: number;
-        out: number;
-        camps: { x: number; z: number }[];
-    } | null = null;
+    private lastHordeWave: HordeWave | null = null;
 
     /**
      * Console helper: where this round's camps stand and why. Degrees are
@@ -10836,62 +10266,6 @@ export class Game {
         };
     }
 
-    /**
-     * One camp: the point `out` past the board edge along `angle`. Water is
-     * avoided where it can be; a wave that cannot find dry ground still comes
-     * (wet boots beat a round with no horde in it).
-     */
-    private hordeCampAt(angle: number, out: number): { x: number; z: number } {
-        let fallback: { x: number; z: number } | null = null;
-        for (let attempt = 0; attempt < HORDE_CAMP_RETRIES; attempt++) {
-            // first pull the camp nearer (never past the lakes), then fan out sideways
-            const pull = Math.min(attempt, 3) * 6;
-            const swing = attempt < 4 ? 0 : (((attempt - 3) >> 1) * (attempt % 2 === 0 ? 1 : -1) * 7 * Math.PI) / 180;
-            const spot = hordeSpotOnRay(angle + swing, Math.max(HORDE_PACK_NEAR, out - pull), this.map.halfW, this.map.halfH);
-            fallback ??= spot;
-            if (!this.hordePathCrossesWater(spot.x, spot.z)) return spot;
-        }
-        return fallback ?? hordeSpotOnRay(angle, out, this.map.halfW, this.map.halfH);
-    }
-
-    /**
-     * Scatter a pack near a camp anchor while staying in the forest ring and
-     * clear of lakes. Radius grows with how many packs share the camp.
-     */
-    private findHordeSpotNear(
-        rng: () => number,
-        camp: { x: number; z: number },
-        campPacks: number,
-    ): { x: number; z: number } | null {
-        // ~12 wu for a lone pack; ~34 for 10; capped so we stay in the annulus
-        const scatter = Math.min(48, 10 + Math.max(1, campPacks) * 2.4);
-        for (let attempt = 0; attempt < HORDE_SPAWN_ATTEMPTS; attempt++) {
-            const ang = rng() * Math.PI * 2;
-            const r = rng() * scatter;
-            const x = camp.x + detCos(ang) * r;
-            const z = camp.z + detSin(ang) * r;
-            // stay in the camp's own band: off the board, short of the lakes
-            const d = Math.max(Math.abs(x) - this.map.halfW, Math.abs(z) - this.map.halfH, 0);
-            if (d < HORDE_PACK_NEAR || d > HORDE_PACK_FAR) continue;
-            if (this.hordePathCrossesWater(x, z)) continue;
-            return { x, z };
-        }
-        return null;
-    }
-
-    /** deep water at the spawn point itself, or anywhere along the straight
-     *  line to board center (0,0) — sampled at a handful of points along it */
-    private hordePathCrossesWater(x: number, z: number): boolean {
-        // outer height only: the lakes are all out there, and a Big Meteor crater on the board
-        // (floor -1) is not water — with the board relief added it read as a lake on the way
-        if (outerHeightAt(x, z) < HORDE_LAKE_HEIGHT) return true;
-        for (let s = 1; s <= HORDE_PATH_SAMPLES; s++) {
-            const t = s / (HORDE_PATH_SAMPLES + 1);
-            if (outerHeightAt(x * (1 - t), z * (1 - t)) < HORDE_LAKE_HEIGHT) return true;
-        }
-        return false;
-    }
-
     /** Battle is over: survivors bite into the opponent's HP, then the board resets. */
     private endBattlePhase(): void {
         let hash: number | undefined;
@@ -10901,8 +10275,6 @@ export class Game {
         if (this.sim) {
             const preHp = { player: this.playerHp, enemy: this.enemyHp };
             const built = buildHpDrawSources(this.sim);
-            this.postBattleDeathElapsed = this.sim.elapsed;
-            this.postBattleDeathTimeBase = this.time;
             // flames die with the battle; remaining oil (unburned) carries over
             this.oilField.adoptOilFrom(this.sim.hazards);
             this.applyBattleResult(this.sim);
@@ -11118,8 +10490,6 @@ export class Game {
         clearAllHoverTips(); // a tip from the last phase must not carry over
         this.syncPostFx();
         this.hpDrawElapsed = 0;
-        this.hpDrawPrePlayer = pre.player;
-        this.hpDrawPreEnemy = pre.enemy;
         this.hpDrawDisplayPlayer = pre.player;
         this.hpDrawDisplayEnemy = pre.enemy;
         this.phaseRemaining = Math.min(HP_DRAW_MAX_SECONDS, plan.timelineSeconds + 0.85);
@@ -11432,10 +10802,7 @@ export class Game {
      * side forfeit, voluntary quit, connection loss) goes through here so
      * players always see the two-side roster — even when MMR is unchanged.
      */
-    private presentMatchEnd(
-        result: 'victory' | 'defeat' | 'draw',
-        opts?: { forceReport?: boolean },
-    ): void {
+    private presentMatchEnd(result: 'victory' | 'defeat' | 'draw'): void {
         if (this.matchOver) return;
         this.matchOver = true;
         audio.playMatchEnd(result);
@@ -11453,10 +10820,7 @@ export class Game {
         // the specific sequencing bug this was found from.
         this.suspended = false;
         this.suspendDeadline = null;
-        this.reconnectGraceRemaining = null;
-        this.onReconnectTimeout = null;
         this.hud.hideNotice();
-        this.hud.hideReconnectWait();
         // watching mode never touches these in the first place (see
         // constructor/main.ts) — clearing them here would wipe out the
         // player's real, unrelated saved game/resume marker. A tutorial is
@@ -11493,7 +10857,7 @@ export class Game {
         // bucket next to real games and bump this player's AI record.
         if (!this.watching && !isTutorial(this.settings)) {
             this.reportMatchTelemetry(result);
-            this.reportOpenRating(result, opts?.forceReport === true);
+            this.reportOpenRating(result);
         } else if (this.replayVerify) {
             this.reportMatchTelemetry(result);
         }
@@ -11586,22 +10950,11 @@ export class Game {
         return `${names.toUpperCase()} WINS`;
     }
 
-    /** the opponent never reconnected within the grace window — win by forfeit */
-    private forfeitWin(): void {
-        // reportMatchTelemetry (not just the rating) matters here specifically: a
-        // forfeit-won 1v1 match previously uploaded NOTHING but the bare rating
-        // call, so there was no independent replay/action-log record anywhere to
-        // cross-check against for exactly the matches most likely to involve a
-        // quitting/timed-out opponent trying to dodge a loss.
-        this.presentMatchEnd('victory', { forceReport: true });
-    }
-
     /**
      * Soft open-ladder Elo (honor system). Host-only in rated 1v1; AI and
-     * 2v2 count games without changing MMR. `forceReport` bypasses the
-     * host-only gate for a forfeit win.
+     * 2v2 count games without changing MMR.
      */
-    private reportOpenRating(result: 'victory' | 'defeat' | 'draw', forceReport = false): void {
+    private reportOpenRating(result: 'victory' | 'defeat' | 'draw'): void {
         const mode: 'ai' | 'mp' | '2v2' = !this.star
             ? 'ai'
             : this.seats.length > 2
@@ -11609,7 +10962,7 @@ export class Game {
               : 'mp';
         // Rated 1v1: only ONE side reports (the star host) so Elo isn't
         // double-applied. 2v2 and AI bump each client's own counters.
-        if (mode === 'mp' && this.star?.role !== 'host' && !forceReport) return;
+        if (mode === 'mp' && this.star?.role !== 'host') return;
         try {
             reportMatchResult({
                 matchId: matchResultId(
@@ -11829,20 +11182,6 @@ export class Game {
         if (this.introActive) this.tickMatchIntro(dtSeconds);
         if (this.outroActive) this.tickMatchOutro(dtSeconds);
         this.flushDebugLog(dtSeconds);
-        // reconnect grace ticks in real time, independent of phase/suspend —
-        // an unreturned opponent forfeits once it hits zero
-        if (this.reconnectGraceRemaining !== null) {
-            this.reconnectGraceRemaining -= dtSeconds;
-            if (this.reconnectGraceRemaining <= 0) {
-                this.reconnectGraceRemaining = null;
-                const onTimeout = this.onReconnectTimeout;
-                this.onReconnectTimeout = null;
-                onTimeout?.();
-                this.forfeitWin();
-            } else {
-                this.hud.updateReconnectWait(this.reconnectGraceRemaining);
-            }
-        }
         const profile = this.debug.isEnabled;
         const cpu = this.cpuSampler;
         if (profile) cpu.reset();
@@ -12259,16 +11598,16 @@ export class Game {
                 resolveForge(this.types, oven, pool).product !== null,
             );
         }
-        this.hud.setInventory(this.inventoryView(), this.tacticsView());
+        this.hud.setInventory(this.hudViews.inventoryView(), this.hudViews.tacticsView());
         this.hud.setItemGhostDropReady(this.placement.itemDropHovering);
-        const enemyInv = this.enemyInventoryView();
+        const enemyInv = this.hudViews.enemyInventoryView();
         this.hud.setEnemyInventory(enemyInv.items, enemyInv.tactics, {
             sellAbility: enemyInv.sellAbility,
         });
-        this.hud.setEnemyForgeOven(this.enemyForgeOvenView());
+        this.hud.setEnemyForgeOven(this.hudViews.enemyForgeOvenView());
         this.hud.setRoundCardPicks(
-            this.roundCardPicksView('player'),
-            this.enemyActionIntelVisible() ? this.roundCardPicksView('enemy') : [],
+            this.hudViews.roundCardPicksView('player'),
+            this.hudViews.enemyActionIntelVisible() ? this.hudViews.roundCardPicksView('enemy') : [],
         );
         // rally sync is folded into syncTacticVisuals during build; in battle
         // keep a route visible while any living mech is still marching on it
@@ -12555,13 +11894,6 @@ export class Game {
         return bestRay ?? bestScreen;
     }
 
-    /**
-     * Where the selected ranged unit can hit, cell by cell (FireCoverage). In
-     * battle for any selected shooter (either side), asked of the live sim and
-     * followed as it walks — worked out again at most every
-     * {@link FIRE_COVERAGE_BATTLE_MS}; in deployment for the selected ranged
-     * pack, asked of a sim holding just it and the board's buildings.
-     */
     /** the target marks these seats set, on any unit (see setTargetMark) */
     private targetMarksBy(seats: ReadonlySet<SeatId>): { unitId: number; seat: SeatId }[] {
         const out: { unitId: number; seat: SeatId }[] = [];
@@ -12573,235 +11905,107 @@ export class Game {
         return out;
     }
 
-    /**
-     * Red arrows at marked walls: while deploying, mine and my ally's live,
-     * the enemy's as they stood at the phase start while his deployment is
-     * fogged (revealEnemyDeployIntel); in battle every mark of the battle,
-     * auto-marks fainter, until the wall falls. None in cinema mode.
-     */
-    private updateTargetMarkers(): void {
-        const views: TargetMarkerView[] = [];
-        if (!this.hud.isUiHidden) {
-            const marks: { unit: Unit; faint: boolean }[] = [];
-            if (this.phase === 'battle' && this.sim) {
-                for (const a of this.sim.actors) {
-                    if (!a.alive || !a.unit.type.wall) continue;
-                    const def = a.unit.type.target ?? true;
-                    (a.targetBy ?? a.unit.targetBy).forEach((v, seat) => {
-                        if (v === undefined || v === def) return;
-                        marks.push({ unit: a.unit, faint: a.unit.targetBy[seat] !== v });
-                    });
-                }
-            } else {
-                const live = this.revealEnemyDeployIntel();
-                const enemySeats = new Set(seatIdsOf(this.seats, 'enemy'));
-                for (const u of this.placement.allUnits()) {
-                    if (!u.type.wall || u.destroyed) continue;
-                    u.targetBy.forEach((_v, seat) => {
-                        if (!isTargetMarked(u, seat) || (!live && enemySeats.has(seat))) return;
-                        marks.push({ unit: u, faint: false });
-                    });
-                }
-                if (!live) {
-                    for (const m of this.enemyIntelSnapshot?.targetMarks ?? []) {
-                        const u = this.placement.unitById(m.unitId);
-                        if (u?.type.wall && !u.destroyed) marks.push({ unit: u, faint: false });
-                    }
-                }
-            }
-            // above each wall, side by side along it when several seats marked it
-            const perWall = new Map<Unit, number>();
-            for (const m of marks) perWall.set(m.unit, (perWall.get(m.unit) ?? 0) + 1);
-            const placed = new Map<Unit, number>();
-            for (const m of marks) {
-                const u = m.unit;
-                const wall = u.type.wall!;
-                const k = placed.get(u) ?? 0;
-                placed.set(u, k + 1);
-                const along = (k - (perWall.get(u)! - 1) / 2) * 3;
-                const off = wallShiftOffset(u.facing, wall.shift ?? 0);
-                const x = u.world.x + off.x + (u.rotated ? 0 : along);
-                const z = u.world.z + off.z + (u.rotated ? along : 0);
-                const top = (wall.height ?? 4) * (u.visualHeightScale() / u.type.meshScale);
-                views.push({ x, z, y: this.map.heightAt(x, z) + top, faint: m.faint });
-            }
-        }
-        this.targetMarkers.update(views, performance.now() / 1000);
-    }
-
-    /**
-     * Debug (?debug / the debug overlay): lines from the selected battle unit —
-     * yellow to its target; to each wall it may go for (marked by its seat):
-     * red blocked shot, orange dead zone, grey out of reach, blue farther.
-     * The walls' reasons go to the console when they change.
-     */
-    private updateTargetLine(): void {
-        const a = this.selectedActor;
-        const sim = this.sim;
-        if (!debugEnabled() || this.hud.isUiHidden || this.phase !== 'battle' || !sim || !a?.alive) {
-            this.targetLine.update(null, []);
-            this.targetLineLog = '';
-            return;
-        }
-        const lift = 1.5;
-        const at = (x: number, z: number, alt = 0) => ({ x, y: this.map.heightAt(x, z) + alt + lift, z });
-        const segments: TargetLineSegment[] = [];
-        const aim = sim.debugTarget(a);
-        if (aim) segments.push({ to: at(aim.x, aim.z, aim.target.altitude), color: 0xffe14a });
-        const walls = sim.debugWalls(a);
-        const color: Record<string, number> = { blocked: 0xff3030, deadZone: 0xff9a2e, outOfReach: 0x9a9a9a, farther: 0x4aa8ff };
-        for (const w of walls) if (w.status !== 'pick') segments.push({ to: at(w.x, w.z), color: color[w.status] ?? 0xffffff });
-        this.targetLine.update(at(a.x, a.z, a.altitude), segments);
-        const log =
-            `${a.unit.type.id} #${a.unit.id} → ${aim ? `${aim.target.unit.type.id} #${aim.target.unit.id}` : 'nothing'}` +
-            walls.map((w) => `\n  wall #${w.wall.unit.id}: ${w.status} · ${w.why}`).join('');
-        // logged when the pick or a wall's status changes, not on every step of a walk
-        const key = `${a.unit.id}>${aim?.target.unit.id ?? '-'}` + walls.map((w) => `${w.wall.unit.id}:${w.status}`).join();
-        if (key !== this.targetLineLog) {
-            this.targetLineLog = key;
-            console.info(`[target] ${log}`);
-        }
-    }
-
-    private updateFireCoverage(): void {
-        const battle = this.phase === 'battle' && this.sim !== null;
-        let unit: Unit | null = null;
-        let live: Actor | null = null;
-        if (battle) {
-            const a = this.selectedActor;
-            if (a?.alive && a.unit.type.projectileSpeed) {
-                unit = a.unit;
-                live = a;
-            }
-        } else if (this.sim === null && !this.placement.repositioning) {
-            const u = this.placement.selectedUnit;
-            if (u && !u.destroyed && u.type.projectileSpeed) unit = u;
-        }
-        if (!unit) {
-            this.fireCoverage.hide();
-            return;
-        }
-        const shooter = unit;
-        let key: string;
-        if (live && this.sim) {
-            // battle: where it stands now (half-unit steps) and which buildings still stand
-            let standing = 0;
-            for (const s of this.sim.actors) if (s.alive && s.unit.type.structure) standing++;
-            key = `b:${live.index}:${Math.round(live.x * 2)},${Math.round(live.z * 2)}:${standing}`;
-        } else {
-            const board = this.placement
-                .allUnits()
-                .filter((u) => u.type.structure && !u.destroyed)
-                .map((u) => `${u.id}:${u.cell.col},${u.cell.row},${u.rotated ? 1 : 0},${u.flipped ? 1 : 0},${u.level}`)
-                .join('|');
-            key = `d:${shooter.id}:${shooter.world.x.toFixed(2)},${shooter.world.z.toFixed(2)},${shooter.level}:${board}`;
-        }
-        const team: BattleTeam = shooter.team === 'horde' ? 'horde' : shooter.team;
-        this.fireCoverage.show(key, colorForBattleTeam(team).hex, () => {
-            let sim = this.sim;
-            if (!battle) {
-                // just the shooter and what stands on the board: no battle, no side effects
-                const units = this.placement
-                    .allUnits()
-                    .filter((u) => u === shooter || (u.type.structure && !u.destroyed && !u.productionHeld));
-                sim = new BattleSim(units, this.probeSimConfig());
-                sim.prepareProbe();
-            }
-            const actor = live ?? sim?.actorNear(shooter, shooter.world.x, shooter.world.z) ?? null;
-            if (!sim || !actor) return null;
-            const probe = sim;
-            const range = this.resolvedStats(shooter).range * this.levelScaleOf(shooter, 'range');
-            return {
-                x: actor.x,
-                z: actor.z,
-                radius: range + shooter.type.collisionRadius + RANGE_ELEV_MAX_BONUS,
-                covers: (x, z) => probe.shotCovers(actor, x, z),
-            };
-        },
-            live ? { shooter: `b:${live.index}`, everyMs: FIRE_COVERAGE_BATTLE_MS } : undefined,
-        );
-    }
-
-    /** a sim that never fights: just to ask where a shooter can hit (updateFireCoverage) */
-    private probeSimConfig(): SimConfig {
+    /** what the battle overlays read of the match — live, through getters */
+    private overlaysHost(): BattleOverlaysHost {
+        const game = this;
         return {
-            terrain: this.map.terrain,
-            towers: this.settings.towers,
-            leveling: this.settings.leveling,
-            battleSeconds: 1,
+            get phase() { return game.phase; },
+            get sim() { return game.sim; },
+            get selectedActor() { return game.selectedActor; },
+            get placement() { return game.placement; },
+            get map() { return game.map; },
+            get seats() { return game.seats; },
+            get settings() { return game.settings; },
+            get economy() { return game.economy; },
+            get types() { return game.types; },
+            get hoveredTech() { return game.hoveredTech; },
+            get enemyIntelSnapshot() { return game.enemyIntelSnapshot; },
+            get uiHidden() { return game.hud.isUiHidden; },
+            revealEnemyDeployIntel: () => this.revealEnemyDeployIntel(),
+            resolvedStats: (unit) => this.resolvedStats(unit),
+            levelScaleOf: (unit, kind) => this.levelScaleOf(unit, kind),
             seatRank: (seat) => this.seatRank(seat),
-            costOf: (type) => this.economy.costOf(type),
-            statsOf: (unit) => this.resolvedStats(unit),
-            hasTech: (seat, typeId, techId) => this.unitHasTech(seat, typeId, techId),
-            flankSpawnSeconds: 0,
-            flankSpawnMult: () => 1,
-            needsFlankSpawn: () => false,
-            boardHalfW: this.map.halfW,
-            boardHalfZ: this.map.halfH,
-            loadoutOf: (seat: SeatId) => this.loadoutOf(seat),
-            types: this.types,
-            strongholdLifeline: false,
+            unitHasTech: (seat, typeId, techId) => this.unitHasTech(seat, typeId, techId),
+            loadoutOf: (seat) => this.loadoutOf(seat),
         };
     }
 
-    /** the range ring follows the selected battle mech, tinted by its team */
-    private updateBattleRangeRing(): void {
-        const a = this.phase === 'battle' ? this.selectedActor : null;
-        // a pack with a field of fire shows the arc it actually covers instead
-        // of a ring that would promise the whole circle
-        const fov = a?.unit.fovYaw ?? null;
-        this.battleRangeMesh.visible = a !== null && fov === null;
-        this.battleFovMesh.visible = a !== null && fov !== null;
-        // gold aura ring for a selected mech with a special-ability radius
-        const auraRadius = a ? this.auraRadiusOf(a.unit) : null;
-        this.battleAuraMesh.visible = a !== null && auraRadius !== null;
-        const minRange = a ? this.resolvedStats(a.unit).minRange : 0;
-        this.battleMinRangeMesh.visible = a !== null && minRange > 0;
-        if (!a) return;
-        const range =
-            this.resolvedStats(a.unit).range * this.levelScaleOf(a.unit, 'range');
-        const own = a.unit.type.collisionRadius;
-        // ranged: the ring bulges down onto low ground and pulls in up a slope, like the sim's reach
-        const radius: RangeShape =
-            a.unit.type.projectileSpeed && (a.altitude === 0 || a.unit.pinnedY != null)
-                ? (dx, dz) => reachToward(a.footY, a.rx, a.rz, dx, dz, range, own)
-                : range + own;
-        const tint = colorForBattleTeam(actorTeam(a)).hex;
-        if (fov !== null) {
-            placeFovWedge(this.battleFovMesh, a.rx, a.rz, radius, fov, STRONGHOLD_ARCHER_FOV_HALF);
-            (this.battleFovMesh.material as import('three').MeshBasicMaterial).color.setHex(tint);
-        } else {
-            placeRangeRing(this.battleRangeMesh, a.rx, a.rz, radius);
-            (this.battleRangeMesh.material as import('three').MeshBasicMaterial).color.setHex(tint);
-        }
-        if (minRange > 0) {
-            placeRangeRing(this.battleMinRangeMesh, a.rx, a.rz, minRange + a.unit.type.collisionRadius);
-        }
-        if (auraRadius !== null) {
-            placeRangeRing(this.battleAuraMesh, a.rx, a.rz, auraRadius);
-            pulseAuraRing(this.battleAuraMesh, performance.now());
-        }
+    /** what the details pane reads of the match — live, through getters */
+    private selectionInfoHost(): SelectionInfoHost {
+        const game = this;
+        return {
+            get phase() { return game.phase; },
+            get round() { return game.round; },
+            get sim() { return game.sim; },
+            get placement() { return game.placement; },
+            get types() { return game.types; },
+            get settings() { return game.settings; },
+            get rules() { return game.rules; },
+            get seats() { return game.seats; },
+            get humanSeat() { return game.humanSeat; },
+            get economy() { return game.economy; },
+            get techTree() { return game.techTree; },
+            get tutorial() { return game.tutorial; },
+            get editorMode() { return game.editorMode; },
+            get playerCanAct() { return game.playerCanAct; },
+            get armedItem() { return game.armedItem; },
+            get itemInventory() { return game.itemInventory; },
+            get forgeSlots() { return game.forgeSlots; },
+            get forgeSpellOwned() { return game.forgeSpellOwned; },
+            get buildingIntelSnapshot() { return game.buildingIntelSnapshot; },
+            resolvedStats: (unit) => this.resolvedStats(unit),
+            resolvedStatsView: (unit) => this.resolvedStatsView(unit),
+            levelInfo: (u) => this.levelInfo(u),
+            levelScaleOf: (unit, kind, level, innateOnly) => this.levelScaleOf(unit, kind, level, innateOnly),
+            levelUpInfo: (u, lv) => this.levelUpInfo(u, lv),
+            intelTechOwned: (u) => this.intelTechOwned(u),
+            intelBuildingSeat: (u, seat) => this.intelBuildingSeat(u, seat),
+            ownerName: (team, seat) => this.ownerName(team, seat),
+            unitHasTech: (seat, typeId, techId) => this.unitHasTech(seat, typeId, techId),
+            loadoutOf: (seat) => this.loadoutOf(seat),
+            canDropArmedItemOn: (unit) => this.canDropArmedItemOn(unit),
+            canDropForgeOn: (unit) => this.canDropForgeOn(unit),
+            forgeSpellsOf: (seat) => this.forgeSpellsOf(seat),
+            teamForgePool: (team) => this.teamForgePool(team),
+            yearAttackerTeam: () => this.yearAttackerTeam(),
+        };
     }
 
-    /**
-     * Radius of a unit's special-ability aura, or null when it has none.
-     * Currently the ballista Golden Aura (tech `golden`); drives the gold ring.
-     */
-    private auraRadiusOf(unit: Unit): number | null {
-        // only while the matching tech tile is hovered/peeked in the panel.
-        // The Golden Aura tile only shows on a ballista, so hovering it is
-        // enough — preview the radius whether or not the tech is bought yet.
-        const aura = unit.type.aura;
-        if (!aura || this.hoveredTech !== aura.requiresTech) return null;
-        return aura.radius;
+    /** what the HUD views read of the match — live, through getters */
+    private hudViewsHost(): HudViewsHost {
+        const game = this;
+        return {
+            get phase() { return game.phase; },
+            get round() { return game.round; },
+            get placement() { return game.placement; },
+            get types() { return game.types; },
+            get settings() { return game.settings; },
+            get seats() { return game.seats; },
+            get humanSeat() { return game.humanSeat; },
+            get tutorial() { return game.tutorial; },
+            get dispatcher() { return game.dispatcher; },
+            get playerCanAct() { return game.playerCanAct; },
+            get deployReady() { return game.deployReady; },
+            get armedItem() { return game.armedItem; },
+            get armedItemIndex() { return game.armedItemIndex; },
+            get armedTactic() { return game.armedTactic; },
+            get armedTacticIndex() { return game.armedTacticIndex; },
+            get itemInventory() { return game.itemInventory; },
+            get tacticInventory() { return game.tacticInventory; },
+            get sellState() { return game.sellState; },
+            get forgeSlots() { return game.forgeSlots; },
+            get rallyRoutes() { return game.rallyRoutes; },
+            get oilStamps() { return game.oilStamps; },
+            get spellStamps() { return game.spellStamps; },
+            get enemyIntelSnapshot() { return game.enemyIntelSnapshot; },
+            get buildingIntelSnapshot() { return game.buildingIntelSnapshot; },
+            revealEnemyDeployIntel: () => this.revealEnemyDeployIntel(),
+        };
     }
 
     private updateSelectionUi(): void {
         if (this.disposed) return;
-        this.updateBattleRangeRing();
-        this.updateFireCoverage();
-        this.updateTargetMarkers();
-        this.updateTargetLine();
+        this.overlays.update();
         if (this.phase === 'battle' && this.sim) {
             if (this.selectedActor && !this.selectedActor.alive) this.selectedActor = null;
             this.hpBars.update(
@@ -12812,7 +12016,7 @@ export class Game {
                 this.selectedActor,
                 this.sim.elapsed,
             );
-            this.hud.setSelection(this.selectedActor ? this.actorInfo(this.selectedActor) : null);
+            this.hud.setSelection(this.selectedActor ? this.selectionInfo.actorInfo(this.selectedActor) : null);
         }
         let buildInfo: SelectionInfo | null = null;
         if (this.phase !== 'battle' || !this.sim) {
@@ -12821,7 +12025,7 @@ export class Game {
                 this.hud.setFormationSelection();
             } else {
                 const unit = this.placement.selectedUnit;
-                buildInfo = unit ? this.unitInfo(unit) : null;
+                buildInfo = unit ? this.selectionInfo.unitInfo(unit) : null;
                 this.hud.setSelection(buildInfo);
             }
         }
@@ -12849,22 +12053,6 @@ export class Game {
                       }
                     : null,
         });
-    }
-
-    /**
-     * Top-bar label for a whole side: the classic single name in 1v1, or
-     * every seat's name joined ("You & Ally") once a side has more than one
-     * commander — a cheap fix that surfaces all 4 duo names without
-     * reworking the fight bar's fixed one-slot-per-side markup.
-     */
-    private sideLabel(team: Team): string {
-        const ids = seatIdsOf(this.seats, team);
-        if (ids.length <= 1) {
-            return team === 'player' ? this.playerNames.local : this.playerNames.opponent;
-        }
-        return ids
-            .map((seat) => (seat === this.humanSeat ? this.playerNames.local : this.seats[seat]!.name))
-            .join(' & ');
     }
 
     /** display name for the side (or, in duo modes, the SEAT) that owns a pack */
@@ -12946,291 +12134,6 @@ export class Game {
         return levelScaleMult(unit.type, owned, lv, kind, this.types);
     }
 
-    private actorInfo(a: Actor): SelectionInfo {
-        const u = a.unit;
-        const empDisabled = !!this.sim && a.empUntil > this.sim.elapsed + 1e-9;
-        const rs = empDisabled
-            ? TechTree.statsWithOwned(u.type, new Set(u.type.innateTechs ?? []), this.types)
-            : this.resolvedStats(u);
-        const lv = this.levelInfo(u);
-        const team = actorTeam(a);
-        const seat = actorSeat(a);
-        const hasTech = (s: SeatId, typeId: string, techId: string) => {
-            if (u.type.innateTechs?.includes(techId)) return true;
-            if (empDisabled) return false;
-            return this.techTree.has(s, typeId, techId);
-        };
-        return {
-            name: unitName(u.type.id, u.type.name),
-            team,
-            owner: this.ownerName(team, seat),
-            hits: targetsLabel(effectiveTargets(u.type, seat, hasTech, this.types)),
-            strengths: strengthsLabel(u.type),
-            hp: a.hp,
-            maxHp: a.maxHp,
-            damage: rs.damage * lv.statMult * this.levelScaleOf(u, 'damage', lv.level, empDisabled),
-            range: Math.round(rs.range * this.levelScaleOf(u, 'range', lv.level, empDisabled)),
-            minRange: rs.minRange > 0 ? Math.round(rs.minRange) : undefined,
-            speed: Math.round(rs.speed * 10) / 10,
-            attackInterval: rs.attackInterval,
-            splash: rs.splashRadius || undefined,
-            structure: !!u.type.structure,
-            onDestroyed: this.destructionNote(u),
-            unitId: u.id,
-            items: this.selectionItems(u, false),
-            itemSlotCount:
-                u.type.structure || u.type.extra ? 0 : itemSlotLimit(u.type),
-            itemDropReady: !u.type.structure && this.canDropArmedItemOn(u),
-            record: u.type.structure
-                ? undefined
-                : { damageDealt: u.damageDealt, kills: u.kills },
-            alive: 1,
-            total: 1,
-            level: lv.level,
-            xp: lv.xp,
-            xpNext: lv.xpNext,
-            techs: this.techSelection(u, empDisabled),
-            ...this.researchCenterSelection(u),
-            ...this.commandTowerSelection(u),
-            ...this.strongholdSelection(u),
-        };
-    }
-
-    private unitInfo(u: Unit): SelectionInfo {
-        const rs = this.resolvedStatsView(u);
-        const lv = this.levelInfo(u);
-        const fogItems = this.placement.intelOf(u)?.items;
-        const ownInteractive = u.team === 'player' && this.playerCanAct;
-        return {
-            name: unitName(u.type.id, u.type.name),
-            team: u.team,
-            owner: this.ownerName(u.team, u.seat),
-            strengths: strengthsLabel(u.type),
-            hits: targetsLabel(
-                effectiveTargets(
-                    u.type,
-                    u.seat,
-                    (s, typeId, techId) => this.techTree.has(s, typeId, techId),
-                    this.types,
-                ),
-            ),
-            hp: rs.hp * lv.statMult,
-            maxHp: rs.hp * lv.statMult,
-            damage: rs.damage * lv.statMult * this.levelScaleOf(u, 'damage', lv.level),
-            range: Math.round(rs.range * this.levelScaleOf(u, 'range', lv.level)),
-            minRange: rs.minRange > 0 ? Math.round(rs.minRange) : undefined,
-            speed: Math.round(rs.speed * 10) / 10,
-            attackInterval: rs.attackInterval,
-            splash: rs.splashRadius || undefined,
-            alive: u.members.length,
-            total: u.members.length,
-            level: lv.level,
-            xp: lv.xp,
-            xpNext: lv.xpNext,
-            structure: !!u.type.structure,
-            onDestroyed: this.destructionNote(u),
-            unitId: u.id,
-            items: this.selectionItems(u, ownInteractive && !fogItems, fogItems),
-            itemSlotCount:
-                u.type.structure || u.type.extra ? 0 : itemSlotLimit(u.type),
-            itemDropReady: !u.type.structure && this.canDropArmedItemOn(u),
-            record: u.type.structure ? undefined : { damageDealt: u.damageDealt, kills: u.kills },
-            // base buildings level for supply alone, on a rising price ladder
-            towerUpgrade: (() => {
-                if (!ownInteractive || !u.type.structure || (u.type.extra && !u.type.wall) || this.tutorial?.boostLessonOnly) return undefined;
-                if (this.tutorial?.allowedGarrisonOffers()?.upgrade === false) return undefined;
-                const up = buildingUpgradeFor(u, this.humanSeat, this.settings.towers);
-                if (!up) return undefined; // an ally's own tower
-                return {
-                    cost: up.cost,
-                    affordable: this.economy.balance(this.humanSeat) >= up.cost,
-                    maxed: up.maxed,
-                    maxLevel: buildingMaxLevel(u, this.seats, this.settings.towers),
-                };
-            })(),
-            // experiment: a wall's walkway (no tile when it comes with the wall)
-            wallWalk:
-                ownInteractive && u.type.wall && !u.type.wall.autoWalk
-                    ? {
-                          cost: u.type.wall.walkCost ?? 20,
-                          affordable: this.economy.balance(this.humanSeat) >= (u.type.wall.walkCost ?? 20),
-                          built: u.wallWalk,
-                      }
-                    : undefined,
-            wallPosts: (() => {
-                const posts = u.type.wall?.posts;
-                if (!ownInteractive || !posts || !u.wallWalk) return undefined;
-                const owned = this.placement.allUnits().filter((p) => p.hostUnitId === u.id).length;
-                return {
-                    cost: posts.cost,
-                    owned,
-                    max: posts.count,
-                    affordable: this.economy.balance(this.humanSeat) >= posts.cost,
-                };
-            })(),
-            // an enemy wall: my Target switch, while I deploy
-            targetMark:
-                u.type.wall && u.team === 'enemy' && this.phase === 'build' && this.playerCanAct
-                    ? { on: isTargetMarked(u, this.humanSeat) }
-                    : undefined,
-            // the next level is a purchase: needs banked XP and supply
-            levelUp: this.levelUpInfo(u, lv),
-            techs: this.techSelection(u),
-            ...this.researchCenterSelection(u),
-            ...this.commandTowerSelection(u),
-            ...this.strongholdSelection(u),
-        };
-    }
-
-    /** pack detail rune squares — removable only for this-deploy applications on own packs */
-    private selectionItems(
-        u: Unit,
-        allowRemove: boolean,
-        fogItems?: readonly string[],
-    ): SelectionInfo['items'] {
-        const itemIds = fogItems ?? u.items;
-        if (!itemIds.length) return undefined;
-        return itemIds.map((id, i) => ({
-            id,
-            icon: this.types.rune(id)?.icon ?? '?',
-            name: itemName(id, this.types.rune(id)?.name ?? id),
-            desc: itemDescription(id, this.types.rune(id)?.description ?? '', this.types.rune(id)?.mods),
-            removable:
-                allowRemove &&
-                u.seat === this.humanSeat &&
-                !u.type.structure &&
-                u.itemAppliedRound[i] === this.round,
-        }));
-    }
-
-    /**
-     * True when the opponent's purchases are visible: after we lock in, or in
-     * battle — same fog as spells / inventory / Command Tower tiles.
-     */
-    private enemyActionIntelVisible(): boolean {
-        // live board (fog off / battle / after we lock in) — same window as
-        // when enemy packs are selectable with full details
-        return (
-            this.phase === 'battle' ||
-            this.deployReady.player ||
-            !this.placement.intelFogOn
-        );
-    }
-
-    /** round-card history for the commander detail popup */
-    private roundCardPicksView(team: Team): { round: number; title: string; body: string }[] {
-        return this.dispatcher.roundCardPicks(team).map((p) => {
-            if (p.cardId === null) {
-                return {
-                    round: p.round,
-                    title: 'Skipped',
-                    body: `+${SKIP_CARD_REWARD} supply`,
-                };
-            }
-            const card = this.types.roundCard(p.cardId);
-            return {
-                round: p.round,
-                title: card?.title ?? p.cardId,
-                body: card
-                    ? (card.unitsLabel ? `${card.unitsLabel} — ` : '') + card.description
-                    : '',
-            };
-        });
-    }
-
-    /** pack tech slots — always that unit's {@link techSlotLimit}; empty pads unused picks.
-     *  Horde / innate packs list owned techs (e.g. Mother of Spiders) with live produce %.
-     *  `hexDisableResearched`: battle EMP — every talent slot shows as inactive. */
-    private techSelection(u: Unit, hexDisableResearched = false): SelectionInfo['techs'] {
-        if (u.type.structure || u.type.extra) return undefined;
-        const markDisabled = (_id: string, _owned: boolean) => hexDisableResearched;
-        const isHorde = u.team === 'horde' || u.seat < 0;
-        if (isHorde) {
-            const ids = new Set<string>([...(u.type.innateTechs ?? []), ...allowedTechIds(u.type)]);
-            const slots: NonNullable<SelectionInfo['techs']> = [];
-            for (const id of ids) {
-                if (!this.unitHasTech(u.seat, u.type.id, id)) continue;
-                const t = this.types.talent(id);
-                if (!t) continue;
-                slots.push({
-                    id: t.id,
-                    name: techName(t.id, t.name),
-                    desc: techDescription(t),
-                    icon: techIcon(t),
-                    cost: 0,
-                    owned: true,
-                    affordable: false,
-                    produce: this.produceProgressInfo(u, t.id),
-                    disabled: markDisabled(t.id, true) || undefined,
-                });
-            }
-            return slots.length ? slots : undefined;
-        }
-        const canBuy = u.seat === this.humanSeat && this.playerCanAct;
-        const selected = techsForUnit(u.type, this.types, this.loadoutOf(u.seat));
-        // the editor's sandbox shows every talent the type has, not only the slot count
-        const slotsN =
-            (this.editorMode === 'author' || loadoutShowsAll(this.rules.loadout)) && u.seat === this.humanSeat
-                ? Math.max(techSlotLimit(u.type), selected.length)
-                : techSlotLimit(u.type);
-        const owned = this.intelTechOwned(u);
-        const ownedCount = owned.size;
-        const bal = this.economy.balance(u.seat);
-        const slots: NonNullable<SelectionInfo['techs']> = [];
-        // A lesson can narrow this pack's talent list to a single entry.
-        const soleTechId = this.tutorial?.soleTechFor(u) ?? null;
-        if (soleTechId) {
-            const only = this.types.talent(soleTechId);
-            if (!only) return undefined;
-            const isOwned = owned.has(only.id) || !!u.type.innateTechs?.includes(only.id);
-            const cost = this.economy.techCostOf(only, ownedCount);
-            return [
-                {
-                    id: only.id,
-                    name: techName(only.id, only.name),
-                    desc: techDescription(only),
-                    icon: techIcon(only),
-                    cost,
-                    owned: isOwned,
-                    affordable: canBuy && !isOwned && bal >= cost,
-                    produce: isOwned ? this.produceProgressInfo(u, only.id) : undefined,
-                    disabled: markDisabled(only.id, isOwned) || undefined,
-                },
-            ];
-        }
-        for (let i = 0; i < slotsN; i++) {
-            const t = selected[i];
-            if (!t) {
-                slots.push({ empty: true });
-                continue;
-            }
-            const isOwned = owned.has(t.id) || !!u.type.innateTechs?.includes(t.id);
-            const cost = this.economy.techCostOf(t, ownedCount);
-            slots.push({
-                id: t.id,
-                name: techName(t.id, t.name),
-                desc: techDescription(t),
-                icon: techIcon(t),
-                cost,
-                owned: isOwned,
-                affordable: canBuy && !isOwned && bal >= cost,
-                produce: isOwned ? this.produceProgressInfo(u, t.id) : undefined,
-                disabled: markDisabled(t.id, isOwned) || undefined,
-            });
-        }
-        return slots;
-    }
-
-    /** Live produce-tech ring data while a battle sim is running. */
-    private produceProgressInfo(
-        u: Unit,
-        techId: string,
-    ): NonNullable<Exclude<NonNullable<SelectionInfo['techs']>[number], { empty: true }>>['produce'] {
-        if (!this.sim) return undefined;
-        const p = this.sim.productionProgress(u, techId);
-        return p ?? undefined;
-    }
-
     /**
      * Tech ownership as the local player may see it for this pack: live for
      * unfogged packs, phase-start snapshot while deploy intel fog applies —
@@ -13241,185 +12144,6 @@ export class Game {
             return TechTree.ownedIn(this.techIntelSnapshot, u.seat, u.type.id);
         }
         return this.techTree.ownedFor(u.seat, u.type.id);
-    }
-
-    /**
-     * Research Center tiles — always listed when that building is selected
-     * (deploy + battle). Active flags use deploy intel while fogged.
-     */
-    private researchCenterSelection(u: Unit): Pick<
-        SelectionInfo,
-        'recruit' | 'deploySlot' | 'rangeBoost' | 'speedBoost' | 'credit'
-    > {
-        const has = (a: BuildingAbilityId) => hasAbility(u.type, a);
-        const offers = (['recruitLevel', 'deploySlot', 'rangeBoost', 'speedBoost', 'credit'] as const).some(has);
-        if (!offers || this.tutorial?.boostLessonOnly) return {};
-        const seat = this.panelSeatOf(u);
-        const canBuy = seat === this.humanSeat && this.playerCanAct;
-        const bal = this.economy.balance(seat);
-        const intel = this.intelBuildingSeat(u, seat);
-        const all = {
-            recruit: {
-                cost: this.settings.leveling.recruitLevel2Cost,
-                active: intel.recruitLevel > 1,
-                affordable: canBuy && bal >= this.settings.leveling.recruitLevel2Cost,
-            },
-            deploySlot: {
-                cost: this.settings.deploy.extraSlotCost,
-                active: intel.deployExtra > 0,
-                affordable: canBuy && bal >= this.settings.deploy.extraSlotCost,
-            },
-            rangeBoost: {
-                cost: this.settings.deploy.rangedRangeBoostCost,
-                bonus: this.settings.deploy.rangeBoost,
-                active: intel.rangeBoost,
-                affordable: canBuy && bal >= this.settings.deploy.rangedRangeBoostCost,
-            },
-            speedBoost: {
-                cost: this.settings.deploy.armySpeedBoostCost,
-                bonus: this.settings.deploy.speedBoost,
-                active: intel.speedBoost,
-                affordable: canBuy && bal >= this.settings.deploy.armySpeedBoostCost,
-            },
-            credit: {
-                gain: this.settings.deploy.creditGain,
-                debt: this.settings.deploy.creditDebt,
-                active: intel.creditUsed,
-                affordable: canBuy,
-            },
-        };
-        const gated = this.tutorial?.allowedGarrisonOffers() ?? null;
-        if (gated) {
-            return {
-                recruit: has('recruitLevel') && gated.recruit ? all.recruit : undefined,
-                deploySlot: has('deploySlot') && gated.deploySlot ? all.deploySlot : undefined,
-                rangeBoost: has('rangeBoost') && gated.extras ? all.rangeBoost : undefined,
-                speedBoost: has('speedBoost') && gated.extras ? all.speedBoost : undefined,
-                credit: has('credit') && gated.extras ? all.credit : undefined,
-            };
-        }
-        return {
-            recruit: has('recruitLevel') ? all.recruit : undefined,
-            deploySlot: has('deploySlot') ? all.deploySlot : undefined,
-            rangeBoost: has('rangeBoost') ? all.rangeBoost : undefined,
-            speedBoost: has('speedBoost') ? all.speedBoost : undefined,
-            credit: has('credit') ? all.credit : undefined,
-        };
-    }
-
-    /**
-     * Command Tower permanent tracks — always listed when selected; owned /
-     * tier state uses deploy intel while fogged.
-     */
-    private commandTowerSelection(
-        u: Unit,
-    ): Pick<
-        SelectionInfo,
-        'boosts' | 'sellAbility' | 'rallyRouteAbility' | 'movePackAbility' | 'forgeSpells'
-    > {
-        const has = (a: BuildingAbilityId) => hasAbility(u.type, a);
-        if (!(['armyBoosts', 'selling', 'rallyRoute', 'movePack', 'vanguardSpells'] as const).some(has)) return {};
-        const seat = this.panelSeatOf(u);
-        const canBuy = seat === this.humanSeat && this.playerCanAct;
-        const bal = this.economy.balance(seat);
-        const intel = this.intelBuildingSeat(u, seat);
-        const boosts: SelectionInfo['boosts'] = (['attack', 'hp'] as const).map((id) => {
-            const tiers =
-                id === 'attack' ? this.settings.boosts.attackTiers : this.settings.boosts.hpTiers;
-            const tier = id === 'attack' ? intel.boostAttack : intel.boostHp;
-            const maxed = tier >= tiers.length;
-            const pct = Math.round(tiers[maxed ? tier - 1 : tier]! * 100);
-            const cost = maxed ? 0 : this.settings.boosts.costs[tier]!;
-            const allowed = this.tutorial?.allowedBoostIds();
-            const unlocked = allowed == null || allowed.includes(id);
-            return {
-                id,
-                label:
-                    id === 'attack'
-                        ? t('hud:armyAttackBoost', { pct })
-                        : t('hud:armyHpBoost', { pct }),
-                cost,
-                affordable: canBuy && !maxed && unlocked && bal >= cost,
-                maxed,
-            };
-        });
-        // Tutorial 3 round 2 is the boost lesson — the other tracks would only
-        // drain the supply its End Deployment gate needs.
-        if (this.tutorial?.boostLessonOnly) {
-            const allowed = this.tutorial.allowedBoostIds();
-            const shown =
-                allowed === null
-                    ? boosts
-                    : boosts?.filter((b) => allowed.includes(b.id) || b.maxed);
-            return { boosts: has('armyBoosts') ? shown : undefined };
-        }
-        // Later Tutorial 3 rounds: hide Vanguard buys entirely (Garrison lesson).
-        if (this.tutorial?.allowedGarrisonOffers()) {
-            return {};
-        }
-        const all = {
-            sellAbility: {
-                cost: this.settings.sell.abilityCost,
-                owned: intel.sellOwned,
-                affordable: canBuy && bal >= this.settings.sell.abilityCost,
-            },
-            rallyRouteAbility: {
-                cost: this.settings.rallyRoute.abilityCost,
-                owned: intel.rallyBought,
-                max: rallyRouteBuyMax(
-                    isSiege(this.settings) ? this.yearAttackerTeam() : null,
-                    u.team === 'horde' ? 'player' : u.team,
-                ),
-                affordable: canBuy && bal >= this.settings.rallyRoute.abilityCost,
-            },
-            movePackAbility: {
-                cost: this.settings.movePack.abilityCost,
-                owned: intel.movePackOwned,
-                affordable: canBuy && bal >= this.settings.movePack.abilityCost,
-            },
-        };
-        // Spells sold here (a vanguardCost) sit in the same list as Sell / Move / Rally Route,
-        // one more buy each, once per match.
-        const bought =
-            this.placement.isIntelFogged(u) && this.buildingIntelSnapshot
-                ? (this.buildingIntelSnapshot.forgeSpellOwned[seat] ?? [])
-                : (this.forgeSpellOwned[seat] ?? []);
-        const forgeSpells = has('vanguardSpells')
-            ? this.types.tactics
-                  .filter((tac) => tac.vanguardCost !== undefined)
-                  .map((tac) => {
-                      const cost = tac.vanguardCost!;
-                      const owned = bought.includes(tac.id);
-                      return {
-                          tacticId: tac.id,
-                          icon: tac.icon,
-                          name: tacticName(tac.id, tac.name),
-                          desc: tacticDescription(tac.id, tac.description),
-                          cost,
-                          owned,
-                          affordable: canBuy && !owned && bal >= cost,
-                      };
-                  })
-            : undefined;
-        return {
-            boosts: has('armyBoosts') ? boosts : undefined,
-            sellAbility: has('selling') ? all.sellAbility : undefined,
-            rallyRouteAbility: has('rallyRoute') ? all.rallyRouteAbility : undefined,
-            movePackAbility: has('movePack') ? all.movePackAbility : undefined,
-            forgeSpells,
-        };
-    }
-
-    /** phase-start building action state, or live once this building isn't fogged */
-    /**
-     * Whose purchases a building's panel shows and sells: its owner's — or,
-     * on a side's only building of its kind (a Siege's Tent, shared by two
-     * attackers), the local seat's when it has none of its own.
-     */
-    private panelSeatOf(u: Unit): SeatId {
-        if (u.team !== 'player' || u.seat === this.humanSeat) return u.seat;
-        const ownsOne = this.placement.allUnits().some((b) => b.type === u.type && b.seat === this.humanSeat && !b.destroyed);
-        return ownsOne ? u.seat : this.humanSeat;
     }
 
     private intelBuildingSeat(u: Unit, seat: SeatId = u.seat): BuildingIntelSeat {
@@ -13489,25 +12213,6 @@ export class Game {
     }
 
     /**
-     * What a building's fall costs its owner, in the width of a stat value —
-     * it replaces the combat rows a structure has no use for. Reads live match
-     * settings: the Stronghold's answer depends on `strongholdMode`.
-     */
-    private destructionNote(u: Unit): string | undefined {
-        if (!u.type.structure) return undefined;
-        const onDestroyed = u.type.onDestroyed;
-        if (onDestroyed?.collapseOwnArmy) {
-            return this.settings.strongholdMode === 'lifeline' ? t('hud:instantLoss') : t('hud:noEffect');
-        }
-        if (!onDestroyed?.seatDebuff) return undefined;
-        // the window shrinks as the building levels, so read it off THIS one —
-        // and a fully upgraded tower reaches 0, where the sim applies nothing
-        const dur = this.settings.towers.debuffDuration;
-        const seconds = Math.max(0, dur.baseSeconds - (u.level - 1) * dur.stepSeconds);
-        return seconds > 0 ? t('hud:secondDebuff', { n: seconds }) : t('hud:noEffect');
-    }
-
-    /**
      * Stronghold tiles — always listed when that building is selected (deploy +
      * battle, own or enemy). Buyable only for your side while you can act.
      * Enemy forge-spell ownership uses deploy intel while fogged (same as
@@ -13543,244 +12248,9 @@ export class Game {
             .allUnits()
             .find((u) => u.team === team && u.type.baseAnchor === 'stronghold' && u.type.garrison);
         if (!keep) return 0;
-        return this.postedOn(keep);
+        return this.selectionInfo.postedOn(keep);
     }
 
-    /** units posted on this building */
-    private postedOn(host: Unit): number {
-        let n = 0;
-        for (const u of this.placement.allUnits()) {
-            if (u.hostUnitId === host.id && !u.consumed) n++;
-        }
-        return n;
-    }
-
-    private strongholdSelection(
-        u: Unit,
-    ): Pick<SelectionInfo, 'sendSupply' | 'forge' | 'forgeSpells' | 'strongholdArchers'> {
-        const has = (a: BuildingAbilityId) => hasAbility(u.type, a);
-        if (!(['forge', 'forgeSpells', 'sendSupply'] as const).some(has) && !u.type.garrison) return {};
-        const out: Pick<SelectionInfo, 'sendSupply' | 'forge' | 'forgeSpells' | 'strongholdArchers'> = {};
-        const team: Team = u.team === 'horde' ? 'player' : u.team;
-        const teamSeats = seatIdsOf(this.seats, team);
-        const canBuy = u.team === 'player' && this.playerCanAct;
-        const fogged = this.placement.isIntelFogged(u);
-
-        // Ally supply gift — only when this side has two seats
-        if (teamSeats.length >= 2 && has('sendSupply')) {
-            const amount = 100;
-            out.sendSupply = {
-                amount,
-                affordable: canBuy && this.economy.balance(this.humanSeat) >= amount,
-            };
-        }
-
-        // Battlement archers, priced and buyable for your own keep only. The
-        // count follows the same fog window the forge and the spells do: an
-        // archer the enemy posted THIS round is not on their wall yet as far
-        // as you know, and the panel must not be the one place that says so.
-        // Your own keep shows YOUR posts (each seat mans and pays for its own
-        // block, see garrisonSeatSlots); an enemy keep shows the side's total.
-        const garrison = u.type.garrison;
-        if (garrison) {
-            const own = u.team === 'player';
-            const manned = own
-                ? garrisonSeatManned(this.placement, u, this.humanSeat)
-                : fogged && this.buildingIntelSnapshot && u.type.baseAnchor === 'stronghold'
-                  ? (this.buildingIntelSnapshot.strongholdArchers[team] ?? 0)
-                  : this.postedOn(u);
-            const nextCost = this.types.garrisonPostCost(u.type, manned);
-            const slotMax = own
-                ? garrisonSeatSlots(u, this.seats, this.humanSeat).length
-                : garrison.ownerOnly
-                  ? Math.min(garrison.slots.length, garrison.perSeat)
-                  : Math.min(garrison.slots.length, garrison.perSeat * teamSeats.length);
-            out.strongholdArchers = {
-                tower: !!garrison.ownerOnly,
-                cost: nextCost,
-                owned: manned,
-                max: slotMax,
-                affordable:
-                    canBuy &&
-                    manned < slotMax &&
-                    this.economy.balance(this.humanSeat) >= nextCost,
-            };
-        }
-
-        // Commander forge spells: own seat can buy; enemy seats show owned /
-        // last-round intel (same fog window as Research Center / Command Tower).
-        const spellSeats = u.team === 'player' ? [this.humanSeat] : teamSeats;
-        // Tutorial 2 round 1 teaches the wall only — the forge shelf stays empty.
-        const forgeShelfOpen = has('forgeSpells') && !this.tutorial?.forgeSpellsHidden;
-        out.forgeSpells = forgeShelfOpen
-            ? spellSeats.flatMap((seat) => {
-                  const bought =
-                      fogged && this.buildingIntelSnapshot
-                          ? (this.buildingIntelSnapshot.forgeSpellOwned[seat] ?? [])
-                          : (this.forgeSpellOwned[seat] ?? []);
-                  const bal = this.economy.balance(seat);
-                  const seatCanBuy = canBuy && seat === this.humanSeat;
-                  return (this.forgeSpellsOf(seat) ?? [])
-                      .map((tacticId) => {
-                          const t = this.types.tactic(tacticId);
-                          // no strongholdCost = this spell isn't sold here
-                          if (!t || t.strongholdCost === undefined) return null;
-                          const cost = t.strongholdCost;
-                          const owned = bought.includes(tacticId);
-                          return {
-                              tacticId,
-                              icon: t.icon,
-                              name: tacticName(tacticId, t.name),
-                              desc: tacticDescription(tacticId, t.description),
-                              cost,
-                              owned,
-                              affordable: seatCanBuy && !owned && bal >= cost,
-                          };
-                      })
-                      .filter((e): e is NonNullable<typeof e> => e !== null);
-              })
-            : [];
-
-        if (!has('forge')) return out;
-
-        const snapIds =
-            fogged && this.buildingIntelSnapshot
-                ? this.buildingIntelSnapshot.forge[team]
-                : null;
-        const live = this.forgeSlots[team]!;
-        const hintSlots: (ForgeSlot | null)[] = snapIds
-            ? snapIds.map((id) => (id ? { itemId: id, seat: -1 as SeatId, round: -1 } : null))
-            : live;
-        const slotCount = snapIds?.length ?? live.length;
-        const ovenEmpty = !fogged && live.every((s) => s === null);
-        const pool = this.teamForgePool(team);
-        const suggestions =
-            // TEMP: one-click forge-fill shortcuts disabled
-            false && ovenEmpty && canBuy && !this.armedItem
-                ? forgeRecipesCraftableFromBag(
-                      this.types,
-                      this.itemInventory[this.humanSeat] ?? [],
-                      pool,
-                  ).map((r) => ({
-                      tacticId: r.productId,
-                      icon: r.spellIcon,
-                      name: r.spellName,
-                      desc: r.spellDesc,
-                      itemIds: r.ingredients,
-                  }))
-                : [];
-        const bakeResult = resolveForge(this.types, hintSlots, pool);
-        const bakeInfo = bakeResult.product
-            ? forgeProductInfo(this.types, bakeResult.product)
-            : null;
-        const lit = !!bakeInfo;
-        out.forge = {
-            slotCount,
-            lit,
-            canUnlight: false,
-            bakeAffordable: true,
-            dropReady: !fogged && this.canDropForgeOn(u),
-            hint: forgeHintText(this.types, hintSlots, fogged ? 'this' : 'next', pool, lit),
-            suggestions,
-            spellPool: pool,
-            bake: bakeInfo
-                ? {
-                      id:
-                          bakeResult.product?.kind === 'item'
-                              ? bakeResult.product.id
-                              : undefined,
-                      icon: bakeInfo.icon,
-                      name: bakeInfo.name,
-                      desc: bakeInfo.desc,
-                      forgeCost: 0,
-                      ingredientIcons:
-                          bakeResult.product?.kind === 'tactic'
-                              ? forgeIngredientIcons(this.types, bakeResult.product.id)
-                              : [],
-                  }
-                : undefined,
-            slots: Array.from({ length: slotCount }, (_, i) => {
-                if (snapIds) {
-                    const id = snapIds[i];
-                    if (!id) return null;
-                    return {
-                        id,
-                        icon: this.types.rune(id)?.icon ?? '?',
-                        name: itemName(id, this.types.rune(id)?.name ?? id),
-                        desc: itemDescription(id, this.types.rune(id)?.description ?? '', this.types.rune(id)?.mods),
-                        removable: false,
-                    };
-                }
-                const s = live[i];
-                if (!s) return null;
-                return {
-                    id: s.itemId,
-                    icon: this.types.rune(s.itemId)?.icon ?? '?',
-                    name: itemName(s.itemId, this.types.rune(s.itemId)?.name ?? s.itemId),
-                    desc: itemDescription(s.itemId, this.types.rune(s.itemId)?.description ?? '', this.types.rune(s.itemId)?.mods),
-                    removable:
-                        canBuy && s.seat === this.humanSeat && s.round === this.round,
-                };
-            }),
-        };
-
-        return out;
-    }
-}
-
-/** deploy-intel capture of Research Center / Command Tower / Stronghold seat state */
-interface BuildingIntelSnapshot {
-    recruitLevel: number[];
-    deployExtra: number[];
-    rangeBoost: boolean[];
-    speedBoost: boolean[];
-    creditUsed: boolean[];
-    boostAttack: number[];
-    boostHp: number[];
-    sellOwned: boolean[];
-    rallyBought: number[];
-    movePackOwned: boolean[];
-    /** Stronghold commander spells bought (per seat) at phase start — fogged view */
-    forgeSpellOwned: string[][];
-    /** archers posted on each side's battlements at phase start — fogged view */
-    strongholdArchers: Record<Team, number>;
-    /** Stronghold oven contents (item ids) at phase start — fogged view */
-    forge: Record<Team, (string | null)[]>;
-    /** whether each oven was paid for at phase start — fogged view, and the
-     *  reason the chimney and the panel cannot leak a live burn */
-    forgeLit: Record<Team, boolean>;
-}
-
-interface BuildingIntelSeat {
-    recruitLevel: number;
-    deployExtra: number;
-    rangeBoost: boolean;
-    speedBoost: boolean;
-    creditUsed: boolean;
-    boostAttack: number;
-    boostHp: number;
-    sellOwned: boolean;
-    rallyBought: number;
-    movePackOwned: boolean;
-}
-
-/**
- * The details pane's "Hits" line, after the layers: what the unit is especially strong
- * against, joined (only buildings and walls so far — UnitType.buildingDamageMult).
- */
-function strengthsLabel(type: UnitType): string {
-    const parts: string[] = [];
-    const walls = type.buildingDamageMult ?? 1;
-    if (walls !== 1) parts.push(t('hud:vsWalls', { mult: Math.round(walls * 10) / 10, defaultValue: '{{mult}}x vs walls' }));
-    return parts.join(', ');
-}
-
-/** Short label for the details-pane "Hits" row. */
-function targetsLabel(targets: { ground: boolean; air: boolean }): string {
-    if (targets.ground && targets.air) return t('hud:groundAir');
-    if (targets.ground) return t('hud:groundOnly');
-    if (targets.air) return t('hud:airOnly');
-    return t('hud:none');
 }
 
 /** yaw so local +Z points from (ax,az) toward (bx,bz); 0 if the points coincide */

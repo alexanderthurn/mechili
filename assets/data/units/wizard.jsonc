@@ -13,7 +13,7 @@
     "collisionRadius": 1.0,
     "soundSize": "medium",
     "colliders": [{ "y": 1.1, "r": 0.75 }],
-    "convertRay": { "range": 80, "recover": 1.25 },
+    "convertRay": { "recover": 1.25 },
     "hp": 160,
     // attack = convert intensity / ray DPS (HP progress or damage per second)
     "damage": 45,

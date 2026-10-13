@@ -36,7 +36,6 @@ import {
     isSameBuild,
     formatBuild,
     ourBuild,
-    currentContentHash,
     hostStarRoom,
     isMelodanPlayHost,
     joinAsSpectator,
@@ -92,11 +91,9 @@ import {
 import { bootGameAssets } from './game/bootAssets';
 import {
     activeLevel,
-    activeLevelRef,
     isLevelActive,
     ensureLevel,
     isLevelAvailable,
-    levelFiles,
     levelFilesFromArchive,
     loadLevel,
     prepareLevel,
@@ -106,10 +103,23 @@ import {
 import { readZip, writeZip } from './game/content/zip';
 import { applyScenarioToSettings } from './game/scenario/scenarioSettings';
 import { initDraftStore, loadStoredDraft } from './game/scenario/editorDraft';
-import { MapChoice, boardSizeOption, generatedBoard, mapOption, mapValue } from './menu/mapChoice';
+import { MapChoice, boardSizeOption, mapValue } from './menu/mapChoice';
+import {
+    defaultLobbySettings,
+    defaultPracticeSettings,
+    isNonDefaultLobbySettings,
+    loadCustomGameConfig,
+    loadPracticeConfig,
+    lobbyMatchSettings,
+    localMatchSettings,
+    roomConfig,
+    saveCustomGameConfig,
+    savePracticeConfig,
+    type LocalMatchOpts,
+} from './menu/matchSettings';
+import { OPEN_SEAT_NAME, opponentDisplayName, rosterWithBots, rosterWithWiredAvatars, starAiName } from './menu/lobbyRoster';
 import { downloadScenarioPackage, editorLinks, editSavedScenario, initEditorMenu, openNewScenarioEditor, openStoredScenarioEditor, savedScenarioDef } from './menu/editorMenu';
 import { BASE_TYPES } from './game/units';
-import type { ScenarioDef } from './game/scenario/scenarioDef';
 import { scenarioSlug } from './game/scenario/package';
 import { answerLevelMessage, LevelDownload, levelOfferMessage } from './game/levelSync';
 import { builtInCampaigns, campaignLevel, campaignSummary, completedLevels, isBuiltInCampaign, markLevelCompleted } from './game/campaign';
@@ -124,7 +134,6 @@ import { DEFAULT_TERRAIN_SHAPE, TERRAIN_SHAPES, terrainShapeOption, type Terrain
 import {
     COMMANDER_HP_FACTOR_OPTIONS,
     STRONGHOLD_MODE_OPTIONS,
-    DEFAULT_STRONGHOLD_MODE,
     formatStrongholdModeOption,
     strongholdModeName,
     strongholdModeOption,
@@ -133,23 +142,11 @@ import {
     yearTotal,
     isSiege,
     roundsVictory,
-    CLIMB_SIDE_HP,
-    CLIMB_SUPPLY_GROWTH_PER_ROUND,
-    CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND,
-    type ClimbRole,
     climbAttackerTeam,
-    yearAttackerFromSeats,
     type YearRoundWinner,
-    DEFAULT_COMMANDER_HP_FACTOR,
-    DEFAULT_CUSTOM_GAME_PACE_ID,
-    DEFAULT_HORDE_PRESET_ID,
-    DEFAULT_MONEY_FACTOR,
-    DEFAULT_START_MONEY,
-    DEFAULT_SETTINGS,
     HORDE_ALGORITHMS,
     MONEY_FACTOR_OPTIONS,
     START_MONEY_OPTIONS,
-    commanderHpFactorOption,
     commanderHpOptionById,
     commanderHpSelectId,
     customGamePaceById,
@@ -161,21 +158,16 @@ import {
     hordeAlgorithmById,
     moneyFactorOption,
     startMoneyOption,
-    resolveCommanderHpFactor,
-    resolveFixedSideHp,
-    resolveMoneyFactor,
-    resolveStartMoney,
     type GameSettings,
 } from './game/settings';
-import { applyTutorialMode } from './game/tutorial';
 import {
-    DEFAULT_ROUND_CARD_PRESET_ID,
     ROUND_CARD_ALGORITHMS,
     roundCardAlgorithmById,
 } from './game/roundCardAlgorithms';
-import { duoSeats, localizeRoster, type CanonicalSeatDef, type SeatId } from './game/seats';
+import { localizeRoster, type CanonicalSeatDef, type SeatId } from './game/seats';
 import { initI18n, onLanguageChange, t } from './i18n';
-import { THEME, applyLanguageFont, FONT_FAMILY, menuStyles } from './theme';
+import { THEME, applyLanguageFont, FONT_FAMILY } from './theme';
+import { menuStyles } from './styles/menuStyles';
 import { assetUrl } from './game/assets';
 
 const { isElectron, lan, lobby: steamLobby, steam, storage, win } = sebNative;
@@ -195,248 +187,6 @@ const mirrorLocalStorage: MirrorLocalStorage = (() => {
     const fn = (sebNative as Record<string, unknown>)['mirrorLocalStorage'];
     return typeof fn === 'function' ? (fn as MirrorLocalStorage) : async () => false;
 })();
-
-// the only mode right now (Single Player / Matchmaking both force this) —
-// PvPvE: a neutral dwarf horde spawns from the forest ring outside the
-// normal board and marches in, hostile to both players. The normal map's
-// own dimensions apply (see the rim widen in map.ts/scenery.ts for horde
-// mode specifically). `?hordePreset=` / `?hordeFactor=` selects an algorithm id.
-function applyHordeMode(settings: GameSettings): void {
-    // Normal single-player / forced-horde modes: Low (mid + Mother night).
-    // `?hordePreset=` / `?hordeFactor=` still overrides.
-    settings.hordePreset = 'low';
-    const params = new URLSearchParams(location.search);
-    const presetParam = params.get('hordePreset') ?? params.get('hordeFactor');
-    if (!presetParam) return;
-    if (HORDE_ALGORITHMS.some((a) => a.id === presetParam)) {
-        settings.hordePreset = presetParam;
-    }
-}
-
-/**
- * SP Campaign: sudden-death climb. Income growth defaults to the normal
- * match economy; set {@link CLIMB_SUPPLY_GROWTH_PER_ROUND} in settings.ts
- * to override while playtesting.
- */
-function applyClimbMode(settings: GameSettings, variant: ClimbVariant = { role: 'attacker' }): void {
-    settings.climb = {
-        rounds: CLIMB_ROUNDS,
-        ...(variant.attackerSide !== undefined ? { attackerSide: variant.attackerSide } : {}),
-        sideHp: CLIMB_SIDE_HP,
-        // the normal income, the same as the match's own growth
-        playerSupplyGrowthPerRound: settings.economy.supplyGrowthPerRound,
-        ...(variant.role === 'defender' ? { humanRole: variant.role } : {}),
-        ...(variant.komtur ? { attackerCommander: 'cursed' } : {}),
-    };
-    // The Year fields The Komtur's waves at Medium (not Off / not the Low SP-horde default) —
-    // unless the Komtur is the attacker himself: then there is no third party
-    if (variant.komtur) settings.hordePreset = 'off';
-    else if (!variant.keepHorde) settings.hordePreset = 'medium';
-    if (CLIMB_SUPPLY_GROWTH_PER_ROUND != null) {
-        settings.economy = {
-            ...settings.economy,
-            supplyGrowthPerRound: CLIMB_SUPPLY_GROWTH_PER_ROUND,
-        };
-    }
-}
-
-// shared by local duo-vs-AI and online 2v2 — 4 armies need more elbow room
-// (kept modest — each seat now gets its own pair of towers within its own
-// half-lane, so this doesn't need to be as wide as when towers were shared)
-function widenMapForDuo(settings: GameSettings): void {
-    settings.map = { ...settings.map, zoneCols: Math.round(settings.map.zoneCols * 1.3) };
-}
-
-// ?duo=1 / the 2v2 Skirmish menu button — you + an AI ally against two AI
-// commanders, split lanes, wider board. Combines with horde mode.
-function applyDuoMode(settings: GameSettings): void {
-    settings.seats = duoSeats('You');
-    widenMapForDuo(settings);
-}
-
-// ---- Custom Game screen: config, persistence, and the actual hosting -----
-// CustomGameMode/CustomGameConfig now live in game/net.ts — the config
-// travels over the wire now (see the 'lobbySettings' NetMessage), so the
-// single source of truth moved to where NetMessage itself is defined.
-
-const DEFAULT_CUSTOM_GAME: CustomGameConfig = {
-    mode: '1v1',
-    pace: DEFAULT_CUSTOM_GAME_PACE_ID,
-    hordePreset: DEFAULT_HORDE_PRESET_ID,
-    roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
-    commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
-    fixedSideHp: null,
-    moneyFactor: DEFAULT_MONEY_FACTOR,
-    startMoney: DEFAULT_START_MONEY,
-    strongholdMode: DEFAULT_STRONGHOLD_MODE,
-    terrainShape: DEFAULT_TERRAIN_SHAPE,
-};
-
-const CUSTOM_GAME_KEY = 'mechili-custom-game';
-
-/** localStorage only (never the URL — this is testing-tool state, not a
- *  shareable link) — matches getPlayerName's own storage pattern. */
-function normalizeCustomGameMode(mode: CustomGameMode | '1v1ai' | undefined): CustomGameMode {
-    if (mode === '1v1ai') return '1v1';
-    return mode ?? DEFAULT_CUSTOM_GAME.mode;
-}
-
-/**
- * A room's shape in today's terms: the players are 1v1 or 2v2, Siege and the
- * Victory rule are settings of their own. Rooms of before ('year' — 1v1
- * Siege on Rounds; '2v2ai' — 2v2) are read as those.
- */
-function roomConfig<T extends CustomGameConfig>(cfg: T): T {
-    if (cfg.mode === 'year') return { ...cfg, mode: '1v1', siege: true, victory: 'rounds' };
-    if (cfg.mode === '2v2ai') return { ...cfg, mode: '2v2' };
-    return cfg;
-}
-
-
-function loadCustomGameConfig(): CustomGameConfig {
-    try {
-        const raw = localStorage.getItem(CUSTOM_GAME_KEY);
-        if (!raw) return { ...DEFAULT_CUSTOM_GAME };
-        const parsed = JSON.parse(raw) as Partial<CustomGameConfig> & {
-            buildSeconds?: number;
-            battleSeconds?: number;
-            specialistSeconds?: number;
-            cardSeconds?: number;
-            roundCards?: boolean;
-            horde?: string;
-        };
-        let pace = parsed.pace;
-        // migrate legacy free-form second fields → nearest / matching preset
-        if (!pace && typeof parsed.buildSeconds === 'number') {
-            pace = CUSTOM_GAME_PACE_PRESETS.find(
-                (p) =>
-                    p.buildSeconds === parsed.buildSeconds &&
-                    p.battleSeconds === parsed.battleSeconds &&
-                    p.specialistSeconds === parsed.specialistSeconds &&
-                    p.cardSeconds === parsed.cardSeconds,
-            )?.id;
-        }
-        let roundCardPreset = parsed.roundCardPreset;
-        if (!roundCardPreset && typeof parsed.roundCards === 'boolean') {
-            roundCardPreset = parsed.roundCards ? 'runes-every' : 'off';
-        }
-        let hordePreset = parsed.hordePreset ?? parsed.horde;
-        const loaded: CustomGameConfig = {
-            ...DEFAULT_CUSTOM_GAME,
-            // '1v1ai' was a Custom Game option once; hosting 1v1 and clicking
-            // "Start with AI" is the same thing, so a stored one lands on 1v1
-            // rather than a mode with no button behind it.
-            mode: normalizeCustomGameMode(parsed.mode),
-            pace: customGamePaceById(pace).id,
-            hordePreset: hordeAlgorithmById(hordePreset).id,
-            roundCardPreset: roundCardAlgorithmById(roundCardPreset).id,
-            commanderHpFactor: commanderHpFactorOption(parsed.commanderHpFactor),
-            fixedSideHp: resolveFixedSideHp(parsed.fixedSideHp),
-            moneyFactor: moneyFactorOption(parsed.moneyFactor),
-            startMoney: startMoneyOption(parsed.startMoney),
-            strongholdMode: strongholdModeOption(parsed.strongholdMode),
-            map: mapOption(parsed.map),
-            boardSize: boardSizeOption(parsed.boardSize),
-            terrainShape: terrainShapeOption(parsed.terrainShape),
-            siege: parsed.siege === true,
-            victory: parsed.victory === 'rounds' ? 'rounds' : 'hp',
-            fog: parsed.fog !== false,
-        };
-        return roomConfig(loaded);
-    } catch {
-        return { ...DEFAULT_CUSTOM_GAME };
-    }
-}
-
-function saveCustomGameConfig(cfg: CustomGameConfig): void {
-    try {
-        localStorage.setItem(CUSTOM_GAME_KEY, JSON.stringify(cfg));
-    } catch {
-        /* private browsing */
-    }
-}
-
-function applyCustomGameConfig(settings: GameSettings, cfg: CustomGameConfig): void {
-    const pace = customGamePaceById(cfg.pace);
-    settings.buildTimeSeconds = pace.buildSeconds;
-    settings.battleTimeSeconds = pace.battleSeconds;
-    settings.specialistTimeSeconds = pace.specialistSeconds;
-    settings.cardTimeSeconds = pace.cardSeconds;
-    settings.roundCardPreset = roundCardAlgorithmById(cfg.roundCardPreset).id;
-    settings.hordePreset = hordeAlgorithmById(cfg.hordePreset).id;
-    settings.commanderHpFactor = resolveCommanderHpFactor(cfg.commanderHpFactor);
-    settings.fixedSideHp = resolveFixedSideHp(cfg.fixedSideHp);
-    settings.moneyFactor = resolveMoneyFactor(cfg.moneyFactor);
-    settings.startMoney = resolveStartMoney(cfg.startMoney);
-    settings.strongholdMode = strongholdModeOption(cfg.strongholdMode);
-    settings.terrainShape = terrainShapeOption(cfg.terrainShape);
-    // the generated terrain's board size (a saved map replaces it with its own, see lobbyMatchSettings)
-    settings.map = generatedBoard(cfg.boardSize);
-    // Custom Game rooms play the base game (scenarios are single player: Single Player → Editor)
-    // deleted, not set to undefined: the room's transport turns undefined into null
-    delete settings.level;
-}
-
-// dev override: tweak match settings from the URL, e.g. ?build=20&nocards
-function settingsFromUrl(): GameSettings {
-    const params = new URLSearchParams(location.search);
-    const settings = structuredClone(DEFAULT_SETTINGS);
-    const hpFactor = Number(params.get('commanderHpFactor') ?? params.get('hpFactor'));
-    if (hpFactor > 0) settings.commanderHpFactor = hpFactor;
-    const moneyFactor = Number(params.get('moneyFactor') ?? params.get('money'));
-    if (moneyFactor > 0) settings.moneyFactor = moneyFactor;
-    const startMoney = Number(params.get('startMoney'));
-    if (Number.isFinite(startMoney) && startMoney >= 0) settings.startMoney = startMoney;
-    const seed = Number(params.get('seed'));
-    if (seed > 0) settings.seed = seed;
-    // no ?horde=1 opt-in anymore — the menu forces applyHordeMode itself
-    // now that Horde is the only mode; ?hordeFactor= (including `off`)
-    // overrides the level — see applyHordeMode
-    if (params.get('duo')) applyDuoMode(settings);
-    // ?landscape=<id>: play a map from assets/data/landscapes/
-    const landscape = params.get('landscape');
-    if (landscape) settings.landscape = landscape;
-    // ?terrain=hills|highlands|wall: the generated board relief
-    const terrain = params.get('terrain');
-    if (terrain) settings.terrainShape = terrainShapeOption(terrain);
-
-    const parseTimer = (raw: string | null): number | number[] | null => {
-        if (!raw) return null;
-        const parts = raw
-            .split(',')
-            .map((s) => Number(s.trim()))
-            .filter((n) => Number.isFinite(n) && n > 0);
-        if (parts.length === 0) return null;
-        return parts.length === 1 ? parts[0]! : parts;
-    };
-    const build = parseTimer(params.get('build'));
-    if (build !== null) settings.buildTimeSeconds = build;
-    const battle = parseTimer(params.get('battle'));
-    if (battle !== null) settings.battleTimeSeconds = battle;
-    const specialist = parseTimer(params.get('specialist'));
-    if (specialist !== null) settings.specialistTimeSeconds = specialist;
-    const card = parseTimer(params.get('card'));
-    if (card !== null) settings.cardTimeSeconds = card;
-
-    // between-round cards: ?nocards | ?roundCardPreset=full | legacy ?roundCards=
-    if (params.has('nocards') || params.get('roundCards') === 'off' || params.get('roundCardPreset') === 'off') {
-        settings.roundCardPreset = 'off';
-    } else {
-        const presetRaw = params.get('roundCardPreset');
-        if (presetRaw) {
-            settings.roundCardPreset = roundCardAlgorithmById(presetRaw).id;
-        } else if (params.get('roundCards') === 'true' || params.get('roundCards') === '1') {
-            settings.roundCardPreset = 'runes-every';
-        } else {
-            const raw = params.get('roundCards');
-            if (raw && raw.includes(',')) {
-                // legacy sparse list → spare if even rounds, else every
-                settings.roundCardPreset = 'runes-spare';
-            }
-        }
-    }
-    return settings;
-}
 
 // ---- page-zoom guard + crash visibility --------------------------------
 // iOS pinch-zooms the PAGE unless the gesture events are cancelled — scaling
@@ -879,15 +629,6 @@ function clearIntroCover(): void {
     introGen++;
     introCoverEl?.remove();
     introCoverEl = null;
-}
-
-/** Pixi Melodan wordmark back on the menu (after intro cover / resume cancel) */
-function restoreMenuTitle(): void {
-    title.visible = true;
-    title.alpha = 1;
-    logo.alpha = 1;
-    layoutTitle();
-    app.render();
 }
 
 function applyRandomMenuZoomOrigin(bg: HTMLElement): void {
@@ -1688,7 +1429,6 @@ const rosterTableEl = menu.querySelector<HTMLDivElement>('.m-roster-table')!;
 const cancelEl = menu.querySelector<HTMLButtonElement>('.m-cancel')!;
 const spModeEl = menu.querySelector<HTMLDivElement>('[data-view="sp"]')!;
 const spScenariosEl = menu.querySelector<HTMLDivElement>('[data-view="sp-editor"]')!;
-const spScenarioListEl = spScenariosEl.querySelector<HTMLDivElement>('.m-scenario-list')!;
 const spCampaignsEl = menu.querySelector<HTMLDivElement>('[data-view="sp-campaigns"]')!;
 const spCampaignListEl = spCampaignsEl.querySelector<HTMLDivElement>('.m-campaign-list')!;
 const spEditorContinueEl = spScenariosEl.querySelector<HTMLButtonElement>('.m-editor-continue')!;
@@ -1730,7 +1470,6 @@ const tutorialEl = menu.querySelector<HTMLDivElement>('[data-view="tutorial"]')!
 const mainButtonsEl = menu.querySelector<HTMLDivElement>('.m-main')!;
 const mmModeEl = menu.querySelector<HTMLDivElement>('.m-matchmaking')!;
 const mmHordeEl = menu.querySelector<HTMLInputElement>('.mm-horde')!;
-const mmYouNameEl = menu.querySelector<HTMLSpanElement>('.mm-you-name')!;
 const mmInviteEl = menu.querySelector<HTMLButtonElement>('.m-seat-invite')!;
 const mmLinkEl = menu.querySelector<HTMLDivElement>('.m-mm-link')!;
 const mmSimpleEl = menu.querySelector<HTMLDivElement>('.m-mm-simple')!;
@@ -2181,41 +1920,6 @@ wireSelectShortLabels(cgTerrainEl);
 
 /** the lobby's Map setting (a saved scenario's terrain, or generated) */
 const mapChoice = new MapChoice(cgLandscapeEl);
-
-function defaultLobbySettings(): Pick<
-    CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'fixedSideHp' | 'moneyFactor' | 'startMoney' | 'strongholdMode' | 'terrainShape' | 'map' | 'boardSize'
-> {
-    return {
-        map: undefined,
-        boardSize: 'standard',
-        pace: DEFAULT_CUSTOM_GAME_PACE_ID,
-        hordePreset: DEFAULT_HORDE_PRESET_ID,
-        roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
-        commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
-        fixedSideHp: null,
-        moneyFactor: DEFAULT_MONEY_FACTOR,
-        startMoney: DEFAULT_START_MONEY,
-        strongholdMode: DEFAULT_STRONGHOLD_MODE,
-        terrainShape: DEFAULT_TERRAIN_SHAPE,
-    };
-}
-
-function isNonDefaultLobbySettings(cfg: CustomGameConfig, defaults = defaultLobbySettings()): boolean {
-    return (
-        cfg.pace !== defaults.pace ||
-        cfg.hordePreset !== defaults.hordePreset ||
-        cfg.roundCardPreset !== defaults.roundCardPreset ||
-        cfg.commanderHpFactor !== defaults.commanderHpFactor ||
-        (cfg.fixedSideHp ?? null) !== (defaults.fixedSideHp ?? null) ||
-        cfg.moneyFactor !== defaults.moneyFactor ||
-        cfg.startMoney !== defaults.startMoney ||
-        cfg.strongholdMode !== defaults.strongholdMode ||
-        terrainShapeOption(cfg.terrainShape) !== defaults.terrainShape ||
-        mapValue(cfg.map) !== mapValue(defaults.map) ||
-        (!cfg.map && boardSizeOption(cfg.boardSize) !== defaults.boardSize)
-    );
-}
 
 /** shows `cfg` in every room-settings box (basic and advanced), marks the
  *  changed ones gold and syncs Reset — host and guest alike */
@@ -3060,13 +2764,6 @@ function allSeatsReady(roster: CanonicalSeatDef[]): boolean {
     return roster.every((s, i) => i === 0 || s.name === OPEN_SEAT_NAME || s.ready === true);
 }
 
-/** a seat's roster entry starts (and stays, until joined) at this exact
- *  placeholder — see initialStarRoster/initial1v1Roster — so "does this
- *  seat have a real name" is a reliable, host-and-guest-alike way to
- *  tell a filled seat from an open one without needing a separate
- *  connectedSeats list (which only the host can compute directly). */
-const OPEN_SEAT_NAME = 'Waiting…';
-
 /**
  * A visible "who's actually here" table, usable from EITHER the host's
  * or a guest's own perspective (`mySeat` — always 0 for the host, the
@@ -3670,38 +3367,6 @@ function wireGameMenuReturn(game: Game): void {
     game.onNeedsFullResync = rebuildStarGuestGame;
 }
 
-/**
- * SP defeat "Retry last round": tear down the finished Game and reconstruct
- * from a log that already keeps prior rounds + the lost round's AI seats.
- * Skips the match-intro cinematic — the player just left a defeat screen.
- *
- * Must replace the Three canvas (same as return-to-menu): destroy() disposes
- * the GL context, and baking shop icons on that dead canvas made tiles look
- * brighter / wrong. Await prewarm so we don't race a second renderer onto
- * the new canvas.
- */
-/** a way to play The Year: your role, and whether the attacker is The Komtur */
-type ClimbVariant = {
-    role: ClimbRole;
-    komtur?: boolean;
-    /** a room: the canonical side that attacks (0 = the host's) — `role` is then unused */
-    attackerSide?: number;
-    /** a room: keep the lobby's Komtur waves setting */
-    keepHorde?: boolean;
-};
-type LocalMatchOpts = { climb?: ClimbVariant; tutorial?: number };
-
-/** local-vs-AI modes share the relaxed-timer, same-fog-rules setup as Single Player */
-function localMatchSettings(opts: LocalMatchOpts = {}): GameSettings {
-    const settings = settingsFromUrl();
-    settings.buildTimeSeconds = 60 * 60;
-    settings.specialistTimeSeconds = 60 * 60;
-    settings.cardTimeSeconds = 60 * 60;
-    if (opts.climb) applyClimbMode(settings, opts.climb);
-    if (opts.tutorial != null) applyTutorialMode(settings, opts.tutorial);
-    return settings;
-}
-
 async function teardownForNextMatch(): Promise<void> {
     stopSinglePlayerPersist?.();
     stopSinglePlayerPersist = null;
@@ -3731,6 +3396,16 @@ async function startTutorialLesson(lesson: number): Promise<void> {
     startGame(localMatchSettings({ tutorial: lesson }));
 }
 
+/**
+ * SP defeat "Retry last round": tear down the finished Game and reconstruct
+ * from a log that already keeps prior rounds + the lost round's AI seats.
+ * Skips the match-intro cinematic — the player just left a defeat screen.
+ *
+ * Must replace the Three canvas (same as return-to-menu): destroy() disposes
+ * the GL context, and baking shop icons on that dead canvas made tiles look
+ * brighter / wrong. Await prewarm so we don't race a second renderer onto
+ * the new canvas.
+ */
 async function retrySinglePlayerLastRound(payload: {
     seed: number;
     settings: GameSettings;
@@ -4628,31 +4303,6 @@ function initial1v1Roster(hostName: string): CanonicalSeatDef[] {
     ];
 }
 
-/** Drop untrusted avatar payloads from wire/roster copies. */
-function rosterWithWiredAvatars(roster: CanonicalSeatDef[]): CanonicalSeatDef[] {
-    return roster.map((s) => {
-        const avatar = wireAvatar(s.avatar);
-        return avatar ? { ...s, avatar } : { ...s, avatar: undefined };
-    });
-}
-/** fallback name for a still-empty seat when the host clicks Start —
- *  derived from side (host's own side = 'Ally', the other = 'Foe'), so
- *  this works for any roster size, not just the hardcoded 4-seat layout */
-function starAiName(seat: SeatId, roster: CanonicalSeatDef[]): string {
-    const mySide = roster[0]!.side;
-    if (roster[seat]!.side === mySide) return t('menu:aiNameAlly');
-    const foeSeats = roster.map((_, i) => i).filter((i) => roster[i]!.side !== mySide);
-    if (foeSeats.length <= 1) return t('menu:aiNameFoe');
-    return foeSeats.indexOf(seat) === 0 ? t('menu:aiNameFoeWest') : t('menu:aiNameFoeEast');
-}
-/** the HUD's "opponent" name field only ever makes sense for a genuine
- *  2-seat (1v1-via-star) roster — a real 2v2+ has no single opponent to
- *  name, so it keeps the generic '2v2' label the HUD already expects. */
-function opponentDisplayName(roster: CanonicalSeatDef[], mySeat: SeatId): string {
-    if (roster.length !== 2) return '2v2';
-    return roster[mySeat === 0 ? 1 : 0]?.name ?? '2v2';
-}
-
 function cancelHost(): void {
     // cleanup() first, in its own try: it is the externally visible "room is
     // gone" signal (web/LAN send ?action=leave), and running hub.close() first
@@ -4778,20 +4428,14 @@ function wireHostedHub(
         hostName: string;
         waitForJoined?: number;
         offerAiStart?: boolean;
-        mode?: '1v1' | '2v2';
         customConfig?: CustomGameConfig | null;
     },
 ): void {
     const hostName = opts.hostName;
     const waitForJoined = opts.waitForJoined ?? 2;
     const offerAiStart = opts.offerAiStart ?? true;
-    const mode = opts.mode ?? '2v2';
     const customConfig = opts.customConfig ?? null;
     if (offerAiStart) {
-        // shared with 2v2 (same button) since 1v1 now hosts through the
-        // same star path — label it for whichever mode is actually running
-        // instead of the old static "Start 2v2 Match" text 1v1 inherited
-        // by accident
         // a previous lobby may have left this lit — refresh() below decides
         startStarBtn.classList.remove('is-go');
         startStarBtn.style.display = '';
@@ -5125,73 +4769,7 @@ async function beginHost(opts: {
         lobbyId: transport === 'steam' ? hosted.id : null,
         players: waitForJoined,
     });
-    wireHostedHub(hosted.hub, { hostName, waitForJoined, offerAiStart, mode, customConfig });
-}
-
-/** host clicks Start: AI-fill empty seats, send each guest its own setup, launch locally */
-/**
- * The settings every lobby match starts from — hosted rooms and local ones
- * (Practice, a Custom Game with only bots) alike, so the two can't drift apart.
- */
-function lobbyMatchSettings(
-    config: CustomGameConfig | null,
-    horde: boolean,
-    /** the room's final roster (bots filled in) — its size, and the roles players asked for */
-    roster: readonly CanonicalSeatDef[],
-): GameSettings & { seed: number } {
-    const settings = settingsFromUrl();
-    delete settings.seats; // the roster travels separately (localized per client)
-    if (config) applyCustomGameConfig(settings, config);
-    else if (horde) applyHordeMode(settings);
-    // the lobby's map: a saved scenario's terrain — its package is the match's
-    // level (every seat has it by now) and the board is the size it was made for
-    const map = config?.map;
-    const mapRef = map ? { id: map.id, hash: map.hash } : undefined;
-    const onMap = !!map && isLevelAvailable(mapRef);
-    if (onMap) {
-        settings.level = mapRef;
-        settings.terrainOf = map.scenario;
-        settings.map = { ...map.board };
-    }
-    const seed = settings.seed ?? (Math.random() * 0x7fffffff) | 0;
-    // Siege and / or Rounds: The Year's rules, each one on its own (see ClimbSettings)
-    const room = config ? roomConfig(config) : null;
-    const siege = !!room?.siege;
-    const rounds = room?.victory === 'rounds';
-    if (room && (siege || rounds)) {
-        applyClimbMode(settings, {
-            role: 'attacker',
-            // a Standard Rounds match has no attacker: its first side stands in for one on the tally
-            attackerSide: siege ? resolveYearAttackerSide(roster, seed) : 0,
-            keepHorde: true,
-        });
-        if (!siege) settings.climb!.siege = false;
-        if (!rounds) settings.climb!.victory = 'hp';
-    }
-    if (room?.fog === false) settings.fogOfWar = false;
-    // 2v2 / duo only — 1v1 must keep the standard map width; a map keeps the board it was made for
-    if (roster.length > 2 && !onMap) widenMapForDuo(settings);
-    return { ...settings, seed };
-}
-
-/**
- * Who attacks in a Siege room: from the roles its seats asked for (players
- * pick their own, the host any seat's) — each side's wishes are weighed, and
- * sides left without a clear attacker or defender toss for it on the match
- * seed, so every client that receives the settings agrees.
- */
-function resolveYearAttackerSide(roster: readonly CanonicalSeatDef[], seed: number): number {
-    const wishes = (side: 'a' | 'b') => roster.filter((s) => s.side === side).map((s) => s.yearRole);
-    return yearAttackerFromSeats(wishes('a'), wishes('b'), seed);
-}
-
-/** empty seats of a lobby roster become bots, each with its own rolled loadout */
-function rosterWithBots(roster: readonly CanonicalSeatDef[]): CanonicalSeatDef[] {
-    return roster.map((s, i) =>
-        i > 0 && s.controller === 'human' && s.name === OPEN_SEAT_NAME
-            ? { side: s.side, controller: 'ai' as const, name: starAiName(i, [...roster]), loadout: randomLoadout(), ...(s.army ? { army: s.army } : {}) }
-            : s,
-    );
+    wireHostedHub(hosted.hub, { hostName, waitForJoined, offerAiStart, customConfig });
 }
 
 /** a lobby match played on this machine only: no room, no spectators, single-player features on */
@@ -5216,48 +4794,6 @@ function startLocalLobbyMatch(config: CustomGameConfig, roster: readonly Canonic
 }
 
 // ---- Practice: the Custom Game lobby, local, every other seat a bot
-
-const PRACTICE_KEY = 'melodan-practice';
-
-/** Practice's own defaults: the Custom Game ones, without a clock to race */
-function defaultPracticeSettings(): ReturnType<typeof defaultLobbySettings> {
-    return { ...defaultLobbySettings(), pace: 'long' };
-}
-
-function loadPracticeConfig(): CustomGameConfig {
-    try {
-        const raw = localStorage.getItem(PRACTICE_KEY);
-        const parsed = raw ? (JSON.parse(raw) as Partial<CustomGameConfig>) : {};
-        const defaults = defaultPracticeSettings();
-        return roomConfig({
-            mode: parsed.mode === '2v2' || parsed.mode === 'year' || parsed.mode === '2v2ai' ? parsed.mode : '1v1',
-            siege: parsed.siege === true,
-            victory: parsed.victory === 'rounds' ? 'rounds' : 'hp',
-            fog: parsed.fog !== false,
-            pace: customGamePaceById(parsed.pace ?? defaults.pace).id,
-            hordePreset: hordeAlgorithmById(parsed.hordePreset ?? defaults.hordePreset).id,
-            roundCardPreset: roundCardAlgorithmById(parsed.roundCardPreset ?? defaults.roundCardPreset).id,
-            commanderHpFactor: commanderHpFactorOption(parsed.commanderHpFactor ?? defaults.commanderHpFactor),
-            fixedSideHp: resolveFixedSideHp(parsed.fixedSideHp ?? defaults.fixedSideHp),
-            moneyFactor: moneyFactorOption(parsed.moneyFactor ?? defaults.moneyFactor),
-            startMoney: startMoneyOption(parsed.startMoney ?? defaults.startMoney),
-            strongholdMode: strongholdModeOption(parsed.strongholdMode ?? defaults.strongholdMode),
-            map: mapOption(parsed.map),
-            boardSize: boardSizeOption(parsed.boardSize ?? defaults.boardSize),
-            terrainShape: terrainShapeOption(parsed.terrainShape ?? defaults.terrainShape),
-        });
-    } catch {
-        return { mode: '1v1', ...defaultPracticeSettings() };
-    }
-}
-
-function savePracticeConfig(config: CustomGameConfig): void {
-    try {
-        localStorage.setItem(PRACTICE_KEY, JSON.stringify(config));
-    } catch {
-        /* private browsing */
-    }
-}
 
 /** Single Player → Practice: the Custom Game lobby, locally, with bots in every other seat (1v1, 2v2 or The Year). */
 function openPracticeLobby(mode: CustomGameMode): void {
@@ -5306,6 +4842,7 @@ function startPracticeMatch(): void {
     startLocalLobbyMatch(lobby.config, lobby.roster);
 }
 
+/** host clicks Start: AI-fill empty seats, send each guest its own setup, launch locally */
 function startHostedMatch(): void {
     if (!hosting) return;
     const { hub, transport } = hosting;
@@ -6528,7 +6065,6 @@ menu.addEventListener('click', (e) => {
                                     hostName: getPlayerName(),
                                     waitForJoined: is2v2 ? 4 : 2,
                                     offerAiStart: false,
-                                    mode: is2v2 ? '2v2' : '1v1',
                                 });
                             }
                         });

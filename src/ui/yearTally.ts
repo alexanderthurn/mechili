@@ -2,7 +2,7 @@
  * The Year's progress as the player sees it: one mark per round — taken by the
  * attacker or the defender, the round being played, the rounds still to come —
  * and the tally of both sides. Shared by the loading card, the between-rounds
- * splash and the end screen (styles: theme.ts menuStyles, `.year-`).
+ * splash and the end screen (styles: styles/menuStyles.ts, `.year-`).
  */
 import { t } from '../i18n';
 import type { YearRoundWinner } from '../game/settings';

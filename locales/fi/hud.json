@@ -172,8 +172,6 @@
   "forgeCancelRefund": "Napsauta peruuttaaksesi ja saadaksesi huollon takaisin.",
   "returnToBagTouch": "Vedä tämä {{item}} takaisin laukkuun (vain tässä käyttöönotossa).",
   "returnToBag": "Palauta tämä {{item}} laukkuun napsauttamalla tai raahaamalla se pois (vain tässä käyttöönotossa).",
-  "reconnectTitle": "Yhteys katkennut — yhdistetään uudelleen…",
-  "opponentReturn": "Vastustajalla on {{n}} aikaa palauttaa",
   "tacticCooldown": "Jäähdyttelyaika {{n}}",
   "tacticAim": "Tavoite {{n}}",
   "tacticMaxPath": "Maksimipolku {{n}}",

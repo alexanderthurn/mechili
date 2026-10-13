@@ -3,7 +3,7 @@ import { cssUrl } from './iconAtlas';
 /**
  * Main-menu motion: the panel and its buttons arriving, the parchment
  * growing / shrinking between screens, and the painting's slow zoom.
- * Styles in theme.ts (`m-arrive`, `is-arriving`, `m-backdrop-zoom`). Tweak live:
+ * Styles in styles/menuStyles.ts (`m-arrive`, `is-arriving`, `m-backdrop-zoom`). Tweak live:
  * - stagger: ms between two buttons arriving; staggerMax caps a long list
  * - resizeMs: the panel's height change between two screens
  */

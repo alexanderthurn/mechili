@@ -172,8 +172,6 @@
   "forgeCancelRefund": "Klicka för att avbryta och få tillbaka förrådet.",
   "returnToBagTouch": "Dra av för att lägga tillbaka denna {{item}} i din väska (endast denna utplacering).",
   "returnToBag": "Klicka eller dra av för att lägga tillbaka denna {{item}} i din väska (endast denna utplacering).",
-  "reconnectTitle": "Anslutningen bruten — återansluter…",
-  "opponentReturn": "Motståndaren har {{n}}s på sig att returnera",
   "tacticCooldown": "Nedkylning {{n}}",
   "tacticAim": "Sikta {{n}}",
   "tacticMaxPath": "Maxväg {{n}}",

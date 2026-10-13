@@ -172,8 +172,6 @@
   "forgeCancelRefund": "Klikk for å avbryte og få forsyningen tilbake.",
   "returnToBagTouch": "Dra av for å returnere denne {{item}} til vesken din (kun denne utplasseringen).",
   "returnToBag": "Klikk eller dra av for å returnere denne {{item}} til vesken din (kun denne utplasseringen).",
-  "reconnectTitle": "Tilkobling brutt – kobler til på nytt…",
-  "opponentReturn": "Motstanderen har {{n}}s på å returnere",
   "tacticCooldown": "Nedkjøling {{n}}",
   "tacticAim": "Sikt {{n}}",
   "tacticMaxPath": "Maks sti {{n}}",

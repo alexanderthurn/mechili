@@ -34,7 +34,7 @@ import { CardSpellTips, encodeTipRows, spellInfoFrameHtml, startCardFaceHtml } f
 import { registerHoverTipClearer } from './hoverTips';
 import { roundCardFaceHtml } from './roundCardFace';
 import { speedKeyHint } from './speedKeys';
-import { hudStyles } from '../theme';
+import { hudStyles } from '../styles/hudStyles';
 import { yearMarksHtml, yearProgressHtml, yearRoleName, type YearProgress } from './yearTally';
 import { yearWinner } from '../game/settings';
 import { audio } from '../game/audio';
@@ -66,7 +66,7 @@ type CommanderChip = {
     avatar: string | null;
 };
 
-/** Compact / phone chrome — MUST match the size media query in theme.ts */
+/** Compact / phone chrome — MUST match the size media query in styles/hudStyles.ts */
 const PHONE_MQ =
     typeof matchMedia === 'function'
         ? matchMedia('(max-width: 599px), (max-height: 540px)')
@@ -4311,7 +4311,6 @@ export class Hud {
         this.hidePauseMenu(true);
         this.hideCardOverlay(true);
         this.hideNotice(true);
-        this.hideReconnectWait(true);
         this.hideBattleReport(true);
         this.hideSpecialistDetail(true);
         this.hideSettingsDetail(true);
@@ -4887,39 +4886,6 @@ export class Hud {
         if (!this.notice) return;
         const el = this.notice;
         this.notice = null;
-        this.detachOverlay(el, immediate);
-    }
-
-    private reconnectWait: HTMLDivElement | null = null;
-
-    /** connection lost: blocking notice with a live countdown to forfeit */
-    showReconnectWait(onGiveUp: () => void): void {
-        this.hideNotice(true);
-        this.hideReconnectWait(true);
-        const el = withDialogFade(document.createElement('div'));
-        el.classList.add('mechili-cards');
-        el.innerHTML =
-            `<div class="cards-title" style="font-size:20px; letter-spacing:2px;">${escapeHtml(t('hud:reconnectTitle'))}</div>` +
-            `<div class="cards-title reconnect-timer"></div>` +
-            `<button class="cards-skip">${escapeHtml(t('hud:giveUp'))}</button>`;
-        el.querySelector('.cards-skip')!.addEventListener('click', onGiveUp);
-        this.reconnectWait = el;
-        this.mount(el);
-    }
-
-    /** ticks the reconnect countdown — pulses in the last 5s, same as the round timer */
-    updateReconnectWait(secondsRemaining: number): void {
-        const el = this.reconnectWait?.querySelector<HTMLDivElement>('.reconnect-timer');
-        if (!el) return;
-        const s = Math.max(0, Math.ceil(secondsRemaining));
-        el.textContent = t('hud:opponentReturn', { n: s });
-        el.classList.toggle('urgent', s <= 5);
-    }
-
-    hideReconnectWait(immediate = false): void {
-        if (!this.reconnectWait) return;
-        const el = this.reconnectWait;
-        this.reconnectWait = null;
         this.detachOverlay(el, immediate);
     }
 

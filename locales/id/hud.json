@@ -172,8 +172,6 @@
   "forgeCancelRefund": "Klik untuk membatalkan dan mendapatkan kembali pasokan.",
   "returnToBagTouch": "Geser untuk mengembalikan {{item}} ini ke tas Anda (hanya untuk penyebaran ini).",
   "returnToBag": "Klik atau seret untuk mengembalikan {{item}} ini ke tas Anda (hanya untuk penyebaran ini).",
-  "reconnectTitle": "Koneksi terputus — sedang menyambungkan kembali…",
-  "opponentReturn": "Lawan memiliki {{n}} untuk dikembalikan",
   "tacticCooldown": "Waktu pendinginan {{n}}",
   "tacticAim": "Tujuan {{n}}",
   "tacticMaxPath": "Jalur maksimum {{n}}",

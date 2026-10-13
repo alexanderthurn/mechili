@@ -172,8 +172,6 @@
   "forgeCancelRefund": "Clicca per annullare e recuperare le scorte.",
   "returnToBagTouch": "Trascina via per riportare questo {{item}} nel tuo inventario (solo per questa operazione).",
   "returnToBag": "Fai clic o trascina per riportare questo {{item}} nel tuo inventario (solo questa operazione).",
-  "reconnectTitle": "Connessione persa — Riconnessione in corso…",
-  "opponentReturn": "L'avversario ha {{n}}s da restituire",
   "tacticCooldown": "Raffreddamento {{n}}",
   "tacticAim": "Obiettivo {{n}}",
   "tacticMaxPath": "Percorso massimo {{n}}",
