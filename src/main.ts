@@ -4428,20 +4428,14 @@ function wireHostedHub(
         hostName: string;
         waitForJoined?: number;
         offerAiStart?: boolean;
-        mode?: '1v1' | '2v2';
         customConfig?: CustomGameConfig | null;
     },
 ): void {
     const hostName = opts.hostName;
     const waitForJoined = opts.waitForJoined ?? 2;
     const offerAiStart = opts.offerAiStart ?? true;
-    const mode = opts.mode ?? '2v2';
     const customConfig = opts.customConfig ?? null;
     if (offerAiStart) {
-        // shared with 2v2 (same button) since 1v1 now hosts through the
-        // same star path — label it for whichever mode is actually running
-        // instead of the old static "Start 2v2 Match" text 1v1 inherited
-        // by accident
         // a previous lobby may have left this lit — refresh() below decides
         startStarBtn.classList.remove('is-go');
         startStarBtn.style.display = '';
@@ -4775,7 +4769,7 @@ async function beginHost(opts: {
         lobbyId: transport === 'steam' ? hosted.id : null,
         players: waitForJoined,
     });
-    wireHostedHub(hosted.hub, { hostName, waitForJoined, offerAiStart, mode, customConfig });
+    wireHostedHub(hosted.hub, { hostName, waitForJoined, offerAiStart, customConfig });
 }
 
 /** a lobby match played on this machine only: no room, no spectators, single-player features on */
@@ -6071,7 +6065,6 @@ menu.addEventListener('click', (e) => {
                                     hostName: getPlayerName(),
                                     waitForJoined: is2v2 ? 4 : 2,
                                     offerAiStart: false,
-                                    mode: is2v2 ? '2v2' : '1v1',
                                 });
                             }
                         });
