@@ -126,7 +126,7 @@ import { builtInCampaigns, campaignLevel, campaignSummary, completedLevels, isBu
 import { loadedLandscape, loadLandscape } from './game/landscape';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
-import { effectiveDpr, onPrefsChange, prefs, updatePrefs, applySteamLanguageDefault } from './game/prefs';
+import { applySteamLanguageDefault, debugEnabled, effectiveDpr, onPrefsChange, prefs, updatePrefs } from './game/prefs';
 import { openSettings } from './ui/settings';
 import { openSuggest } from './suggest';
 import { cssUrl, iconHtml } from './ui/iconAtlas';
@@ -5935,7 +5935,9 @@ menu.addEventListener('click', (e) => {
             startLocalMatch({ tutorial: 4 });
             break;
         case 'single':
-            showMenuView('sp');
+            // the campaign and the editor are dev tools: players go straight to Practice
+            if (debugEnabled()) showMenuView('sp');
+            else openPracticeLobby(loadPracticeConfig().mode);
             break;
         case 'multiplayer':
             showMenuView('mp');
