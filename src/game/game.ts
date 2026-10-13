@@ -30,7 +30,7 @@ import { CameraRig, type RigState } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { GamepadCursor } from '../engine/gamepadCursor';
 import { disposeScene } from '../engine/disposeScene';
-import { ActionDispatcher, buildingMaxLevel, buildingUpgradeFor, garrisonFovYaw, garrisonSeatManned, garrisonSeatSlots, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, towerUpgradeCost, xpThresholdFor, type Action, type LoggedAction, type TacticIdSource } from './actions';
+import { ActionDispatcher, buildingMaxLevel, buildingUpgradeFor, garrisonFovYaw, garrisonSeatManned, garrisonSeatSlots, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, xpThresholdFor, type Action, type LoggedAction, type TacticIdSource } from './actions';
 import {
     emptyForgeSlots,
     forgeHintText,
@@ -52,9 +52,6 @@ import {
     tutorial1HeightAt,
     tutorial5HeightAt,
     TUTORIAL_1_ID,
-    TUTORIAL_2_ID,
-    TUTORIAL_3_ID,
-    TUTORIAL_4_ID,
     TUTORIAL_5_ID,
 } from './tutorial';
 import { TutorialRuntime, type TutorialHost } from './tutorialRuntime';
@@ -104,9 +101,6 @@ import {
     unlockCostFor,
     SKIP_CARD_REWARD,
     NO_COMMANDER_CARD_ID,
-    TUTORIAL_2_START_CARD_ID,
-    TUTORIAL_3_START_CARD_ID,
-    TUTORIAL_START_CARD_ID,
     roundOfferTitle,
     type RoundCard,
     type SpecialityId,
@@ -253,7 +247,7 @@ import {
     type LevelingSettings,
     type GameSettings,
 } from './settings';
-import { detAtan2, detCos, detSin } from './detMath';
+import { detCos, detSin } from './detMath';
 import { hordeWavePlan } from './hordeRoster';
 import {
     BattleSim,
@@ -341,7 +335,6 @@ import type { ScenarioDef } from './scenario/scenarioDef';
 import { applyScenario, type AppliedScene, type ScenarioHost } from './scenario/applyScenario';
 import type { TestBattleSummary } from '../ui/scenarioEditor';
 import { getUnitInstanceRenderer } from './unitInstances';
-import { storeDraft } from './scenario/editorDraft';
 
 /** menu→match camera fly-in (fresh starts only) */
 /** in battle the fire coverage follows its shooter, worked out again at most this often (ms) */
@@ -476,7 +469,6 @@ const TEXTURE_UPLOAD_BUDGET_MS = 6;
 
 /** seconds for the deployment focus shade outside the board to fade in / out */
 const DEPLOY_SHADE_FADE_S = 0.4;
-
 
 /**
  * A pack set down in deployment (placed, moved, bought): a dust puff around its
@@ -625,14 +617,9 @@ export class Game {
     private hpDrawElapsed = 0;
     private hpDrawDisplayPlayer = 0;
     private hpDrawDisplayEnemy = 0;
-    private hpDrawPrePlayer = 0;
-    private hpDrawPreEnemy = 0;
     private hpDrawAfterMatchOver = false;
     /** Seconds left before HP-draw souls launch (death settle beat). */
     private hpDrawSettleRemaining = 0;
-    /** Sim elapsed when battle ended — keeps death anims on the same clock. */
-    private postBattleDeathElapsed = 0;
-    private postBattleDeathTimeBase = 0;
     /** attack-range ring under the selected battle mech */
     private readonly battleRangeMesh;
     /** where the selected ranged unit can actually hit (see FireCoverage) */
@@ -840,7 +827,7 @@ export class Game {
      *  reconstruct or persist anything explicitly. */
     private lastSeqSeen: number[] = [];
     /** star guest only: aborts an in-flight redial loop if we give up first
-     *  (quitToMenu) — mirrors classic 1v1's onReconnectTimeout callback */
+     *  (quitToMenu) */
     private starRedialAbort: AbortController | null = null;
     /** star host only: seats that explicitly quit (see handleSeatQuit) — the
      *  connection dropping moments later (the quitting client's own
@@ -919,11 +906,11 @@ export class Game {
     private readonly itemInventory: string[][];
     /** per-SEAT tactical order charges (rally routes, etc.) — separate from pack items, never shared */
     private readonly tacticInventory: string[][];
-    /** shared Stronghold forge oven per side (3 slots; burn at next deploy start) */
-    /** who paid to fire each oven — null = unlit, cleared when it resolves */
     /** a lifeline collapse played this battle — hold the round-end beat for it */
     private collapseEndedRound = false;
+    /** who paid to fire each oven — null = unlit, cleared when it resolves */
     private readonly forgeLitBy: Record<Team, SeatId | null> = { player: null, enemy: null };
+    /** shared Stronghold forge oven per side (3 slots; burn at next deploy start) */
     private readonly forgeSlots: Record<Team, (ForgeSlot | null)[]> = {
         player: emptyForgeSlots(),
         enemy: emptyForgeSlots(),
@@ -993,10 +980,6 @@ export class Game {
         null;
     /** connection lost: everything pauses until the peer is back */
     private suspended = false;
-    /** seconds left before an unreturned opponent forfeits (null = no active grace window) */
-    private reconnectGraceRemaining: number | null = null;
-    /** set by main: fired the instant the grace window elapses, to cancel the in-flight redial */
-    onReconnectTimeout: (() => void) | null = null;
     /** the round-card offer drawn during hydration, shown once it finishes */
     private pendingOffer: RoundCard[] | null = null;
     /** the four specialist cards currently offered to the player (for auto-pick) */
@@ -1326,11 +1309,6 @@ export class Game {
             : null;
     }
 
-    /**
-     * mechiliBenchmark({ breakdown: true }): parts of the scenery to switch off one
-     * at a time (each returns how to put itself back). Measuring only — nothing
-     * here is a setting.
-     */
     /** the board ground shader, feature by feature (each row rebuilds it without that one) */
     private benchGroundKnockouts(): BenchmarkKnockout[] {
         const rows: [string, GroundBenchFeature[]][] = [
@@ -1353,6 +1331,11 @@ export class Game {
         ];
     }
 
+    /**
+     * mechiliBenchmark({ breakdown: true }): parts of the scenery to switch off one
+     * at a time (each returns how to put itself back). Measuring only — nothing
+     * here is a setting.
+     */
     private benchKnockouts(): BenchmarkKnockout[] {
         const hide = (objects: Object3D[]) => {
             const was = objects.map((o) => o.visible);
@@ -2900,12 +2883,6 @@ export class Game {
         this.rosterProfilesLoaded = true;
     }
 
-    /** Intro-cover prefetch finished after Game construction — reuse that map. */
-    applyIntroRosterMmrs(mmrs: ReadonlyMap<string, number>): void {
-        for (const [name, mmr] of mmrs) this.rosterMmr.set(name, mmr);
-        this.rosterProfilesLoaded = true;
-    }
-
     /**
      * Drive the menu→match camera fly-in. Accelerates into play framing while
      * main fades the menu backdrop; logo is already hidden before this runs.
@@ -4369,12 +4346,6 @@ export class Game {
     }
 
     /**
-     * SP cheat (Shift+I): end the current round and advance — auto-lock
-     * deployment if needed, headless-resolve battle, skip HP-draw VFX.
-     * Restores both sides to peak (starting) HP so the skip never chips the
-     * bar. Solo only (no net / star / watch).
-     */
-    /**
      * Single-player only: kill the enemy Stronghold outright.
      *
      * Battle phase only — the Stronghold is only an Actor while a sim exists,
@@ -4391,6 +4362,12 @@ export class Game {
         );
     }
 
+    /**
+     * SP cheat (Shift+I): end the current round and advance — auto-lock
+     * deployment if needed, headless-resolve battle, skip HP-draw VFX.
+     * Restores both sides to peak (starting) HP so the skip never chips the
+     * bar. Solo only (no net / star / watch).
+     */
     private cheatSkipRound(): void {
         if (this.star || this.watching || this.matchOver || this.hydrating) return;
         if (this.introActive || this.outroActive) return;
@@ -4464,8 +4441,6 @@ export class Game {
         );
     }
 
-    /** local player input — refused once this deployment is locked in.
-     *  Build actions are buffered until the peer locks in (wire fog). */
     /** this battle's first melee clash has had its moment (see CLASH) */
     private clashDone = false;
 
@@ -4569,6 +4544,8 @@ export class Game {
         }
     }
 
+    /** local player input — refused once this deployment is locked in.
+     *  Build actions are buffered until the peer locks in (wire fog). */
     private dispatchPlayer(action: Action): boolean {
         // watch mode: nothing here is "my" input — every action comes from
         // the replay log (see the per-frame paced dispatch). The real guard,
@@ -4687,18 +4664,6 @@ export class Game {
     /** our canonical seat on the wire for spectator vision (`'a'` host, `'b'` guest) */
     private localSeat(): 'a' | 'b' {
         return this.side === 'a' ? 'a' : 'b';
-    }
-
-    /**
-     * The trusted canonical seat of whoever is on the other end of the star link
-     * — classic 1v1 has exactly one peer, so this is a fixed function of our
-     * own side, not something to trust from message *content*. Mirrors why
-     * `onStarMessage`'s host path uses the connection-derived `fromSeat`
-     * rather than `msg.action.seat` — a message's own claimed seat is never
-     * itself proof of who actually sent it.
-     */
-    private peerSeat(): SeatId {
-        return this.side === 'a' ? 1 : 0;
     }
 
     /** my own seat's canonical side */
@@ -5163,15 +5128,6 @@ export class Game {
     /** Forge spells buyable this round (a tutorial lesson narrows them per round). */
     private forgeSpellsOf(seat: SeatId): readonly string[] | undefined {
         return this.tutorial?.forgeSpellsOf(seat) ?? this.starterCardOfSeat(seat)?.forgeSpells;
-    }
-
-    /** the side's DISPLAYED specialist card — the primary seat's pick. Every
-     *  seat's own card still grants its own army/tactic/effects (per-seat,
-     *  see chooseCard); the persistent top-bar label and reveal screen only
-     *  have room for one face per side, so this shows the primary's, same
-     *  as speciality/HP already work. */
-    private starterCardOf(team: Team): StartCard | null {
-        return this.starterCardOfSeat(primarySeatOf(this.seats, team));
     }
 
     /**
@@ -5842,7 +5798,6 @@ export class Game {
         const msg: NetMessage = { type: 'spectateGrant', spectatorName, seat, grant };
         if (this.star?.role === 'guest') this.star.session.send(msg);
     }
-
 
     /**
      * Wires the star (2v2+) transport, for either role and every network.
@@ -6782,7 +6737,6 @@ export class Game {
         this.suspended = false;
         this.suspendDeadline = null;
         this.hud.hideNotice();
-        this.hud.hideReconnectWait();
         if (!this.disposed && !this.outroActive) {
             this.playMenuOutro(() => this.onReturnToMenu?.());
             return;
@@ -6839,27 +6793,6 @@ export class Game {
         this.hud.flashCinemaHint(text, 3500);
         this.hud.setRematchState('gone');
     }
-
-    /** connection lost: pause behind a live countdown; forfeitWin() fires if
-     *  the peer hasn't reconnected by the time it hits zero */
-    beginReconnectGrace(seconds: number): void {
-        if (this.disposed || this.matchOver) return;
-        // a second onConnectionLost for the same drop (belt-and-suspenders
-        // alongside NetSession's own single-fire guard) shouldn't restart
-        // an already-running countdown
-        if (this.reconnectGraceRemaining !== null) return;
-        this.suspended = true;
-        this.hud.hidePauseMenu();
-        this.placement.deselect();
-        this.armedItem = null;
-        this.reconnectGraceRemaining = seconds;
-        this.hud.showReconnectWait(() => this.voluntaryQuit());
-        this.hud.updateReconnectWait(seconds);
-    }
-
-
-
-
 
     /** everything a rejoining peer needs to rebuild the match (our perspective) */
     exportResume(): {
@@ -7587,7 +7520,6 @@ export class Game {
         return { total: h >>> 0, ...marks };
     }
 
-
     /**
      * The player may act: build phase, not locked in, match running.
      * Gated on THIS SEAT's own lock-in (`seatReady`), not the whole side's
@@ -7788,7 +7720,6 @@ export class Game {
         if (this.star?.role === 'host') this.star.hub.flushAllBuffers();
         this.startBuildPhase();
     }
-
 
     /**
      * The star transport's message handler
@@ -8066,7 +7997,6 @@ export class Game {
             this.finishAfterForfeit(team);
         }
     }
-
 
     /**
      * Drains build actions from other seats. The seat already tells us exactly
@@ -9817,8 +9747,6 @@ export class Game {
         );
     }
 
-    /** HUD buy button: resolve a spawn spot, then run it through the action system.
-     *  Returns whether a buy / place-flow actually started (drives phone-sheet close). */
     /** The Year so far, for the HUD: round winners, length, the local side's role */
     private yearProgress(): YearProgress {
         const climb = roundsVictory(this.settings) ? this.settings.climb : undefined;
@@ -9882,6 +9810,8 @@ export class Game {
         return this.economy.costOf(type) <= left; // extras budget exhausted otherwise
     }
 
+    /** HUD buy button: resolve a spawn spot, then run it through the action system.
+     *  Returns whether a buy / place-flow actually started (drives phone-sheet close). */
     private buyUnit(type: UnitType): boolean {
         if (!this.playerCanAct) return false;
         if (type.extra && !this.humanMayBuyExtra(type)) return false;
@@ -10906,8 +10836,6 @@ export class Game {
         if (this.sim) {
             const preHp = { player: this.playerHp, enemy: this.enemyHp };
             const built = buildHpDrawSources(this.sim);
-            this.postBattleDeathElapsed = this.sim.elapsed;
-            this.postBattleDeathTimeBase = this.time;
             // flames die with the battle; remaining oil (unburned) carries over
             this.oilField.adoptOilFrom(this.sim.hazards);
             this.applyBattleResult(this.sim);
@@ -11123,8 +11051,6 @@ export class Game {
         clearAllHoverTips(); // a tip from the last phase must not carry over
         this.syncPostFx();
         this.hpDrawElapsed = 0;
-        this.hpDrawPrePlayer = pre.player;
-        this.hpDrawPreEnemy = pre.enemy;
         this.hpDrawDisplayPlayer = pre.player;
         this.hpDrawDisplayEnemy = pre.enemy;
         this.phaseRemaining = Math.min(HP_DRAW_MAX_SECONDS, plan.timelineSeconds + 0.85);
@@ -11437,10 +11363,7 @@ export class Game {
      * side forfeit, voluntary quit, connection loss) goes through here so
      * players always see the two-side roster — even when MMR is unchanged.
      */
-    private presentMatchEnd(
-        result: 'victory' | 'defeat' | 'draw',
-        opts?: { forceReport?: boolean },
-    ): void {
+    private presentMatchEnd(result: 'victory' | 'defeat' | 'draw'): void {
         if (this.matchOver) return;
         this.matchOver = true;
         audio.playMatchEnd(result);
@@ -11458,10 +11381,7 @@ export class Game {
         // the specific sequencing bug this was found from.
         this.suspended = false;
         this.suspendDeadline = null;
-        this.reconnectGraceRemaining = null;
-        this.onReconnectTimeout = null;
         this.hud.hideNotice();
-        this.hud.hideReconnectWait();
         // watching mode never touches these in the first place (see
         // constructor/main.ts) — clearing them here would wipe out the
         // player's real, unrelated saved game/resume marker. A tutorial is
@@ -11498,7 +11418,7 @@ export class Game {
         // bucket next to real games and bump this player's AI record.
         if (!this.watching && !isTutorial(this.settings)) {
             this.reportMatchTelemetry(result);
-            this.reportOpenRating(result, opts?.forceReport === true);
+            this.reportOpenRating(result);
         } else if (this.replayVerify) {
             this.reportMatchTelemetry(result);
         }
@@ -11591,22 +11511,11 @@ export class Game {
         return `${names.toUpperCase()} WINS`;
     }
 
-    /** the opponent never reconnected within the grace window — win by forfeit */
-    private forfeitWin(): void {
-        // reportMatchTelemetry (not just the rating) matters here specifically: a
-        // forfeit-won 1v1 match previously uploaded NOTHING but the bare rating
-        // call, so there was no independent replay/action-log record anywhere to
-        // cross-check against for exactly the matches most likely to involve a
-        // quitting/timed-out opponent trying to dodge a loss.
-        this.presentMatchEnd('victory', { forceReport: true });
-    }
-
     /**
      * Soft open-ladder Elo (honor system). Host-only in rated 1v1; AI and
-     * 2v2 count games without changing MMR. `forceReport` bypasses the
-     * host-only gate for a forfeit win.
+     * 2v2 count games without changing MMR.
      */
-    private reportOpenRating(result: 'victory' | 'defeat' | 'draw', forceReport = false): void {
+    private reportOpenRating(result: 'victory' | 'defeat' | 'draw'): void {
         const mode: 'ai' | 'mp' | '2v2' = !this.star
             ? 'ai'
             : this.seats.length > 2
@@ -11614,7 +11523,7 @@ export class Game {
               : 'mp';
         // Rated 1v1: only ONE side reports (the star host) so Elo isn't
         // double-applied. 2v2 and AI bump each client's own counters.
-        if (mode === 'mp' && this.star?.role !== 'host' && !forceReport) return;
+        if (mode === 'mp' && this.star?.role !== 'host') return;
         try {
             reportMatchResult({
                 matchId: matchResultId(
@@ -11834,20 +11743,6 @@ export class Game {
         if (this.introActive) this.tickMatchIntro(dtSeconds);
         if (this.outroActive) this.tickMatchOutro(dtSeconds);
         this.flushDebugLog(dtSeconds);
-        // reconnect grace ticks in real time, independent of phase/suspend —
-        // an unreturned opponent forfeits once it hits zero
-        if (this.reconnectGraceRemaining !== null) {
-            this.reconnectGraceRemaining -= dtSeconds;
-            if (this.reconnectGraceRemaining <= 0) {
-                this.reconnectGraceRemaining = null;
-                const onTimeout = this.onReconnectTimeout;
-                this.onReconnectTimeout = null;
-                onTimeout?.();
-                this.forfeitWin();
-            } else {
-                this.hud.updateReconnectWait(this.reconnectGraceRemaining);
-            }
-        }
         const profile = this.debug.isEnabled;
         const cpu = this.cpuSampler;
         if (profile) cpu.reset();
@@ -12863,22 +12758,6 @@ export class Game {
                       }
                     : null,
         });
-    }
-
-    /**
-     * Top-bar label for a whole side: the classic single name in 1v1, or
-     * every seat's name joined ("You & Ally") once a side has more than one
-     * commander — a cheap fix that surfaces all 4 duo names without
-     * reworking the fight bar's fixed one-slot-per-side markup.
-     */
-    private sideLabel(team: Team): string {
-        const ids = seatIdsOf(this.seats, team);
-        if (ids.length <= 1) {
-            return team === 'player' ? this.playerNames.local : this.playerNames.opponent;
-        }
-        return ids
-            .map((seat) => (seat === this.humanSeat ? this.playerNames.local : this.seats[seat]!.name))
-            .join(' & ');
     }
 
     /** display name for the side (or, in duo modes, the SEAT) that owns a pack */
