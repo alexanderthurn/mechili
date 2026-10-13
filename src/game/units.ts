@@ -842,10 +842,11 @@ export interface UnitType {
      * attack (resolved damage × level × tower attack debuff) per second toward
      * the victim's current HP; at full, allegiance flips for the rest of the
      * battle. Buildings, golden-aura mechs, and ward domes cannot be converted
-     * — the ray deals the same continuous HP damage instead. `recover` is idle
-     * seconds after a successful convert.
+     * — the ray deals the same continuous HP damage instead. Reach is the
+     * unit's normal {@link range}. `recover` is idle seconds after a
+     * successful convert.
      */
-    convertRay?: { range: number; recover?: number };
+    convertRay?: { recover?: number };
     /**
      * Continuous damage beam that ramps exponentially while locked on one
      * target (Melting Point / Arcane Prism Cannon). Reach uses the unit's

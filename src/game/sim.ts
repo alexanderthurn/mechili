@@ -2408,7 +2408,7 @@ export class BattleSim {
     ): boolean {
         if (a.unit.type.projectileSpeed || a.unit.type.convertRay || a.unit.type.rampBeam) return false;
         if (this.wallBlocksMelee(a, target)) return false;
-        const reach = this.weaponRange(a, target, stats.range) + a.radius + target.radius;
+        const reach = this.reachOf(a, target, stats.range);
         const commit = reach + (a.unit.type.meleeLunge ?? 0);
         if (tDist > commit) return false;
 
@@ -2469,14 +2469,7 @@ export class BattleSim {
         const inReach = (t: Actor): boolean =>
             !this.wallBlocksMelee(a, t) &&
             hypot(this.aimAt(t, a.x, a.z).x - a.x, this.aimOut.z - a.z) <=
-            effectiveWeaponReach(
-                this.weaponRange(a, t, stats.range),
-                a.radius,
-                t.radius,
-                this.feetY(a),
-                this.feetY(t),
-                this.elevationCounts(a, t),
-            ) * ATTACK_PENDING_SLACK;
+            this.reachOf(a, t, stats.range) * ATTACK_PENDING_SLACK;
         let target: Actor | null = focus && focus.alive ? focus : null;
         if (!target) {
             // The focus died during the windup (the hammerer draws for a whole
@@ -2655,7 +2648,7 @@ export class BattleSim {
         const tdx = tx - a.x;
         const tdz = tz - a.z;
         const tDist = hypot(tdx, tdz) || 1e-6;
-        const touch = this.weaponRange(a, target, stats.range) + a.radius + target.radius;
+        const touch = this.reachOf(a, target, stats.range);
         const commit = touch + (a.unit.type.meleeLunge ?? 3);
 
         // --- coast: keep sailing past, then pick a det-random turn ---
@@ -5107,7 +5100,7 @@ export class BattleSim {
                     // and a foe close enough to commit still wins over the route.
                     // Otherwise fly the route like every other unit marching it.
                     const touch = target
-                        ? this.weaponRange(a, target, stats.range) + a.radius + target.radius
+                        ? this.reachOf(a, target, stats.range)
                         : 0;
                     const commit = touch + (a.unit.type.meleeLunge ?? 3);
                     const engaged =
@@ -5131,20 +5124,12 @@ export class BattleSim {
                     continue;
                 }
 
-                let firedAtFoe = false;
                 if (target) {
                     const aim = this.aimAt(target, a.x, a.z);
                     const tdx = aim.x - a.x;
                     const tdz = aim.z - a.z;
                     const tDist = hypot(tdx, tdz) || 1e-6;
-                    const reach = effectiveWeaponReach(
-                        this.weaponRange(a, target, stats.range),
-                        a.radius,
-                        target.radius,
-                        this.feetY(a),
-                        this.feetY(target),
-                        this.elevationCounts(a, target),
-                    );
+                    const reach = this.reachOf(a, target, stats.range);
                     const minReach = stats.minRange > 0 ? stats.minRange + a.radius + target.radius : 0;
                     if (
                         this.tryMeleeRetreat(a, target, stats, d, bigs, dt, canAttack)
@@ -5172,7 +5157,6 @@ export class BattleSim {
                         }
                         // ranged / convert-ray on a rally route: fire while marching (over a clear line)
                         if (a.unit.type.projectileSpeed && this.shotLoft(a, target) > 0) {
-                            firedAtFoe = true;
                             if (canAttack) a.cooldown -= dt;
                             if (canAttack && a.cooldown <= 0) {
                                 a.cooldown += stats.attackInterval;
@@ -5217,14 +5201,7 @@ export class BattleSim {
             const tDist = hypot(tdx, tdz) || 1e-6;
             // range is surface-to-surface: collision circles must not keep
             // melee mechs from ever "reaching" wide targets like towers
-            const reach = effectiveWeaponReach(
-                this.weaponRange(a, target, stats.range),
-                a.radius,
-                target.radius,
-                this.feetY(a),
-                this.feetY(target),
-                this.elevationCounts(a, target),
-            );
+            const reach = this.reachOf(a, target, stats.range);
             const minReach = stats.minRange > 0 ? stats.minRange + a.radius + target.radius : 0;
 
             // dead zone: no foe outside min range to shoot or walk toward
@@ -7122,14 +7099,7 @@ export class BattleSim {
             const px = p.x;
             const pz = p.z;
             const d = hypot(px - a.x, pz - a.z);
-            const reach = effectiveWeaponReach(
-                this.weaponRange(a, w, stats.range),
-                a.radius,
-                w.radius,
-                this.feetY(a),
-                this.feetY(w),
-                this.elevationCounts(a, w),
-            );
+            const reach = this.reachOf(a, w, stats.range);
             const why: string[] = [`d ${d.toFixed(1)} reach ${reach.toFixed(1)}`];
             let status = a.cachedEnemy === w ? 'pick' : 'farther';
             if (stats.minRange > 0 && d < stats.minRange + a.radius + w.radius) status = 'deadZone';
@@ -7679,14 +7649,7 @@ export class BattleSim {
             index: -1,
         } as Actor;
         const stats = this.statsOf(a);
-        const reach = effectiveWeaponReach(
-            this.weaponRange(a, probe, stats.range),
-            a.radius,
-            probe.radius,
-            this.feetY(a),
-            this.feetY(probe),
-            this.elevationCounts(a, probe),
-        );
+        const reach = this.reachOf(a, probe, stats.range);
         if (hypot(x - a.x, z - a.z) > reach) return false;
         if (!this.inFieldOfFire(a, probe)) return false;
         for (let level = 1; level <= CLASSIC_LOFT_TIME.length; level++) {
@@ -7894,38 +7857,14 @@ export class BattleSim {
 
             const tuning = this.convertTuning(caster);
             const team = actorTeam(caster);
-            const targets = effectiveTargets(
-                caster.unit.type,
-                actorSeat(caster),
-                (_s, _t, techId) => this.actorHasTech(caster, techId),
-                this.config.types,
-            );
+            const native = this.nativeTargets(caster);
+            const stats = this.statsOf(caster);
 
-            const stillOk = (target: Actor): boolean =>
-                target.alive &&
-                actorTeam(target) !== team &&
-                (target.unit.type.wall ? true : !target.unit.type.extra) &&
-                this.targetFor(target, caster) &&
-                !this.unaimable(target) &&
-                (target.unit.type.structure ||
-                    (this.airborne(target) ? targets.air : targets.ground)) &&
-                (target.unit.type.structure || target.allegiance === null);
-
-            // validate sticky channels; drop invalid / out of range
+            // validate sticky channels: still a foe, in reach, nothing (hill, building, wall) between
             {
                 const kept: Actor[] = [];
                 for (const target of caster.convertTargets) {
-                    if (!stillOk(target)) {
-                        target.convertProgress = 0;
-                        continue;
-                    }
-                    const reach =
-                        this.weaponRange(caster, target, ray.range) + caster.radius + target.radius;
-                    const p = this.aimAt(target, caster.x, caster.z, true);
-                    const dx = p.x - caster.x;
-                    const dz = p.z - caster.z;
-                    // out of reach, or a hill / building now stands between them
-                    if (dx * dx + dz * dz > reach * reach || !this.rayLineOpen(caster, target)) {
+                    if (!this.beamHolds(caster, target, native, stats)) {
                         target.convertProgress = 0;
                         continue;
                     }
@@ -7936,8 +7875,7 @@ export class BattleSim {
 
             // fill up to maxTargets with closest unused foes
             while (caster.convertTargets.length < tuning.maxTargets) {
-                const exclude = new Set(caster.convertTargets);
-                const next = this.closestConvertTarget(caster, ray.range, targets, exclude);
+                const next = this.closestBeamTarget(caster, native, stats, caster.convertTargets);
                 if (!next) break;
                 next.convertProgress = 0;
                 caster.convertTargets.push(next);
@@ -7946,7 +7884,6 @@ export class BattleSim {
             caster.convertTarget = caster.convertTargets[0] ?? null;
             if (caster.convertTargets.length === 0) continue;
 
-            const stats = this.statsOf(caster);
             const from = this.convertRayOrigin(caster);
             let tipSet = false;
             let tipBlocked = false;
@@ -8035,49 +7972,17 @@ export class BattleSim {
             if (!beam || !caster.alive || caster.unit.type.structure) continue;
             if (this.isSpawning(caster) || caster.unit.marchIn) continue;
 
-            const targets = effectiveTargets(
-                caster.unit.type,
-                actorSeat(caster),
-                (_s, _t, techId) => this.actorHasTech(caster, techId),
-                this.config.types,
-            );
+            const native = this.nativeTargets(caster);
             const team = actorTeam(caster);
             const tuning = this.convertTuning(caster);
             const fireHalf = Math.max(1e-3, ((beam.fireYawHalfDeg ?? 20) * Math.PI) / 180);
             const stats = this.statsOf(caster);
 
-            const stillOk = (target: Actor): boolean =>
-                target.alive &&
-                actorTeam(target) !== team &&
-                (target.unit.type.wall ? true : !target.unit.type.extra) &&
-                this.targetFor(target, caster) &&
-                !this.unaimable(target) &&
-                (target.unit.type.structure ||
-                    (this.airborne(target) ? targets.air : targets.ground));
-
-            // a wall: measured and aimed at its nearest stretch, as every shooter does
-            const inReach = (target: Actor): boolean => {
-                const reach =
-                    this.weaponRange(caster, target, stats.range) + caster.radius + target.radius;
-                const p = this.aimAt(target, caster.x, caster.z, true);
-                const dx = p.x - caster.x;
-                const dz = p.z - caster.z;
-                return dx * dx + dz * dz <= reach * reach;
-            };
-
-            const aimYawOf = (target: Actor): number => {
-                const p = this.aimAt(target, caster.x, caster.z, true);
-                return detAtan2(-(p.x - caster.x), -(p.z - caster.z));
-            };
-
-            const inFireYaw = (target: Actor): boolean =>
-                Math.abs(deltaAngle(caster.facing, aimYawOf(target))) <= fireHalf;
-
             // Turn first so this step's fire cone matches the barrel.
             const faceFocus =
-                caster.rampBeamTargets.find((t) => stillOk(t) && inReach(t)) ??
-                this.closestConvertTarget(caster, stats.range, targets);
-            if (faceFocus) faceToward(caster, aimYawOf(faceFocus), dt);
+                caster.rampBeamTargets.find((t) => this.foeFor(caster, t, native) && this.inReachOf(caster, t, stats.range)) ??
+                this.closestBeamTarget(caster, native, stats);
+            if (faceFocus) faceToward(caster, this.beamYaw(caster, faceFocus), dt);
 
             // Keep sticky channels that are still valid + in the fire cone.
             const kept: Actor[] = [];
@@ -8085,8 +7990,7 @@ export class BattleSim {
             for (let i = 0; i < caster.rampBeamTargets.length; i++) {
                 const target = caster.rampBeamTargets[i]!;
                 const lockT = caster.rampBeamLockTs[i] ?? 0;
-                // a hill or building between them breaks the lock
-                if (!stillOk(target) || !inReach(target) || !inFireYaw(target) || !this.rayLineOpen(caster, target)) continue;
+                if (!this.beamHolds(caster, target, native, stats, fireHalf)) continue;
                 kept.push(target);
                 keptLock.push(lockT);
             }
@@ -8095,14 +7999,7 @@ export class BattleSim {
 
             // Fill up to Mass Binding maxTargets with in-cone foes.
             while (caster.rampBeamTargets.length < tuning.maxTargets) {
-                const exclude = new Set(caster.rampBeamTargets);
-                const next = this.closestConvertTarget(
-                    caster,
-                    stats.range,
-                    targets,
-                    exclude,
-                    fireHalf,
-                );
+                const next = this.closestBeamTarget(caster, native, stats, caster.rampBeamTargets, fireHalf);
                 if (!next) break;
                 caster.rampBeamTargets.push(next);
                 caster.rampBeamLockTs.push(0);
@@ -8175,7 +8072,7 @@ export class BattleSim {
                     for (const a of this.actors) {
                         if (!a.alive || actorTeam(a) === team) continue;
                         if (a.unit.type.extra) continue;
-                        if (this.airborne(a) ? !targets.air : !targets.ground) continue;
+                        if (this.airborne(a) ? !native.air : !native.ground) continue;
                         if (hypot(a.x - aim.x, a.z - aim.z) > splash + a.radius) continue;
                         const frac = a === target ? 1 : splashFrac * this.coverMult(a, 'splash');
                         const dealt = intensity * dt * frac * this.damageTakenMult(a);
@@ -8228,60 +8125,6 @@ export class BattleSim {
      */
     private convertRayOrigin(caster: Actor): { x: number; y: number; z: number } {
         return this.beamRayOrigin(caster);
-    }
-
-    private closestConvertTarget(
-        from: Actor,
-        range: number,
-        targets: { ground: boolean; air: boolean },
-        exclude?: ReadonlySet<Actor> | readonly Actor[],
-        /** When set, only return targets inside this yaw half-angle of facing. */
-        fireYawHalf?: number,
-    ): Actor | null {
-        const excluded =
-            exclude == null
-                ? null
-                : exclude instanceof Set
-                  ? exclude
-                  : new Set(exclude);
-        const team = actorTeam(from);
-        let best: Actor | null = null;
-        let bestD = Infinity;
-        for (const a of this.actors) {
-            if (excluded?.has(a)) continue;
-            if (!a.alive || actorTeam(a) === team) continue;
-            // board extras (wards) are hit via beam blocking, not as ray targets —
-            // but a wall the caster's seat marked is a target as any (the wizard's ray burns it, as a building)
-            if (a.unit.type.wall) {
-                if (!this.targetFor(a, from)) continue;
-            } else if (a.unit.type.extra) continue;
-            if (this.unaimable(a)) continue; // nobody aims a beam at him either
-            if (a.unit.hostUnitId !== null) continue; // a posted unit can't be turned — he'd stand on the other side's wall
-            if (a.unit.type.structure) {
-                // buildings: always ground ray victims (damage, not convert)
-            } else if (this.airborne(a) ? !targets.air : !targets.ground) {
-                continue;
-            } else if (a.allegiance !== null) {
-                // already converted this battle — leave alone
-                continue;
-            }
-            const maxR = this.weaponRange(from, a, range) + from.radius + a.radius;
-            const p = this.aimAt(a, from.x, from.z, true);
-            const dx = p.x - from.x;
-            const dz = p.z - from.z;
-            const d = dx * dx + dz * dz;
-            if (d > maxR * maxR) continue;
-            if (fireYawHalf != null) {
-                const aimYaw = detAtan2(-dx, -dz);
-                if (Math.abs(deltaAngle(from.facing, aimYaw)) > fireYawHalf) continue;
-            }
-            const closer = d < bestD || (d === bestD && best !== null && a.index < best.index);
-            if (!closer) continue;
-            if (!this.rayLineOpen(from, a)) continue; // the beam can't bend over a hill
-            bestD = d;
-            best = a;
-        }
-        return best;
     }
 
     private convertActor(caster: Actor, target: Actor): void {
@@ -8342,21 +8185,6 @@ export class BattleSim {
     }
 
     /**
-     * Prefer a sticky attack target: while the cached enemy is still alive and
-     * in weapon range, keep shooting it (do not hop to a closer foe). Only
-     * re-pick closest when the cache is invalid or the target leaves range.
-     * Full searches are still staggered via {@link TARGET_REFRESH_STEPS}.
-     * With `anyLayer` the matrix is ignored — used to pick something to walk
-     * to and wait at when no attackable enemy is left.
-     *
-     * Min-range (dead zone): prefer any foe outside the ring (shoot or walk
-     * toward). Only return a too-close foe when nothing else is left — the
-     * caller then flees. Sticky chase never locks onto a dead-zone target.
-     *
-     * Uses an expanding-ring spatial search over {@link targetHash} (rebuilt
-     * at step start) so cost stays near O(k) instead of O(n) per mech.
-     */
-    /**
      * A pack with a field of fire only sees foes inside it. Everyone else has
      * `fovYaw` null and sees the whole board, so this is free for them.
      */
@@ -8410,165 +8238,108 @@ export class BattleSim {
 
     /** True unless this is a ground swat that misses (deterministic ~28%). */
     private groundSwatConnects(from: Actor, target: Actor): boolean {
-        const native = effectiveTargets(
-            from.unit.type,
-            actorSeat(from),
-            (_s, _t, techId) => this.actorHasTech(from, techId),
-            this.config.types,
-        );
+        const native = this.nativeTargets(from);
         if (!this.isOpportunisticGroundSwat(from, target, native)) return true;
         const seed = from.index * 100003 + target.index * 9176 + this.stepIndex * 131;
         return detHash01(seed) < GROUND_SWAT_CATCH;
     }
 
-    private closestEnemy(from: Actor, anyLayer = false): Actor | null {
-        const native = effectiveTargets(
+    // ── Target picking ───────────────────────────────────────────────────────
+    // One set of rules for every attacker — shooters, melee, the bat's dives,
+    // the wizard's and the prism's beams:
+    // - foeFor: whom an attacker may go for at all
+    // - gap2 / reachOf / inReachOf: how far a foe is (a wall: to its nearest
+    //   face) and how far the attacker reaches it
+    // - scanFoes: the foes around an attacker, nearest rings first, and the walls
+    // closestEnemy (where a unit walks, what it shoots or strikes) and
+    // closestBeamTarget (a beam's locks) are built on them.
+
+    /** the layers `from` attacks: its type's matrix with its seat's techs */
+    private nativeTargets(from: Actor): { ground: boolean; air: boolean } {
+        return effectiveTargets(
             from.unit.type,
             actorSeat(from),
             (_s, _t, techId) => this.actorHasTech(from, techId),
             this.config.types,
         );
-        const wantAir = anyLayer || native.air;
-        const wantGround = anyLayer || native.ground;
-        if (!wantAir && !wantGround) return null;
+    }
 
-        const cacheOk = (cached: Actor): boolean =>
-            cached.alive &&
-            actorTeam(cached) !== actorTeam(from) &&
-            (cached.unit.type.wall || !cached.unit.type.extra) &&
-            this.targetFor(cached, from) &&
-            !this.unaimable(cached) &&
-            this.inFieldOfFire(from, cached) &&
-            this.allowsEnemyLayer(from, cached, wantAir, wantGround, native);
+    /**
+     * Whether `from` may go for `t` at all: a living foe on the board (not
+     * still marching in), one its seat goes for ({@link targetFor}: a wall
+     * only when marked), aimable, on a layer it attacks
+     * ({@link allowsEnemyLayer}) and inside its field of fire. Other board
+     * extras (wards) never — shots and beams hit those by running into them.
+     * A converting ray also leaves who it can't turn: a unit posted on a wall
+     * (he'd stand on the other side's) and one already turned this battle.
+     */
+    private foeFor(
+        from: Actor,
+        t: Actor,
+        native: { ground: boolean; air: boolean },
+        wantAir = native.air,
+        wantGround = native.ground,
+    ): boolean {
+        if (!t.alive || t.unit.marchIn || actorTeam(t) === actorTeam(from)) return false;
+        const tt = t.unit.type;
+        if (tt.extra && !tt.wall) return false;
+        if (this.unaimable(t) || !this.targetFor(t, from)) return false;
+        if (from.unit.type.convertRay && !tt.structure && (t.unit.hostUnitId !== null || t.allegiance !== null)) return false;
+        if (!this.allowsEnemyLayer(from, t, wantAir, wantGround, native)) return false;
+        return this.inFieldOfFire(from, t);
+    }
 
-        const stats = this.statsOf(from);
-        const minRange = stats.minRange;
-        const inDeadZone = (cached: Actor): boolean => {
-            if (minRange <= 0) return false;
-            const minReach = minRange + from.radius + cached.radius;
-            const p = this.aimAt(cached, from.x, from.z);
-            const dx = p.x - from.x;
-            const dz = p.z - from.z;
-            return dx * dx + dz * dz < minReach * minReach;
-        };
-        const inWeaponRange = (cached: Actor): boolean => {
-            // Swat targets use contact reach only — never full weapon kite-in.
-            if (this.airborne(cached) && !native.air) {
-                return this.isOpportunisticGroundSwat(from, cached, native);
-            }
-            const reach = effectiveWeaponReach(
-                this.weaponRange(from, cached, stats.range),
-                from.radius,
-                cached.radius,
-                this.feetY(from),
-                this.feetY(cached),
-                this.elevationCounts(from, cached),
-            );
-            const p = this.aimAt(cached, from.x, from.z);
-            const dx = p.x - from.x;
-            const dz = p.z - from.z;
-            const d2 = dx * dx + dz * dz;
-            if (d2 > reach * reach) return false;
-            if (inDeadZone(cached)) return false;
-            if (!this.inFieldOfFire(from, cached)) return false;
-            // a wall archer seen from the front: the stone is between us — walk round
-            if (this.wallBlocksMelee(from, cached)) return false;
-            // a hill between us: not a fight we're in — walk, or pick another
-            if (!this.attackLineOpen(from, cached)) return false;
-            return true;
-        };
+    /** squared distance from `from` to `t` — a wall's to its nearest face ({@link aimAt}) */
+    private gap2(from: Actor, t: Actor): number {
+        const p = this.aimAt(t, from.x, from.z);
+        const dx = p.x - from.x;
+        const dz = p.z - from.z;
+        return dx * dx + dz * dz;
+    }
 
-        if (!anyLayer) {
-            const cached = from.cachedEnemy;
-            if (cached && cacheOk(cached) && inWeaponRange(cached)) {
-                // engaged: never retarget mid-fight, even on a refresh step
-                return cached;
-            }
-            const refresh = ((this.stepIndex + from.index) % TARGET_REFRESH_STEPS) === 0;
-            // Chase sticky between refreshes — but never lock onto a dead-zone
-            // foe (that would kite instead of walking to a shootable target).
-            if (!refresh && cached && cacheOk(cached) && !inDeadZone(cached)) {
-                return cached;
-            }
-        }
+    /** how far `from` reaches `t`, centre to centre: its weapon range (talents, vs layer), both radii, the height rule */
+    private reachOf(from: Actor, t: Actor, range: number): number {
+        return effectiveWeaponReach(
+            this.weaponRange(from, t, range),
+            from.radius,
+            t.radius,
+            this.feetY(from),
+            this.feetY(t),
+            this.elevationCounts(from, t),
+        );
+    }
 
+    private inReachOf(from: Actor, t: Actor, range: number): boolean {
+        const reach = this.reachOf(from, t, range);
+        return this.gap2(from, t) <= reach * reach;
+    }
+
+    /**
+     * Visits the foes around `from` with their squared distance: ring by ring
+     * over {@link targetHash} (by centres), stopping once a ring can't hold
+     * anything nearer than `bound()`; then the walls, which aren't in the grid
+     * (a wall reaches 11 from its centre), measured to their nearest face.
+     * Only the other side's — the visitor decides the rest ({@link foeFor}).
+     */
+    private scanFoes(from: Actor, visit: (a: Actor, d2: number) => void, bound: () => number): void {
         const team = actorTeam(from);
-        // `best` = closest foe outside the dead zone (fire at / walk toward).
-        // `bestAny` = closest foe including inside min range — flee fallback
-        // only when `best` is empty. For minRange 0 they're always identical.
-        let best: Actor | null = null;
-        let bestD = Infinity;
-        let bestAny: Actor | null = null;
-        let bestAnyD = Infinity;
-        // foes we'd only fall back on: in range but behind terrain, or one we got stuck on
-        let bestAside: Actor | null = null;
-        let bestAsideD = Infinity;
-        const ranged = !!from.unit.type.projectileSpeed || !!from.unit.type.convertRay || !!from.unit.type.rampBeam;
         const cx = Math.floor(from.x / HASH_CELL);
         const cz = Math.floor(from.z / HASH_CELL);
-
-        // `ax, az`: where it is measured to (a wall: its nearest face, see aimAt)
-        const consider = (a: Actor, ax = a.x, az = a.z): void => {
-            if (!a.alive || actorTeam(a) === team) return;
-            // in the hash so shots can cross him, but never picked to shoot at
-            if (this.unaimable(a)) return;
-            // not one we go for on our own (a wall nobody of ours marked)
-            if (!this.targetFor(a, from)) return;
-            if (!this.allowsEnemyLayer(from, a, wantAir, wantGround, native)) return;
-            if (!this.inFieldOfFire(from, a)) return;
-            const ddx = ax - from.x;
-            const ddz = az - from.z;
-            const d = ddx * ddx + ddz * ddz;
-            if (d < bestAnyD || (d === bestAnyD && bestAny !== null && a.index < bestAny.index)) {
-                bestAnyD = d;
-                bestAny = a;
-            }
-            if (minRange > 0) {
-                const minReach = minRange + from.radius + a.radius;
-                if (d < minReach * minReach) return; // dead zone — not a walk/shoot pick
-            }
-            const closer = d < bestD || (d === bestD && best !== null && a.index < best.index);
-            let aside = from.shunTarget === a && from.shunUntil > this.elapsed;
-            // the line-of-fire check only matters for a foe that would become the pick
-            if (!aside && ranged && closer) {
-                const range = this.weaponRange(from, a, stats.range);
-                const outer = range + from.radius + a.radius + RANGE_ELEV_MAX_BONUS;
-                if (d <= outer * outer) {
-                    const reach = effectiveWeaponReach(
-                        range,
-                        from.radius,
-                        a.radius,
-                        this.feetY(from),
-                        this.feetY(a),
-                        this.elevationCounts(from, a),
-                    );
-                    aside = d <= reach * reach && !this.attackLineOpen(from, a);
-                }
-            }
-            if (aside) {
-                if (d < bestAsideD || (d === bestAsideD && bestAside !== null && a.index < bestAside.index)) {
-                    bestAsideD = d;
-                    bestAside = a;
-                }
-                return;
-            }
-            if (d < bestD || (d === bestD && best !== null && a.index < best.index)) {
-                bestD = d;
-                best = a;
-            }
-        };
-
         const scanCell = (ix: number, iz: number): void => {
             const bucket = this.targetHash.get((ix + 2048) * 4096 + (iz + 2048));
             if (!bucket) return;
-            for (const a of bucket) consider(a);
+            for (const a of bucket) {
+                if (actorTeam(a) === team) continue;
+                const dx = a.x - from.x;
+                const dz = a.z - from.z;
+                visit(a, dx * dx + dz * dz);
+            }
         };
-
         for (let ring = 0; ring <= TARGET_MAX_RING; ring++) {
-            // further chebyshev rings can't beat the current best
-            if (best && ring > 0) {
+            // further chebyshev rings can't beat the best so far
+            if (ring > 0) {
                 const minDist = (ring - 1) * HASH_CELL;
-                if (minDist * minDist >= bestD) break;
+                if (minDist * minDist >= bound()) break;
             }
             if (ring === 0) {
                 scanCell(cx, cz);
@@ -8583,19 +8354,121 @@ export class BattleSim {
                 scanCell(cx + ring, cz + dz);
             }
         }
-        // walls aren't in the grid (it goes by centres, a wall reaches 11 from
-        // its own): the ones we go for, measured to their nearest face
-        if (this.wallBoxes.length > 0) {
-            for (const r of this.wallBoxes) {
-                const w = r.owner;
-                if (actorTeam(w) === team || !this.targetFor(w, from)) continue; // the cheap no first
-                const p = this.aimAt(w, from.x, from.z);
-                consider(w, p.x, p.z);
+        for (const r of this.wallBoxes) {
+            const w = r.owner;
+            if (!w.alive || actorTeam(w) === team) continue;
+            visit(w, this.gap2(from, w));
+        }
+    }
+
+    /**
+     * Prefer a sticky attack target: while the cached enemy is still alive and
+     * in weapon range, keep shooting it (do not hop to a closer foe). Only
+     * re-pick closest when the cache is invalid or the target leaves range.
+     * Full searches are still staggered via {@link TARGET_REFRESH_STEPS}.
+     * With `anyLayer` the matrix is ignored — used to pick something to walk
+     * to and wait at when no attackable enemy is left.
+     *
+     * Min-range (dead zone): prefer any foe outside the ring (shoot or walk
+     * toward). Only return a too-close foe when nothing else is left — the
+     * caller then flees. Sticky chase never locks onto a dead-zone target.
+     *
+     * Uses an expanding-ring spatial search over {@link targetHash} (rebuilt
+     * at step start) so cost stays near O(k) instead of O(n) per mech.
+     */
+    private closestEnemy(from: Actor, anyLayer = false): Actor | null {
+        const native = this.nativeTargets(from);
+        const wantAir = anyLayer || native.air;
+        const wantGround = anyLayer || native.ground;
+        if (!wantAir && !wantGround) return null;
+
+        const stats = this.statsOf(from);
+        const minRange = stats.minRange;
+        const inDeadZone = (cached: Actor): boolean => {
+            if (minRange <= 0) return false;
+            const minReach = minRange + from.radius + cached.radius;
+            return this.gap2(from, cached) < minReach * minReach;
+        };
+        const inWeaponRange = (cached: Actor): boolean => {
+            // Swat targets use contact reach only — never full weapon kite-in.
+            if (this.airborne(cached) && !native.air) {
+                return this.isOpportunisticGroundSwat(from, cached, native);
+            }
+            if (!this.inReachOf(from, cached, stats.range)) return false;
+            if (inDeadZone(cached)) return false;
+            // a wall archer seen from the front: the stone is between us — walk round
+            if (this.wallBlocksMelee(from, cached)) return false;
+            // a hill between us: not a fight we're in — walk, or pick another
+            if (!this.attackLineOpen(from, cached)) return false;
+            return true;
+        };
+
+        if (!anyLayer) {
+            const cached = from.cachedEnemy;
+            const cacheOk = cached !== null && this.foeFor(from, cached, native, wantAir, wantGround);
+            if (cacheOk && inWeaponRange(cached)) {
+                // engaged: never retarget mid-fight, even on a refresh step
+                return cached;
+            }
+            const refresh = ((this.stepIndex + from.index) % TARGET_REFRESH_STEPS) === 0;
+            // Chase sticky between refreshes — but never lock onto a dead-zone
+            // foe (that would kite instead of walking to a shootable target).
+            if (!refresh && cacheOk && !inDeadZone(cached)) {
+                return cached;
             }
         }
+
+        // `best` = closest foe outside the dead zone (fire at / walk toward).
+        // `bestAny` = closest foe including inside min range — flee fallback
+        // only when `best` is empty. For minRange 0 they're always identical.
+        let best: Actor | null = null;
+        let bestD = Infinity;
+        let bestAny: Actor | null = null;
+        let bestAnyD = Infinity;
+        // foes we'd only fall back on: in range but behind terrain, or one we got stuck on
+        let bestAside: Actor | null = null;
+        let bestAsideD = Infinity;
+        const ranged = !!from.unit.type.projectileSpeed || !!from.unit.type.convertRay || !!from.unit.type.rampBeam;
+
+        this.scanFoes(
+            from,
+            (a, d) => {
+                if (!this.foeFor(from, a, native, wantAir, wantGround)) return;
+                if (d < bestAnyD || (d === bestAnyD && bestAny !== null && a.index < bestAny.index)) {
+                    bestAnyD = d;
+                    bestAny = a;
+                }
+                if (minRange > 0) {
+                    const minReach = minRange + from.radius + a.radius;
+                    if (d < minReach * minReach) return; // dead zone — not a walk/shoot pick
+                }
+                const closer = d < bestD || (d === bestD && best !== null && a.index < best.index);
+                let aside = from.shunTarget === a && from.shunUntil > this.elapsed;
+                // the line-of-fire check only matters for a foe that would become the pick
+                if (!aside && ranged && closer) {
+                    const outer = this.weaponRange(from, a, stats.range) + from.radius + a.radius + RANGE_ELEV_MAX_BONUS;
+                    if (d <= outer * outer) {
+                        const reach = this.reachOf(from, a, stats.range);
+                        aside = d <= reach * reach && !this.attackLineOpen(from, a);
+                    }
+                }
+                if (aside) {
+                    if (d < bestAsideD || (d === bestAsideD && bestAside !== null && a.index < bestAside.index)) {
+                        bestAsideD = d;
+                        bestAside = a;
+                    }
+                    return;
+                }
+                if (closer) {
+                    bestD = d;
+                    best = a;
+                }
+            },
+            () => bestD,
+        );
         // Prefer outside-dead-zone (shoot or approach); only then kite the
         // closest too-close foe.
-        const result = best ?? bestAside ?? bestAny;
+        const result: Actor | null = best ?? bestAside ?? bestAny;
         if (!anyLayer) {
             if (from.cachedEnemy !== result) {
                 from.approachOx = 0;
@@ -8606,4 +8479,56 @@ export class BattleSim {
         }
         return result;
     }
+
+    /** the yaw a beam leaves `caster` at toward `t` — a wall: its stone's nearest stretch */
+    private beamYaw(caster: Actor, t: Actor): number {
+        const p = this.aimAt(t, caster.x, caster.z, true);
+        return detAtan2(-(p.x - caster.x), -(p.z - caster.z));
+    }
+
+    /**
+     * Whether a beam's lock on `t` holds this step: still a foe ({@link foeFor}),
+     * in reach, inside the fire cone (`yawHalf`, the prism's) and nothing —
+     * hill, building, wall — between them.
+     */
+    private beamHolds(
+        caster: Actor,
+        t: Actor,
+        native: { ground: boolean; air: boolean },
+        stats: ResolvedStats,
+        yawHalf?: number,
+    ): boolean {
+        if (!this.foeFor(caster, t, native) || !this.inReachOf(caster, t, stats.range)) return false;
+        if (yawHalf != null && Math.abs(deltaAngle(caster.facing, this.beamYaw(caster, t))) > yawHalf) return false;
+        return this.rayLineOpen(caster, t);
+    }
+
+    /**
+     * The nearest foe a beam can lock onto now ({@link beamHolds}), other than
+     * those it already holds (`exclude`) — the wizard's and the prism's extra
+     * channels (Mass Binding) fill from here.
+     */
+    private closestBeamTarget(
+        caster: Actor,
+        native: { ground: boolean; air: boolean },
+        stats: ResolvedStats,
+        exclude: readonly Actor[] = [],
+        yawHalf?: number,
+    ): Actor | null {
+        let best: Actor | null = null;
+        let bestD = Infinity;
+        this.scanFoes(
+            caster,
+            (a, d) => {
+                const closer = d < bestD || (d === bestD && best !== null && a.index < best.index);
+                if (!closer || exclude.includes(a)) return;
+                if (!this.beamHolds(caster, a, native, stats, yawHalf)) return;
+                bestD = d;
+                best = a;
+            },
+            () => bestD,
+        );
+        return best;
+    }
+
 }
