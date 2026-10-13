@@ -172,8 +172,6 @@
   "forgeCancelRefund": "Apasă pentru a anula și a recupera proviziile.",
   "returnToBagTouch": "Trageți pentru a readuce acest {{item}} în geantă (doar pentru această desfășurare).",
   "returnToBag": "Faceți clic sau trageți pentru a readuce acest {{item}} în coșul dvs. (doar pentru această desfășurare).",
-  "reconnectTitle": "Conexiune pierdută — se reconectare…",
-  "opponentReturn": "Adversarul are {{n}}s de returnat",
   "tacticCooldown": "Timp de răcire {{n}}",
   "tacticAim": "Țintește {{n}}",
   "tacticMaxPath": "Calea maximă {{n}}",

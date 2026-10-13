@@ -172,8 +172,6 @@
   "forgeCancelRefund": "Clique pour annuler et récupérer le ravitaillement.",
   "returnToBagTouch": "Faites glisser pour remettre cet {{item}} dans votre sac (ce déploiement uniquement).",
   "returnToBag": "Cliquez ou faites glisser pour remettre cet {{item}} dans votre sac (ce déploiement uniquement).",
-  "reconnectTitle": "Connexion perdue — reconnexion en cours…",
-  "opponentReturn": "L'adversaire a {{n}}s à renvoyer",
   "tacticCooldown": "Temps de recharge {{n}}",
   "tacticAim": "Objectif {{n}}",
   "tacticMaxPath": "Chemin maximal {{n}}",

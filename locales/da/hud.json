@@ -172,8 +172,6 @@
   "forgeCancelRefund": "Klik for at annullere og få forsyningen tilbage.",
   "returnToBagTouch": "Træk af for at returnere denne {{item}} til din taske (kun denne udfoldning).",
   "returnToBag": "Klik eller træk af for at returnere denne {{item}} til din taske (kun denne udrulning).",
-  "reconnectTitle": "Forbindelse mistet — genopretter forbindelse…",
-  "opponentReturn": "Modstanderen har {{n}}s til at returnere",
   "tacticCooldown": "Nedkøling {{n}}",
   "tacticAim": "Sigt {{n}}",
   "tacticMaxPath": "Maksimal sti {{n}}",

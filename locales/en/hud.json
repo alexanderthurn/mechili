@@ -175,8 +175,6 @@
   "forgeCancelRefund": "Click to cancel and get the supply back.",
   "returnToBagTouch": "Drag off to return this {{item}} to your bag (this deploy only).",
   "returnToBag": "Click or drag off to return this {{item}} to your bag (this deploy only).",
-  "reconnectTitle": "Connection lost — reconnecting…",
-  "opponentReturn": "Opponent has {{n}}s to return",
   "tacticCooldown": "Cooldown {{n}}",
   "tacticAim": "Aim {{n}}",
   "tacticMaxPath": "Max path {{n}}",

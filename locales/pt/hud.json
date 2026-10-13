@@ -172,8 +172,6 @@
   "forgeCancelRefund": "Clique para cancelar e recuperar o suprimento.",
   "returnToBagTouch": "Arraste para devolver este {{item}} à sua bolsa (apenas para esta função).",
   "returnToBag": "Clique ou arraste para devolver este {{item}} à sua bolsa (apenas para esta mobilização).",
-  "reconnectTitle": "Conexão perdida — reconectando…",
-  "opponentReturn": "O oponente tem {{n}}s para retornar",
   "tacticCooldown": "Resfriamento {{n}}",
   "tacticAim": "Objetivo {{n}}",
   "tacticMaxPath": "Caminho máximo {{n}}",

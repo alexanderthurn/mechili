@@ -173,8 +173,6 @@
   "forgeCancelRefund": "Klicke, um abzubrechen und die Vorräte zurückzubekommen.",
   "returnToBagTouch": "Ziehe dieses {{item}} in deinen Beutel zurück (nur bei diesem Einsatz).",
   "returnToBag": "Klicke oder ziehe, um dieses {{item}} in deinen Beutel zurückzulegen (nur dieser Einsatz).",
-  "reconnectTitle": "Verbindung unterbrochen – Verbindung wird wiederhergestellt…",
-  "opponentReturn": "Gegner hat {{n}}s Zeit zur Rückkehr",
   "tacticCooldown": "Abklingzeit {{n}}",
   "tacticAim": "Ziel {{n}}",
   "tacticMaxPath": "Maximaler Pfad {{n}}",

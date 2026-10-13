@@ -172,8 +172,6 @@
   "forgeCancelRefund": "Klik om te annuleren en de voorraad terug te krijgen.",
   "returnToBagTouch": "Sleep dit {{item}} weg om het terug in je tas te plaatsen (alleen bij deze inzet).",
   "returnToBag": "Klik of sleep dit {{item}} weg om het terug te plaatsen in je tas (alleen voor deze opstelling).",
-  "reconnectTitle": "Verbinding verbroken — opnieuw verbinding maken…",
-  "opponentReturn": "De tegenstander heeft {{n}}s om terug te geven",
   "tacticCooldown": "Afkoeltijd {{n}}",
   "tacticAim": "Doel {{n}}",
   "tacticMaxPath": "Max pad {{n}}",

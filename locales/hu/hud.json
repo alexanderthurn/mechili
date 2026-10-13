@@ -172,8 +172,6 @@
   "forgeCancelRefund": "Kattints a megszakításhoz és a készlet visszaszerzéséhez.",
   "returnToBagTouch": "Húzd le, hogy visszatehesd ezt a {{item}}-t a táskádba (csak ehhez a bevetéshez).",
   "returnToBag": "Kattints vagy húzd le, hogy visszatedd ezt a {{item}}-t a táskádba (csak ez a kihelyezési mód).",
-  "reconnectTitle": "Kapcsolat megszakadt — újracsatlakozás…",
-  "opponentReturn": "Az ellenfélnek {{n}}-e van a visszavételre",
   "tacticCooldown": "Lehűlési idő {{n}}",
   "tacticAim": "Cél {{n}}",
   "tacticMaxPath": "Maximális elérési út {{n}}",

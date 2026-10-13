@@ -1325,6 +1325,8 @@ export class BattleSim {
     private readonly hash = new Map<number, Actor[]>();
     /** spatial hash of every attackable actor (incl. structures) for targeting / bullets */
     private readonly targetHash = new Map<number, Actor[]>();
+    /** the biggest radius in {@link targetHash} — bounds how far a search must look */
+    private targetHashMaxRadius = 0;
     /** living immovable structures — rebuilt each step for overlap resolution */
     private readonly structures: Actor[] = [];
     /** this step's live walls as board rectangles (see rebuildStructureList) */
@@ -1998,6 +2000,17 @@ export class BattleSim {
             if (v != null) m *= v;
         }
         return m;
+    }
+
+    /** {@link weaponRange} against whichever layer it reaches further */
+    private maxWeaponRange(attacker: Actor, baseRange: number): number {
+        let air = 1;
+        let ground = 1;
+        for (const tech of this.techProfiles(attacker)) {
+            if (tech.vsAir?.range != null) air *= tech.vsAir.range;
+            if (tech.vsGround?.range != null) ground *= tech.vsGround.range;
+        }
+        return baseRange * this.levelScaleMult(attacker, 'range') * Math.max(air, ground);
     }
 
     /** 1 + (level − 1) × sum of per-level talent bonuses. */
@@ -7527,8 +7540,10 @@ export class BattleSim {
      *  marchIn actors are deliberately untargetable until they cross onto the board */
     private rebuildTargetHash(): void {
         this.targetHash.clear();
+        this.targetHashMaxRadius = 0;
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.extra || a.unit.marchIn) continue;
+            if (a.radius > this.targetHashMaxRadius) this.targetHashMaxRadius = a.radius;
             const key = this.hashKey(a.x, a.z);
             const bucket = this.targetHash.get(key);
             if (bucket) bucket.push(a);
@@ -8515,6 +8530,11 @@ export class BattleSim {
         exclude: readonly Actor[] = [],
         yawHalf?: number,
     ): Actor | null {
+        // no foe whose centre lies past this can be in reach ({@link reachOf}
+        // at its most: the better layer's range, the biggest body, the full
+        // high-ground bonus) — an idle beam stops its search there
+        const far = this.maxWeaponRange(caster, stats.range) + caster.radius + this.targetHashMaxRadius + RANGE_ELEV_MAX_BONUS;
+        const far2 = far * far;
         let best: Actor | null = null;
         let bestD = Infinity;
         this.scanFoes(
@@ -8526,7 +8546,7 @@ export class BattleSim {
                 bestD = d;
                 best = a;
             },
-            () => bestD,
+            () => Math.min(bestD, far2),
         );
         return best;
     }

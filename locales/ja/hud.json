@@ -172,8 +172,6 @@
   "forgeCancelRefund": "クリックでキャンセルし補給を取り戻す。",
   "returnToBagTouch": "ドラッグで外してこの {{item}} をバッグへ戻す（この配備のみ）。",
   "returnToBag": "クリックまたはドラッグで外してこの {{item}} をバッグへ戻す（この配備のみ）。",
-  "reconnectTitle": "接続が切れました — 再接続中…",
-  "opponentReturn": "相手の復帰まで {{n}}秒",
   "tacticCooldown": "クールダウン {{n}}",
   "tacticAim": "照準 {{n}}",
   "tacticMaxPath": "最大経路 {{n}}",

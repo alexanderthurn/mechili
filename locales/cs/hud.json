@@ -172,8 +172,6 @@
   "forgeCancelRefund": "Kliknutím zrušíte a získáte zpět zásoby.",
   "returnToBagTouch": "Odtáhněte a vraťte tento {{item}} do tašky (pouze při tomto nasazení).",
   "returnToBag": "Kliknutím nebo přetažením vrátíte tento {{item}} do tašky (pouze v tomto rozmístění).",
-  "reconnectTitle": "Připojení ztraceno — znovu se připojuji…",
-  "opponentReturn": "Soupeř má {{n}} k návratu",
   "tacticCooldown": "Doba ochlazování {{n}}",
   "tacticAim": "Zaměřte se na {{n}}",
   "tacticMaxPath": "Maximální cesta {{n}}",

@@ -172,8 +172,6 @@
   "forgeCancelRefund": "點擊取消並退回補給。",
   "returnToBagTouch": "拖離以將此{{item}}退回揹包（僅本部署）。",
   "returnToBag": "點擊或拖離以將此{{item}}退回揹包（僅本部署）。",
-  "reconnectTitle": "連接已斷開 — 正在重連…",
-  "opponentReturn": "對手還有 {{n}} 秒返回",
   "tacticCooldown": "冷卻 {{n}}",
   "tacticAim": "瞄準 {{n}}",
   "tacticMaxPath": "最大路徑 {{n}}",

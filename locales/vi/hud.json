@@ -172,8 +172,6 @@
   "forgeCancelRefund": "Nhấp để hủy và lấy lại tiếp tế.",
   "returnToBagTouch": "Kéo để đưa {{item}} này trở lại túi của bạn (chỉ áp dụng cho lần triển khai này).",
   "returnToBag": "Nhấp chuột hoặc kéo chuột ra ngoài để đưa {{item}} này trở lại túi đồ của bạn (chỉ áp dụng cho lần triển khai này).",
-  "reconnectTitle": "Mất kết nối — đang kết nối lại…",
-  "opponentReturn": "Đối thủ có {{n}}s để trả lại",
   "tacticCooldown": "Thời gian hồi chiêu {{n}}",
   "tacticAim": "Mục tiêu {{n}}",
   "tacticMaxPath": "Đường dẫn tối đa {{n}}",
