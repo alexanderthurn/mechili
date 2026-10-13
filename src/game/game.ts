@@ -30,7 +30,7 @@ import { CameraRig, type RigState } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { GamepadCursor } from '../engine/gamepadCursor';
 import { disposeScene } from '../engine/disposeScene';
-import { ActionDispatcher, garrisonFovYaw, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, xpThresholdFor, type Action, type LoggedAction, type TacticIdSource } from './actions';
+import { ActionDispatcher, type ActionContext, garrisonFovYaw, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, xpThresholdFor, type Action, type LoggedAction, type TacticIdSource } from './actions';
 import {
     emptyForgeSlots,
     forgeSeatCanInsert,
@@ -1565,7 +1565,7 @@ export class Game {
             session: SpectatorLink;
             /** the watching user's own name — distinct from `playerNames`,
              *  which for spectate mode holds the two PLAYERS' names (for
-             *  sideLabel/roster display, not "who is chatting") */
+             *  the roster display, not "who is chatting") */
             watcherName: string;
             initial: {
                 actions: LoggedAction[];
@@ -2005,126 +2005,7 @@ export class Game {
         // Before the dispatcher: its forgeSpellsOf closure narrows the shelf
         // per lesson round, so the runtime has to exist by the time it runs.
         this.tutorial = isTutorial(settings) ? new TutorialRuntime(this.tutorialHost()) : null;
-        this.dispatcher = new ActionDispatcher({
-            types: this.types,
-            placement: this.placement,
-            economy: this.economy,
-            seats: this.seats,
-            techTree: this.techTree,
-            leveling: settings.leveling,
-            towers: settings.towers,
-            sellSettings: settings.sell,
-            rallyRouteSettings: settings.rallyRoute,
-            movePackSettings: settings.movePack,
-            deploySettings: settings.deploy,
-            boostSettings: settings.boosts,
-            recruitLevel: this.recruitLevel,
-            sellState: this.sellState,
-            rallyRouteBought: this.rallyRouteBought,
-            forgeSpellOwned: this.forgeSpellOwned,
-            forgeSpellsOf: (seat: SeatId) => this.forgeSpellsOf(seat),
-            movePackOwned: this.movePackOwned,
-            deployState: this.deployState,
-            boostState: this.boostState,
-            roundBoosts: this.roundBoosts,
-            creditUsed: this.creditUsed,
-            creditDebt: this.creditDebt,
-            speciality: this.speciality,
-            commander: this.commander,
-            flankSpawnMult: this.flankSpawnMult,
-            items: this.itemInventory,
-            tactics: this.tacticInventory,
-            forgeSlots: this.forgeSlots,
-            forgeLitBy: this.forgeLitBy,
-            forgePoolOf: (team: Team) => this.teamForgePool(team),
-            rallyRoutes: this.rallyRoutes,
-            rallyRouteIds: this.rallyRouteIds,
-            oilField: this.oilField,
-            oilBaseline: this.oilBaseline,
-            oilStamps: this.oilStamps,
-            oilStampIds: this.oilStampIds,
-            spellStamps: this.spellStamps,
-            spellStampIds: this.spellStampIds,
-            roundCardTaken: this.roundCardTaken,
-            deployReady: this.deployReady,
-            seatReady: this.seatReady,
-            starterPicked: this.starterPicked,
-            unlockedUnits: this.unlockedUnits,
-            // the scenario editor's own deployment buys anything, unlimited (see ActionContext)
-            editorSandbox: this.settings.scenario?.mode === 'author',
-            unlockUsedThisRound: this.unlockUsedThisRound,
-            hp: {
-                get: (team) => (team === 'player' ? this.playerHp : this.enemyHp),
-                set: (team, hp) => {
-                    if (team === 'player') this.playerHp = hp;
-                    else this.enemyHp = hp;
-                },
-            },
-            commanderHpFactor: settings.commanderHpFactor,
-            fixedSideHp: this.rules.fixedSideHp,
-            starterArmy: this.rules.commander.mode !== 'fixed' || this.rules.commander.starterArmy,
-            playerUnlocks: this.rules.playerUnlocks,
-            playerUnlockable: this.rules.playerUnlockable,
-            climbMode: isSiege(settings),
-            climbAttacker: isSiege(settings) ? this.yearAttackerTeam() : null,
-            clock: () => ({
-                round: this.round,
-                t: Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining),
-            }),
-            debugLog: (category, data) => this.debugLog.log(category, data),
-            onEndDeployment: (team) => {
-                if (this.phase !== 'build' || this.matchOver) return;
-                // watching: 'player' here just means "the host's endDeployment
-                // was applied to this simulation" — none of the "freeze MY OWN
-                // input, reveal MY OWN board early" side effects below make
-                // sense for a spectator (there's no local input, and an early
-                // reveal tied to one specific side locking in isn't the same
-                // as both sides locking in or battle actually starting).
-                if (team === 'player' && !this.watching) {
-                    // Cancel any pending placement/tactic and drop selection —
-                    // but do NOT disable placement entirely. `enabled = false`
-                    // gates the ENTIRE render-update loop (applyIntelFog,
-                    // level arrows, item badges — see PlacementController
-                    // .update's per-function `if (!enabled) return` checks),
-                    // which would freeze the whole board the instant we lock
-                    // in — same "action received but doesn't show" symptom
-                    // the spectator exemption above already avoids. Leaving
-                    // it enabled lets us keep inspecting any pack (ours or,
-                    // once visible, the enemy's — handleClick's own
-                    // enemyIntelVisible check already allows that) and see
-                    // the enemy's remaining moves render live as they arrive.
-                    // Actually placing/moving/buying is still safely refused
-                    // — dispatchPlayer rejects everything once
-                    // seatReady[humanSeat] is set, regardless of `enabled`
-                    // — and the shop stays disabled in the HUD (see
-                    // waitingForPeer/shopColumn), so nothing can re-arm a
-                    // pending buy after this point.
-                    this.placement.deselect();
-                    this.armedItem = null;
-                    this.cancelTacticPlacement();
-                    this.placement.hiddenPlacements = false;
-                    this.placement.revealAll();
-                    this.enemyIntelSnapshot = null;
-                    this.techIntelSnapshot = null;
-                    this.buildingIntelSnapshot = null;
-                }
-                // Star mode deliberately does NOT check maybeStartStarBattle
-                // here — this callback fires DURING dispatch, before the
-                // action that triggered it has been relayed onward. Every
-                // dispatch path (dispatchPlayer, AI, drainStarRemoteQueue)
-                // calls relayStarBuildMessage right after its own dispatch
-                // completes, and THAT'S where the check correctly lives —
-                // checking here too raced the battle-start broadcast ahead
-                // of the very action that completed the last lock-in.
-                if (!this.star) this.maybeStartBattleAfterDeploy();
-            },
-            // fires on the dispatching client AND on every other client
-            // that later applies the same logged forfeitSide action
-            // (live relay, or a resume/replay catch-up) — same "check HP,
-            // end the match" logic endBattlePhase already runs after a
-            // battle result, just triggered by a different cause
-            onForfeit: (team) => this.finishAfterForfeit(team),
-        });
+        this.dispatcher = new ActionDispatcher(this.actionContext(settings));
         if (this.watching) {
             // every seat's actions come from the replay log — no AI, no
             // human input, on any seat (same no-op used for a star guest,
@@ -2301,6 +2182,280 @@ export class Game {
         // Game instance's lifetime, so this is a one-time hide, not a toggle
         if (this.watching) this.hud.setSpeedButtonVisible(false);
         this.hud.setSpeedSteps(this.speedSteps);
+        this.wireHudCallbacks(!!spectate);
+        this.debug = new DebugOverlay(wrapper, debugEnabled());
+        if (this.debugLog.enabled && this.debugLog.isHost) {
+            this.debugDumpButton = new DebugDumpButton(wrapper, (opts) => this.debugLog.dump(opts));
+        }
+        if (debugEnabled()) this.sendReportButton = new SendReportButton(wrapper, () => this.sendManualReport());
+        this.syncDebugDumpButton();
+        this.debug.onCollapsedChange = () => this.syncDebugDumpButton();
+        pixiApp.stage.addChild(this.hpBars.view);
+        // the pips are HTML: they belong on the screen's rim, where the HUD
+        // would cover a canvas sprite — their own layer sits over it
+        wrapper.appendChild(this.hordeMarkers.edgeView);
+
+        // battle phase: left click selects a single mech, own or enemy
+        const listen = (type: string, handler: EventListener) => {
+            surface.addEventListener(type, handler);
+            this.inputDisposers.push(() => surface.removeEventListener(type, handler));
+        };
+        listen('pointerdown', ((e: PointerEvent) => {
+            if (e.button === 0) this.battleDown = { x: e.clientX, y: e.clientY };
+        }) as EventListener);
+        listen('pointerup', ((e: PointerEvent) => {
+            if (e.button !== 0 || this.phase !== 'battle' || !this.battleDown) return;
+            const moved = Math.hypot(e.clientX - this.battleDown.x, e.clientY - this.battleDown.y);
+            this.battleDown = null;
+            if (moved > 6) return;
+            const next = this.pickActor(e);
+            this.selectedActor = next;
+            if (next) {
+                if (next.unit.type.id === 'stronghold') {
+                    this.playStrongholdSelectBark(next.unit);
+                } else if (next.unit.type.structure) {
+                    audio.playBuildingSelect(next.unit.type.id);
+                } else if (next.unit.team === 'player') {
+                    audio.playUnitSelect(next.unit.type.id);
+                } else {
+                    audio.playUnitSelectRival(next.unit.type.id);
+                }
+            }
+        }) as EventListener);
+
+        // round 0: towers stand, then the loadout cards decide the starting
+        // armies — the first build phase begins once BOTH sides picked
+        this.spawnTowers();
+        this.placement.enabled = false;
+        if (resume) {
+            this.hydrate(resume.actions, resume.battleElapsed, !resume.local);
+            // replay always resets the round's clock to a fresh full timer
+            // time from whoever exported, so a rebuild can't hand either
+            // side extra deployment time
+            if (resume.phaseRemaining !== undefined && this.phase === 'build') {
+                this.phaseRemaining = resume.phaseRemaining;
+            }
+            // hydrate's intermediate startBuildPhase calls reset speed to 1× —
+            // restore the exporter's live multiplier without rebroadcasting
+            this.restoreSpeedMultiplier(resume.speedMultiplier);
+            if (!this.watching) void this.ensureRosterMmrs();
+        } else if (replay) {
+            this.replayLog = replay.actions;
+            // round 0 (starter pick) dispatches immediately, same as
+            // hydrate() does — a natural pace doesn't matter for a one-time
+            // card pick, and this gets straight to round 1's build phase,
+            // where the per-frame paced dispatch (see the main tick) takes
+            // over for everything after
+            while (
+                this.replayCursor < this.replayLog.length &&
+                this.replayLog[this.replayCursor]!.round === 0
+            ) {
+                this.dispatcher.dispatch(this.replayLog[this.replayCursor]!.action);
+                this.replayCursor++;
+            }
+            this.maybeStartMatch();
+            if (replay.jumpToRound !== undefined && replay.jumpToRound > 1) {
+                this.fastForwardReplayThroughRound(replay.jumpToRound);
+            }
+        } else if (spectate) {
+            // same catch-up machinery as a reconnecting player — no
+            // perspective swap, we render the match exactly as recorded
+            this.hydrate(spectate.initial.actions, spectate.initial.battleElapsed, false);
+            if (this.phase === 'build') {
+                this.phaseRemaining = spectate.initial.phaseRemaining;
+            }
+            this.restoreSpeedMultiplier(spectate.initial.speedMultiplier);
+        } else if (matchIntro) {
+            // hold the specialist overlay until the camera fly-in finishes
+            // Tutorial: skip the offer — auto commander is applied after intro.
+            this.deferredStarterOffer =
+                isTutorial(this.settings) || this.rules.commander.mode !== 'pick'
+                    ? null
+                    : this.starterOfferFor('player', this.rngCards.player);
+            if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
+        } else {
+            if (this.tutorial) this.tutorial.applyStarters();
+            else if (this.rules.commander.mode !== 'pick') this.applyRuleCommanders();
+            else this.showStarterPick(this.starterOfferFor('player', this.rngCards.player));
+            if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
+        }
+        if (this.editorMode) this.startScenarioEditing(wrapper, surface);
+        if (this.star?.role === 'host') this.startSpectatorHub();
+        if (this.star) this.wireStar(this.star);
+        if (resume && this.star?.role === 'guest' && !resume.local) {
+            // fires for BOTH a cold reconnect via the main menu (see the
+            // guest session's 'matchCatchUp' handling) and a mid-match
+            // Phase 7 full-rebuild resync (rebuildStarGuestGame, always
+            // constructed with matchIntro=false so this sends immediately,
+            // not deferred — see the branch below) — the host holds this
+            // seat suspended until it hears OUR 'ready' either way.
+            // hydrate() above already ran to completion synchronously, but
+            // see pendingReadyOnIntroFinish's doc comment for why the SEND
+            // itself still needs to wait for the fly-in when there IS one,
+            // not just the data hydrate.
+            const guestSession = this.star.session;
+            const sendReady = () => guestSession.send({ type: 'ready' });
+            if (matchIntro) this.pendingReadyOnIntroFinish = sendReady;
+            else sendReady();
+        }
+        if (spectate) this.wireSpectateSession(spectate.session);
+        // any of the hydrate/replay paths above may already have a non-
+        // empty log (resume/spectate) — seed once construction's own
+        // catch-up is fully done, not before
+        this.seedSeqTracking();
+
+        // Escape toggles the in-game menu (solo: freezes clocks; multiplayer: live)
+        window.addEventListener('keydown', this.onEscapeKey);
+        if (import.meta.env.DEV) window.addEventListener('pagehide', this.onPageHide);
+
+        this.resize(wrapper.clientWidth, wrapper.clientHeight);
+        window.addEventListener('resize', this.onWindowResize);
+        // Compile remaining cold programs (ground + point-light variants, weather,
+        // flame tongues) before the first tick — hides the hitch at match start
+        // rather than mid-battle. Boot already warmed the shared context when possible.
+        // Compile + upload everything (incl. the detailed ground / meadow, whose materials
+        // swap in a few microtasks later) without blocking the GPU, then start the loop —
+        // nothing draws until then, the intro cover stays up and keeps diving smoothly.
+        void this.warmUpForMatchStart().then(() => {
+            if (!this.disposed) this.warmedUp = true;
+        });
+        pixiApp.ticker.add(this.boundTick);
+    }
+
+    /**
+     * What the action system acts on: the board, economy and every seat's
+     * ledgers, and the hooks back into the match (battle start, forfeits,
+     * the HUD). Once, from the constructor.
+     */
+    private actionContext(settings: GameSettings): ActionContext {
+        return {
+            types: this.types,
+            placement: this.placement,
+            economy: this.economy,
+            seats: this.seats,
+            techTree: this.techTree,
+            leveling: settings.leveling,
+            towers: settings.towers,
+            sellSettings: settings.sell,
+            rallyRouteSettings: settings.rallyRoute,
+            movePackSettings: settings.movePack,
+            deploySettings: settings.deploy,
+            boostSettings: settings.boosts,
+            recruitLevel: this.recruitLevel,
+            sellState: this.sellState,
+            rallyRouteBought: this.rallyRouteBought,
+            forgeSpellOwned: this.forgeSpellOwned,
+            forgeSpellsOf: (seat: SeatId) => this.forgeSpellsOf(seat),
+            movePackOwned: this.movePackOwned,
+            deployState: this.deployState,
+            boostState: this.boostState,
+            roundBoosts: this.roundBoosts,
+            creditUsed: this.creditUsed,
+            creditDebt: this.creditDebt,
+            speciality: this.speciality,
+            commander: this.commander,
+            flankSpawnMult: this.flankSpawnMult,
+            items: this.itemInventory,
+            tactics: this.tacticInventory,
+            forgeSlots: this.forgeSlots,
+            forgeLitBy: this.forgeLitBy,
+            forgePoolOf: (team: Team) => this.teamForgePool(team),
+            rallyRoutes: this.rallyRoutes,
+            rallyRouteIds: this.rallyRouteIds,
+            oilField: this.oilField,
+            oilBaseline: this.oilBaseline,
+            oilStamps: this.oilStamps,
+            oilStampIds: this.oilStampIds,
+            spellStamps: this.spellStamps,
+            spellStampIds: this.spellStampIds,
+            roundCardTaken: this.roundCardTaken,
+            deployReady: this.deployReady,
+            seatReady: this.seatReady,
+            starterPicked: this.starterPicked,
+            unlockedUnits: this.unlockedUnits,
+            // the scenario editor's own deployment buys anything, unlimited (see ActionContext)
+            editorSandbox: this.settings.scenario?.mode === 'author',
+            unlockUsedThisRound: this.unlockUsedThisRound,
+            hp: {
+                get: (team) => (team === 'player' ? this.playerHp : this.enemyHp),
+                set: (team, hp) => {
+                    if (team === 'player') this.playerHp = hp;
+                    else this.enemyHp = hp;
+                },
+            },
+            commanderHpFactor: settings.commanderHpFactor,
+            fixedSideHp: this.rules.fixedSideHp,
+            starterArmy: this.rules.commander.mode !== 'fixed' || this.rules.commander.starterArmy,
+            playerUnlocks: this.rules.playerUnlocks,
+            playerUnlockable: this.rules.playerUnlockable,
+            climbMode: isSiege(settings),
+            climbAttacker: isSiege(settings) ? this.yearAttackerTeam() : null,
+            clock: () => ({
+                round: this.round,
+                t: Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining),
+            }),
+            debugLog: (category, data) => this.debugLog.log(category, data),
+            onEndDeployment: (team) => {
+                if (this.phase !== 'build' || this.matchOver) return;
+                // watching: 'player' here just means "the host's endDeployment
+                // was applied to this simulation" — none of the "freeze MY OWN
+                // input, reveal MY OWN board early" side effects below make
+                // sense for a spectator (there's no local input, and an early
+                // reveal tied to one specific side locking in isn't the same
+                // as both sides locking in or battle actually starting).
+                if (team === 'player' && !this.watching) {
+                    // Cancel any pending placement/tactic and drop selection —
+                    // but do NOT disable placement entirely. `enabled = false`
+                    // gates the ENTIRE render-update loop (applyIntelFog,
+                    // level arrows, item badges — see PlacementController
+                    // .update's per-function `if (!enabled) return` checks),
+                    // which would freeze the whole board the instant we lock
+                    // in — same "action received but doesn't show" symptom
+                    // the spectator exemption above already avoids. Leaving
+                    // it enabled lets us keep inspecting any pack (ours or,
+                    // once visible, the enemy's — handleClick's own
+                    // enemyIntelVisible check already allows that) and see
+                    // the enemy's remaining moves render live as they arrive.
+                    // Actually placing/moving/buying is still safely refused
+                    // — dispatchPlayer rejects everything once
+                    // seatReady[humanSeat] is set, regardless of `enabled`
+                    // — and the shop stays disabled in the HUD (see
+                    // waitingForPeer/shopColumn), so nothing can re-arm a
+                    // pending buy after this point.
+                    this.placement.deselect();
+                    this.armedItem = null;
+                    this.cancelTacticPlacement();
+                    this.placement.hiddenPlacements = false;
+                    this.placement.revealAll();
+                    this.enemyIntelSnapshot = null;
+                    this.techIntelSnapshot = null;
+                    this.buildingIntelSnapshot = null;
+                }
+                // Star mode deliberately does NOT check maybeStartStarBattle
+                // here — this callback fires DURING dispatch, before the
+                // action that triggered it has been relayed onward. Every
+                // dispatch path (dispatchPlayer, AI, drainStarRemoteQueue)
+                // calls relayStarBuildMessage right after its own dispatch
+                // completes, and THAT'S where the check correctly lives —
+                // checking here too raced the battle-start broadcast ahead
+                // of the very action that completed the last lock-in.
+                if (!this.star) this.maybeStartBattleAfterDeploy();
+            },
+            // fires on the dispatching client AND on every other client
+            // that later applies the same logged forfeitSide action
+            // (live relay, or a resume/replay catch-up) — same "check HP,
+            // end the match" logic endBattlePhase already runs after a
+            // battle result, just triggered by a different cause
+            onForfeit: (team) => this.finishAfterForfeit(team),
+        };
+    }
+
+    /**
+     * The HUD's buttons and panels, wired to the match: menus, buying,
+     * levelling, tactics, items, the forge, the round's end. Once, from the
+     * constructor (a spectator has no seat to grant vision from).
+     */
+    private wireHudCallbacks(spectating: boolean): void {
         this.hud.onMenuToggle = () => this.togglePauseMenu();
         // touch stand-in for middle-click (rotate)
         this.hud.onTouchRotate = () => this.placement.rotateSelected();
@@ -2322,7 +2477,7 @@ export class Game {
             if (nextScenario !== null) this.onNextScenario?.(nextScenario);
         };
         // a spectator has no seat of its own to grant vision from
-        if (!spectate) this.hud.onGrantSpectatorLive = (name, grant) => this.grantSpectatorLive(name, grant);
+        if (!spectating) this.hud.onGrantSpectatorLive = (name, grant) => this.grantSpectatorLive(name, grant);
         this.hud.setCommanders(this.commanderEntries(), this.humanSeat);
         this.hud.onEndDeployment = () => {
             if (this.phase !== 'build') return;
@@ -2616,143 +2771,6 @@ export class Game {
         this.hud.onTechHover = (techId) => {
             this.hoveredTech = techId;
         };
-        this.debug = new DebugOverlay(wrapper, debugEnabled());
-        if (this.debugLog.enabled && this.debugLog.isHost) {
-            this.debugDumpButton = new DebugDumpButton(wrapper, (opts) => this.debugLog.dump(opts));
-        }
-        if (debugEnabled()) this.sendReportButton = new SendReportButton(wrapper, () => this.sendManualReport());
-        this.syncDebugDumpButton();
-        this.debug.onCollapsedChange = () => this.syncDebugDumpButton();
-        pixiApp.stage.addChild(this.hpBars.view);
-        // the pips are HTML: they belong on the screen's rim, where the HUD
-        // would cover a canvas sprite — their own layer sits over it
-        wrapper.appendChild(this.hordeMarkers.edgeView);
-
-        // battle phase: left click selects a single mech, own or enemy
-        const listen = (type: string, handler: EventListener) => {
-            surface.addEventListener(type, handler);
-            this.inputDisposers.push(() => surface.removeEventListener(type, handler));
-        };
-        listen('pointerdown', ((e: PointerEvent) => {
-            if (e.button === 0) this.battleDown = { x: e.clientX, y: e.clientY };
-        }) as EventListener);
-        listen('pointerup', ((e: PointerEvent) => {
-            if (e.button !== 0 || this.phase !== 'battle' || !this.battleDown) return;
-            const moved = Math.hypot(e.clientX - this.battleDown.x, e.clientY - this.battleDown.y);
-            this.battleDown = null;
-            if (moved > 6) return;
-            const next = this.pickActor(e);
-            this.selectedActor = next;
-            if (next) {
-                if (next.unit.type.id === 'stronghold') {
-                    this.playStrongholdSelectBark(next.unit);
-                } else if (next.unit.type.structure) {
-                    audio.playBuildingSelect(next.unit.type.id);
-                } else if (next.unit.team === 'player') {
-                    audio.playUnitSelect(next.unit.type.id);
-                } else {
-                    audio.playUnitSelectRival(next.unit.type.id);
-                }
-            }
-        }) as EventListener);
-
-        // round 0: towers stand, then the loadout cards decide the starting
-        // armies — the first build phase begins once BOTH sides picked
-        this.spawnTowers();
-        this.placement.enabled = false;
-        if (resume) {
-            this.hydrate(resume.actions, resume.battleElapsed, !resume.local);
-            // replay always resets the round's clock to a fresh full timer
-            // time from whoever exported, so a rebuild can't hand either
-            // side extra deployment time
-            if (resume.phaseRemaining !== undefined && this.phase === 'build') {
-                this.phaseRemaining = resume.phaseRemaining;
-            }
-            // hydrate's intermediate startBuildPhase calls reset speed to 1× —
-            // restore the exporter's live multiplier without rebroadcasting
-            this.restoreSpeedMultiplier(resume.speedMultiplier);
-            if (!this.watching) void this.ensureRosterMmrs();
-        } else if (replay) {
-            this.replayLog = replay.actions;
-            // round 0 (starter pick) dispatches immediately, same as
-            // hydrate() does — a natural pace doesn't matter for a one-time
-            // card pick, and this gets straight to round 1's build phase,
-            // where the per-frame paced dispatch (see the main tick) takes
-            // over for everything after
-            while (
-                this.replayCursor < this.replayLog.length &&
-                this.replayLog[this.replayCursor]!.round === 0
-            ) {
-                this.dispatcher.dispatch(this.replayLog[this.replayCursor]!.action);
-                this.replayCursor++;
-            }
-            this.maybeStartMatch();
-            if (replay.jumpToRound !== undefined && replay.jumpToRound > 1) {
-                this.fastForwardReplayThroughRound(replay.jumpToRound);
-            }
-        } else if (spectate) {
-            // same catch-up machinery as a reconnecting player — no
-            // perspective swap, we render the match exactly as recorded
-            this.hydrate(spectate.initial.actions, spectate.initial.battleElapsed, false);
-            if (this.phase === 'build') {
-                this.phaseRemaining = spectate.initial.phaseRemaining;
-            }
-            this.restoreSpeedMultiplier(spectate.initial.speedMultiplier);
-        } else if (matchIntro) {
-            // hold the specialist overlay until the camera fly-in finishes
-            // Tutorial: skip the offer — auto commander is applied after intro.
-            this.deferredStarterOffer =
-                isTutorial(this.settings) || this.rules.commander.mode !== 'pick'
-                    ? null
-                    : this.starterOfferFor('player', this.rngCards.player);
-            if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
-        } else {
-            if (this.tutorial) this.tutorial.applyStarters();
-            else if (this.rules.commander.mode !== 'pick') this.applyRuleCommanders();
-            else this.showStarterPick(this.starterOfferFor('player', this.rngCards.player));
-            if (!this.rosterProfilesLoaded) void this.ensureRosterMmrs();
-        }
-        if (this.editorMode) this.startScenarioEditing(wrapper, surface);
-        if (this.star?.role === 'host') this.startSpectatorHub();
-        if (this.star) this.wireStar(this.star);
-        if (resume && this.star?.role === 'guest' && !resume.local) {
-            // fires for BOTH a cold reconnect via the main menu (see the
-            // guest session's 'matchCatchUp' handling) and a mid-match
-            // Phase 7 full-rebuild resync (rebuildStarGuestGame, always
-            // constructed with matchIntro=false so this sends immediately,
-            // not deferred — see the branch below) — the host holds this
-            // seat suspended until it hears OUR 'ready' either way.
-            // hydrate() above already ran to completion synchronously, but
-            // see pendingReadyOnIntroFinish's doc comment for why the SEND
-            // itself still needs to wait for the fly-in when there IS one,
-            // not just the data hydrate.
-            const guestSession = this.star.session;
-            const sendReady = () => guestSession.send({ type: 'ready' });
-            if (matchIntro) this.pendingReadyOnIntroFinish = sendReady;
-            else sendReady();
-        }
-        if (spectate) this.wireSpectateSession(spectate.session);
-        // any of the hydrate/replay paths above may already have a non-
-        // empty log (resume/spectate) — seed once construction's own
-        // catch-up is fully done, not before
-        this.seedSeqTracking();
-
-        // Escape toggles the in-game menu (solo: freezes clocks; multiplayer: live)
-        window.addEventListener('keydown', this.onEscapeKey);
-        if (import.meta.env.DEV) window.addEventListener('pagehide', this.onPageHide);
-
-        this.resize(wrapper.clientWidth, wrapper.clientHeight);
-        window.addEventListener('resize', this.onWindowResize);
-        // Compile remaining cold programs (ground + point-light variants, weather,
-        // flame tongues) before the first tick — hides the hitch at match start
-        // rather than mid-battle. Boot already warmed the shared context when possible.
-        // Compile + upload everything (incl. the detailed ground / meadow, whose materials
-        // swap in a few microtasks later) without blocking the GPU, then start the loop —
-        // nothing draws until then, the intro cover stays up and keeps diving smoothly.
-        void this.warmUpForMatchStart().then(() => {
-            if (!this.disposed) this.warmedUp = true;
-        });
-        pixiApp.ticker.add(this.boundTick);
     }
 
     /** compile + upload the detailed ground / meadow once their materials are in */
