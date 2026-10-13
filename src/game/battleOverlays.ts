@@ -1,4 +1,4 @@
-import { MeshBasicMaterial, type Mesh, type Scene } from 'three';
+import type { Mesh, MeshBasicMaterial, Scene } from 'three';
 import { colorForBattleTeam } from './colors';
 import { FireCoverage } from './fireCoverage';
 import { debugEnabled } from './prefs';

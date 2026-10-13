@@ -24,7 +24,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { setAerialHazeBoard, setDeployShade, setHeightFogStrength } from '../engine/heightFog'; // patches three's fog chunks on import
 import { EffectToggles } from './effectToggles';
 import { DISPLAY } from './displayNames';
-import { t, tacticDescription, tacticName, techName } from '../i18n';
+import { t, techName } from '../i18n';
 import { THEME } from '../theme';
 import { CameraRig, type RigState } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
@@ -187,6 +187,7 @@ import { freezeAllCrowWingRates, crowWingDeathSplay, setCrowWingDeathSplay } fro
 import { GROUND_UNIT_Y } from './groundQuality';
 import { reachToward } from './terrainCombat';
 import { BattleOverlays, type BattleOverlaysHost } from './battleOverlays';
+import { HudViews, type EnemyIntelSnapshot, type HudViewsHost } from './hudViews';
 import { SelectionInfoBuilder, type BuildingIntelSeat, type BuildingIntelSnapshot, type SelectionInfoHost } from './selectionInfo';
 import { getUnitVisualHeight, modelGeometryFingerprint, modelGeometrySnapshot, usesWingFlapModel } from './unitModels';
 import { BirdFlocks } from './birdFlocks';
@@ -545,6 +546,8 @@ export class Game {
     private readonly overlays: BattleOverlays;
     /** the unit details pane's contents (see SelectionInfoBuilder) */
     private readonly selectionInfo: SelectionInfoBuilder;
+    /** the HUD's inventory, tactics, enemy intel and round-card views (see HudViews) */
+    private readonly hudViews: HudViews;
     /** tech tile currently hovered/peeked in the detail panel (drives aura ring) */
     private hoveredTech: string | null = null;
 
@@ -833,13 +836,7 @@ export class Game {
     /** per-SEAT: at most one shop unlock per deployment round */
     private readonly unlockUsedThisRound: boolean[];
     /** frozen enemy inventory intel captured at deployment-phase start */
-    private enemyIntelSnapshot: {
-        items: string[];
-        tactics: string[];
-        sellAbilityOwned: boolean;
-        /** the enemy seats' target marks (setTargetMark) — on my walls, never fogged themselves */
-        targetMarks: { unitId: number; seat: SeatId }[];
-    } | null = null;
+    private enemyIntelSnapshot: EnemyIntelSnapshot | null = null;
     /**
      * Owned techs at deployment-phase start (all seats). Fogged packs show
      * this view; live techTree applies once that pack's fog lifts.
@@ -1877,6 +1874,7 @@ export class Game {
         this.applyShadowQuality();
         this.overlays = new BattleOverlays(this.scene, this.overlaysHost());
         this.selectionInfo = new SelectionInfoBuilder(this.selectionInfoHost());
+        this.hudViews = new HudViews(this.hudViewsHost());
 
         // input listens on the Pixi canvas — it's the top-most surface
         const surface = pixiApp.canvas;
@@ -8254,275 +8252,12 @@ export class Game {
         return stats;
     }
 
-    /** the left-side item strip: one square per item instance, hidden outside build.
-     *  Items are per-SEAT — this shows only MY OWN seat's pool, not my ally's.
-     *  Same ids are grouped (catalog order), like the spells strip. */
-    private inventoryView(): {
-        id: string;
-        icon: string;
-        name: string;
-        armed: boolean;
-        index: number;
-    }[] {
-        if (!this.playerCanAct) return [];
-        const bag = this.itemInventory[this.humanSeat]!;
-        return this.sortedItemIndices(bag).map((index) => {
-            const id = bag[index]!;
-            const item = this.types.rune(id);
-            return {
-                id,
-                icon: item?.icon ?? '?',
-                name: item ? `${item.name} — ${item.description}` : id,
-                // duplicates share an id: highlight exactly the clicked slot
-                armed: this.armedItem === id && this.armedItemIndex === index,
-                index,
-            };
-        });
-    }
-
-    /** stable indices into `bag` grouped by rune catalog order (`pack.jsonc` "runes") */
-    private sortedItemIndices(bag: readonly string[]): number[] {
-        const order = [...this.types.runes.keys()];
-        const rank = (id: string) => {
-            const i = order.indexOf(id);
-            return i < 0 ? order.length : i;
-        };
-        return bag
-            .map((_, index) => index)
-            .sort((a, b) => {
-                const d = rank(bag[a]!) - rank(bag[b]!);
-                return d !== 0 ? d : a - b;
-            });
-    }
-
-    /** the left-side tactics strip: placed routes/oil + remaining slots */
-    private tacticsView(): {
-        id: string;
-        icon: string;
-        name: string;
-        armed: boolean;
-        placed?: boolean;
-        routeId?: number;
-        /**
-         * Corner badge: omit when ready to cast; `'cancel'` while placed/used
-         * this deploy; a positive number = rounds until the charge returns.
-         */
-        badge?: 'cancel' | number;
-        hint?: string;
-        index: number;
-    }[] {
-        if (!this.playerCanAct) return [];
-        const out: {
-            id: string;
-            icon: string;
-            name: string;
-            armed: boolean;
-            placed?: boolean;
-            routeId?: number;
-            badge?: 'cancel' | number;
-            hint?: string;
-            index: number;
-        }[] = [];
-        let slot = 0;
-
-        // where each 'placement' tactic keeps its resettable placements —
-        // MY OWN seat's, not an ally's (tactics are per-seat now)
-        const placementsOf: Record<string, () => readonly { id: number }[]> = {
-            [RALLY_ROUTE_ID]: () => this.rallyRoutes.filter((r) => r.seat === this.humanSeat),
-            [OIL_SPILL_ID]: () => this.oilStamps.filter((s) => s.seat === this.humanSeat),
-        };
-        // per-round ability charges layered on top of the inventory (sell only)
-        const abilityChargesOf = (tacticId: string): { max: number; used: number } => {
-            if (tacticId !== SELL_UNIT_ID || !this.sellState.owned[this.humanSeat]) {
-                return { max: 0, used: 0 };
-            }
-            const max = this.settings.sell.maxPerRound;
-            return { max, used: Math.min(this.sellState.used[this.humanSeat]!, max) };
-        };
-
-        for (const tactic of this.types.tactics) {
-            if (this.tutorial?.hidesTacticCharge(tactic.id)) continue;
-            const inventory = this.tacticInventory[this.humanSeat]!.filter(
-                (id) => id === tactic.id,
-            ).length;
-            const ability = abilityChargesOf(tactic.id);
-            // greyed and available entries are counted from separate sources,
-            // so using a charge turns an entry grey instead of removing it
-            let placedEntries: { routeId?: number; hint?: string; badge?: 'cancel' | number }[];
-            let avail: number;
-            if (tactic.kind === 'placement') {
-                // charge stays in the inventory; placements are right-click resettable
-                const placements = usesSpellPlacement(tactic)
-                    ? this.spellStamps.filter(
-                          (s) =>
-                              s.seat === this.humanSeat &&
-                              s.tacticId === tactic.id &&
-                              s.placedRound === this.round,
-                      )
-                    : (placementsOf[tactic.id]?.() ?? []);
-                // spells: past stamps cool the charge. oil: stamps wipe each round,
-                // so past uses come from the action log (same as one-shot).
-                const coolingStamps = usesSpellPlacement(tactic)
-                    ? this.spellStamps.filter(
-                          (s) =>
-                              s.seat === this.humanSeat &&
-                              s.tacticId === tactic.id &&
-                              s.placedRound < this.round &&
-                              s.placedRound >= this.round - tactic.cooldownRounds,
-                      )
-                    : [];
-                const oilUseRounds =
-                    tactic.id === OIL_SPILL_ID
-                        ? this.dispatcher
-                              .tacticUseRounds(
-                                  this.humanSeat,
-                                  OIL_SPILL_ID,
-                                  this.round - tactic.cooldownRounds,
-                              )
-                              .filter((r) => r < this.round)
-                        : [];
-                placedEntries = [
-                    ...placements.map((p) => ({
-                        routeId: p.id,
-                        badge: 'cancel' as const,
-                    })),
-                    ...coolingStamps.map((s) => {
-                        const readyIn = s.placedRound + tactic.cooldownRounds + 1 - this.round;
-                        const name = tacticName(tactic.id, tactic.name);
-                        return {
-                            badge: readyIn,
-                            hint: t('hud:tacticCoolingDown', {
-                                name,
-                                ready: t('hud:tacticReadyAgain', { n: readyIn }),
-                            }),
-                        };
-                    }),
-                    ...oilUseRounds.map((r) => {
-                        const readyIn = r + tactic.cooldownRounds + 1 - this.round;
-                        const name = tacticName(tactic.id, tactic.name);
-                        return {
-                            badge: readyIn,
-                            hint: t('hud:tacticCoolingDown', {
-                                name,
-                                ready: t('hud:tacticReadyAgain', { n: readyIn }),
-                            }),
-                        };
-                    }),
-                ];
-                // oil: this-round spend is on the stamp (cancel) AND the log —
-                // count inventory against log uses so we don't double-subtract
-                const blocked =
-                    tactic.id === OIL_SPILL_ID
-                        ? this.dispatcher.tacticUseRounds(
-                              this.humanSeat,
-                              OIL_SPILL_ID,
-                              this.round - tactic.cooldownRounds,
-                          ).length
-                        : placements.length + coolingStamps.length;
-                avail = inventory + ability.max - ability.used - blocked;
-            } else {
-                // one-shot: the charge stays in the inventory but cools down
-                // after use — both derived from the action log (undo restores)
-                const useRounds = this.dispatcher.tacticUseRounds(
-                    this.humanSeat,
-                    tactic.id,
-                    this.round - tactic.cooldownRounds,
-                );
-                const coolingHint = (usedRound: number, readyIn: number): string => {
-                    const name = tacticName(tactic.id, tactic.name);
-                    const ready = t('hud:tacticReadyAgain', { n: readyIn });
-                    return usedRound === this.round
-                        ? t('hud:tacticUsedThisRound', { name, ready })
-                        : t('hud:tacticCoolingDown', { name, ready });
-                };
-                // A spent one-shot has NO per-entry revert: its effect is already
-                // applied to a pack, and only the global undo can take it back.
-                // So it never shows the cancel badge — that badge is reserved for
-                // entries carrying a routeId, i.e. a placement this strip can
-                // actually clear. See the generic rule in `badge` above.
-                placedEntries = [
-                    ...Array.from({ length: ability.used }, () => ({
-                        badge: 1,
-                        hint: t('hud:tacticUsedThisRound', {
-                            name: tacticName(tactic.id, tactic.name),
-                            ready: t('hud:tacticReadyAgainNext'),
-                        }),
-                    })),
-                    ...useRounds.map((r) => {
-                        const readyIn = r + tactic.cooldownRounds + 1 - this.round;
-                        return { badge: readyIn, hint: coolingHint(r, readyIn) };
-                    }),
-                ];
-                avail = ability.max - ability.used + Math.max(0, inventory - useRounds.length);
-            }
-            for (const p of placedEntries) {
-                const name = tacticName(tactic.id, tactic.name);
-                out.push({
-                    id: tactic.id,
-                    icon: tactic.icon,
-                    name:
-                        tactic.kind === 'placement'
-                            ? t('hud:tacticPlaced', { name })
-                            : t('hud:tacticUsedLabel', { name }),
-                    armed: false,
-                    placed: true,
-                    index: slot,
-                    ...p,
-                });
-                slot++;
-            }
-            for (let i = 0; i < avail; i++) {
-                // duplicates share an id: this is exactly the clicked slot
-                const armed = this.armedTactic === tactic.id && this.armedTacticIndex === slot;
-                if (armed) {
-                    // picked up: the charge is on the cursor, not in the strip.
-                    // `slot` still advances so every other entry keeps its index
-                    // (armedTacticIndex is a slot number), and cancelling puts it
-                    // straight back.
-                    slot++;
-                    continue;
-                }
-                const desc = tacticDescription(tactic.id, tactic.description);
-                out.push({
-                    id: tactic.id,
-                    icon: tactic.icon,
-                    name: `${tacticName(tactic.id, tactic.name)} — ${desc}`,
-                    armed: false,
-                    index: slot,
-                    // one-shots aren't "placed on the map" — override the default hint
-                    hint: tactic.kind === 'oneShot' ? `${desc}\n${t('hud:rightClickCancel')}` : undefined,
-                });
-                slot++;
-            }
-        }
-
-        return out;
-    }
-
-    /** merged item pool across every seat on a side — for READ-ONLY display
-     *  only (intel/HUD). Consumption always targets one seat's own array
-     *  (see actions.ts applyItem) — this never feeds back into gameplay. */
-    private itemsForTeam(team: Team): string[] {
-        return seatIdsOf(this.seats, team).flatMap((seat) => this.itemInventory[seat]!);
-    }
-
-    /** true if ANY seat on the side owns the sell ability — read-only display merge, same idea as {@link itemsForTeam} */
-    private sellAbilityOwnedForTeam(team: Team): boolean {
-        return seatIdsOf(this.seats, team).some((seat) => this.sellState.owned[seat]);
-    }
-
-    /** merged tactic-charge pool across every seat on a side — read-only
-     *  display only, same idea as {@link itemsForTeam} */
-    private tacticsForTeam(team: Team): string[] {
-        return seatIdsOf(this.seats, team).flatMap((seat) => this.tacticInventory[seat]!);
-    }
-
     /** Records the enemy's unequipped items/tactics at deployment-phase start. */
     private captureEnemyIntelSnapshot(): void {
         this.enemyIntelSnapshot = {
-            items: this.itemsForTeam('enemy'),
-            tactics: this.tacticsForTeam('enemy'),
-            sellAbilityOwned: this.sellAbilityOwnedForTeam('enemy'),
+            items: this.hudViews.itemsForTeam('enemy'),
+            tactics: this.hudViews.tacticsForTeam('enemy'),
+            sellAbilityOwned: this.hudViews.sellAbilityOwnedForTeam('enemy'),
             targetMarks: this.targetMarksBy(new Set(seatIdsOf(this.seats, 'enemy'))),
         };
     }
@@ -8533,140 +8268,6 @@ export class Game {
      */
     private revealEnemyDeployIntel(): boolean {
         return this.deployReady.player || this.rules.enemyIntel === 'visible' || isTutorial(this.settings);
-    }
-
-    private enemyInventoryView(): {
-        items: { id: string; icon: string; name: string }[];
-        tactics: { id: string; icon: string; name: string; badge?: number; hint?: string }[];
-        sellAbility: boolean;
-    } {
-        if (this.phase !== 'build') {
-            return { items: [], tactics: [], sellAbility: false };
-        }
-        const live = this.revealEnemyDeployIntel();
-        const items = live ? this.itemsForTeam('enemy') : (this.enemyIntelSnapshot?.items ?? []);
-        const tacticIds = live
-            ? this.tacticsForTeam('enemy')
-            : (this.enemyIntelSnapshot?.tactics ?? []);
-        const sellAbility = live
-            ? this.sellAbilityOwnedForTeam('enemy')
-            : (this.enemyIntelSnapshot?.sellAbilityOwned ?? false);
-        const mapItem = (id: string) => {
-            const item = this.types.rune(id);
-            return {
-                id,
-                icon: item?.icon ?? '?',
-                name: item ? `${item.name} — ${item.description}` : id,
-            };
-        };
-        return {
-            items: this.sortedItemIndices(items).map((i) => mapItem(items[i]!)),
-            tactics: this.enemyTacticsStripView(tacticIds, live),
-            sellAbility,
-        };
-    }
-
-    /**
-     * Enemy right-strip charges: bag ids plus cooling badges (past-round CDs
-     * always; this-round spends only after deploy intel reveals).
-     */
-    private enemyTacticsStripView(
-        tacticIds: readonly string[],
-        revealThisRound: boolean,
-    ): { id: string; icon: string; name: string; badge?: number; hint?: string }[] {
-        const enemySeats = seatIdsOf(this.seats, 'enemy');
-        const out: { id: string; icon: string; name: string; badge?: number; hint?: string }[] = [];
-        for (const tactic of this.types.tactics) {
-            const inventory = tacticIds.filter((id) => id === tactic.id).length;
-            if (inventory < 1) continue;
-            const cooling: { badge: number; hint: string }[] = [];
-            if (usesSpellPlacement(tactic)) {
-                for (const s of this.spellStamps) {
-                    if (!enemySeats.includes(s.seat) || s.tacticId !== tactic.id) continue;
-                    if (s.placedRound > this.round) continue;
-                    if (s.placedRound === this.round && !revealThisRound) continue;
-                    if (s.placedRound < this.round - tactic.cooldownRounds) continue;
-                    const readyIn = s.placedRound + tactic.cooldownRounds + 1 - this.round;
-                    const name = tacticName(tactic.id, tactic.name);
-                    const ready = t('hud:tacticReadyAgain', { n: readyIn });
-                    cooling.push({
-                        badge: readyIn,
-                        hint:
-                            s.placedRound === this.round
-                                ? t('hud:tacticUsedThisRound', { name, ready })
-                                : t('hud:tacticCoolingDown', { name, ready }),
-                    });
-                }
-            } else if (tactic.id === OIL_SPILL_ID) {
-                // oil stamps wipe each round — CD lives on the action log
-                for (const seat of enemySeats) {
-                    for (const r of this.dispatcher
-                        .tacticUseRounds(seat, OIL_SPILL_ID, this.round - tactic.cooldownRounds)
-                        .filter((round) => round < this.round || revealThisRound)) {
-                        const readyIn = r + tactic.cooldownRounds + 1 - this.round;
-                        const name = tacticName(tactic.id, tactic.name);
-                        const ready = t('hud:tacticReadyAgain', { n: readyIn });
-                        cooling.push({
-                            badge: readyIn,
-                            hint:
-                                r === this.round
-                                    ? t('hud:tacticUsedThisRound', { name, ready })
-                                    : t('hud:tacticCoolingDown', { name, ready }),
-                        });
-                    }
-                }
-            } else {
-                for (const seat of enemySeats) {
-                    for (const r of this.dispatcher.tacticUseRounds(
-                        seat,
-                        tactic.id,
-                        this.round - tactic.cooldownRounds,
-                    )) {
-                        if (r >= this.round && !revealThisRound) continue;
-                        const readyIn = r + tactic.cooldownRounds + 1 - this.round;
-                        const name = tacticName(tactic.id, tactic.name);
-                        const ready = t('hud:tacticReadyAgain', { n: readyIn });
-                        cooling.push({
-                            badge: readyIn,
-                            hint:
-                                r === this.round
-                                    ? t('hud:tacticUsedThisRound', { name, ready })
-                                    : t('hud:tacticCoolingDown', { name, ready }),
-                        });
-                    }
-                }
-            }
-            const readyCount = Math.max(0, inventory - cooling.length);
-            for (let i = 0; i < readyCount; i++) {
-                out.push({
-                    id: tactic.id,
-                    icon: tactic.icon,
-                    name: tactic.name,
-                });
-            }
-            for (const c of cooling) {
-                out.push({
-                    id: tactic.id,
-                    icon: tactic.icon,
-                    name: tactic.name,
-                    badge: c.badge,
-                    hint: c.hint,
-                });
-            }
-        }
-        return out;
-    }
-
-    /** enemy forge tray ids visible to the local player (live or intel) */
-    private enemyForgeOvenView(): string[] {
-        if (this.phase !== 'build') return [];
-        if (this.revealEnemyDeployIntel()) {
-            return (this.forgeSlots.enemy ?? [])
-                .filter((s): s is ForgeSlot => !!s)
-                .map((s) => s.itemId);
-        }
-        const snap = this.buildingIntelSnapshot?.forge.enemy ?? [];
-        return snap.filter((id): id is string => !!id);
     }
 
     private resetPlacedRallyRoute(routeId: number): void {
@@ -11979,16 +11580,16 @@ export class Game {
                 resolveForge(this.types, oven, pool).product !== null,
             );
         }
-        this.hud.setInventory(this.inventoryView(), this.tacticsView());
+        this.hud.setInventory(this.hudViews.inventoryView(), this.hudViews.tacticsView());
         this.hud.setItemGhostDropReady(this.placement.itemDropHovering);
-        const enemyInv = this.enemyInventoryView();
+        const enemyInv = this.hudViews.enemyInventoryView();
         this.hud.setEnemyInventory(enemyInv.items, enemyInv.tactics, {
             sellAbility: enemyInv.sellAbility,
         });
-        this.hud.setEnemyForgeOven(this.enemyForgeOvenView());
+        this.hud.setEnemyForgeOven(this.hudViews.enemyForgeOvenView());
         this.hud.setRoundCardPicks(
-            this.roundCardPicksView('player'),
-            this.enemyActionIntelVisible() ? this.roundCardPicksView('enemy') : [],
+            this.hudViews.roundCardPicksView('player'),
+            this.hudViews.enemyActionIntelVisible() ? this.hudViews.roundCardPicksView('enemy') : [],
         );
         // rally sync is folded into syncTacticVisuals during build; in battle
         // keep a route visible while any living mech is still marching on it
@@ -12352,6 +11953,38 @@ export class Game {
         };
     }
 
+    /** what the HUD views read of the match — live, through getters */
+    private hudViewsHost(): HudViewsHost {
+        const game = this;
+        return {
+            get phase() { return game.phase; },
+            get round() { return game.round; },
+            get placement() { return game.placement; },
+            get types() { return game.types; },
+            get settings() { return game.settings; },
+            get seats() { return game.seats; },
+            get humanSeat() { return game.humanSeat; },
+            get tutorial() { return game.tutorial; },
+            get dispatcher() { return game.dispatcher; },
+            get playerCanAct() { return game.playerCanAct; },
+            get deployReady() { return game.deployReady; },
+            get armedItem() { return game.armedItem; },
+            get armedItemIndex() { return game.armedItemIndex; },
+            get armedTactic() { return game.armedTactic; },
+            get armedTacticIndex() { return game.armedTacticIndex; },
+            get itemInventory() { return game.itemInventory; },
+            get tacticInventory() { return game.tacticInventory; },
+            get sellState() { return game.sellState; },
+            get forgeSlots() { return game.forgeSlots; },
+            get rallyRoutes() { return game.rallyRoutes; },
+            get oilStamps() { return game.oilStamps; },
+            get spellStamps() { return game.spellStamps; },
+            get enemyIntelSnapshot() { return game.enemyIntelSnapshot; },
+            get buildingIntelSnapshot() { return game.buildingIntelSnapshot; },
+            revealEnemyDeployIntel: () => this.revealEnemyDeployIntel(),
+        };
+    }
+
     private updateSelectionUi(): void {
         if (this.disposed) return;
         this.overlays.update();
@@ -12481,41 +12114,6 @@ export class Game {
             ? this.intelTechOwned(unit)
             : this.techTree.ownedFor(unit.seat, unit.type.id);
         return levelScaleMult(unit.type, owned, lv, kind, this.types);
-    }
-
-    /**
-     * True when the opponent's purchases are visible: after we lock in, or in
-     * battle — same fog as spells / inventory / Command Tower tiles.
-     */
-    private enemyActionIntelVisible(): boolean {
-        // live board (fog off / battle / after we lock in) — same window as
-        // when enemy packs are selectable with full details
-        return (
-            this.phase === 'battle' ||
-            this.deployReady.player ||
-            !this.placement.intelFogOn
-        );
-    }
-
-    /** round-card history for the commander detail popup */
-    private roundCardPicksView(team: Team): { round: number; title: string; body: string }[] {
-        return this.dispatcher.roundCardPicks(team).map((p) => {
-            if (p.cardId === null) {
-                return {
-                    round: p.round,
-                    title: 'Skipped',
-                    body: `+${SKIP_CARD_REWARD} supply`,
-                };
-            }
-            const card = this.types.roundCard(p.cardId);
-            return {
-                round: p.round,
-                title: card?.title ?? p.cardId,
-                body: card
-                    ? (card.unitsLabel ? `${card.unitsLabel} — ` : '') + card.description
-                    : '',
-            };
-        });
     }
 
     /**
