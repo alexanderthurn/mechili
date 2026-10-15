@@ -1316,11 +1316,13 @@ export class PlacementController {
         return team === 'player' ? this.map.isPlayerCell(cell) : this.map.isEnemyCell(cell);
     }
 
-    /** zone check plus type rules — shield and rocket may not sit on flank strips */
+    /** zone check plus type rules — board extras may not sit on flank strips, walls not on the frontline */
     private deployCellOk(team: BattleTeam, cell: Cell, type: UnitType, seat?: SeatId): boolean {
         if (team === 'horde') return false; // the horde never deploys — it spawns free at battle start
         if (!this.zoneCell(team, cell)) return false;
         if (type.extra && this.map.isFlankDeployCell(cell, team)) return false;
+        // walls stay off the frontline, so the two sides' walls never touch
+        if (type.wall && this.map.isFrontlineCell(cell, team)) return false;
         return this.laneOk(seat, cell);
     }
 

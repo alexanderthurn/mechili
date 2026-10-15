@@ -631,6 +631,18 @@ export class BattleMap {
         return oppHalf;
     }
 
+    /**
+     * Whether `cell` is a team's frontline: the tile straight ahead of it
+     * (toward the other side) is the other side's zone — once the middle strip
+     * is split, the two zones touch along one line.
+     */
+    isFrontlineCell(cell: Cell, team: 'player' | 'enemy'): boolean {
+        const near = team === 'player' ? !this.ownAtFar : this.ownAtFar;
+        const ahead = { col: cell.col, row: cell.row + (near ? 1 : -1) };
+        if (!this.inBounds(ahead)) return false;
+        return team === 'player' ? this.isEnemyCell(ahead) : this.isPlayerCell(ahead);
+    }
+
     /** center row of a team's main zone (near = row 0 side, the +z edge) */
     zoneCenterRow(near: boolean): number {
         const rim = this.size.rimCells;

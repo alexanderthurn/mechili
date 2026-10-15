@@ -989,6 +989,8 @@ const LOS_CLEARANCE = 0.05;
  * and a shot at one would otherwise stop in its neighbour just before it.
  */
 const WALL_AIM_PAD = 1;
+/** how far past its stone a direct hit still lands on a wall stacked with the one struck (wu) — float slack only */
+const WALL_STACK_PAD = 0.1;
 /** no progress toward the target for this long, with terrain in the way → stuck (s) */
 const STUCK_SECONDS = 3;
 /** getting this much closer counts as progress (wu) */
@@ -2310,8 +2312,13 @@ export class BattleSim {
             this.cleaveStrike(a, radius, damage, target);
             return;
         }
-        const dealt = damage * this.damageTakenMult(target) * this.coverMult(target, 'melee', a.x, a.z);
-        this.applyDamage(a.unit, target, dealt, { x: dx, z: dz }, 'direct');
+        if (target.unit.type.wall) {
+            const p = this.aimAt(target, a.x, a.z, true);
+            this.hitWallsAt(a.unit, target, damage, p.x, p.z, { x: dx, z: dz });
+        } else {
+            const dealt = damage * this.damageTakenMult(target) * this.coverMult(target, 'melee', a.x, a.z);
+            this.applyDamage(a.unit, target, dealt, { x: dx, z: dz }, 'direct');
+        }
         this.applyEmp(a.unit, target);
         if (!a.unit.type.freeFlight) this.armMeleeRetreat(a, target);
         // Layer flyers plant on the lawn; free-flight bats already dive via altitude.
@@ -6361,8 +6368,7 @@ export class BattleSim {
                     splash <= 0 &&
                     !p.stone?.landed
                 ) {
-                    const dealt = p.damage * this.damageTakenMult(struck);
-                    this.applyDamage(p.source, struck, dealt, { x: sx, z: sz }, 'direct');
+                    this.hitWallsAt(p.source, struck, p.damage, ix, iz, { x: sx, z: sz });
                 }
                 if (p.stone?.landed) {
                     // its blast went off where it landed — a rolling stone just stops against the wall
@@ -7723,6 +7729,25 @@ export class BattleSim {
         return best;
     }
 
+    /**
+     * A direct hit on `wall` at (x, z) — a shot, a strike, a beam: it lands on
+     * every wall of that side whose stone is there too, so pieces stacked over
+     * each other take it all and a stack is no tougher than one wall (blasts
+     * and spells already reach each on its own). `base` is before each wall's
+     * own damage taken.
+     */
+    private hitWallsAt(source: Unit, wall: Actor, base: number, x: number, z: number, knockDir: { x: number; z: number }): void {
+        const team = actorTeam(wall);
+        const struck = base * this.damageTakenMult(wall);
+        if (struck > 0) this.applyDamage(source, wall, struck, knockDir, 'direct');
+        for (const r of this.wallBoxes) {
+            const w = r.owner;
+            if (w === wall || !w.alive || actorTeam(w) !== team || !insideBox(x, z, r, WALL_STACK_PAD)) continue;
+            const dealt = base * this.damageTakenMult(w);
+            if (dealt > 0) this.applyDamage(source, w, dealt, knockDir, 'direct');
+        }
+    }
+
     /** whether (x, z) is at `wall`'s stone, within {@link WALL_AIM_PAD} */
     private nearWallStone(wall: Actor, x: number, z: number): boolean {
         for (const r of this.wallBoxes) if (r.owner === wall) return insideBox(x, z, r, WALL_AIM_PAD);
@@ -7947,6 +7972,10 @@ export class BattleSim {
 
                 if (this.convertRayDealsDamage(target)) {
                     if (target.convertProgress > 0) target.convertProgress = 0;
+                    if (target.unit.type.wall) {
+                        this.hitWallsAt(caster.unit, target, intensity * dt, aim.x, aim.z, { x: sx, z: sz });
+                        continue;
+                    }
                     const dealt = intensity * dt * this.damageTakenMult(target);
                     if (dealt > 0) {
                         this.applyDamage(caster.unit, target, dealt, { x: sx, z: sz }, 'direct');
@@ -8079,10 +8108,7 @@ export class BattleSim {
                 }
 
                 // a wall (a board extra, so not in the splash below) takes the beam in full
-                if (target.unit.type.wall) {
-                    const dealt = intensity * dt * this.damageTakenMult(target);
-                    if (dealt > 0) this.applyDamage(caster.unit, target, dealt, { x: sx, z: sz }, 'direct');
-                }
+                if (target.unit.type.wall) this.hitWallsAt(caster.unit, target, intensity * dt, aim.x, aim.z, { x: sx, z: sz });
                 if (splash > 0) {
                     for (const a of this.actors) {
                         if (!a.alive || actorTeam(a) === team) continue;
