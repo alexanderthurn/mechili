@@ -106,8 +106,12 @@ export class GateDoors {
                 if (!leaf) continue;
                 const base = (leaf.userData.gateBaseY as number | undefined) ?? leaf.rotation.y;
                 leaf.userData.gateBaseY = base;
-                const sign = (leaf.userData.gateSign as number | undefined) ?? outwardSign(leaf, base, frontX, frontZ);
-                leaf.userData.gateSign = sign;
+                // which way is out: worked out again whenever the gate was turned since
+                if (leaf.userData.gateSignFacing !== u.facing) {
+                    leaf.userData.gateSign = outwardSign(leaf, base, frontX, frontZ);
+                    leaf.userData.gateSignFacing = u.facing;
+                }
+                const sign = leaf.userData.gateSign as number;
                 const y = base + sign * angle;
                 if (leaf.rotation.y !== y) leaf.rotation.y = y;
             }
