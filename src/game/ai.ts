@@ -57,6 +57,8 @@ const RANGED_SHARE = 0.5;
 /** sending supply: keep this much, send only from this much on */
 const SEND_KEEP = 100;
 const SEND_MIN = 100;
+/** buys a round keeps for its packs before posting archers (a posted archer is one of the round's buys) */
+const PACK_BUYS = 2;
 import { laneCols, ownTowers, readThreat, threatLines, towerCol, type BattleRecord, type ThreatMap } from './aiThreat';
 
 /**
@@ -427,6 +429,10 @@ export class AiOpponent implements Opponent {
         const start = economy.balance(this.seat);
         const budget = Math.min(start, roundSupply * Math.max(defence.share, features.buildingUpgrades ? STALL_SHARE : 0));
         const left = () => budget - (start - economy.balance(this.seat));
+        // a posted archer is one of the round's buys: before its packs (Easy, Medium) it keeps
+        // PACK_BUYS of them for the army; after them (Hard) whatever is left is spare
+        const reserve = features.unitChoice === 'counter' ? 0 : PACK_BUYS;
+        const spareBuy = () => this.ctx.deployCap() > reserve;
         // a tower the last battle hurt (Medium, Hard): a level up — more HP, a shorter debuff when it
         // falls — and an archer on its top where it has a pad
         if (features.buildingUpgrades) {
@@ -435,7 +441,7 @@ export class AiOpponent implements Opponent {
                 const level = this.ctx.upgradeCostOf?.(t) ?? null;
                 if (level !== null && left() >= level) dispatch({ kind: 'upgradeTower', team: this.team, seat: this.seat, unitId: t.id });
                 if (t.type.garrison) {
-                    if (left() >= this.ctx.types.postCost(t.type)) dispatch({ kind: 'buyStrongholdArcher', team: this.team, seat: this.seat, unitId: t.id });
+                    if (spareBuy() && left() >= this.ctx.types.postCost(t.type)) dispatch({ kind: 'buyStrongholdArcher', team: this.team, seat: this.seat, unitId: t.id });
                 }
             }
         }
@@ -457,7 +463,7 @@ export class AiOpponent implements Opponent {
             for (const w of walls) {
                 const posts = w.type.wall?.posts;
                 if (!posts) continue;
-                while (left() >= this.ctx.types.postCost(w.type) && dispatch({ kind: 'buyWallPost', team: this.team, seat: this.seat, unitId: w.id }));
+                while (spareBuy() && left() >= this.ctx.types.postCost(w.type) && dispatch({ kind: 'buyWallPost', team: this.team, seat: this.seat, unitId: w.id }));
             }
             for (const w of walls) {
                 if (left() >= (w.type.wall?.upgradeCost ?? Infinity)) dispatch({ kind: 'upgradeTower', team: this.team, seat: this.seat, unitId: w.id });
@@ -467,7 +473,7 @@ export class AiOpponent implements Opponent {
         if (style === 'defender') {
             const keep = placement.allUnits().find((u) => u.team === this.team && !u.destroyed && u.type.baseAnchor === 'stronghold' && !!u.type.garrison);
             for (let guard = 0; keep && guard < 5; guard++) {
-                if (left() < this.ctx.types.postCost(keep.type)) break;
+                if (!spareBuy() || left() < this.ctx.types.postCost(keep.type)) break;
                 if (!dispatch({ kind: 'buyStrongholdArcher', team: this.team, seat: this.seat })) break;
             }
         }
