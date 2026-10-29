@@ -212,15 +212,14 @@ To come, in a session with the user's "good player" rules (e.g. dwarf beaten by 
 1. **Unify the brains, and the selectors** (built together, tested together):
    - Practice on the planner in keep mode;
    - difficulty and personality chips on the AI seats in the lobby roster, with the difficulty switches wired in (unit choice, spells, building upgrades).
-2. *(merged into 1)*
-3. **Threat map and debug readout.**
-4. **Personalities:** Rusher (side, stall, race check), Defender (fortress, overbuild), Wide.
-5. **Priorities:** army first (with extra buy, credit, army boosts, recruit level), defence by threat, upgrades last. `WALL_MADNESS` goes.
-6. **The extras:** card charges, Marching Orders, sending supply to an ally.
-7. **Counter table.**
+2. **Threat map, last-battle record and debug readout.**
+3. **Personalities:** Rusher (side, stall, race check), Defender (fortress, overbuild), Wide.
+4. **Priorities:** army first (with extra buy, credit, army boosts, recruit level), defence by threat, upgrades last. `WALL_MADNESS` goes.
+5. **The extras:** card charges, Marching Orders, sending supply to an ally.
+6. **Counter table.**
 
 ## Open questions
 
 Collected in the discussion; answered ones move into the sections above.
 
-- The counter table (step 7), in its own session.
+- The counter table (step 6), in its own session.
