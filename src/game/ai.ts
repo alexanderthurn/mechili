@@ -486,7 +486,8 @@ export class AiOpponent implements Opponent {
         const plan = orderedWallPlan(placement, this.team, this.seat, wall);
         const { colMin, colMax } = sideFrontline(placement, this.team);
         const mid = (colMin + colMax + 1) / 2;
-        const packs = this.ownPacks();
+        // packs that walk: not the archers posted on its walls and keep
+        const packs = this.ownPacks().filter((u) => u.hostUnitId === null);
         for (const half of [-1, 1]) {
             const front = plan.filter((s) => s.phase === 0 && s.half === half).sort((a, b) => Math.abs(a.col - mid) - Math.abs(b.col - mid))[0];
             const flank = plan.filter((s) => s.phase === 2 && s.half === half);
