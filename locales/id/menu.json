@@ -199,5 +199,18 @@
     "komtur": "Pasukan Komtur"
   },
   "armyPick": "Ganti pasukan",
-  "rolePick": "Ganti peran"
+  "rolePick": "Ganti peran",
+  "aiDifficulty": {
+    "easy": "Mudah",
+    "medium": "Sedang",
+    "hard": "Sulit"
+  },
+  "aiPersonality": {
+    "random": "Acak",
+    "rusher": "Penyerbu",
+    "wide": "Melebar",
+    "defender": "Bertahan"
+  },
+  "aiDifficultyPick": "Ubah tingkat kesulitan",
+  "aiPersonalityPick": "Ubah kepribadian"
 }

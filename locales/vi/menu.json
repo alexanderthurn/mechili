@@ -199,5 +199,18 @@
     "komtur": "Quân Komtur"
   },
   "armyPick": "Đổi quân",
-  "rolePick": "Đổi vai trò"
+  "rolePick": "Đổi vai trò",
+  "aiDifficulty": {
+    "easy": "Dễ",
+    "medium": "Trung bình",
+    "hard": "Khó"
+  },
+  "aiPersonality": {
+    "random": "Ngẫu nhiên",
+    "rusher": "Tấn công",
+    "wide": "Dàn rộng",
+    "defender": "Phòng thủ"
+  },
+  "aiDifficultyPick": "Đổi độ khó",
+  "aiPersonalityPick": "Đổi tính cách"
 }

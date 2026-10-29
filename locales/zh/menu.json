@@ -199,5 +199,18 @@
     "komtur": "孔图尔军队"
   },
   "armyPick": "更换军队",
-  "rolePick": "更换角色"
+  "rolePick": "更换角色",
+  "aiDifficulty": {
+    "easy": "简单",
+    "medium": "普通",
+    "hard": "困难"
+  },
+  "aiPersonality": {
+    "random": "随机",
+    "rusher": "突击型",
+    "wide": "铺开型",
+    "defender": "防守型"
+  },
+  "aiDifficultyPick": "更改难度",
+  "aiPersonalityPick": "更改性格"
 }

@@ -199,5 +199,18 @@
     "komtur": "콤투어 군대"
   },
   "armyPick": "군대 변경",
-  "rolePick": "역할 변경"
+  "rolePick": "역할 변경",
+  "aiDifficulty": {
+    "easy": "쉬움",
+    "medium": "보통",
+    "hard": "어려움"
+  },
+  "aiPersonality": {
+    "random": "무작위",
+    "rusher": "돌격형",
+    "wide": "전개형",
+    "defender": "수비형"
+  },
+  "aiDifficultyPick": "난이도 변경",
+  "aiPersonalityPick": "성향 변경"
 }

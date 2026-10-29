@@ -1,3 +1,4 @@
+import { isAiDifficulty, isAiPersonality, type AiDifficulty, type AiPersonality } from './aiProfile';
 import { normalizeLoadout } from './loadouts';
 import type { Loadout } from './techCatalog';
 import type { Team } from './units';
@@ -41,6 +42,10 @@ export interface SeatDef {
     loadout?: Loadout;
     /** the army this seat plays (see StartCard.army) — unset = 'standard' */
     army?: string;
+    /** an AI seat's strength (AI_PLAN.md) — unset = DEFAULT_AI_DIFFICULTY */
+    aiDifficulty?: AiDifficulty;
+    /** an AI seat's style (AI_PLAN.md) — unset = DEFAULT_AI_PERSONALITY */
+    aiPersonality?: AiPersonality;
 }
 
 /** the implicit 1v1 roster — classic behavior, seat 0 = the local player */
@@ -137,6 +142,9 @@ export interface CanonicalSeatDef {
     yearRole?: 'attacker' | 'defender';
     /** the army this seat plays (see StartCard.army): its commanders are the ones offered. Unset = 'standard' */
     army?: string;
+    /** an AI seat's strength and style, set in the lobby (unset = the defaults, see aiProfile) */
+    aiDifficulty?: AiDifficulty;
+    aiPersonality?: AiPersonality;
     /** this seat's talent picks, carried to every client by starSetup /
      *  starRoster / matchCatchUp exactly like `avatar`. ALWAYS normalized
      *  before it lands here (see `normalizeLoadout`) — it feeds the sim. */
@@ -169,6 +177,8 @@ export function localizeRoster(canonical: readonly CanonicalSeatDef[], mySide: '
         // and the guest's own buyTech gate would honour it.
         loadout: c.loadout ? normalizeLoadout(c.loadout) : undefined,
         ...(typeof c.army === 'string' && c.army !== 'standard' ? { army: c.army } : {}),
+        ...(isAiDifficulty(c.aiDifficulty) ? { aiDifficulty: c.aiDifficulty } : {}),
+        ...(isAiPersonality(c.aiPersonality) ? { aiPersonality: c.aiPersonality } : {}),
     }));
 }
 

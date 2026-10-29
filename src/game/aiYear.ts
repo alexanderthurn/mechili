@@ -1,9 +1,10 @@
 /**
- * The Year's AI: plans a whole round against the army it can see.
+ * The AI's army brain, every mode (AI_PLAN.md): plans a whole round against
+ * the army it can see.
  *
- * Every round the AI's side is rebuilt from nothing with the same wealth as
- * the player (clearArmy), while the player keeps and levels an army. So the
- * whole round is one decision: which units, which talents, which unlock, and
+ * In a Siege the AI's side is rebuilt from nothing every round (clearArmy),
+ * while the player keeps and levels an army. So the whole round is one
+ * decision: which units, which talents, which unlock, and
  * where each pack stands. This module makes it in three parts:
  *
  * 1. **Estimate** — {@link estimateBattle}: a fast battle model over groups of
@@ -20,8 +21,9 @@
  *    back, each pack opposite the enemy group it is best against, spread out
  *    when the enemy splashes, defenders covering their base.
  *
- * The same brain can also play a side that keeps its army (`keep`) — used by
- * the arena's player stand-in, and ready for other modes.
+ * The same brain plays a side that keeps its army (`keep`): Practice, 1v1,
+ * 2v2 and the arena's player stand-in. On Easy and Medium it chooses poorly
+ * (`unitChoice: 'poor'`: random packs, unlocks and talents), placed the same way.
  *
  * Deterministic for the same board and stream: it reads only match state and
  * the stream it is handed.
@@ -447,6 +449,19 @@ function preferredDepth(type: UnitType, stats: { range: number; minRange: number
     return type.hp >= 500 ? 0 : 1;
 }
 
+/** a type's role band from its own stats */
+function depthFor(type: UnitType): number {
+    return preferredDepth(type, {
+        range: type.range,
+        minRange: type.minRange ?? 0,
+        flying: (type.flying ?? 0) > 0,
+        convert: !!type.convertRay || !!type.rampBeam,
+    });
+}
+
+/** the poor unit choice's chance to spend the round's unlock (the classic AI's habit) */
+const POOR_UNLOCK_CHANCE = 0.85;
+
 interface Plan {
     packs: { type: UnitType; depth: number }[];
     techs: { type: UnitType; techId: string; cost: number }[];
@@ -467,6 +482,8 @@ export class YearBrain {
         private readonly role: 'attacker' | 'defender',
         private readonly rng: () => number,
         overrides: Partial<typeof PLANNER> = {},
+        /** 'poor' (Easy, Medium): random packs, unlocks and talents — placed like the scored ones */
+        private readonly unitChoice: 'poor' | 'counter' = 'counter',
     ) {
         this.p = { ...PLANNER, ...overrides };
     }
@@ -725,6 +742,10 @@ export class YearBrain {
     playRound(opts: { keep: boolean; slots: number }): void {
         const { economy, types, dispatch } = this.host;
         if (opts.keep) this.buyLevels();
+        if (this.unitChoice === 'poor') {
+            this.playPoorRound(opts.slots);
+            return;
+        }
         const board = this.boardGroups();
         const base = board.mine;
         const theirs = board.theirs;
@@ -761,6 +782,57 @@ export class YearBrain {
             dispatch({ kind: 'buyTech', team: this.team, seat: this.seat, typeId: tech.type.id, techId: tech.techId });
         }
         this.spendLeftover(opts.slots);
+    }
+
+    /**
+     * The poor unit choice (Easy, Medium): a random unlock now and then,
+     * random affordable packs for every slot the supply covers, random
+     * talents with what is left. Placement is the planner's own.
+     */
+    private playPoorRound(slots: number): void {
+        const { economy, types, dispatch } = this.host;
+        if (!this.host.unlockUsedThisRound[this.seat] && this.rng() < POOR_UNLOCK_CHANCE) {
+            const commander = types.commander(this.host.commander[this.seat] ?? '');
+            const unlocked = this.host.unlockedUnits[this.seat] ?? [];
+            const locked = this.shopOf(this.seat).filter(
+                (id) => !unlocked.includes(id) && unlockCostFor(id, commander, types) <= economy.balance(this.seat),
+            );
+            if (locked.length > 0) {
+                const typeId = locked[Math.floor(this.rng() * locked.length)]!;
+                dispatch({ kind: 'unlockUnit', team: this.team, seat: this.seat, typeId });
+            }
+        }
+        const packs: Plan['packs'] = [];
+        let left = economy.balance(this.seat);
+        for (let i = 0; i < slots; i++) {
+            const affordable = this.buyableTypes().filter((t) => this.buyCost(t) <= left);
+            if (affordable.length === 0) break;
+            const type = affordable[Math.floor(this.rng() * affordable.length)]!;
+            left -= this.buyCost(type);
+            packs.push({ type, depth: depthFor(type) });
+        }
+        this.placePlan({ packs, techs: [], spent: economy.balance(this.seat) - left });
+        // talents: random among what it can pay for, on the types it fields
+        for (let guard = 0; guard < 20; guard++) {
+            const fielded = [
+                ...new Set(
+                    this.host.placement
+                        .allUnits()
+                        .filter((u) => u.seat === this.seat && !u.type.structure && !u.type.extra)
+                        .map((u) => u.type),
+                ),
+            ];
+            const options: { type: UnitType; techId: string }[] = [];
+            for (const type of fielded) {
+                const owned = this.host.techTree.ownedFor(this.seat, type.id);
+                for (const tech of techsForUnit(type, types, this.host.loadoutOf(this.seat))) {
+                    if (!owned.has(tech.id) && economy.techCostOf(tech, owned.size) <= economy.balance(this.seat)) options.push({ type, techId: tech.id });
+                }
+            }
+            if (options.length === 0) break;
+            const pick = options[Math.floor(this.rng() * options.length)]!;
+            if (!dispatch({ kind: 'buyTech', team: this.team, seat: this.seat, typeId: pick.type.id, techId: pick.techId })) break;
+        }
     }
 
     private planScore(base: readonly BattleGroup[], theirs: readonly BattleGroup[], plan: Plan): number {
@@ -802,8 +874,7 @@ export class YearBrain {
                 }
             }
             if (!best) break;
-            const depth = preferredDepth(best, { range: best.range, minRange: best.minRange ?? 0, flying: (best.flying ?? 0) > 0, convert: !!best.convertRay || !!best.rampBeam });
-            if (!this.placeOne(best, depth, this.enemyLanes(), [])) break;
+            if (!this.placeOne(best, depthFor(best), this.enemyLanes(), [])) break;
         }
         // Talents that improve the battle estimate — never dump leftover into
         // zero-effect picks (Blightburst / Loose Rank aren't modeled yet).

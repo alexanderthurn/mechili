@@ -199,5 +199,18 @@
     "komtur": "Στρατός του Κόμτουρ"
   },
   "armyPick": "Αλλαγή στρατού",
-  "rolePick": "Αλλαγή ρόλου"
+  "rolePick": "Αλλαγή ρόλου",
+  "aiDifficulty": {
+    "easy": "Εύκολο",
+    "medium": "Μέτριο",
+    "hard": "Δύσκολο"
+  },
+  "aiPersonality": {
+    "random": "Τυχαίο",
+    "rusher": "Επιθετικός",
+    "wide": "Ευρύς",
+    "defender": "Αμυντικός"
+  },
+  "aiDifficultyPick": "Αλλαγή δυσκολίας",
+  "aiPersonalityPick": "Αλλαγή χαρακτήρα"
 }

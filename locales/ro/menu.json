@@ -199,5 +199,18 @@
     "komtur": "Armata Komturului"
   },
   "armyPick": "Schimbă armata",
-  "rolePick": "Schimbă rolul"
+  "rolePick": "Schimbă rolul",
+  "aiDifficulty": {
+    "easy": "Ușor",
+    "medium": "Mediu",
+    "hard": "Greu"
+  },
+  "aiPersonality": {
+    "random": "Aleatoriu",
+    "rusher": "Asaltator",
+    "wide": "Extins",
+    "defender": "Apărător"
+  },
+  "aiDifficultyPick": "Schimbă dificultatea",
+  "aiPersonalityPick": "Schimbă personalitatea"
 }

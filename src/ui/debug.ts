@@ -32,6 +32,8 @@ export interface DebugPerfStats {
     weatherLines?: string[];
     /** EffectToggles.debugLines() — Shift+1…9 layer on/off */
     effectLines?: string[];
+    /** what each AI seat read before its last build: threat map, posture, last battle */
+    aiLines?: string[];
     /** Camera Y above terrain under the camera (world units). */
     camHeight?: number;
     /** 3D distance camera → look-at target (world units). */
@@ -245,6 +247,7 @@ export class DebugOverlay {
                 : '') +
             (stats.weatherLines?.length ? `\n${stats.weatherLines[0]}` : '') +
             (stats.effectLines?.length ? `\n${stats.effectLines[0]}` : '') +
+            (stats.aiLines?.length ? `\n${stats.aiLines.join('\n')}` : '') +
             cpuBlock +
             `\n(click to copy)`;
         this.lastHud = hud;
@@ -278,6 +281,7 @@ export class DebugOverlay {
             ...(stats.instanceLines ?? []),
             ...(stats.weatherLines?.length ? ['--- weather ---', ...stats.weatherLines] : []),
             ...(stats.effectLines?.length ? ['--- fx toggles (Shift+1…9) ---', ...stats.effectLines] : []),
+            ...(stats.aiLines?.length ? ['--- AI reading ---', ...stats.aiLines] : []),
             '--- cpu frame (avg) ---',
             ...formatCpuLines(this.cpuAvg),
         ];

@@ -1324,6 +1324,8 @@ export class BattleSim {
      * duration stacks, one +debuffSecondsForTowerLevel per building lost.
      */
     private readonly debuffUntil = new Map<SeatId, number>();
+    /** when each command tower / research centre fell (unit id → seconds) — read by the AI's last-battle record, never by the sim */
+    readonly towerFellAt = new Map<number, number>();
     private readonly hash = new Map<number, Actor[]>();
     /** spatial hash of every attackable actor (incl. structures) for targeting / bullets */
     private readonly targetHash = new Map<number, Actor[]>();
@@ -4883,6 +4885,7 @@ export class BattleSim {
                 this.kill(a, null, a.maxHp, undefined, true);
             }
             if (this.isDebuffBuilding(target.unit) && !razed) {
+                this.towerFellAt.set(target.unit.id, this.elapsed);
                 this.extendSeatDebuff(target.unit.seat, target.unit.level);
                 // half tower height — tallest collider × meshScale / 2
                 const towerTop =

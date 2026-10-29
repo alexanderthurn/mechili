@@ -199,5 +199,18 @@
     "komtur": "Армия Комтура"
   },
   "armyPick": "Сменить армию",
-  "rolePick": "Сменить роль"
+  "rolePick": "Сменить роль",
+  "aiDifficulty": {
+    "easy": "Лёгкий",
+    "medium": "Средний",
+    "hard": "Сложный"
+  },
+  "aiPersonality": {
+    "random": "Случайный",
+    "rusher": "Штурмовик",
+    "wide": "Широкий",
+    "defender": "Защитник"
+  },
+  "aiDifficultyPick": "Изменить сложность",
+  "aiPersonalityPick": "Изменить характер"
 }

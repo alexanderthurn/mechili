@@ -40,6 +40,8 @@ import {
     type ForgeSlot,
 } from './forgeRecipes';
 import { AiOpponent, type Opponent } from './ai';
+import { DEFAULT_AI_DIFFICULTY, DEFAULT_AI_PERSONALITY, type AiDifficulty, type AiPersonality } from './aiProfile';
+import { recordBattle, type BattleRecord } from './aiThreat';
 import { TutorialAi } from './tutorialAi';
 import {
     isTutorial,
@@ -627,6 +629,8 @@ export class Game {
     private readonly starterPicked: boolean[];
     /** extra AI brains beyond the classic opponent (duo modes: ally + 2nd foe) */
     private readonly extraAis: { ai: AiOpponent; rng: () => number; team: Team; seat: SeatId }[] = [];
+    /** how the towers did in the last battle — what the AIs read next round (a resumed match rebuilds it: battles replay) */
+    private lastBattle: BattleRecord | null = null;
     /** which sides finished watching this round's battle — the next build
      *  phase starts once both have (fast-forward speed is per-client) */
     /** this side has finished watching the battle and moved on */
@@ -4693,6 +4697,15 @@ export class Game {
      * that quit mid-match). Only reads `this.*` fields, so it's safe to
      * call at any point in the match, not just during the constructor.
      */
+    /** what every AI seat on this machine read at its last build (debug overlay) */
+    private aiDebugLines(): string[] {
+        const ais: { ai: Opponent; seat: SeatId }[] = [
+            { ai: this.opponent, seat: primarySeatOf(this.seats, 'enemy') },
+            ...this.extraAis.map(({ ai, seat }) => ({ ai, seat })),
+        ];
+        return ais.flatMap(({ ai, seat }) => ai.debugLines?.(this.seats[seat]?.name ?? `seat ${seat}`) ?? []);
+    }
+
     private aiCtxFor(
         rng: () => number,
         seat: SeatId,
@@ -4723,6 +4736,9 @@ export class Game {
         yearRole?: 'attacker' | 'defender';
         deployCap: () => number;
         wallsLeft: () => number;
+        lastBattle: () => BattleRecord | null;
+        difficulty: AiDifficulty;
+        personality: AiPersonality;
     } {
         return {
             types: this.types,
@@ -4774,6 +4790,10 @@ export class Game {
                 : {}),
             deployCap: () => (this.deployState.limit[seat] ?? 0) + (this.deployState.extra[seat] ?? 0) - (this.deployState.used[seat] ?? 0),
             wallsLeft: () => this.wallsLeftFor(seat),
+            // set on the seat in the lobby; a seat taken over (or a scenario's bot) plays the defaults
+            lastBattle: () => this.lastBattle,
+            difficulty: this.seats[seat]?.aiDifficulty ?? DEFAULT_AI_DIFFICULTY,
+            personality: this.seats[seat]?.aiPersonality ?? DEFAULT_AI_PERSONALITY,
         };
     }
 
@@ -10294,6 +10314,7 @@ export class Game {
             // flames die with the battle; remaining oil (unburned) carries over
             this.oilField.adoptOilFrom(this.sim.hazards);
             this.applyBattleResult(this.sim);
+            this.lastBattle = recordBattle(this.sim, this.round);
             freezeAllCrowWingRates(this.placement.allUnits(), usesWingFlapModel);
             if (
                 !this.hydrating &&
@@ -11687,6 +11708,7 @@ export class Game {
                 simCpu: simCpu,
                 simSteps: simSteps || undefined,
                 weatherLines: this.weather?.debugLines(),
+                aiLines: this.aiDebugLines(),
                 effectLines: this.effectToggles.debugLines(),
                 camHeight: cam.y - groundUnderCam,
                 camLookDist: Math.hypot(dx, dy, dz),

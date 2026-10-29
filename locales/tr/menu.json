@@ -199,5 +199,18 @@
     "komtur": "Komtur ordusu"
   },
   "armyPick": "Orduyu değiştir",
-  "rolePick": "Rolü değiştir"
+  "rolePick": "Rolü değiştir",
+  "aiDifficulty": {
+    "easy": "Kolay",
+    "medium": "Orta",
+    "hard": "Zor"
+  },
+  "aiPersonality": {
+    "random": "Rastgele",
+    "rusher": "Akıncı",
+    "wide": "Geniş",
+    "defender": "Savunmacı"
+  },
+  "aiDifficultyPick": "Zorluğu değiştir",
+  "aiPersonalityPick": "Kişiliği değiştir"
 }

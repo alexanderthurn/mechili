@@ -199,5 +199,18 @@
     "komtur": "Komturleger"
   },
   "armyPick": "Leger wisselen",
-  "rolePick": "Rol wisselen"
+  "rolePick": "Rol wisselen",
+  "aiDifficulty": {
+    "easy": "Makkelijk",
+    "medium": "Normaal",
+    "hard": "Moeilijk"
+  },
+  "aiPersonality": {
+    "random": "Willekeurig",
+    "rusher": "Stormer",
+    "wide": "Breed",
+    "defender": "Verdediger"
+  },
+  "aiDifficultyPick": "Moeilijkheid wijzigen",
+  "aiPersonalityPick": "Persoonlijkheid wijzigen"
 }

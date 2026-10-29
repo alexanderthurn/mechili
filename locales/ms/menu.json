@@ -199,5 +199,18 @@
     "komtur": "Tentera Komtur"
   },
   "armyPick": "Tukar tentera",
-  "rolePick": "Tukar peranan"
+  "rolePick": "Tukar peranan",
+  "aiDifficulty": {
+    "easy": "Mudah",
+    "medium": "Sederhana",
+    "hard": "Sukar"
+  },
+  "aiPersonality": {
+    "random": "Rawak",
+    "rusher": "Penyerbu",
+    "wide": "Melebar",
+    "defender": "Bertahan"
+  },
+  "aiDifficultyPick": "Tukar tahap kesukaran",
+  "aiPersonalityPick": "Tukar personaliti"
 }

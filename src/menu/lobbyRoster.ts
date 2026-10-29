@@ -42,7 +42,17 @@ export function opponentDisplayName(roster: CanonicalSeatDef[], mySeat: SeatId):
 export function rosterWithBots(roster: readonly CanonicalSeatDef[]): CanonicalSeatDef[] {
     return roster.map((s, i) =>
         i > 0 && s.controller === 'human' && s.name === OPEN_SEAT_NAME
-            ? { side: s.side, controller: 'ai' as const, name: starAiName(i, [...roster]), loadout: randomLoadout(), ...(s.army ? { army: s.army } : {}) }
+            ? { side: s.side, controller: 'ai' as const, name: starAiName(i, [...roster]), loadout: randomLoadout(), ...seatChipsOf(s) }
             : s,
     );
+}
+
+/** what the lobby's chips set on a seat (army, Siege role, AI strength and style) — carried when an open seat becomes a bot */
+export function seatChipsOf(s: CanonicalSeatDef): Pick<CanonicalSeatDef, 'army' | 'yearRole' | 'aiDifficulty' | 'aiPersonality'> {
+    return {
+        ...(s.army ? { army: s.army } : {}),
+        ...(s.yearRole ? { yearRole: s.yearRole } : {}),
+        ...(s.aiDifficulty ? { aiDifficulty: s.aiDifficulty } : {}),
+        ...(s.aiPersonality ? { aiPersonality: s.aiPersonality } : {}),
+    };
 }

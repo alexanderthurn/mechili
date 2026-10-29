@@ -199,5 +199,18 @@
     "komtur": "جيش الكومتور"
   },
   "armyPick": "تغيير الجيش",
-  "rolePick": "تغيير الدور"
+  "rolePick": "تغيير الدور",
+  "aiDifficulty": {
+    "easy": "سهل",
+    "medium": "متوسط",
+    "hard": "صعب"
+  },
+  "aiPersonality": {
+    "random": "عشوائي",
+    "rusher": "مهاجم",
+    "wide": "منتشر",
+    "defender": "مدافع"
+  },
+  "aiDifficultyPick": "تغيير الصعوبة",
+  "aiPersonalityPick": "تغيير الشخصية"
 }

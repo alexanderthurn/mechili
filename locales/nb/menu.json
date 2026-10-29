@@ -199,5 +199,18 @@
     "komtur": "Komturs hær"
   },
   "armyPick": "Bytt hær",
-  "rolePick": "Bytt rolle"
+  "rolePick": "Bytt rolle",
+  "aiDifficulty": {
+    "easy": "Lett",
+    "medium": "Middels",
+    "hard": "Vanskelig"
+  },
+  "aiPersonality": {
+    "random": "Tilfeldig",
+    "rusher": "Stormer",
+    "wide": "Bred",
+    "defender": "Forsvarer"
+  },
+  "aiDifficultyPick": "Endre vanskelighetsgrad",
+  "aiPersonalityPick": "Endre personlighet"
 }

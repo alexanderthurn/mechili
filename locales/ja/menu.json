@@ -199,5 +199,18 @@
     "komtur": "コムトゥール軍"
   },
   "armyPick": "軍を変更",
-  "rolePick": "役割を変更"
+  "rolePick": "役割を変更",
+  "aiDifficulty": {
+    "easy": "やさしい",
+    "medium": "ふつう",
+    "hard": "むずかしい"
+  },
+  "aiPersonality": {
+    "random": "ランダム",
+    "rusher": "突撃型",
+    "wide": "展開型",
+    "defender": "防御型"
+  },
+  "aiDifficultyPick": "難易度を変更",
+  "aiPersonalityPick": "性格を変更"
 }

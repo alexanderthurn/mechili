@@ -4,7 +4,6 @@ import { unlockCostFor } from './cards';
 import type { RoundCard, SpecialityId, StartCard } from './cards';
 import type { PlacementController } from './placement';
 import type { DeploySettings, Economy } from './settings';
-import { CLIMB_AI_PACK_BUDGET_FRACTION } from './settings';
 import {
     RALLY_ROUTE_ID,
     OIL_SPILL_ID,
@@ -14,17 +13,16 @@ import {
     usesSpellPlacement,
 } from './tactics';
 import type { TechTree } from './tech';
-import { techsForUnit, type Loadout } from './techCatalog';
-import { isPlayerBuyable, type Team, type UnitType } from './units';
+import type { Loadout } from './techCatalog';
+import { isPlayerBuyable, type Team, type Unit, type UnitType } from './units';
 import type { TypeRegistry } from './content/typeRegistry';
 import type { SeatId } from './seats';
 import { itemSlotLimit } from './items';
 import { chooseRebuildCommander, YearBrain } from './aiYear';
 import { AI_WALL_ID, isSiegeType, placeWallPlan, wallPlanCells, wallsToTend, readEnemyWalls, siegeWanted, wallsWanted } from './aiWalls';
 import type { LevelingSettings } from './settings';
-
-/** army packs cheaper than this are preferred for the AI's first buy each round */
-const CHEAP_UNIT_COST = 200;
+import { aiFeatures, type AiDifficulty, type AiPersonality } from './aiProfile';
+import { readThreat, threatLines, type BattleRecord, type ThreatMap } from './aiThreat';
 
 /**
  * A side's decision maker. The built-in AI implements it; a future network
@@ -44,6 +42,8 @@ export interface Opponent {
      * buys, reposition, items, spells, upgrades.
      */
     rerunBuildActions?(): void;
+    /** what it read before its last build, for the debug overlay (`name` = the seat's) */
+    debugLines?(name: string): string[];
 }
 
 export class AiOpponent implements Opponent {
@@ -90,24 +90,35 @@ export class AiOpponent implements Opponent {
             /** Campaign: deterministic per-round stream (seed + round) */
             rngForRound?: (round: number) => () => number;
             /** leveling rules (the planner reads level multipliers and prices) */
-            leveling?: LevelingSettings;
+            leveling: LevelingSettings;
             /** The Year: this seat's role — its planner knows who has the base */
             yearRole?: 'attacker' | 'defender';
-            /** which brain plays: The Year's planner (default in The Year) or the classic random builder */
-            brain?: 'year' | 'classic';
             /** new packs this seat may deploy in a build phase */
-            deployCap?: () => number;
+            deployCap: () => number;
             /** planner choice overrides for this seat (arena experiments) */
             plannerOverrides?: Record<string, number>;
             /** Stone Walls this seat may still place this round (0 / unset: none) */
             wallsLeft?: () => number;
+            /** how the towers did in the last battle (null before the first) */
+            lastBattle?: () => BattleRecord | null;
+            /** the seat's strength and style, set in the lobby (aiProfile) */
+            difficulty: AiDifficulty;
+            personality: AiPersonality;
         },
     ) {}
 
+    /** the enemy as read at the start of the last build (AI_PLAN.md, "Threat map") */
+    private threat: ThreatMap | null = null;
+
+    debugLines(name: string): string[] {
+        if (!this.threat) return [];
+        return threatLines(`${name} (${this.ctx.difficulty}, ${this.ctx.personality})`, this.threat, this.ctx.lastBattle?.() ?? null, this.team, this.seat);
+    }
+
     chooseStarter(offer: readonly StartCard[]): void {
-        // The Year rebuilds this side every round: pick for lasting combat effects
+        // a Siege rebuilds this side every round: pick for lasting combat effects
         const pick =
-            this.ctx.climb && this.ctx.brain !== 'classic' && offer.length > 0
+            this.ctx.climb && offer.length > 0
                 ? chooseRebuildCommander(offer, this.ctx.types)
                 : offer[Math.floor(this.ctx.rng() * offer.length)]!;
         this.ctx.dispatch({ kind: 'chooseCard', team: this.team, seat: this.seat, cardId: pick.id });
@@ -128,115 +139,52 @@ export class AiOpponent implements Opponent {
     }
 
     onBuildPhase(round: number): void {
-        if (this.ctx.opponents === 'lockInOnly') {
-            // a scenario's authored army fights as placed — lock in, nothing else
-        } else if (this.ctx.brain !== 'classic' && this.ctx.leveling && (this.ctx.climb || this.ctx.brain === 'year')) {
-            // The Year: rebuild from nothing and plan the whole round against the visible army
-            // (the arena's player stand-in uses the same planner on a kept army)
+        // a scenario's authored army fights as placed — lock in, nothing else
+        if (this.ctx.opponents !== 'lockInOnly') {
+            // a Siege rebuilds this side from nothing every round; elsewhere the army stays
             if (this.ctx.climb) this.ctx.dispatch({ kind: 'clearArmy', team: this.team, seat: this.seat });
-            this.answerWalls(this.ctx.rngForRound?.(round) ?? this.ctx.rng);
-            const brain = new YearBrain(
-                { ...this.ctx, leveling: this.ctx.leveling },
-                this.team,
-                this.seat,
-                this.ctx.yearRole ?? 'defender',
-                this.ctx.rngForRound?.(round) ?? this.ctx.rng,
-                this.ctx.plannerOverrides,
-            );
-            brain.playRound({ keep: !this.ctx.climb, slots: this.ctx.deployCap?.() ?? 40 });
-            // what the planner leaves alone: runes in the inventory, spells in the strip
-            this.applyItems(this.ctx.rngForRound?.(round) ?? this.ctx.rng);
-            this.placeTactics(this.ctx.rngForRound?.(round) ?? this.ctx.rng);
-        } else if (this.ctx.climb) {
-            this.ctx.dispatch({ kind: 'clearArmy', team: this.team, seat: this.seat });
-            this.runBuildActions({
-                climb: true,
-                rng: this.ctx.rngForRound?.(round) ?? this.ctx.rng,
-            });
-        } else {
-            this.runBuildActions();
+            this.build(this.ctx.rngForRound?.(round) ?? this.ctx.rng);
         }
         this.ctx.dispatch({ kind: 'endDeployment', team: this.team, seat: this.seat });
     }
 
-    /** cheat mid-deploy: same spend/move/cast loop without another lock-in */
+    /** cheat mid-deploy: the same round again, without another lock-in */
     rerunBuildActions(): void {
-        this.runBuildActions();
+        this.build(this.ctx.rng);
     }
 
-    private runBuildActions(opts?: { climb?: boolean; rng?: () => number }): void {
-        const { placement } = this.ctx;
-        const rng = opts?.rng ?? this.ctx.rng;
-        const climb = !!opts?.climb;
-        const team = this.team;
-
-        const startBal = this.ctx.economy.balance(this.seat);
-        const packFloor = climb
-            ? Math.floor(startBal * (1 - CLIMB_AI_PACK_BUDGET_FRACTION))
-            : 0;
-
-        // 0) walls: siege against theirs, a line of its own against melee
+    /**
+     * One build phase, every mode (AI_PLAN.md): walls, then the planner's army
+     * (kept and extended, or rebuilt in a Siege) — scored or, on the easier
+     * levels, random — then runes, spells and building levels as the
+     * difficulty allows.
+     */
+    private build(rng: () => number): void {
+        const features = aiFeatures(this.ctx.difficulty);
+        // read the enemy first: where its army stands, which posture that is (acted on from step 3)
+        this.threat = readThreat(this.ctx.placement, this.team, this.seat);
+        // 0) walls: its own fortress, siege against theirs
         this.answerWalls(rng);
-
-        // 1) first buy: prefer a cheap unit (< 200); unlock one if needed
-        this.buyUnit(this.pickFirstBuyType(rng), rng);
-
-        // 2) remaining deploy slots: random among affordable unlocked types
-        // Campaign: buy while leaving packFloor for upgrades (not packs-only).
-        const buyGuard = climb ? 80 : 30;
-        for (let guard = 0; guard < buyGuard; guard++) {
-            if (climb && this.ctx.economy.balance(this.seat) <= packFloor) break;
-            const affordable = this.affordableArmyTypes();
-            if (affordable.length === 0) break;
-            const type = affordable[Math.floor(rng() * affordable.length)]!;
-            // too dear to stay above the upgrade floor — try another type, don't
-            // abandon pack buying entirely (the guard bounds the retries)
-            if (climb && this.ctx.economy.balance(this.seat) - type.cost < packFloor) continue;
-            if (!this.buyUnit(type, rng)) break;
-        }
-
-        // 3) spare supply → a shop rune to equip
+        // 1) the army
+        new YearBrain(
+            this.ctx,
+            this.team,
+            this.seat,
+            this.ctx.yearRole ?? 'defender',
+            rng,
+            this.ctx.plannerOverrides,
+            features.unitChoice,
+        ).playRound({ keep: !this.ctx.climb, slots: this.ctx.deployCap() });
+        // 2) spare supply → a shop rune; then everything in the bag onto packs
         this.maybeBuyRune(rng);
-
-        // rearrange packs
-        for (const unit of placement.allUnits()) {
-            // walls stay in their line (answerWalls)
-            if (unit.seat !== this.seat || unit.type.extra || !placement.canReposition(unit)) continue;
-            if (rng() < 0.25) continue;
-            const spot = placement.findAiSpot(team, this.seat, unit.type, rng);
-            if (!spot) continue;
-            if (spot.rotated !== unit.rotated) {
-                this.ctx.dispatch({ kind: 'rotate', team, seat: this.seat, unitId: unit.id });
-            }
-            this.ctx.dispatch({
-                kind: 'move',
-                team,
-                seat: this.seat,
-                unitId: unit.id,
-                anchor: spot.anchor,
-            });
-        }
-
-        // equip inventory items onto bare packs
         this.applyItems(rng);
-
-        // cast available tactics / spells toward the opponent
-        this.placeTactics(rng);
-
-        // leftover: pack levels → (non-Campaign) stronghold forge spells → unit techs
-        this.spendLeftoverUpgrades({ buyForgeSpells: !climb });
-
-        // Campaign: any remaining supply after upgrades can buy a few more packs
-        if (climb) {
-            for (let guard = 0; guard < 20; guard++) {
-                const affordable = this.affordableArmyTypes();
-                if (affordable.length === 0) break;
-                const type = affordable[Math.floor(rng() * affordable.length)]!;
-                if (!this.buyUnit(type, rng)) break;
-            }
-            this.applyItems(rng);
-            this.spendLeftoverUpgrades({ buyForgeSpells: false });
+        // 3) spells: the Stronghold's forge spells (not in a Siege's rebuilt army), then the strip
+        if (features.spells) {
+            if (!this.ctx.climb) this.buyForgeSpells();
+            this.placeTactics(rng);
         }
+        // 4) last, with what's left: buildings help least
+        if (features.buildingUpgrades) this.upgradeBuildings();
     }
 
     /**
@@ -274,6 +222,28 @@ export class AiOpponent implements Opponent {
             if (this.affordableArmyTypes(isSiegeType).length === 0) this.unlockSiege();
             if (!this.buyUnit(this.preferLesserOwned(this.affordableArmyTypes(isSiegeType), rng), rng)) break;
         }
+    }
+
+    /**
+     * Low priority, with what the army left: one level a round on each of
+     * its base buildings — the Stronghold first
+     * (its own share of the side's keep), then its two towers, lowest level
+     * first. The action refuses when maxed or unaffordable.
+     */
+    private upgradeBuildings(): void {
+        const { placement, dispatch } = this.ctx;
+        const rank = (u: Unit) => (u.type.baseAnchor === 'stronghold' ? 0 : 1);
+        const buildings = placement
+            .allUnits()
+            .filter(
+                (u) =>
+                    u.team === this.team &&
+                    !u.destroyed &&
+                    !!u.type.baseAnchor &&
+                    (u.type.baseAnchor === 'stronghold' || u.seat === this.seat),
+            )
+            .sort((a, b) => rank(a) - rank(b) || a.level - b.level || a.id - b.id);
+        for (const u of buildings) dispatch({ kind: 'upgradeTower', team: this.team, seat: this.seat, unitId: u.id });
     }
 
     /** this round's unlock on the cheapest siege type of the shop, if it's still free and affordable */
@@ -342,42 +312,6 @@ export class AiOpponent implements Opponent {
             }
         }
         return best[Math.floor(rng() * best.length)]!;
-    }
-
-    /**
-     * Prefer cost &lt; 200, and among those the type this seat has fewer of —
-     * unlock that type first when it is still locked (even if another cheap
-     * type is already buyable). If still nothing cheap, fall back to any
-     * affordable type (same diversity).
-     */
-    private pickFirstBuyType(rng: () => number = this.ctx.rng): UnitType | null {
-        const { economy, unlockedUnits, unlockUsedThisRound, commander } = this.ctx;
-        const unlocked = unlockedUnits[this.seat]!;
-
-        const allCheap: UnitType[] = [];
-        for (const id of this.shop()) {
-            const t = this.ctx.types.byId(id);
-            if (t && t.cost < CHEAP_UNIT_COST) allCheap.push(t);
-        }
-        const preferred = this.preferLesserOwned(allCheap, rng);
-        if (
-            preferred &&
-            !unlocked.includes(preferred.id) &&
-            !unlockUsedThisRound[this.seat] &&
-            unlockCostFor(preferred.id, this.ctx.types.commander(commander[this.seat] ?? ''), this.ctx.types) <=
-                economy.balance(this.seat)
-        ) {
-            this.ctx.dispatch({
-                kind: 'unlockUnit',
-                team: this.team,
-                seat: this.seat,
-                typeId: preferred.id,
-            });
-        }
-
-        const cheap = this.affordableArmyTypes((t) => t.cost < CHEAP_UNIT_COST);
-        const pool = cheap.length > 0 ? cheap : this.affordableArmyTypes();
-        return this.preferLesserOwned(pool, rng);
     }
 
     private buyUnit(type: UnitType | null, rng: () => number = this.ctx.rng): boolean {
@@ -566,77 +500,18 @@ export class AiOpponent implements Opponent {
         }
     }
 
-    /**
-     * leftover supply: pack levels first, then stronghold forge spells, then
-     * unit techs. Never upgrades buildings.
-     * Campaign skips forge-spell buys so supply stays on packs / levels / tech.
-     */
-    private spendLeftoverUpgrades(opts?: { buyForgeSpells?: boolean }): void {
-        const { dispatch, placement, economy, techTree, forgeSpellOwned, forgeSpellsOf } = this.ctx;
-        const team = this.team;
-        const buyForgeSpells = opts?.buyForgeSpells !== false;
-
-        let leveled = true;
-        while (leveled) {
-            leveled = false;
-            for (const unit of placement.allUnits()) {
-                if (unit.seat !== this.seat || unit.type.structure || unit.type.extra) continue;
-                if (dispatch({ kind: 'buyLevel', team, seat: this.seat, unitId: unit.id })) {
-                    leveled = true;
-                }
-            }
-        }
-
-        if (buyForgeSpells) {
-            const ownedSpells = forgeSpellOwned[this.seat]!;
-            let boughtSpell = true;
-            while (boughtSpell) {
-                boughtSpell = false;
-                const pool = forgeSpellsOf(this.seat) ?? [];
-                for (const tacticId of pool) {
-                    if (ownedSpells.includes(tacticId)) continue;
-                    const cost = this.ctx.types.tactic(tacticId)?.strongholdCost;
-                    if (cost === undefined || economy.balance(this.seat) < cost) continue;
-                    if (dispatch({ kind: 'buyForgeSpell', team, seat: this.seat, tacticId })) {
-                        boughtSpell = true;
-                    }
-                }
-            }
-        }
-
-        const ownedTypeIds = [
-            ...new Set(
-                placement
-                    .allUnits()
-                    .filter((u) => u.seat === this.seat && !u.type.structure && !u.type.extra)
-                    .map((u) => u.type.id),
-            ),
-        ];
-
+    /** every forge spell of its commander's pool it can pay for */
+    private buyForgeSpells(): void {
+        const { dispatch, economy, forgeSpellOwned, forgeSpellsOf } = this.ctx;
+        const owned = forgeSpellOwned[this.seat]!;
         let bought = true;
         while (bought) {
             bought = false;
-            for (const typeId of ownedTypeIds) {
-                const type = this.ctx.types.byId(typeId);
-                const techs = type ? techsForUnit(type, this.ctx.types, this.ctx.loadoutOf(this.seat)) : [];
-                if (!type || techs.length === 0) continue;
-                const owned = techTree.ownedFor(this.seat, type.id);
-                for (const tech of techs) {
-                    if (owned.has(tech.id)) continue;
-                    const cost = economy.techCostOf(tech, owned.size);
-                    if (economy.balance(this.seat) < cost) continue;
-                    if (
-                        dispatch({
-                            kind: 'buyTech',
-                            team,
-                            seat: this.seat,
-                            typeId: type.id,
-                            techId: tech.id,
-                        })
-                    ) {
-                        bought = true;
-                    }
-                }
+            for (const tacticId of forgeSpellsOf(this.seat) ?? []) {
+                if (owned.includes(tacticId)) continue;
+                const cost = this.ctx.types.tactic(tacticId)?.strongholdCost;
+                if (cost === undefined || economy.balance(this.seat) < cost) continue;
+                if (dispatch({ kind: 'buyForgeSpell', team: this.team, seat: this.seat, tacticId })) bought = true;
             }
         }
     }

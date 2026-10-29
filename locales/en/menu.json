@@ -203,5 +203,18 @@
     "komtur": "Komtur army"
   },
   "armyPick": "Change army",
-  "rolePick": "Change role"
+  "rolePick": "Change role",
+  "aiDifficulty": {
+    "easy": "Easy",
+    "medium": "Medium",
+    "hard": "Hard"
+  },
+  "aiPersonality": {
+    "random": "Random",
+    "rusher": "Rusher",
+    "wide": "Wide",
+    "defender": "Defender"
+  },
+  "aiDifficultyPick": "Change difficulty",
+  "aiPersonalityPick": "Change personality"
 }

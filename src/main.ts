@@ -117,7 +117,7 @@ import {
     savePracticeConfig,
     type LocalMatchOpts,
 } from './menu/matchSettings';
-import { OPEN_SEAT_NAME, opponentDisplayName, rosterWithBots, rosterWithWiredAvatars, starAiName } from './menu/lobbyRoster';
+import { OPEN_SEAT_NAME, opponentDisplayName, rosterWithBots, rosterWithWiredAvatars, seatChipsOf, starAiName } from './menu/lobbyRoster';
 import { downloadScenarioPackage, editorLinks, editSavedScenario, initEditorMenu, openNewScenarioEditor, openStoredScenarioEditor, savedScenarioDef } from './menu/editorMenu';
 import { BASE_TYPES } from './game/units';
 import { scenarioSlug } from './game/scenario/package';
@@ -165,6 +165,15 @@ import {
     roundCardAlgorithmById,
 } from './game/roundCardAlgorithms';
 import { localizeRoster, type CanonicalSeatDef, type SeatId } from './game/seats';
+import {
+    AI_DIFFICULTIES,
+    DEFAULT_AI_DIFFICULTY,
+    DEFAULT_AI_PERSONALITY,
+    personalitiesFor,
+    type AiDifficulty,
+    type AiPersonality,
+} from './game/aiProfile';
+import { rememberChips, withRememberedChips } from './menu/seatChips';
 import { initI18n, onLanguageChange, t } from './i18n';
 import { THEME, applyLanguageFont, FONT_FAMILY } from './theme';
 import { menuStyles } from './styles/menuStyles';
@@ -2852,6 +2861,8 @@ let lobbyArmy: {
     pickRole: (seat: SeatId, role: 'attacker' | 'defender' | null) => void;
     /** who may change a seat's role (omit = as for the army) — a host, every seat's */
     canEditRole?: (seat: SeatId) => boolean;
+    /** an AI seat's strength / style (omit = this client can't change them) */
+    pickAi?: (seat: SeatId, chips: { aiDifficulty?: AiDifficulty; aiPersonality?: AiPersonality }) => void;
 } | null = null;
 
 function renderRosterTable(
@@ -2993,6 +3004,35 @@ function renderRosterTable(
                     });
                 }
                 tags.appendChild(badge);
+            }
+            // an AI seat (or an open one a bot will fill, where this client sets the bots): its strength and style
+            if (lobbyArmy && seat !== mySeat && (entry.controller === 'ai' || guaranteedAi || (!filled && !!lobbyArmy.pickAi))) {
+                const editable = !!lobbyArmy.pickAi && lobbyArmy.canEdit(seat);
+                const chip = (cls: string, text: string, title: string, next: () => void) => {
+                    const el = document.createElement(editable ? 'button' : 'span');
+                    el.className = `m-roster-ai ${cls}${editable ? ' is-editable' : ''}`;
+                    el.textContent = text;
+                    if (editable) {
+                        (el as HTMLButtonElement).type = 'button';
+                        el.title = title;
+                        el.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            next();
+                        });
+                    }
+                    tags.appendChild(el);
+                };
+                const difficulty = entry.aiDifficulty ?? DEFAULT_AI_DIFFICULTY;
+                chip(`is-${difficulty}`, t(`menu:aiDifficulty.${difficulty}`), t('menu:aiDifficultyPick'), () =>
+                    lobbyArmy?.pickAi?.(seat, { aiDifficulty: AI_DIFFICULTIES[(AI_DIFFICULTIES.indexOf(difficulty) + 1) % AI_DIFFICULTIES.length]! }),
+                );
+                // only the styles that fit the seat's Siege role (a stored one that doesn't shows as Random)
+                const fits = personalitiesFor(lobbySiege ? (entry.yearRole ?? null) : null);
+                const stored = entry.aiPersonality ?? DEFAULT_AI_PERSONALITY;
+                const personality = fits.includes(stored) ? stored : 'random';
+                chip(`is-${personality}`, t(`menu:aiPersonality.${personality}`), t('menu:aiPersonalityPick'), () =>
+                    lobbyArmy?.pickAi?.(seat, { aiPersonality: fits[(fits.indexOf(personality) + 1) % fits.length]! }),
+                );
             }
             if (tags.childElementCount > 0) cell.appendChild(tags);
             if (filled && seat !== 0 && roster[seat]!.ready) {
@@ -4435,6 +4475,19 @@ function wireHostedHub(
     const waitForJoined = opts.waitForJoined ?? 2;
     const offerAiStart = opts.offerAiStart ?? true;
     const customConfig = opts.customConfig ?? null;
+    // a Custom Game remembers its bots' chips (army, role, strength, style): back on the open seats
+    const botSeat = (seat: number): boolean => {
+        const entry = hub.currentRoster()[seat];
+        return seat > 0 && !!entry && (entry.controller === 'ai' || entry.name === OPEN_SEAT_NAME);
+    };
+    if (customConfig) {
+        withRememberedChips('hosted', hub.currentRoster(), botSeat, roomArmies()).forEach((entry, seat) => {
+            if (botSeat(seat)) hub.setRosterEntry(seat, entry);
+        });
+    }
+    const rememberBots = (): void => {
+        if (customConfig) rememberChips('hosted', hub.currentRoster(), botSeat);
+    };
     if (offerAiStart) {
         // a previous lobby may have left this lit — refresh() below decides
         startStarBtn.classList.remove('is-go');
@@ -4518,6 +4571,7 @@ function wireHostedHub(
                 const entry = hub.currentRoster()[seat];
                 if (!entry) return;
                 hub.setRosterEntry(seat, { ...entry, army });
+                rememberBots();
                 refresh();
             },
             // roles: the host may set anyone's — players pick their own, the host settles it
@@ -4526,8 +4580,21 @@ function wireHostedHub(
                 const entry = hub.currentRoster()[seat];
                 if (!entry) return;
                 hub.setRosterEntry(seat, { ...entry, yearRole: role ?? undefined });
+                rememberBots();
                 refresh();
             },
+            // the bots' strength and style: the host's alone, in a room bots may fill
+            ...(offerAiStart
+                ? {
+                      pickAi: (seat: SeatId, chips: { aiDifficulty?: AiDifficulty; aiPersonality?: AiPersonality }) => {
+                          const entry = hub.currentRoster()[seat];
+                          if (!entry) return;
+                          hub.setRosterEntry(seat, { ...entry, ...chips });
+                          rememberBots();
+                          refresh();
+                      },
+                  }
+                : {}),
         };
         lobbySiege = !!customConfig?.siege;
         renderRosterTable(
@@ -4799,27 +4866,31 @@ function startLocalLobbyMatch(config: CustomGameConfig, roster: readonly Canonic
 function openPracticeLobby(mode: CustomGameMode): void {
     const config: CustomGameConfig = roomConfig({ ...loadPracticeConfig(), mode });
     savePracticeConfig(config);
-    const roster = (config.mode === '2v2' ? initialStarRoster : initial1v1Roster)(getPlayerName());
+    // the seats as you left them last time: armies, roles, the AI's strength and style
+    const roster = withRememberedChips(
+        'practice',
+        (config.mode === '2v2' ? initialStarRoster : initial1v1Roster)(getPlayerName()),
+        () => true,
+        roomArmies(),
+    );
     practiceLobby = { config, roster };
     // every seat is yours to set: your own army, and the AI's
     const redraw = () => {
         lobbySiege = !!config.siege;
         renderRosterTable(roster, 0, 1);
     };
+    const set = (seat: SeatId, patch: Partial<CanonicalSeatDef>) => {
+        const entry = roster[seat];
+        if (!entry) return;
+        roster[seat] = { ...entry, ...patch };
+        rememberChips('practice', roster, () => true);
+        redraw();
+    };
     lobbyArmy = {
         canEdit: () => true,
-        pick: (seat, army) => {
-            const entry = roster[seat];
-            if (!entry) return;
-            roster[seat] = { ...entry, army };
-            redraw();
-        },
-        pickRole: (seat, role) => {
-            const entry = roster[seat];
-            if (!entry) return;
-            roster[seat] = { ...entry, yearRole: role ?? undefined };
-            redraw();
-        },
+        pick: (seat, army) => set(seat, { army }),
+        pickRole: (seat, role) => set(seat, { yearRole: role ?? undefined }),
+        pickAi: (seat, chips) => set(seat, chips),
     };
     showMenuView('session');
     setStatus('');
@@ -4859,8 +4930,8 @@ function startHostedMatch(): void {
                 controller: 'ai' as const,
                 name: starAiName(i, currentRoster),
                 loadout: randomLoadout(),
-                // the army the host set for this seat
-                ...(s.army ? { army: s.army } : {}),
+                // what the host set for this seat: army, role, AI strength and style
+                ...seatChipsOf(s),
             };
         }
         return s;

@@ -199,5 +199,18 @@
     "komtur": "Komturova armáda"
   },
   "armyPick": "Změnit armádu",
-  "rolePick": "Změnit roli"
+  "rolePick": "Změnit roli",
+  "aiDifficulty": {
+    "easy": "Snadná",
+    "medium": "Střední",
+    "hard": "Těžká"
+  },
+  "aiPersonality": {
+    "random": "Náhodný",
+    "rusher": "Útočník",
+    "wide": "Široký",
+    "defender": "Obránce"
+  },
+  "aiDifficultyPick": "Změnit obtížnost",
+  "aiPersonalityPick": "Změnit povahu"
 }

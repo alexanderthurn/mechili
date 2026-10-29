@@ -199,5 +199,18 @@
     "komtur": "A Komtur serege"
   },
   "armyPick": "Sereg váltása",
-  "rolePick": "Szerep váltása"
+  "rolePick": "Szerep váltása",
+  "aiDifficulty": {
+    "easy": "Könnyű",
+    "medium": "Közepes",
+    "hard": "Nehéz"
+  },
+  "aiPersonality": {
+    "random": "Véletlen",
+    "rusher": "Rohamozó",
+    "wide": "Széles",
+    "defender": "Védekező"
+  },
+  "aiDifficultyPick": "Nehézség módosítása",
+  "aiPersonalityPick": "Személyiség módosítása"
 }

@@ -1211,6 +1211,24 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-menu .m-roster-army.is-komtur { border-color: #8f6bc4; color: #c9b0ef; }
 .mechili-menu .m-roster-army.is-editable { cursor: pointer; }
 .mechili-menu .m-roster-army.is-editable:hover { border-color: ${u.brassLight}; color: ${u.brassLight}; }
+/* an AI seat's strength and style — chips like the army's; where the host / Practice may change them, buttons that walk the options */
+.mechili-menu .m-roster-ai {
+    flex: none;
+    padding: 1px 7px;
+    border-radius: 999px;
+    border: 1px solid ${u.border};
+    background: rgba(0, 0, 0, 0.25);
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 0.3px;
+    color: ${u.textMuted};
+    white-space: nowrap;
+}
+.mechili-menu .m-roster-ai.is-easy { border-color: #6fa35a; color: #a9d197; }
+.mechili-menu .m-roster-ai.is-medium { border-color: #c9a24a; color: #e6c98a; }
+.mechili-menu .m-roster-ai.is-hard { border-color: #c4553f; color: #ec9a88; }
+.mechili-menu .m-roster-ai.is-editable { cursor: pointer; }
+.mechili-menu .m-roster-ai.is-editable:hover { border-color: ${u.brassLight}; color: ${u.brassLight}; }
 .mechili-menu .m-lobby-role-row {
     display: flex;
     flex-wrap: wrap;

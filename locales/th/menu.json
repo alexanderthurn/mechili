@@ -199,5 +199,18 @@
     "komtur": "กองทัพคอมทัวร์"
   },
   "armyPick": "เปลี่ยนกองทัพ",
-  "rolePick": "เปลี่ยนบทบาท"
+  "rolePick": "เปลี่ยนบทบาท",
+  "aiDifficulty": {
+    "easy": "ง่าย",
+    "medium": "ปานกลาง",
+    "hard": "ยาก"
+  },
+  "aiPersonality": {
+    "random": "สุ่ม",
+    "rusher": "บุกเร็ว",
+    "wide": "กระจาย",
+    "defender": "ตั้งรับ"
+  },
+  "aiDifficultyPick": "เปลี่ยนความยาก",
+  "aiPersonalityPick": "เปลี่ยนบุคลิก"
 }

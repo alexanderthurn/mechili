@@ -199,5 +199,18 @@
     "komtur": "Komturs armé"
   },
   "armyPick": "Byt armé",
-  "rolePick": "Byt roll"
+  "rolePick": "Byt roll",
+  "aiDifficulty": {
+    "easy": "Lätt",
+    "medium": "Medel",
+    "hard": "Svår"
+  },
+  "aiPersonality": {
+    "random": "Slumpad",
+    "rusher": "Stormare",
+    "wide": "Bred",
+    "defender": "Försvarare"
+  },
+  "aiDifficultyPick": "Ändra svårighetsgrad",
+  "aiPersonalityPick": "Ändra personlighet"
 }

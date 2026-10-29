@@ -3,11 +3,12 @@
 // round after round against a stand-in for the human.
 //
 //   node scripts/ai-arena.mjs [--games 6] [--rounds 9] [--variant attack|defend|komtur-attack|komtur-defend|all] [--terrain standard|hills|highlands|wall]
-//                             [--ai year|classic] [--human classic|year] [--seed 1] [--verbose]
+//                             [--ai easy|medium|hard] [--human easy|medium|hard] [--seed 1] [--verbose]
 //
 // The AI side rebuilds its army every round (as in the game); the human side
-// keeps its army, levels it with the XP it earns and buys more — driven by one
-// of the AI brains, which is only a stand-in for a player. A round's result
+// keeps its army, levels it with the XP it earns and buys more — driven by the
+// AI at a difficulty (Easy: random packs; Hard: the planner's scored choice),
+// which is only a stand-in for a player. A round's result
 // follows The Year: the attacker must outscore, a tie goes to the defender.
 // What the arena leaves out: the horde waves (third party), round cards,
 // spells cast from the tactics strip, commander gift units.
@@ -181,7 +182,7 @@ function newMatch(variantName, seed, brains) {
         debugLog: () => {},
     };
     const dispatcher = new ActionDispatcher(ctx);
-    const aiCtx = (seat, climb, brain) => ({
+    const aiCtx = (seat, climb, difficulty) => ({
         types: T,
         dispatch: (action) => dispatcher.dispatch({ ...action, seat }),
         placement,
@@ -201,7 +202,8 @@ function newMatch(variantName, seed, brains) {
         climb,
         opponents: 'build',
         rngForRound: (round) => mulberry32(seedFrom(seed, `ai-climb-${seat}-${round}`)),
-        brain,
+        difficulty,
+        personality: 'random',
         plannerOverrides: seat === 1 ? aiPlanner : {},
         leveling: settings.leveling,
         yearRole: seat === 1 ? (variant.humanRole === 'defender' ? 'attacker' : 'defender') : variant.humanRole,
@@ -450,7 +452,7 @@ async function duels(budget) {
     for (const a of ids) {
         const cells = [];
         for (const b of ids) {
-            const m = newMatch('attack', 7, { ai: 'classic', human: 'classic' });
+            const m = newMatch('attack', 7, { ai: 'easy', human: 'easy' });
             m.map.flanksUnlocked = false;
             m.map.neutralUnlocked = false;
             m.state.round = 1;
@@ -509,7 +511,7 @@ async function duels(budget) {
 function matchup(a, b, budget, seeds) {
     const sum = { dealtA: 0, dealtB: 0, winsA: 0, winsB: 0, seconds: 0 };
     for (let s = 0; s < seeds; s++) {
-        const m = newMatch('attack', 7 + s, { ai: 'classic', human: 'classic' });
+        const m = newMatch('attack', 7 + s, { ai: 'easy', human: 'easy' });
         m.map.flanksUnlocked = false;
         m.map.neutralUnlocked = false;
         m.state.round = 1;
@@ -585,7 +587,7 @@ async function collect(cachePath) {
     const ids = [...new Set([...T.shopUnitIds, ...T.allShopUnitIds])].filter((id) => T.byId(id).cost > 0);
     const cases = [];
     const run = (setup, base) => {
-        const m = newMatch(base ? 'attack' : 'attack', 11, { ai: 'classic', human: 'classic' });
+        const m = newMatch(base ? 'attack' : 'attack', 11, { ai: 'easy', human: 'easy' });
         m.map.flanksUnlocked = false;
         m.map.neutralUnlocked = false;
         m.state.round = 1;
@@ -769,7 +771,7 @@ const games = Number(arg('games', '6'));
 const rounds = Number(arg('rounds', '9'));
 const baseSeed = Number(arg('seed', '1'));
 const variantArg = arg('variant', 'all');
-const brains = { ai: arg('ai', 'year'), human: arg('human', 'classic') };
+const brains = { ai: arg('ai', 'hard'), human: arg('human', 'easy') };
 const verbose = flag('verbose');
 const variants = variantArg === 'all' ? Object.keys(VARIANTS) : [variantArg];
 const t0 = Date.now();

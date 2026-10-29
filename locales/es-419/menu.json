@@ -199,5 +199,18 @@
     "komtur": "Ejército del Komtur"
   },
   "armyPick": "Cambiar ejército",
-  "rolePick": "Cambiar rol"
+  "rolePick": "Cambiar rol",
+  "aiDifficulty": {
+    "easy": "Fácil",
+    "medium": "Normal",
+    "hard": "Difícil"
+  },
+  "aiPersonality": {
+    "random": "Aleatorio",
+    "rusher": "Asaltante",
+    "wide": "Amplio",
+    "defender": "Defensor"
+  },
+  "aiDifficultyPick": "Cambiar dificultad",
+  "aiPersonalityPick": "Cambiar personalidad"
 }

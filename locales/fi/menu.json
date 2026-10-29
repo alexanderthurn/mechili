@@ -199,5 +199,18 @@
     "komtur": "Komturin armeija"
   },
   "armyPick": "Vaihda armeija",
-  "rolePick": "Vaihda roolia"
+  "rolePick": "Vaihda roolia",
+  "aiDifficulty": {
+    "easy": "Helppo",
+    "medium": "Keskitaso",
+    "hard": "Vaikea"
+  },
+  "aiPersonality": {
+    "random": "Satunnainen",
+    "rusher": "Rynnäkkö",
+    "wide": "Laaja",
+    "defender": "Puolustaja"
+  },
+  "aiDifficultyPick": "Vaihda vaikeustaso",
+  "aiPersonalityPick": "Vaihda luonne"
 }

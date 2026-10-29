@@ -199,5 +199,18 @@
     "komtur": "Armia Komtura"
   },
   "armyPick": "Zmień armię",
-  "rolePick": "Zmień rolę"
+  "rolePick": "Zmień rolę",
+  "aiDifficulty": {
+    "easy": "Łatwy",
+    "medium": "Średni",
+    "hard": "Trudny"
+  },
+  "aiPersonality": {
+    "random": "Losowy",
+    "rusher": "Szturmowiec",
+    "wide": "Szeroki",
+    "defender": "Obrońca"
+  },
+  "aiDifficultyPick": "Zmień poziom trudności",
+  "aiPersonalityPick": "Zmień osobowość"
 }

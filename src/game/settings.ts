@@ -43,11 +43,6 @@ export const CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND = 200;
  * on many packs (normal matches stay at {@link DeploySettings.unitsPerRound}).
  */
 export const CLIMB_AI_DEPLOY_LIMIT = 40;
-/**
- * Fraction of liquid supply the Campaign AI may spend on new packs before
- * upgrades/tech/runes; leftover goes to levels / forge spells / research.
- */
-export const CLIMB_AI_PACK_BUDGET_FRACTION = 0.55;
 
 /**
  * A match's Siege and Rounds rules (see {@link GameSettings.climb}) — single

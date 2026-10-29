@@ -1326,6 +1326,11 @@ export class PlacementController {
         return this.laneOk(seat, cell);
     }
 
+    /** which lane of its side's zone a seat owns ('full' when alone on its side) */
+    laneOf(seat: SeatId): 'full' | 'left' | 'right' {
+        return seat >= 0 && seat < this.roster.length ? seatLane(this.roster, seat) : 'full';
+    }
+
     /**
      * Duo modes: a seat that shares its side owns one vertical lane of the
      * zone (left/right half in canonical columns). Solo seats own it all.

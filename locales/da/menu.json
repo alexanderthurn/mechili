@@ -199,5 +199,18 @@
     "komtur": "Komturs hær"
   },
   "armyPick": "Skift hær",
-  "rolePick": "Skift rolle"
+  "rolePick": "Skift rolle",
+  "aiDifficulty": {
+    "easy": "Let",
+    "medium": "Middel",
+    "hard": "Svær"
+  },
+  "aiPersonality": {
+    "random": "Tilfældig",
+    "rusher": "Stormer",
+    "wide": "Bred",
+    "defender": "Forsvarer"
+  },
+  "aiDifficultyPick": "Skift sværhedsgrad",
+  "aiPersonalityPick": "Skift personlighed"
 }

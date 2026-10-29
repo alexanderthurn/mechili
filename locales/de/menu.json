@@ -203,5 +203,18 @@
     "komtur": "Komtur-Armee"
   },
   "armyPick": "Armee wechseln",
-  "rolePick": "Rolle wechseln"
+  "rolePick": "Rolle wechseln",
+  "aiDifficulty": {
+    "easy": "Leicht",
+    "medium": "Mittel",
+    "hard": "Schwer"
+  },
+  "aiPersonality": {
+    "random": "Zufällig",
+    "rusher": "Stürmer",
+    "wide": "Breit",
+    "defender": "Verteidiger"
+  },
+  "aiDifficultyPick": "Schwierigkeit ändern",
+  "aiPersonalityPick": "Persönlichkeit ändern"
 }
