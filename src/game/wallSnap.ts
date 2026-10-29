@@ -31,12 +31,10 @@ export const WALL_SNAP = {
  * which placements are legal):
  * - snap: a carried wall snaps onto an open end of a placed one, with the
  *   rings showing where (off: a wall lands where the cursor is, no rings)
- * - endJoinsOnly: walls may share only an end tile — a straight join or a
- *   corner (off: walls overlap each other freely)
+ * (How walls may overlap each other is placement's wallOverlapOk.)
  */
 export const WALL_PLACEMENT = {
     snap: false,
-    endJoinsOnly: false,
 } as const;
 
 /** a wall's two tower tiles: the first and last tile along its length */

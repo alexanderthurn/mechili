@@ -1316,13 +1316,13 @@ export class PlacementController {
         return team === 'player' ? this.map.isPlayerCell(cell) : this.map.isEnemyCell(cell);
     }
 
-    /** zone check plus type rules — board extras may not sit on flank strips, walls not on the frontline */
+    /** zone check plus type rules — board extras may not sit on flank strips, walls not on the frontline or beside a flank */
     private deployCellOk(team: BattleTeam, cell: Cell, type: UnitType, seat?: SeatId): boolean {
         if (team === 'horde') return false; // the horde never deploys — it spawns free at battle start
         if (!this.zoneCell(team, cell)) return false;
         if (type.extra && this.map.isFlankDeployCell(cell, team)) return false;
-        // walls stay off the frontline, so the two sides' walls never touch
-        if (type.wall && this.map.isFrontlineCell(cell, team)) return false;
+        // walls keep a tile from the other side: off the frontline, and off the column beside a flank strip
+        if (type.wall && (this.map.isFrontlineCell(cell, team) || this.map.isFlankEdgeCell(cell))) return false;
         return this.laneOk(seat, cell);
     }
 
@@ -2942,26 +2942,24 @@ export class PlacementController {
     }
 
     /**
-     * Walls overlap each other only at their ends: a wall standing on `cells`
-     * may share at most one tile with any other wall, and that tile must be an
-     * end tile (a tower's) of both — a straight join or a corner. No crossing
-     * through a wall's middle, no T onto it, no lying along it. `self` / `group`
-     * are moving and don't count. Only with WALL_PLACEMENT.endJoinsOnly; off,
-     * walls overlap freely.
+     * Whether a wall may stand on `cells` among the walls already standing
+     * (either side's; `self` / `group` are moving and don't count) — see
+     * {@link wallFits}. The walls it overlaps or touches are held to the same
+     * rules with it standing there: one that was fine may not turn wrong.
      */
     private wallOverlapOk(type: UnitType, cells: readonly Cell[], self: Unit | null, group: readonly Unit[] = []): boolean {
-        if (!WALL_PLACEMENT.endJoinsOnly || !type.wall || cells.length === 0) return true;
-        const mine = new Set(cells.map(cellKey));
-        const myEnds = new Set([cellKey(cells[0]!), cellKey(cells[cells.length - 1]!)]);
+        if (!type.wall || cells.length === 0) return true;
+        const others: WallTiles[] = [];
         for (const u of this.units) {
             if (!u.type.wall || u.destroyed || u === self || group.includes(u)) continue;
-            const theirs = this.coveredCells(this.footprintOf(u.type, u.rotated), u.cell) ?? [];
-            const shared = theirs.filter((c) => mine.has(cellKey(c)));
-            if (shared.length === 0) continue;
-            if (shared.length > 1) return false;
-            const at = cellKey(shared[0]!);
-            const theirEnds = new Set([cellKey(theirs[0]!), cellKey(theirs[theirs.length - 1]!)]);
-            if (!myEnds.has(at) || !theirEnds.has(at)) return false;
+            others.push(wallTiles(this.coveredCells(this.footprintOf(u.type, u.rotated), u.cell) ?? []));
+        }
+        const placed = wallTiles(cells);
+        if (!wallFits(placed, others)) return false;
+        for (const o of others) {
+            if (!wallsMeet(o, placed)) continue;
+            const rest = others.filter((x) => x !== o);
+            if (wallFits(o, rest) && !wallFits(o, [...rest, placed])) return false;
         }
         return true;
     }
@@ -3529,4 +3527,69 @@ export class PlacementController {
         }
         for (let i = units.length; i < this.groupPlates.length; i++) this.groupPlates[i]!.visible = false;
     }
+}
+
+/** a wall's tiles, in order along it (its two end tiles first and last) */
+interface WallTiles {
+    cells: readonly Cell[];
+    keys: Set<string>;
+}
+
+function wallTiles(cells: readonly Cell[]): WallTiles {
+    return { cells, keys: new Set(cells.map(cellKey)) };
+}
+
+const SIDES = [
+    { col: -1, row: 0 },
+    { col: 1, row: 0 },
+    { col: 0, row: -1 },
+    { col: 0, row: 1 },
+] as const;
+
+/** whether two walls share a tile or touch side by side */
+function wallsMeet(a: WallTiles, b: WallTiles): boolean {
+    return a.cells.some((c) => b.keys.has(cellKey(c)) || SIDES.some((d) => b.keys.has(cellKey({ col: c.col + d.col, row: c.row + d.row }))));
+}
+
+/**
+ * The wall rules for `wall` among `others`:
+ * - overlaps: one shared tile at most — or two when one of them is its own
+ *   end tile (a corner): both its ends, or an end and one more tile that
+ *   lies on a different wall than the end's
+ * - neighbours: of each other wall, at most one tile may touch it side by
+ *   side (diagonals and the tiles both share don't count) — no wall right in
+ *   front of or along another; joins and corners stay free
+ */
+function wallFits(wall: WallTiles, others: readonly WallTiles[]): boolean {
+    if (wall.cells.length === 0) return true;
+    const ends = new Set([cellKey(wall.cells[0]!), cellKey(wall.cells[wall.cells.length - 1]!)]);
+    // each shared tile, and the walls on it
+    const shared = new Map<string, Set<WallTiles>>();
+    for (const o of others) {
+        let touching = 0;
+        for (const c of o.cells) {
+            const key = cellKey(c);
+            if (wall.keys.has(key)) {
+                const on = shared.get(key) ?? new Set<WallTiles>();
+                on.add(o);
+                shared.set(key, on);
+                continue;
+            }
+            const beside = SIDES.some((d) => {
+                const n = cellKey({ col: c.col + d.col, row: c.row + d.row });
+                return wall.keys.has(n) && !o.keys.has(n);
+            });
+            if (beside && ++touching > 1) return false;
+        }
+    }
+    if (shared.size <= 1) return true;
+    if (shared.size > 2) return false;
+    const [[a, onA], [b, onB]] = [...shared] as [[string, Set<WallTiles>], [string, Set<WallTiles>]];
+    const endA = ends.has(a);
+    const endB = ends.has(b);
+    if (endA && endB) return true;
+    if (!endA && !endB) return false;
+    // an end and one more tile: not both on the same wall
+    for (const w of onA) if (onB.has(w)) return false;
+    return true;
 }

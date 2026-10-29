@@ -643,6 +643,16 @@ export class BattleMap {
         return team === 'player' ? this.isEnemyCell(ahead) : this.isPlayerCell(ahead);
     }
 
+    /**
+     * Whether `cell` is a zone's outermost column beside a flank strip — the
+     * tile next to where the other side's flank packs deploy (whether the
+     * flanks are unlocked yet or not, so a wall placed early stays legal).
+     */
+    isFlankEdgeCell(cell: Cell): boolean {
+        if (this.inRim(cell) || this.inFlankCols(cell.col)) return false;
+        return this.inFlankCols(cell.col - 1) || this.inFlankCols(cell.col + 1);
+    }
+
     /** center row of a team's main zone (near = row 0 side, the +z edge) */
     zoneCenterRow(near: boolean): number {
         const rim = this.size.rimCells;
