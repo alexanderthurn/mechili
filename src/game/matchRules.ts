@@ -22,6 +22,9 @@ export interface MatchRules {
     fixedAtmosphere: ScenarioRules['atmosphere'] | null;
     /** what computer seats do in the build phase (they always lock in) */
     opponents: ScenarioRules['opponents'];
+    /** a scenario's computer: its strength and style (a lobby seat's own chips come first); null = the defaults */
+    aiDifficulty: ScenarioRules['aiDifficulty'] | null;
+    aiPersonality: ScenarioRules['aiPersonality'] | null;
     enemyIntel: ScenarioRules['enemyIntel'];
     /** the player side's shop unlocks, replacing the commander's; null = the commander's */
     playerUnlocks: string[] | null;
@@ -44,6 +47,8 @@ export function resolveMatchRules(settings: GameSettings, scenario: ScenarioDef 
             commander: editing && r.commander.mode === 'pick' ? { mode: 'none' } : r.commander,
             fixedAtmosphere: r.atmosphere.rotate ? null : r.atmosphere,
             opponents: editing ? 'lockInOnly' : r.opponents,
+            aiDifficulty: r.aiDifficulty ?? null,
+            aiPersonality: r.aiPersonality ?? null,
             enemyIntel: editing ? 'visible' : r.enemyIntel,
             playerUnlocks: r.unlockedUnits ?? null,
             playerUnlockable: r.unlockable ?? null,
@@ -62,6 +67,8 @@ export function resolveMatchRules(settings: GameSettings, scenario: ScenarioDef 
         commander: { mode: 'pick' },
         fixedAtmosphere: null,
         opponents: 'build',
+        aiDifficulty: null,
+        aiPersonality: null,
         // lessons, the old single-player Year and a room without fog of war show the other
         // side's deployment; everything else keeps the fog
         enemyIntel: (settings.climb && !settings.seats) || tutorial || settings.fogOfWar === false ? 'visible' : 'fogged',

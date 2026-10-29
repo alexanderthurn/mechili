@@ -8,6 +8,7 @@
  * {@link ScenarioDef}, and `normalizeScenario` checks everything the schema
  * can't (ids against the match's registry, board bounds).
  */
+import type { AiDifficulty, AiPersonality } from '../aiProfile';
 import type { MapSize } from '../map';
 import type { StrongholdMode } from '../settings';
 import type { Season, TimeOfDay, WeatherKind } from '../weather';
@@ -90,6 +91,10 @@ export interface ScenarioRules {
     strongholdMode: StrongholdMode;
     /** what computer seats do in the build phase — they always lock in */
     opponents: 'build' | 'lockInOnly';
+    /** a building computer's strength (omit = the default, Easy) */
+    aiDifficulty?: AiDifficulty;
+    /** a building computer's style (omit = the default, Random) */
+    aiPersonality?: AiPersonality;
     /** fog on enemy deployment intel */
     enemyIntel: 'fogged' | 'visible';
     /** the player's shop unlocks (omit = what the commander gives) */

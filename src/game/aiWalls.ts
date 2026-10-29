@@ -6,12 +6,12 @@
  *   much of the front they cover, how many archers stand on them. Walls that
  *   matter call for siege packs ({@link siegeWanted}) — the units built to
  *   break stone (UnitType.buildingDamageMult).
- * - **Build** walls of its own ({@link wallsWanted}, {@link placeWallPlan}):
+ * - **Build** walls of its own ({@link orderedWallPlan}, {@link placeWallPlan}):
  *   one fixed fortress plan per side (see {@link wallPlan}), walls joined at
- *   their end tiles, the half facing more enemy packs first. Its tiles stay
- *   free of the AI's own packs ({@link wallPlanCells}), so it can always be
- *   finished. Never the Gate, never more than the seat may still place
- *   (`wallsLeft`).
+ *   their end tiles. Which slots, and how many, the personality decides
+ *   (AiOpponent.defend). The slots it intends stay free of its own packs
+ *   ({@link wallPlanCells}). Never the Gate, never more than the seat may
+ *   still place (`wallsLeft`).
  *
  * No marks yet: siege packs break walls the way every shot does — by hitting
  * the stone in their way.
@@ -24,8 +24,6 @@ import type { Team, Unit, UnitType } from './units';
 /** the wall the AIs build — the plain Stone Wall, never the Gate */
 export const AI_WALL_ID = 'wall';
 
-/** first tests: build the whole plan as fast as budget and supply allow, enemy melee or not */
-const WALL_MADNESS = true;
 /** rows from the side's own zone's front edge (the neutral strip never counts) to its front wall */
 const FRONT_DEPTH = 4;
 /** joined walls in each half of the front wall */
@@ -36,10 +34,6 @@ const CENTRE_HOLE = 6;
 const CORRIDOR_PIECES = 1;
 /** turned pieces running back from the front wall's outer ends (a wall's length in from the map's flanks) */
 const FLANK_PIECES = 4;
-/** at most this share of the supply goes into walls */
-const WALL_SUPPLY_SHARE = 0.2;
-/** enemy melee (by value) from this share on is worth walling against */
-const MELEE_SHARE_FOR_WALLS = 0.35;
 /** the other side's walls matter once they cover this share of the front (or carry archers) */
 const RELEVANT_COVER = 0.2;
 /** siege packs wanted per this many walls that matter (at least one, at most MAX_SIEGE_PACKS) */
@@ -109,47 +103,6 @@ export function siegeWanted(walls: EnemyWalls): number {
     return Math.min(MAX_SIEGE_PACKS, Math.max(1, Math.ceil(walls.count / WALLS_PER_SIEGE_PACK)));
 }
 
-/** the other side's army by value: how much of it is ground melee (what walls stop), how many siege packs */
-function enemyMix(placement: PlacementController, team: Team): { meleeShare: number; siegePacks: number } {
-    let total = 0;
-    let melee = 0;
-    let siegePacks = 0;
-    for (const u of placement.allUnits()) {
-        if (!onBoard(u) || u.team === team || u.type.structure || u.type.extra) continue;
-        const t = u.type;
-        const value = t.cost * Math.max(1, u.level);
-        total += value;
-        const ranged = !!t.projectileSpeed || !!t.convertRay || !!t.rampBeam;
-        const flies = (t.flying ?? 0) > 0 || !!t.freeFlight;
-        if (!ranged && !flies && t.damage > 0 && t.speed > 0) melee += value;
-        if (isSiegeType(t)) siegePacks++;
-    }
-    return { meleeShare: total > 0 ? melee / total : 0, siegePacks };
-}
-
-/**
- * How many more walls `seat` builds this round: a line when the other side
- * brings melee (more melee, longer line; a Year defender one more), halved
- * against a siege army — less what it already has standing, within what it
- * may still place and a share of its supply.
- */
-export function wallsWanted(
-    placement: PlacementController,
-    team: Team,
-    seat: SeatId,
-    opts: { wallsLeft: number; supply: number; wallCost: number; defender: boolean },
-): number {
-    if (opts.wallsLeft <= 0 || opts.wallCost <= 0) return 0;
-    if (WALL_MADNESS) return Math.min(opts.wallsLeft, Math.floor(opts.supply / opts.wallCost));
-    const mix = enemyMix(placement, team);
-    let line = mix.meleeShare >= MELEE_SHARE_FOR_WALLS ? 2 + Math.round(mix.meleeShare * 4) : 0;
-    if (opts.defender) line += 1;
-    if (mix.siegePacks >= 2) line = Math.floor(line / 2);
-    const standing = placement.allUnits().filter((u) => onBoard(u) && u.seat === seat && u.type.id === AI_WALL_ID).length;
-    const affordable = Math.floor((opts.supply * WALL_SUPPLY_SHARE) / opts.wallCost);
-    return Math.max(0, Math.min(line - standing, opts.wallsLeft, affordable));
-}
-
 /** one fixed wall slot: its anchor (top-left tile), lengthwise or turned, and which way its back is */
 export interface WallSlot {
     anchor: { col: number; row: number };
@@ -157,7 +110,7 @@ export interface WallSlot {
     flipped: boolean;
 }
 
-interface PlanSlot extends WallSlot {
+export interface PlanSlot extends WallSlot {
     /** 0 front, 1 corridor, 2 flank — the build order */
     phase: number;
     /** the half of the front it stands in (-1 left, +1 right) */
@@ -231,35 +184,28 @@ function wallPlan(placement: PlacementController, team: Team, len: number): Plan
     return slots;
 }
 
-/** every tile of the side's wall plan — what the AI keeps its packs off */
-export function wallPlanCells(placement: PlacementController, team: Team, wall: UnitType): Set<string> {
-    const out = new Set<string>();
+/** the tiles a slot's wall covers */
+function slotCells(slot: WallSlot, wall: UnitType): string[] {
     const fp = wall.footprint;
-    for (const s of wallPlan(placement, team, fp.cols)) {
-        const cols = s.rotated ? fp.rows : fp.cols;
-        const rows = s.rotated ? fp.cols : fp.rows;
-        for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) out.add(cellKey({ col: s.anchor.col + c, row: s.anchor.row + r }));
-    }
+    const cols = slot.rotated ? fp.rows : fp.cols;
+    const rows = slot.rotated ? fp.cols : fp.rows;
+    const out: string[] = [];
+    for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) out.push(cellKey({ col: slot.anchor.col + c, row: slot.anchor.row + r }));
     return out;
 }
 
+/** every tile of these slots — what the AI keeps its packs off */
+export function wallPlanCells(slots: readonly WallSlot[], wall: UnitType): Set<string> {
+    return new Set(slots.flatMap((s) => slotCells(s, wall)));
+}
+
 /**
- * Builds up to `count` walls of the side's plan ({@link wallPlan}): the front
- * first (the pieces before the seat's towers first, then out to the corners),
- * then the corridor, then the flanks from the front back — at each step the
- * half facing more enemy packs (any packs) first. A slot that holds the
- * seat's wall already is done; one something blocks is skipped and tried
- * again next round. Returns how many it placed.
+ * The side's wall plan ({@link wallPlan}) in build order: the front first
+ * (the pieces before the seat's towers first, then out to the corners), then
+ * the corridor, then the flanks from the front back — at each step the half
+ * facing more enemy packs (any packs) first.
  */
-export function placeWallPlan(
-    placement: PlacementController,
-    team: Team,
-    seat: SeatId,
-    wall: UnitType,
-    count: number,
-    buy: (slot: WallSlot) => boolean,
-): number {
-    if (count <= 0) return 0;
+export function orderedWallPlan(placement: PlacementController, team: Team, seat: SeatId, wall: UnitType): PlanSlot[] {
     const slots = wallPlan(placement, team, wall.footprint.cols);
     const map = placement.map;
     const { colMin, colMax } = sideFrontline(placement, team);
@@ -277,37 +223,50 @@ export function placeWallPlan(
         .filter((u) => u.seat === seat && !u.destroyed && (u.type.baseAnchor === 'research' || u.type.baseAnchor === 'command'))
         .map((t) => t.cell.col + t.type.footprint.cols / 2);
     const fromTower = (col: number) => (towers.length > 0 ? Math.min(...towers.map((t) => Math.abs(t - col))) : 0);
-    const order = slots.sort(
+    return slots.sort(
         (a, b) =>
             a.phase - b.phase ||
             (a.phase === 0 ? fromTower(a.col) - fromTower(b.col) : a.step - b.step) ||
             (a.half === first ? 0 : 1) - (b.half === first ? 0 : 1),
     );
+}
 
-    const built = placement.allUnits().filter((u) => onBoard(u) && u.seat === seat && u.type.id === wall.id);
-    let placed = 0;
-    for (const slot of order) {
-        if (placed >= count) break;
-        const standing = built.some(
-            (w) => w.cell.col === slot.anchor.col && w.cell.row === slot.anchor.row && w.rotated === slot.rotated,
-        );
-        if (standing || !placement.canPlaceAt(team, seat, wall, slot.anchor, slot.rotated)) continue;
-        if (buy({ anchor: slot.anchor, rotated: slot.rotated, flipped: slot.flipped })) placed++;
-    }
-    return placed;
+/** the seat's wall standing in this slot, if it stands */
+export function wallInSlot(placement: PlacementController, seat: SeatId, wall: UnitType, slot: WallSlot): Unit | null {
+    return (
+        placement
+            .allUnits()
+            .find(
+                (w) =>
+                    onBoard(w) &&
+                    w.seat === seat &&
+                    w.type.id === wall.id &&
+                    w.cell.col === slot.anchor.col &&
+                    w.cell.row === slot.anchor.row &&
+                    w.rotated === slot.rotated,
+            ) ?? null
+    );
 }
 
 /**
- * The seat's standing walls in the order it tends them (levels, archers):
- * the front before the turned pieces, nearest the centre hole first — where
- * the enemy comes through.
+ * Builds up to `count` of these slots that don't stand yet, in their order.
+ * One something blocks is skipped and tried again next round. Returns how
+ * many it placed.
  */
-export function wallsToTend(placement: PlacementController, team: Team, seat: SeatId): Unit[] {
-    const { colMin, colMax } = sideFrontline(placement, team);
-    const mid = (colMin + colMax + 1) / 2;
-    const fromHole = (u: Unit) => Math.abs(u.cell.col + (u.rotated ? 0.5 : u.type.footprint.cols / 2) - mid);
-    return placement
-        .allUnits()
-        .filter((u) => onBoard(u) && u.seat === seat && u.type.id === AI_WALL_ID)
-        .sort((a, b) => Number(a.rotated) - Number(b.rotated) || fromHole(a) - fromHole(b) || a.id - b.id);
+export function placeWallPlan(
+    placement: PlacementController,
+    team: Team,
+    seat: SeatId,
+    wall: UnitType,
+    slots: readonly WallSlot[],
+    count: number,
+    buy: (slot: WallSlot) => boolean,
+): number {
+    let placed = 0;
+    for (const slot of slots) {
+        if (placed >= count) break;
+        if (wallInSlot(placement, seat, wall, slot) || !placement.canPlaceAt(team, seat, wall, slot.anchor, slot.rotated)) continue;
+        if (buy({ anchor: slot.anchor, rotated: slot.rotated, flipped: slot.flipped })) placed++;
+    }
+    return placed;
 }

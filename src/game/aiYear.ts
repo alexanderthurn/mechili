@@ -29,6 +29,7 @@
  * the stream it is handed.
  */
 import type { Action } from './actions';
+import { counterTable, missingCounterShare, type CounterTable } from './aiCounters';
 import { unlockCostFor, type StartCard } from './cards';
 import type { TypeRegistry } from './content/typeRegistry';
 import { sideFrontline } from './aiWalls';
@@ -53,6 +54,8 @@ export interface YearBrainHost {
     unlockUsedThisRound: boolean[];
     commander: (string | null)[];
     loadoutOf: (seat: SeatId) => Loadout | undefined;
+    /** the level this round's buys arrive at (the commander's, or 2 once the round's recruit is bought) */
+    roundRecruitLevel?: () => number;
 }
 
 type HasTech = (seat: SeatId, typeId: string, techId: string) => boolean;
@@ -176,6 +179,12 @@ export const PLANNER = {
     hpWeight: 1,
     /** 1 = score plans by The Year's round rule (surviving value, tie to the defender); 0 = by HP margin */
     ruleScore: 0,
+    /**
+     * weight of the counter table (aiCounters.ts, worked out from the unit data) next to the battle model:
+     * a pack that answers all of the enemy's army its own doesn't answer yet adds this much to its
+     * score (the model's margin runs -1…+1)
+     */
+    counterList: 0.3,
 };
 
 function levelMult(level: number, leveling: LevelingSettings): number {
@@ -462,6 +471,25 @@ function depthFor(type: UnitType): number {
 /** the poor unit choice's chance to spend the round's unlock (the classic AI's habit) */
 const POOR_UNLOCK_CHANCE = 0.85;
 
+/**
+ * How a personality places the round's new packs on top of the planner's own
+ * choice (opposite the enemy group each pack is best against).
+ */
+export interface Stance {
+    /** world x the army gathers on (a Rusher: the enemy tower it goes for); null = none */
+    focusX: number | null;
+    /** 0…1: how hard every pack is pulled toward focusX */
+    pull: number;
+    /** world x positions the packs take in turn (Wide); empty = none */
+    spread: number[];
+    /** extra tiles behind the front for every pack (a Defender stands back) */
+    depthShift: number;
+    /** the first packs of the round go here instead (a Rusher's weak-side guard) */
+    guard: { x: number; packs: number } | null;
+}
+
+export const NO_STANCE: Stance = { focusX: null, pull: 0, spread: [], depthShift: 0, guard: null };
+
 interface Plan {
     packs: { type: UnitType; depth: number }[];
     techs: { type: UnitType; techId: string; cost: number }[];
@@ -471,6 +499,9 @@ interface Plan {
 export class YearBrain {
     /** packs bought in this build phase (the deploy cap counts these) */
     private bought = 0;
+    get packsBought(): number {
+        return this.bought;
+    }
     /** this brain's planner choices ({@link PLANNER} with any overrides) */
     private readonly p: typeof PLANNER;
 
@@ -484,6 +515,8 @@ export class YearBrain {
         overrides: Partial<typeof PLANNER> = {},
         /** 'poor' (Easy, Medium): random packs, unlocks and talents — placed like the scored ones */
         private readonly unitChoice: 'poor' | 'counter' = 'counter',
+        /** where the personality wants the round's new packs (AI_PLAN.md, "Personalities") */
+        private readonly stance: Stance = NO_STANCE,
     ) {
         this.p = { ...PLANNER, ...overrides };
     }
@@ -562,7 +595,7 @@ export class YearBrain {
     }
 
     private recruitLevel(_type: UnitType): number {
-        return this.effectsOf(this.seat)?.recruitLevel ?? 1;
+        return Math.max(this.effectsOf(this.seat)?.recruitLevel ?? 1, this.host.roundRecruitLevel?.() ?? 1);
     }
 
     private buyCost(type: UnitType): number {
@@ -644,6 +677,7 @@ export class YearBrain {
         let counter = this.enemyCounter(army, theirs, enemyBudget);
         let current = this.score(army, theirs, counter);
         const minCost = Math.min(...shop.map((t) => this.buyCost(t)));
+        const values = this.armyValues();
 
         for (let step = 0; step < 60; step++) {
             const left = budget - plan.spent;
@@ -653,6 +687,9 @@ export class YearBrain {
             let bestScore = current;
 
             if (plan.packs.length < slots) {
+                // the counter table: what the enemy fields that its army (and this plan) doesn't answer yet
+                const own = new Map(values.own);
+                for (const p of plan.packs) own.set(p.type.id, (own.get(p.type.id) ?? 0) + p.type.cost * this.recruitLevel(p.type));
                 for (const type of shop) {
                     const cost = this.buyCost(type);
                     if (cost > left) continue;
@@ -663,7 +700,8 @@ export class YearBrain {
                     const s = this.score([...army, group], theirs, counter);
                     // gain per supply; a small tilt toward packs we have few of keeps the army flexible
                     const have = plan.packs.filter((p) => p.type === type).length;
-                    const gain = (s - current) / cost - have * this.p.diversityTilt;
+                    const listed = this.p.counterList * missingCounterShare(type.id, values.enemy, own, this.counters);
+                    const gain = (s - current + listed) / cost - have * this.p.diversityTilt;
                     if (gain > bestGain) {
                         bestGain = gain;
                         bestPick = { kind: 'pack', type, group, cost };
@@ -739,11 +777,14 @@ export class YearBrain {
      * Plan and play one build phase. `keep` = the side keeps its army (levels
      * it first); otherwise the army was just cleared.
      */
-    playRound(opts: { keep: boolean; slots: number }): void {
+    playRound(opts: { keep: boolean; slots: number; finish?: boolean }): void {
         const { economy, types, dispatch } = this.host;
         if (opts.keep) this.buyLevels();
+        // what may still move goes where this round's plan wants it (round 1: the starting army)
+        this.repositionMovable();
         if (this.unitChoice === 'poor') {
             this.playPoorRound(opts.slots);
+            if (opts.finish !== false) this.finish(opts.slots);
             return;
         }
         const board = this.boardGroups();
@@ -781,13 +822,35 @@ export class YearBrain {
         for (const tech of plan.techs) {
             dispatch({ kind: 'buyTech', team: this.team, seat: this.seat, typeId: tech.type.id, techId: tech.techId });
         }
-        this.spendLeftover(opts.slots);
+        if (opts.finish !== false) this.finish(opts.slots);
+    }
+
+    /**
+     * The rest of the round after its packs: more packs while `slots` (the
+     * round's pack limit) allows and supply covers them, then talents — the
+     * scored best-value ones, or random ones with the poor choice. Called by
+     * playRound, or later when the AI spends on other things first.
+     */
+    finish(slots: number): void {
+        if (this.unitChoice === 'counter') {
+            this.spendLeftover(slots);
+            return;
+        }
+        const { economy } = this.host;
+        const lanes = this.enemyLanes();
+        for (let guard = 0; guard < 40 && this.bought < slots; guard++) {
+            const affordable = this.buyableTypes().filter((t) => this.buyCost(t) <= economy.balance(this.seat));
+            if (affordable.length === 0) break;
+            const type = affordable[Math.floor(this.rng() * affordable.length)]!;
+            if (!this.placeOne(type, depthFor(type), lanes, [])) break;
+        }
+        this.buyRandomTalents();
     }
 
     /**
      * The poor unit choice (Easy, Medium): a random unlock now and then,
-     * random affordable packs for every slot the supply covers, random
-     * talents with what is left. Placement is the planner's own.
+     * random affordable packs for every slot the supply covers (talents
+     * come in {@link finish}). Placement is the planner's own.
      */
     private playPoorRound(slots: number): void {
         const { economy, types, dispatch } = this.host;
@@ -812,7 +875,11 @@ export class YearBrain {
             packs.push({ type, depth: depthFor(type) });
         }
         this.placePlan({ packs, techs: [], spent: economy.balance(this.seat) - left });
-        // talents: random among what it can pay for, on the types it fields
+    }
+
+    /** the poor choice's talents: random among what it can pay for, on the types it fields */
+    private buyRandomTalents(): void {
+        const { economy, types, dispatch } = this.host;
         for (let guard = 0; guard < 20; guard++) {
             const fielded = [
                 ...new Set(
@@ -833,6 +900,23 @@ export class YearBrain {
             const pick = options[Math.floor(this.rng() * options.length)]!;
             if (!dispatch({ kind: 'buyTech', team: this.team, seat: this.seat, typeId: pick.type.id, techId: pick.techId })) break;
         }
+    }
+
+    /** the counter table of the match's unit types (worked out once) */
+    private get counters(): CounterTable {
+        return counterTable(this.host.types);
+    }
+
+    /** both armies by unit type: value (cost × level) of what stands on the board */
+    private armyValues(): { enemy: Map<string, number>; own: Map<string, number> } {
+        const enemy = new Map<string, number>();
+        const own = new Map<string, number>();
+        for (const u of this.host.placement.allUnits()) {
+            if (u.team === 'horde' || u.destroyed || u.summoned || u.type.structure || u.type.extra) continue;
+            const into = u.team === this.team ? (u.seat === this.seat ? own : null) : enemy;
+            if (into) into.set(u.type.id, (into.get(u.type.id) ?? 0) + u.type.cost * Math.max(1, u.level));
+        }
+        return { enemy, own };
     }
 
     private planScore(base: readonly BattleGroup[], theirs: readonly BattleGroup[], plan: Plan): number {
@@ -867,7 +951,9 @@ export class YearBrain {
             let bestScore = -Infinity;
             for (const type of types) {
                 const g = this.plannedGroup(type, 4);
-                const s = this.roundScore(estimateBattle([...board.mine, g], board.theirs)) / Math.max(1, this.buyCost(type));
+                const values = this.armyValues();
+                const listed = this.p.counterList * missingCounterShare(type.id, values.enemy, values.own, this.counters);
+                const s = (this.roundScore(estimateBattle([...board.mine, g], board.theirs)) + listed) / Math.max(1, this.buyCost(type));
                 if (s > bestScore) {
                     bestScore = s;
                     best = type;
@@ -970,6 +1056,43 @@ export class YearBrain {
 
     private placePlan(plan: Plan): void {
         const lanes = this.enemyLanes();
+        this.setFocus(lanes);
+        const placed: { x: number; type: UnitType }[] = [];
+        // big and front-line packs first — they claim the front, the rest fills behind
+        const order = [...plan.packs].sort((a, b) => a.depth - b.depth || b.type.cost - a.type.cost);
+        // a Rusher's guard: its first front-liners hold the weak tower
+        const guards = this.stance.guard ? Math.min(this.stance.guard.packs, order.length) : 0;
+        for (let i = 0; i < order.length; i++) {
+            this.placeOne(order[i]!.type, order[i]!.depth, lanes, placed, i < guards ? this.stance.guard!.x : undefined);
+        }
+    }
+
+    /**
+     * Its packs that may still move this round (a starting army, packs of an
+     * earlier pass): to where the round's plan wants them — the
+     * personality's stance, the role's depth — before the new packs join.
+     */
+    private repositionMovable(): void {
+        const { placement, dispatch } = this.host;
+        const movable = placement
+            .allUnits()
+            .filter((u) => u.seat === this.seat && !u.destroyed && !u.summoned && !u.gridless && !u.type.structure && !u.type.extra && placement.canReposition(u))
+            .sort((a, b) => depthFor(a.type) - depthFor(b.type) || b.type.cost - a.type.cost || a.id - b.id);
+        if (movable.length === 0) return;
+        const lanes = this.enemyLanes();
+        this.setFocus(lanes);
+        const placed: { x: number; type: UnitType }[] = [];
+        for (const u of movable) {
+            const at = this.spotFor(u.type, depthFor(u.type), lanes, placed, undefined, u.rotated);
+            if (!at) continue;
+            placed.push({ x: at.x, type: u.type });
+            if (at.spot.col === u.cell.col && at.spot.row === u.cell.row) continue;
+            dispatch({ kind: 'move', team: this.team, seat: this.seat, unitId: u.id, anchor: at.spot });
+        }
+    }
+
+    /** where the army concentrates (world x): its enemy's centre, an attacker's maybe their keep */
+    private setFocus(lanes: readonly { unit: Unit; group: BattleGroup }[]): void {
         let sum = 0;
         let weight = 0;
         for (const { unit, group } of lanes) {
@@ -983,12 +1106,6 @@ export class YearBrain {
             const keep = lanes.find(({ unit }) => unit.type.onDestroyed?.collapseOwnArmy);
             if (keep) this.focusX = this.focusX * (1 - this.p.focusKeep) + keep.unit.world.x * this.p.focusKeep;
         }
-        const placed: { x: number; type: UnitType }[] = [];
-        // big and front-line packs first — they claim the front, the rest fills behind
-        const order = [...plan.packs].sort((a, b) => a.depth - b.depth || b.type.cost - a.type.cost);
-        for (const pack of order) {
-            this.placeOne(pack.type, pack.depth, lanes, placed);
-        }
     }
 
     /**
@@ -1001,9 +1118,36 @@ export class YearBrain {
         depth: number,
         lanes: readonly { unit: Unit; group: BattleGroup }[],
         placed: { x: number; type: UnitType }[],
+        /** stand here (a guard), whatever the lanes say */
+        atX?: number,
     ): boolean {
-        const { placement, dispatch } = this.host;
+        const at = this.spotFor(type, depth, lanes, placed, atX, false);
+        if (!at) return false;
+        const ok = this.host.dispatch({ kind: 'buy', team: this.team, seat: this.seat, typeId: type.id, anchor: at.spot, rotated: false });
+        if (ok) {
+            placed.push({ x: at.x, type });
+            this.bought++;
+        }
+        return ok;
+    }
+
+    /**
+     * The spot a pack of `type` wants: its depth band, in the lane of the
+     * enemy group it hurts most (defenders lean toward their own base), the
+     * personality's stance on top, spread from packs already there when the
+     * enemy splashes. Null when nothing fits.
+     */
+    private spotFor(
+        type: UnitType,
+        depth: number,
+        lanes: readonly { unit: Unit; group: BattleGroup }[],
+        placed: readonly { x: number; type: UnitType }[],
+        atX: number | undefined,
+        rotated: boolean,
+    ): { spot: { col: number; row: number }; x: number } | null {
+        const { placement } = this.host;
         const map = placement.map;
+        depth = Math.max(0, depth + this.stance.depthShift);
         const me = this.plannedGroup(type, depth);
         // which enemy lane this pack wants
         let targetX = 0;
@@ -1020,17 +1164,22 @@ export class YearBrain {
         }
         let x = weight > 0 ? targetX / weight : 0;
         if (this.p.concentrate > 0) x = x * (1 - this.p.concentrate) + this.focusX * this.p.concentrate;
-        if (this.role === 'defender') {
+        if (this.role === 'defender' && this.stance.focusX === null) {
             const keep = placement.allUnits().find((u) => u.team === this.team && u.type.onDestroyed?.collapseOwnArmy);
             if (keep) x = x * (1 - this.p.keepPull) + keep.world.x * this.p.keepPull;
         }
+        // the personality: a guard's spot, its turn in the spread, or the pull toward its focus
+        const { stance } = this;
+        if (atX !== undefined) x = atX;
+        else if (stance.spread.length > 0) x = x * (1 - stance.pull) + stance.spread[placed.length % stance.spread.length]! * stance.pull;
+        else if (stance.focusX !== null) x = x * (1 - stance.pull) + stance.focusX * stance.pull;
         // spread: step aside from packs of the same kind already in this lane
         const crowd = placed.filter((p) => Math.abs(p.x - x) < 14).length;
         if (crowd > 0) x += (crowd % 2 === 1 ? 1 : -1) * Math.ceil(crowd / 2) * (enemySplash ? this.p.laneSpacingSplash : this.p.laneSpacing) + (this.rng() - 0.5) * 4;
         x = Math.max(-map.halfW + 12, Math.min(map.halfW - 12, x));
 
         const { frontRow, forward, colMin, colMax } = this.frontline(this.team);
-        const fp = type.footprint;
+        const fp = rotated ? { cols: type.footprint.rows, rows: type.footprint.cols } : type.footprint;
         const wantCol = Math.round((x + map.halfW) / CELL - fp.cols / 2);
         // the pack's center sits `depth` tiles behind the front edge (anchor = its first row)
         const wantRow = Math.round(frontRow - forward * (depth + fp.rows / 2) - fp.rows / 2);
@@ -1042,22 +1191,19 @@ export class YearBrain {
                     const col = wantCol + dc * 2;
                     const row = wantRow + dr;
                     if (col < colMin || col + fp.cols - 1 > colMax) continue;
-                    if (!placement.canPlaceAt(this.team, this.seat, type, { col, row }, false)) continue;
+                    if (!placement.canPlaceAt(this.team, this.seat, type, { col, row }, rotated)) continue;
                     // the wall plan's tiles stay free for its walls (aiWalls)
-                    if (placement.aiAvoidsAt(this.seat, type, { col, row }, false)) continue;
+                    if (placement.aiAvoidsAt(this.seat, type, { col, row }, rotated)) continue;
                     // depth matters more than lane: keep the band
                     const d = Math.abs(dc) * 2 + Math.abs(dr) * 3;
                     if (!best || d < best.d) best = { col, row, d };
                 }
             }
         }
-        const spot = best ?? placement.findAiSpot(this.team, this.seat, type, this.rng)?.anchor ?? null;
-        if (!spot) return false;
-        const ok = dispatch({ kind: 'buy', team: this.team, seat: this.seat, typeId: type.id, anchor: { col: spot.col, row: spot.row }, rotated: false });
-        if (ok) {
-            placed.push({ x, type });
-            this.bought++;
-        }
-        return ok;
+        if (best) return { spot: { col: best.col, row: best.row }, x };
+        // nothing near the wanted spot: anywhere it may stand (a new pack only — a moved one keeps its place)
+        if (rotated) return null;
+        const any = placement.findAiSpot(this.team, this.seat, type, this.rng);
+        return any && !any.rotated ? { spot: any.anchor, x } : null;
     }
 }

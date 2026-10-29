@@ -1130,6 +1130,13 @@ try {
         if (!ck) failed = true;
         else console.log(`ok   campaigns: ${list.map((c) => `${c.id} (${camp.campaignSummary(c).scenarios.length} levels)`).join(', ')}`);
     }
+    // the AI's counter table, worked out from the unit data: printed so the rules can be judged
+    {
+        const counters = await server.ssrLoadModule('/src/game/aiCounters.ts');
+        const table = counters.counterTable(units.BASE_TYPES);
+        console.log(`ok   ai counters: ${table.size} unit(s), by rules (units listed → the units good against them)`);
+        for (const [id, list] of table) console.log(`       ${id.padEnd(17)} ${list.length > 0 ? list.join(', ') : '–'}`);
+    }
 } catch (e) {
     failed = true;
     console.error(`FAIL ${e instanceof Error ? e.message : e}`);

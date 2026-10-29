@@ -17,16 +17,13 @@ The army is the top priority: it is what takes the enemy's HP down. Losing a tow
 
 ## What exists
 
-- **Two army brains today:**
-  - **Classic** (`AiOpponent.runBuildActions`, Practice / 1v1 / 2v2): random affordable packs at random spots, melee toward the front.
-  - **The Year planner** (`YearBrain`, `aiYear.ts`, Siege): a fitted battle model (`estimateBattle`, ~85 % agreement with real battles), greedy army composition against the visible army, placement in lanes opposite the enemy groups. It has a "keep" mode (the arena's player stand-in) that extends a kept army instead of rebuilding.
-- **Walls** (`aiWalls.ts`):
-  - A fixed fortress plan per side: front 4 + 4 joined walls with a 6-tile centre hole, one corridor piece per hole edge, 4 flank pieces per side.
-  - Slots the AI's packs keep off.
-  - Levels and archer posts.
-  - Siege packs against the enemy's walls.
-  - `WALL_MADNESS` is on for testing.
-- **Building upgrades** (`AiOpponent.upgradeBuildings`): one level per building per round, with what is left after the army.
+Steps 1–5 are built (2026-10-29); the counter table (step 6) is to come.
+
+- **One brain** (`aiYear.ts`, `YearBrain`): every mode. Siege rebuilds the army each round; Practice, 1v1 and 2v2 keep and extend it. `unitChoice: 'poor'` (Easy, Medium) picks random unlocks, packs and talents; Hard scores with the fitted battle model. A `Stance` places the round's new packs for the personality.
+- **Difficulty and personality** (`aiProfile.ts`): chips on AI seats in the lobby (remembered); scenario rules carry them too (`rules.aiDifficulty` / `aiPersonality`). Random and the Rusher's side resolve from the match seed.
+- **Threat map and last battle** (`aiThreat.ts`): sectors, depth from the zone's front, posture, side totals; every tower's fall time or HP left. Shown in the debug overlay.
+- **Personalities and defence** (`ai.ts`): Rusher (side, guard, stall growing with danger, weak tower upgraded), Wide (spread forward, walls where in danger), Defender (back, full fortress plan, posts, levels, Stronghold archers, supply share by difficulty). Walls come from the fixed plan in `aiWalls.ts`; only intended slots are kept free of packs.
+- **Extras** (`ai.ts`): the +1 pack, credit when nearly dead, army boosts, recruit level 2, range / speed boosts, card charges (tutor, Marching Orders) and card choice, sending supply to an ally — each only while it owns a building that sells it.
 
 ## One brain
 
@@ -39,13 +36,13 @@ Everything below sits on top of the one brain.
 
 ## Round flow (priorities)
 
-"Army first" means the army is never starved, not that it spends first. The defence the round needs (from the threat and the personality) is sized first and set aside; the army composes with the rest; then the defence is built. The plan's wall tiles are kept free of packs, so walls can go down after the army.
+"Army first", as decided in testing (2026-10-29): on Hard the round's packs (the normal two) are bought before anything else; the defence the round wants is planned first (its wall tiles kept free of packs) but built afterwards, out of what the packs left (at most its share of the round's supply). Easy and Medium still build their defence first — a Defender there overbuilds. A third pack (the +1 buy) is a very late option on every level: only once every slot is used and supply is still left, after talents, spells and boosts.
 
 1. **Read** the enemy: the threat map.
-2. **Army:** composition and placement for the personality's plan. It gets most of the supply, including the Research Centre's extra buy and, when nearly dead, its credit (see "Extra buy and round boosts").
+2. **Army:** composition and placement for the personality's plan; packs that may still move this round (a starting army) are moved to the plan too. It gets most of the supply, including the Research Centre's extra buy and, when nearly dead, its credit (see "Extra buy and round boosts").
 3. **Defence** where the threat calls for it (or the personality always wants it): wall segments from the fixed plan, then archer posts, then levels on those walls.
 4. **Spells / tactics** (Medium, Hard): today's spell logic, unchanged by personality.
-5. **Building upgrades and runes** with what is left. The exception: a Rusher's weak tower comes under defence (step 3).
+5. **Runes** with what is left, as many as its packs have free item slots for. No general building upgrades (decided in testing, 2026-10-29): a tower is levelled only after the last battle hurt it — see "Reinforcing a hurt tower".
 
 ## Threat map
 
@@ -83,7 +80,7 @@ Losing your own command tower or research centre debuffs your seat's units:
 ### Rusher
 
 - **Side:** picks a side at random at the start (at every difficulty) and keeps it all game. It stacks its army there and goes for that tower.
-- **Weak side, always a stall** (Medium, Hard; the minimum): the wall segment in front of the weak tower, plus archer posts if the threat there is mostly melee.
+- **Weak side, a stall once there's a reason** (Medium, Hard): the last battle went badly there, or (Hard) enough of the enemy stands on that side now. The minimum is the wall segment in front of the weak tower with archer posts; it grows with the danger. No walls in round 1 without a reason (decided in testing, 2026-10-29).
 - **Easy** doesn't react to threats: no stall, no race check.
 - **Race check** (Medium, Hard) sizes the extra defence. It reads the **last battle** instead of predicting:
   - **T₁:** when its rush took the enemy tower on its side (or how much of the tower's HP it took, if it didn't fall).
@@ -176,6 +173,15 @@ Unused by every AI today. They make the army stronger, so they belong to the arm
 
 Not planned for now: selling packs.
 
+## Reinforcing a hurt tower
+
+Decided in testing (2026-10-29), for every personality on Medium and Hard: a tower that fell in the last battle, or lost more than half its HP, gets
+- a level up (more HP, 2 s less debuff when it falls),
+- an archer on its top where it has a pad (the command tower),
+- the front walls before it with archers on them — against an air attack too: flyers pass over the stone, but the archers on it shoot them. Every round it is hurt again adds two more walls (front first, then on through the plan) and their archers; it never stops adding. No history needed: what already stands there is kept, and two more come on top.
+
+All of it out of the defence share, and on Hard after the round's packs. Building upgrades with leftover supply are gone; leftover becomes runes.
+
 ## Siege packs against enemy walls
 
 Hard only: part of good unit choice. Easy and Medium ignore the enemy's walls.
@@ -193,9 +199,19 @@ Wall segments come from the fixed plan in `aiWalls.ts`. Only the segments the AI
 
 ## Counter table
 
-Learning from battle results (which of its units performed) is not planned for now.
+Worked out by rules from the unit data (`aiCounters.ts`), so new units need no list — not perfect, but automatic. Traits: flies, hits air, swarm (10+ models), single model, splash (radius 3+, no big hits), big hitter (300+ damage per hit, ramping beam, convert ray), tank (1000+ HP per model), range. Y counters X when:
 
-To come, in a session with the user's "good player" rules (e.g. dwarf beaten by hammerer). It sits on top of the battle model as hand-set bonuses for what the stats miss (range, flying, armour piercing, splash against swarms). Hard uses it to pick the army that scores best against the enemy's.
+- A: X can't hit air, Y flies.
+- B: X flies, Y hits air — against a flying swarm only a splash or a swarm.
+- C: X is a swarm, Y has splash.
+- D: X is a single model without splash (and not a tank without big hits), Y is a swarm.
+- E: X has splash, Y is a single model that outranges it or is a tank.
+- F: X is a tank, Y is a big hitter.
+
+Y must be able to hit X. Where two units would counter each other, the air rules (A, B) win over the rest; on a tie neither counts. The content check prints the table. A hand-made list came first (2026-10-29) and matched these rules closely.
+
+Hard only, next to its battle model: a candidate pack gets a bonus for the share of the enemy's army (by value) it counters that its own army (and the round's plan so far) doesn't counter yet — `PLANNER.counterList` (0.3, the model's margin runs -1…+1). Placement is left out: it already sends each pack opposite the enemy group it is best against. 
+Not yet: Medium using the list; personality preferences (a Rusher's faster units, a Defender's range); learning from battle results.
 
 ## Rules for every level
 
@@ -224,4 +240,4 @@ To come, in a session with the user's "good player" rules (e.g. dwarf beaten by 
 
 Collected in the discussion; answered ones move into the sections above.
 
-- The counter table (step 6), in its own session.
+- The counter table (step 6): filling it unit by unit, now that the file exists.

@@ -3,7 +3,7 @@
 // round after round against a stand-in for the human.
 //
 //   node scripts/ai-arena.mjs [--games 6] [--rounds 9] [--variant attack|defend|komtur-attack|komtur-defend|all] [--terrain standard|hills|highlands|wall]
-//                             [--ai easy|medium|hard] [--human easy|medium|hard] [--seed 1] [--verbose]
+//                             [--ai easy|medium|hard] [--human easy|medium|hard] [--style wide|rusher|defender] [--seed 1] [--verbose]
 //
 // The AI side rebuilds its army every round (as in the game); the human side
 // keeps its army, levels it with the XP it earns and buys more — driven by the
@@ -203,7 +203,8 @@ function newMatch(variantName, seed, brains) {
         opponents: 'build',
         rngForRound: (round) => mulberry32(seedFrom(seed, `ai-climb-${seat}-${round}`)),
         difficulty,
-        personality: 'random',
+        style: arg('style', 'wide'),
+        rushSide: 0,
         plannerOverrides: seat === 1 ? aiPlanner : {},
         leveling: settings.leveling,
         yearRole: seat === 1 ? (variant.humanRole === 'defender' ? 'attacker' : 'defender') : variant.humanRole,
@@ -772,6 +773,16 @@ const rounds = Number(arg('rounds', '9'));
 const baseSeed = Number(arg('seed', '1'));
 const variantArg = arg('variant', 'all');
 const brains = { ai: arg('ai', 'hard'), human: arg('human', 'easy') };
+for (const [flag, value, allowed] of [
+    ['--ai', brains.ai, ['easy', 'medium', 'hard']],
+    ['--human', brains.human, ['easy', 'medium', 'hard']],
+    ['--style', arg('style', 'wide'), ['rusher', 'wide', 'defender']],
+]) {
+    if (!allowed.includes(value)) {
+        console.error(`${flag} ${value}: expected ${allowed.join(' | ')}`);
+        process.exit(1);
+    }
+}
 const verbose = flag('verbose');
 const variants = variantArg === 'all' ? Object.keys(VARIANTS) : [variantArg];
 const t0 = Date.now();

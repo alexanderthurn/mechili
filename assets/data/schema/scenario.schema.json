@@ -323,6 +323,14 @@
           ],
           "description": "what computer seats do in the build phase — they always lock in"
         },
+        "aiDifficulty": {
+          "$ref": "#/definitions/AiDifficulty",
+          "description": "a building computer's strength (omit = the default, Easy)"
+        },
+        "aiPersonality": {
+          "$ref": "#/definitions/AiPersonality",
+          "description": "a building computer's style (omit = the default, Random)"
+        },
         "enemyIntel": {
           "type": "string",
           "enum": [
@@ -404,6 +412,24 @@
         "none"
       ],
       "description": "What the Stronghold is worth in a match.\n\n- `lifeline` — the default. The side's army lives only while it stands: break one and every pack on that side drops, ending the round on the spot. A siege win instead of a grind.\n- `standard` — a building like any other; losing it only costs you the forge.\n- `none` — no Stronghold on the board at all, so no forge either.\n\nThe id `standard` predates the default moving to `lifeline`; it is kept so saved Custom Game configs and anything already on the wire still resolve."
+    },
+    "AiDifficulty": {
+      "type": "string",
+      "enum": [
+        "easy",
+        "medium",
+        "hard"
+      ],
+      "description": "An AI seat's two lobby settings (AI_PLAN.md): how well it plays (difficulty) and how (personality). One AI; difficulty only switches features off and makes choices poorer."
+    },
+    "AiPersonality": {
+      "type": "string",
+      "enum": [
+        "random",
+        "rusher",
+        "wide",
+        "defender"
+      ]
     },
     "LoadoutRule": {
       "anyOf": [

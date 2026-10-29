@@ -30,7 +30,7 @@ import { CameraRig, type RigState } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
 import { GamepadCursor } from '../engine/gamepadCursor';
 import { disposeScene } from '../engine/disposeScene';
-import { ActionDispatcher, type ActionContext, garrisonFovYaw, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, xpThresholdFor, type Action, type LoggedAction, type TacticIdSource } from './actions';
+import { ActionDispatcher, buildingUpgradeFor, type ActionContext, garrisonFovYaw, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, xpThresholdFor, type Action, type LoggedAction, type TacticIdSource } from './actions';
 import {
     emptyForgeSlots,
     forgeSeatCanInsert,
@@ -40,8 +40,9 @@ import {
     type ForgeSlot,
 } from './forgeRecipes';
 import { AiOpponent, type Opponent } from './ai';
-import { DEFAULT_AI_DIFFICULTY, DEFAULT_AI_PERSONALITY, type AiDifficulty, type AiPersonality } from './aiProfile';
+import { DEFAULT_AI_DIFFICULTY, DEFAULT_AI_PERSONALITY, resolvePersonality, type AiDifficulty, type AiStyle } from './aiProfile';
 import { recordBattle, type BattleRecord } from './aiThreat';
+import type { BoostSettings } from './settings';
 import { TutorialAi } from './tutorialAi';
 import {
     isTutorial,
@@ -4691,12 +4692,6 @@ export class Game {
         return Math.max(0, Math.floor(left / Math.max(1, this.economy.costOf(wall))));
     }
 
-    /**
-     * Shared AiOpponent context builder — used both at construction (every
-     * seat that started AI-controlled) and by `takeOverSeatWithAi` (a seat
-     * that quit mid-match). Only reads `this.*` fields, so it's safe to
-     * call at any point in the match, not just during the constructor.
-     */
     /** what every AI seat on this machine read at its last build (debug overlay) */
     private aiDebugLines(): string[] {
         const ais: { ai: Opponent; seat: SeatId }[] = [
@@ -4706,6 +4701,12 @@ export class Game {
         return ais.flatMap(({ ai, seat }) => ai.debugLines?.(this.seats[seat]?.name ?? `seat ${seat}`) ?? []);
     }
 
+    /**
+     * Shared AiOpponent context builder — used both at construction (every
+     * seat that started AI-controlled) and by `takeOverSeatWithAi` (a seat
+     * that quit mid-match). Only reads `this.*` fields, so it's safe to
+     * call at any point in the match, not just during the constructor.
+     */
     private aiCtxFor(
         rng: () => number,
         seat: SeatId,
@@ -4737,8 +4738,15 @@ export class Game {
         deployCap: () => number;
         wallsLeft: () => number;
         lastBattle: () => BattleRecord | null;
+        sideHp: () => number;
+        hpCarriesOver: boolean;
+        allySeat: SeatId | null;
+        armyBoosts: () => { settings: BoostSettings; attack: number; hp: number };
+        roundRecruitLevel: () => number;
+        upgradeCostOf: (building: Unit) => number | null;
         difficulty: AiDifficulty;
-        personality: AiPersonality;
+        style: AiStyle;
+        rushSide: 0 | 1;
     } {
         return {
             types: this.types,
@@ -4792,8 +4800,23 @@ export class Game {
             wallsLeft: () => this.wallsLeftFor(seat),
             // set on the seat in the lobby; a seat taken over (or a scenario's bot) plays the defaults
             lastBattle: () => this.lastBattle,
-            difficulty: this.seats[seat]?.aiDifficulty ?? DEFAULT_AI_DIFFICULTY,
-            personality: this.seats[seat]?.aiPersonality ?? DEFAULT_AI_PERSONALITY,
+            sideHp: () => (this.seats[seat]?.team === 'player' ? this.playerHp : this.enemyHp),
+            // a Rounds match fights every round from fixed HP: nothing to save there
+            hpCarriesOver: !roundsVictory(this.settings),
+            allySeat: this.seats[seat] ? (seatIdsOf(this.seats, this.seats[seat]!.team).find((s) => s !== seat) ?? null) : null,
+            armyBoosts: () => ({ settings: this.settings.boosts, attack: this.boostState.attack[seat] ?? 0, hp: this.boostState.hp[seat] ?? 0 }),
+            roundRecruitLevel: () => this.recruitLevel[seat] ?? 1,
+            upgradeCostOf: (building: Unit) => {
+                const up = buildingUpgradeFor(building, seat, this.settings.towers);
+                return up && !up.maxed ? up.cost : null;
+            },
+            difficulty: this.seats[seat]?.aiDifficulty ?? this.rules.aiDifficulty ?? DEFAULT_AI_DIFFICULTY,
+            // Random picks once, from the match seed: a resumed match (or a new host) plays the same
+            ...resolvePersonality(
+                this.seats[seat]?.aiPersonality ?? this.rules.aiPersonality ?? DEFAULT_AI_PERSONALITY,
+                isSiege(this.settings) ? (this.yearAttackerTeam() === this.seats[seat]?.team ? 'attacker' : 'defender') : null,
+                mulberry32(seedFrom(this.seed, `ai-personality-${seat}`)),
+            ),
         };
     }
 

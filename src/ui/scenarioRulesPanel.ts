@@ -3,6 +3,7 @@
  * carries, edited in place. Each change is one draft edit; nothing on the
  * board changes (rules apply when the scenario is tested or played).
  */
+import { AI_DIFFICULTIES, AI_PERSONALITIES, DEFAULT_AI_DIFFICULTY, DEFAULT_AI_PERSONALITY, isAiDifficulty, isAiPersonality } from '../game/aiProfile';
 import type { TypeRegistry } from '../game/content/typeRegistry';
 import { HORDE_ALGORITHMS } from '../game/hordeAlgorithms';
 import { ROUND_CARD_ALGORITHMS } from '../game/roundCardAlgorithms';
@@ -73,6 +74,11 @@ export function rulesHtml(def: ScenarioDef, types: TypeRegistry): string {
             { value: 'lockInOnly', label: t('editor:lockInOnly', { defaultValue: 'fights as placed' }) },
             { value: 'build', label: t('editor:build', { defaultValue: 'builds every round' }) },
         ], r.opponents)) +
+        (r.opponents === 'build'
+            ? row(t('editor:ruleAi', { defaultValue: 'Its strength / style' }),
+                  sel('aiDifficulty', AI_DIFFICULTIES.map((d) => ({ value: d, label: t(`menu:aiDifficulty.${d}`) })), r.aiDifficulty ?? DEFAULT_AI_DIFFICULTY) +
+                  sel('aiPersonality', AI_PERSONALITIES.map((p) => ({ value: p, label: t(`menu:aiPersonality.${p}`) })), r.aiPersonality ?? DEFAULT_AI_PERSONALITY))
+            : '') +
         row(t('editor:ruleIncome', { defaultValue: 'Supply round 1 / growth' }), num('income.round1', r.income.round1, { min: 0 }) + num('income.growth', r.income.growth, { min: 0 })) +
         row(t('editor:ruleDeploy', { defaultValue: 'Packs / extras per round' }), num('deploy.unitsPerRound', r.deploy.unitsPerRound, { min: 0 }) + num('deploy.extrasBudgetPerRound', r.deploy.extrasBudgetPerRound, { min: 0 })) +
         row(t('editor:ruleStrips', { defaultValue: 'Flanks / middle open in round' }), num('flanksOpenFromRound', r.flanksOpenFromRound, { min: 1, placeholder: 'never' }) + num('neutralOpenFromRound', r.neutralOpenFromRound, { min: 1, placeholder: 'never' }), t('editor:ruleStripsTip', { defaultValue: 'Empty = never' })) +
@@ -147,6 +153,14 @@ function withRule(def: ScenarioDef, rule: string, el: HTMLInputElement | HTMLSel
             break;
         case 'opponents':
             r.opponents = value === 'build' ? 'build' : 'lockInOnly';
+            break;
+        case 'aiDifficulty':
+            if (!isAiDifficulty(value)) return null;
+            r.aiDifficulty = value;
+            break;
+        case 'aiPersonality':
+            if (!isAiPersonality(value)) return null;
+            r.aiPersonality = value;
             break;
         case 'income.round1':
         case 'income.growth':

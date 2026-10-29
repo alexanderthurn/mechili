@@ -56,11 +56,11 @@ const TOWER_SHARE = 0.5;
 const FLANK_SHARE = 0.35;
 /** a flank sector with at most this share (and something in it) is a poke */
 const POKE_SHARE = 0.15;
-/** enemies this many tiles beyond the seat's lane don't threaten it (the other lane in 2v2) */
-const LANE_MARGIN = 6;
+/** beyond the seat's lane, enemies count this many tiles past the map's flank strip (the other lane in 2v2 doesn't) */
+const LANE_MARGIN = 1;
 
 /** the seat's columns: the side's zone, or its lane of it in duo modes */
-function laneCols(placement: PlacementController, team: Team, seat: SeatId): { min: number; max: number } {
+export function laneCols(placement: PlacementController, team: Team, seat: SeatId): { min: number; max: number } {
     const { colMin, colMax } = sideFrontline(placement, team);
     const lane = placement.laneOf(seat);
     const mid = Math.floor(placement.map.cols / 2);
@@ -70,12 +70,16 @@ function laneCols(placement: PlacementController, team: Team, seat: SeatId): { m
 }
 
 /** the seat's own research centre and command tower, by column */
-function ownTowers(placement: PlacementController, seat: SeatId): { kind: TowerKind; col: number }[] {
+export function ownTowers(placement: PlacementController, seat: SeatId): Unit[] {
     return placement
         .allUnits()
         .filter((u) => u.seat === seat && !u.destroyed && (u.type.baseAnchor === 'research' || u.type.baseAnchor === 'command'))
-        .map((u) => ({ kind: u.type.baseAnchor as TowerKind, col: u.cell.col + u.type.footprint.cols / 2 }))
-        .sort((a, b) => a.col - b.col);
+        .sort((a, b) => a.cell.col - b.cell.col);
+}
+
+/** the column a building is centred on */
+export function towerCol(u: Unit): number {
+    return u.cell.col + u.type.footprint.cols / 2;
 }
 
 /**
@@ -99,15 +103,19 @@ export function readThreat(placement: PlacementController, team: Team, seat: Sea
     const lane = laneCols(placement, team, seat);
     const towers = ownTowers(placement, seat);
     const [a, b] = towers.length >= 2 ? [towers[0]!, towers[towers.length - 1]!] : [null, null];
-    const towerA = a?.col ?? lane.min + (lane.max - lane.min) * 0.25;
-    const towerB = b?.col ?? lane.min + (lane.max - lane.min) * 0.75;
+    const kindA = (a?.type.baseAnchor as TowerKind | undefined) ?? null;
+    const kindB = (b?.type.baseAnchor as TowerKind | undefined) ?? null;
+    const towerA = a ? towerCol(a) : lane.min + (lane.max - lane.min) * 0.25;
+    const towerB = b ? towerCol(b) : lane.min + (lane.max - lane.min) * 0.75;
     const sectors: Sector[] = [
-        { kind: 'flank', tower: a?.kind ?? null, col: lane.min, value: 0, depth: 0 },
-        { kind: 'tower', tower: a?.kind ?? null, col: towerA, value: 0, depth: 0 },
+        { kind: 'flank', tower: kindA, col: lane.min, value: 0, depth: 0 },
+        { kind: 'tower', tower: kindA, col: towerA, value: 0, depth: 0 },
         { kind: 'centre', tower: null, col: (towerA + towerB) / 2, value: 0, depth: 0 },
-        { kind: 'tower', tower: b?.kind ?? null, col: towerB, value: 0, depth: 0 },
-        { kind: 'flank', tower: b?.kind ?? null, col: lane.max, value: 0, depth: 0 },
+        { kind: 'tower', tower: kindB, col: towerB, value: 0, depth: 0 },
+        { kind: 'flank', tower: kindB, col: lane.max, value: 0, depth: 0 },
     ];
+    // past the zone's columns lies the map's flank strip, where a flank attack stands
+    const margin = placement.map.size.flankCols + LANE_MARGIN;
 
     let total = 0;
     let depthSum = 0;
@@ -115,8 +123,10 @@ export function readThreat(placement: PlacementController, team: Team, seat: Sea
     for (const u of placement.allUnits()) {
         if (u.team === team || u.team === 'horde' || u.destroyed || u.summoned || u.type.structure || u.type.extra) continue;
         const col = (u.world.x + map.halfW) / CELL;
-        if (col < lane.min - LANE_MARGIN || col > lane.max + LANE_MARGIN) continue;
+        if (col < lane.min - margin || col > lane.max + margin) continue;
         const value = u.type.cost * Math.max(1, u.level);
+        // nothing to weigh (a free gift unit): it would only make the depth 0 / 0
+        if (value <= 0) continue;
         const depth = depthOf(placement, u);
         let best = 0;
         for (let i = 1; i < sectors.length; i++) if (Math.abs(sectors[i]!.col - col) < Math.abs(sectors[best]!.col - col)) best = i;
