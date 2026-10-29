@@ -163,7 +163,8 @@ Unused by every AI today. They make the army stronger, so they belong to the arm
   - **Medium:** buys them at some point, when supply allows.
   - **Hard:** as soon as the boost is worth more than another pack, i.e. once its army is big enough. That comes early for an army that stays all match (Practice).
 - **Recruit level 2:** the AI doesn't buy it; level 1 packs are enough.
-- **Stronghold archers** (`buyStrongholdArcher`): more archers on the keep's battlements (5 per seat, 100 rising by 50 each). A Defender's purchase (every difficulty, within its defence share), and the Siege defender's.
+- **Stronghold archers** (`buyStrongholdArcher`): more archers on the keep's battlements (5 per seat, an archer's price each). A Defender's purchase (every difficulty, within its defence share), and the Siege defender's.
+- **Posted archers are buys** (keep, Vanguard and wall archers alike): each uses one of the round's buys, like a pack. Before its army (Easy, Medium) the AI posts archers only from buys beyond the two it keeps for packs (`PACK_BUYS`); after it (Hard) from whatever buys are left.
 - **Card charges** (Medium, Hard): the AI uses the tutor charges its round cards grant, and doesn't pick cards it can't use (selling, Marching Orders).
 - **Moving an old pack:** the AI doesn't (no Marching Orders).
 
