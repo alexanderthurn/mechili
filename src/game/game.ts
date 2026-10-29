@@ -473,6 +473,8 @@ export class Game {
     private readonly birds: BirdFlocks;
     /** straight runs of walls drop the towers where they meet */
     private wallJoins!: WallJoins;
+    /** seat → its AI strength, shown after its name (ownerName) — seats AI from the match's start */
+    private readonly aiStrengthLabels = new Map<SeatId, string>();
     /** gate leaves swinging open for their own side's units (render-only) */
     private readonly gateDoors = new GateDoors();
     private birdsStartled = false;
@@ -1751,16 +1753,16 @@ export class Game {
             if (!s.loadout) return { ...s, loadout: randomLoadout() };
             return s;
         });
-        // an AI opponent's name carries its strength ("Foe Hard"): read from the roster, alike on
-        // every client — not in a replay (it keeps the names it recorded), a tutorial or an
-        // authored level (its names are the author's). Solo play drives the enemy seat by AI
-        // even though its roster entry says 'human'.
-        if (!this.watching && !this.scenario && !isTutorial(settings)) {
+        // an AI opponent's name shows its strength ("Foe Hard") — at display (ownerName), never
+        // baked into the seat's name, which goes out to rejoining seats and spectators. Seats AI
+        // from the start only (not a tutorial's or an authored level's); solo play drives the
+        // enemy seat by AI even though its roster entry says 'human'.
+        if (!this.scenario && !isTutorial(settings)) {
             const soloEnemy = star ? -1 : primarySeatOf(this.seats, 'enemy');
-            this.seats = this.seats.map((s, i) => {
-                if (i === humanSeat || (s.controller !== 'ai' && i !== soloEnemy)) return s;
+            this.seats.forEach((s, i) => {
+                if (i === humanSeat || (s.controller !== 'ai' && i !== soloEnemy)) return;
                 const difficulty = s.aiDifficulty ?? this.rules.aiDifficulty ?? DEFAULT_AI_DIFFICULTY;
-                return { ...s, name: `${s.name} ${t(`menu:aiDifficulty.${difficulty}`)}` };
+                this.aiStrengthLabels.set(i, t(`menu:aiDifficulty.${difficulty}`));
             });
         }
         if (preloadedRosterMmr) {
@@ -12158,7 +12160,9 @@ export class Game {
         }
         const s = seat;
         if (s === this.humanSeat) return this.playerNames.local;
-        return this.seats[s]?.name ?? this.playerNames.opponent;
+        const name = this.seats[s]?.name ?? this.playerNames.opponent;
+        const strength = this.aiStrengthLabels.get(s);
+        return strength ? `${name} ${strength}` : name;
     }
 
     /** the HUD's topbar commander cards — shared by the constructor's
