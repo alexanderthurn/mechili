@@ -20,6 +20,7 @@ import type { TypeRegistry } from './content/typeRegistry';
 import type { SeatId } from './seats';
 import { itemSlotLimit } from './items';
 import { chooseRebuildCommander, YearBrain } from './aiYear';
+import { AI_WALL_ID, isSiegeType, placeWallPlan, wallPlanCells, wallsToTend, readEnemyWalls, siegeWanted, wallsWanted } from './aiWalls';
 import type { LevelingSettings } from './settings';
 
 /** army packs cheaper than this are preferred for the AI's first buy each round */
@@ -98,6 +99,8 @@ export class AiOpponent implements Opponent {
             deployCap?: () => number;
             /** planner choice overrides for this seat (arena experiments) */
             plannerOverrides?: Record<string, number>;
+            /** Stone Walls this seat may still place this round (0 / unset: none) */
+            wallsLeft?: () => number;
         },
     ) {}
 
@@ -131,6 +134,7 @@ export class AiOpponent implements Opponent {
             // The Year: rebuild from nothing and plan the whole round against the visible army
             // (the arena's player stand-in uses the same planner on a kept army)
             if (this.ctx.climb) this.ctx.dispatch({ kind: 'clearArmy', team: this.team, seat: this.seat });
+            this.answerWalls(this.ctx.rngForRound?.(round) ?? this.ctx.rng);
             const brain = new YearBrain(
                 { ...this.ctx, leveling: this.ctx.leveling },
                 this.team,
@@ -171,6 +175,9 @@ export class AiOpponent implements Opponent {
             ? Math.floor(startBal * (1 - CLIMB_AI_PACK_BUDGET_FRACTION))
             : 0;
 
+        // 0) walls: siege against theirs, a line of its own against melee
+        this.answerWalls(rng);
+
         // 1) first buy: prefer a cheap unit (< 200); unlock one if needed
         this.buyUnit(this.pickFirstBuyType(rng), rng);
 
@@ -193,7 +200,8 @@ export class AiOpponent implements Opponent {
 
         // rearrange packs
         for (const unit of placement.allUnits()) {
-            if (unit.seat !== this.seat || !placement.canReposition(unit)) continue;
+            // walls stay in their line (answerWalls)
+            if (unit.seat !== this.seat || unit.type.extra || !placement.canReposition(unit)) continue;
             if (rng() < 0.25) continue;
             const spot = placement.findAiSpot(team, this.seat, unit.type, rng);
             if (!spot) continue;
@@ -229,6 +237,58 @@ export class AiOpponent implements Opponent {
             this.applyItems(rng);
             this.spendLeftoverUpgrades({ buyForgeSpells: false });
         }
+    }
+
+    /**
+     * Walls, before the army (one logic for both brains, see aiWalls): the
+     * next pieces of its fortress plan (whose tiles its packs keep off),
+     * its walls levelled and manned with archers, then siege packs against the other side's walls when they matter —
+     * unlocking one if none is in the shop yet.
+     */
+    private answerWalls(rng: () => number): void {
+        const { placement, economy, dispatch } = this.ctx;
+        const wall = this.ctx.types.byId(AI_WALL_ID);
+        // the plan's tiles stay free of its own packs, so it can always be finished
+        const plans = !!wall && !!this.ctx.wallsLeft && this.ctx.wallsLeft() > 0;
+        placement.setAiAvoid(this.seat, plans ? wallPlanCells(placement, this.team, wall) : new Set());
+        if (wall && this.ctx.wallsLeft) {
+            const count = wallsWanted(placement, this.team, this.seat, {
+                wallsLeft: this.ctx.wallsLeft(),
+                supply: economy.balance(this.seat),
+                wallCost: economy.costOf(wall),
+                defender: this.ctx.yearRole === 'defender',
+            });
+            placeWallPlan(placement, this.team, this.seat, wall, count, (slot) =>
+                dispatch({ kind: 'buy', team: this.team, seat: this.seat, typeId: wall.id, ...slot }),
+            );
+            // tend what stands (first tests: everything, each round): one level up each, then
+            // archers onto every free post — the actions refuse when maxed, manned or unaffordable
+            const tend = wallsToTend(placement, this.team, this.seat);
+            for (const w of tend) dispatch({ kind: 'upgradeTower', team: this.team, seat: this.seat, unitId: w.id });
+            for (const w of tend) while (dispatch({ kind: 'buyWallPost', team: this.team, seat: this.seat, unitId: w.id }));
+        }
+        const have = placement
+            .allUnits()
+            .filter((u) => u.seat === this.seat && !u.destroyed && !u.type.structure && isSiegeType(u.type)).length;
+        for (let need = siegeWanted(readEnemyWalls(placement, this.team)) - have; need > 0; need--) {
+            if (this.affordableArmyTypes(isSiegeType).length === 0) this.unlockSiege();
+            if (!this.buyUnit(this.preferLesserOwned(this.affordableArmyTypes(isSiegeType), rng), rng)) break;
+        }
+    }
+
+    /** this round's unlock on the cheapest siege type of the shop, if it's still free and affordable */
+    private unlockSiege(): void {
+        const { economy, unlockedUnits, unlockUsedThisRound, commander, types } = this.ctx;
+        if (unlockUsedThisRound[this.seat]) return;
+        const owner = types.commander(commander[this.seat] ?? '');
+        let best: { id: string; cost: number } | null = null;
+        for (const id of this.shop()) {
+            const t = types.byId(id);
+            if (!t || !isSiegeType(t) || unlockedUnits[this.seat]!.includes(id)) continue;
+            const cost = unlockCostFor(id, owner, types);
+            if (cost <= economy.balance(this.seat) && (!best || cost < best.cost)) best = { id, cost };
+        }
+        if (best) this.ctx.dispatch({ kind: 'unlockUnit', team: this.team, seat: this.seat, typeId: best.id });
     }
 
     /** the unit types this seat's shop holds (its commander's own shop, else the normal one) */

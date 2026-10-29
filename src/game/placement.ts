@@ -1476,10 +1476,27 @@ export class PlacementController {
         return this.findAiSpot('enemy', this.roster.findIndex((s) => s.team === 'enemy'), type, rng);
     }
 
+    /** tiles each AI seat keeps its packs off (its wall plan, see aiWalls) — AI spot searches only */
+    private readonly aiAvoid = new Map<SeatId, ReadonlySet<string>>();
+
+    /** the tiles `seat`'s AI keeps its packs off from now on (replaces the last set) */
+    setAiAvoid(seat: SeatId, cells: ReadonlySet<string>): void {
+        this.aiAvoid.set(seat, cells);
+    }
+
+    /** whether a pack of `type` at `anchor` would stand on a tile `seat`'s AI keeps free */
+    aiAvoidsAt(seat: SeatId, type: UnitType, anchor: Cell, rotated: boolean): boolean {
+        const avoid = this.aiAvoid.get(seat);
+        if (!avoid || avoid.size === 0 || type.extra) return false;
+        const cells = this.coveredCells(this.footprintOf(type, rotated), anchor);
+        return !!cells && cells.some((c) => avoid.has(cellKey(c)));
+    }
+
     /**
      * A valid AI spot for any seat: random scan of that seat's zone (lane-
      * restricted in duo modes), melee toward the front, ranged toward the
-     * back, flanks avoided (the AI doesn't understand the spawn tax).
+     * back, flanks avoided (the AI doesn't understand the spawn tax), and
+     * off the tiles its wall plan keeps free.
      */
     findAiSpot(
         team: Team,
@@ -1507,6 +1524,7 @@ export class PlacementController {
             // the AI doesn't understand the flank-spawn tax yet — keep it off
             // the flanks so its units don't arrive at 1 hp unaware
             if (cells.some((c) => this.map.isFlankDeployCell(c, team))) continue;
+            if (this.aiAvoidsAt(seat, type, anchor, rotated)) continue;
             found++;
             const frontward = (a: Cell, b: Cell) =>
                 frontIsHigherRow ? a.row > b.row : a.row < b.row;

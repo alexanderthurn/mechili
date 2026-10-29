@@ -4674,6 +4674,20 @@ export class Game {
     }
 
     /**
+     * Stone Walls `seat` may still place this round: none where its side
+     * doesn't get them (The Year's attacker), else what's left of its board
+     * extras budget. (The place for a per-seat wall maximum, once there is one.)
+     */
+    private wallsLeftFor(seat: SeatId): number {
+        const wall = this.types.byId('wall');
+        const team = this.seats[seat]?.team;
+        if (!wall || (team !== 'player' && team !== 'enemy')) return 0;
+        if (!yearBoardExtraAllowed(isSiege(this.settings) ? this.yearAttackerTeam() : null, team, wall.id)) return 0;
+        const left = this.settings.deploy.extrasBudgetPerRound - (this.deployState.extrasSpent[seat] ?? 0);
+        return Math.max(0, Math.floor(left / Math.max(1, this.economy.costOf(wall))));
+    }
+
+    /**
      * Shared AiOpponent context builder — used both at construction (every
      * seat that started AI-controlled) and by `takeOverSeatWithAi` (a seat
      * that quit mid-match). Only reads `this.*` fields, so it's safe to
@@ -4708,6 +4722,7 @@ export class Game {
         leveling: LevelingSettings;
         yearRole?: 'attacker' | 'defender';
         deployCap: () => number;
+        wallsLeft: () => number;
     } {
         return {
             types: this.types,
@@ -4758,6 +4773,7 @@ export class Game {
                 ? { yearRole: this.yearAttackerTeam() === this.seats[seat]?.team ? ('attacker' as const) : ('defender' as const) }
                 : {}),
             deployCap: () => (this.deployState.limit[seat] ?? 0) + (this.deployState.extra[seat] ?? 0) - (this.deployState.used[seat] ?? 0),
+            wallsLeft: () => this.wallsLeftFor(seat),
         };
     }
 

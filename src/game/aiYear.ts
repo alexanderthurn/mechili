@@ -29,6 +29,7 @@
 import type { Action } from './actions';
 import { unlockCostFor, type StartCard } from './cards';
 import type { TypeRegistry } from './content/typeRegistry';
+import { sideFrontline } from './aiWalls';
 import { CELL } from './map';
 import type { PlacementController } from './placement';
 import type { SeatId } from './seats';
@@ -492,17 +493,7 @@ export class YearBrain {
 
     /** my side's front edge row and which way is forward (+1 = higher rows) */
     private frontline(team: Team): { frontRow: number; forward: number; colMin: number; colMax: number } {
-        const map = this.host.placement.map;
-        const near = team === 'player' ? !map.ownAtFar : map.ownAtFar;
-        const rim = map.size.rimCells;
-        const ownRows = map.size.zoneRows + (map.neutralUnlocked ? map.size.neutralRows / 2 : 0);
-        const frontRow = near ? rim + ownRows - 1 : map.rows - rim - ownRows;
-        return {
-            frontRow,
-            forward: near ? 1 : -1,
-            colMin: rim + map.size.flankCols,
-            colMax: map.cols - rim - map.size.flankCols - 1,
-        };
+        return sideFrontline(this.host.placement, team);
     }
 
     /** tiles between a unit and its side's front edge */
@@ -981,6 +972,8 @@ export class YearBrain {
                     const row = wantRow + dr;
                     if (col < colMin || col + fp.cols - 1 > colMax) continue;
                     if (!placement.canPlaceAt(this.team, this.seat, type, { col, row }, false)) continue;
+                    // the wall plan's tiles stay free for its walls (aiWalls)
+                    if (placement.aiAvoidsAt(this.seat, type, { col, row }, false)) continue;
                     // depth matters more than lane: keep the band
                     const d = Math.abs(dc) * 2 + Math.abs(dr) * 3;
                     if (!best || d < best.d) best = { col, row, d };
