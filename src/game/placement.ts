@@ -1561,8 +1561,9 @@ export class PlacementController {
             this.intelGhosts.delete(unit.id);
         }
         this.units.push(unit);
-        if (!unit.type.extra) {
-            // extras never occupy tiles — writing them here would corrupt the grid
+        if (!unit.type.extra && unit.hostUnitId === null) {
+            // extras never occupy tiles, nor does a unit posted on a building (spawned off
+            // the grid, its cell a placeholder) — writing them here would corrupt the grid
             const fp = this.footprintOf(unit.type, unit.rotated);
             for (const c of this.coveredCells(fp, unit.cell)!) this.occupied.set(cellKey(c), unit);
         }
