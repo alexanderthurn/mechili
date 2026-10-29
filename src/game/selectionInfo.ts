@@ -21,7 +21,7 @@ import { actorSeat, actorTeam, type Actor, type BattleSim } from './sim';
 import { TechTree, effectiveTargets, type ResolvedStats } from './tech';
 import { type Loadout, allowedTechIds, techSlotLimit, techsForUnit } from './techCatalog';
 import type { TutorialRuntime } from './tutorialRuntime';
-import { type BattleTeam, type BuildingAbilityId, type Team, type Unit, type UnitType, hasAbility, isTargetMarked, techDescription, techIcon } from './units';
+import { type BattleTeam, type BuildingAbilityId, type Team, type Unit, type UnitType, hasAbility, isTargetMarked, techDescription, techIcon, wallPostCost } from './units';
 
 /** deploy-intel capture of Research Center / Command Tower / Stronghold seat state */
 export interface BuildingIntelSnapshot {
@@ -218,10 +218,10 @@ export class SelectionInfoBuilder {
                 if (!ownInteractive || !posts || !u.wallWalk) return undefined;
                 const owned = this.host.placement.allUnits().filter((p) => p.hostUnitId === u.id).length;
                 return {
-                    cost: posts.cost,
+                    cost: wallPostCost(posts, owned),
                     owned,
                     max: posts.count,
-                    affordable: this.host.economy.balance(this.host.humanSeat) >= posts.cost,
+                    affordable: this.host.economy.balance(this.host.humanSeat) >= wallPostCost(posts, owned),
                 };
             })(),
             // a wall of mine: turn it into a gate (one way)

@@ -265,7 +265,12 @@
                   "type": "string"
                 },
                 "cost": {
-                  "type": "number"
+                  "type": "number",
+                  "description": "the first archer's price"
+                },
+                "priceStep": {
+                  "type": "number",
+                  "description": "added for each archer already posted on this wall (as the Stronghold's garrison.priceStep); omit = 0"
                 },
                 "spacing": {
                   "type": "number"

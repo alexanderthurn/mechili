@@ -59,6 +59,7 @@ import {
     isFixture,
     strongholdArcherSlotWorld,
     wallPostWorld,
+    wallPostCost,
     levelBasisOf,
     isPlayerBuyable,
     isTargetMarked,
@@ -1153,8 +1154,9 @@ export class ActionDispatcher {
                 if (!wall || !posts || wall.team !== action.team || wall.seat !== seat || !wall.wallWalk) return false;
                 const postedType = this.ctx.types.byId(posts.unitTypeId);
                 if (!postedType || freeWallPost(placement, wall) < 0) return false;
-                if (!economy.spend(seat, posts.cost)) return false;
-                entry.paid = posts.cost;
+                const cost = wallPostCost(posts, placement.allUnits().filter((u) => u.hostUnitId === wall.id).length);
+                if (!economy.spend(seat, cost)) return false;
+                entry.paid = cost;
                 const archer = spawnWallPost(placement, postedType, wall, action.team, seat);
                 if (!archer) return false;
                 entry.strongholdArcherUnit = archer;

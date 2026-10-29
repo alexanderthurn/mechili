@@ -231,7 +231,7 @@ export function orderedWallPlan(placement: PlacementController, team: Team, seat
     );
 }
 
-/** the seat's wall standing in this slot, if it stands */
+/** the seat's wall standing in this slot, if it stands — a gate made of it too */
 export function wallInSlot(placement: PlacementController, seat: SeatId, wall: UnitType, slot: WallSlot): Unit | null {
     return (
         placement
@@ -240,7 +240,7 @@ export function wallInSlot(placement: PlacementController, seat: SeatId, wall: U
                 (w) =>
                     onBoard(w) &&
                     w.seat === seat &&
-                    w.type.id === wall.id &&
+                    (w.type.id === wall.id || w.type.id === wall.wall?.makeGate?.typeId) &&
                     w.cell.col === slot.anchor.col &&
                     w.cell.row === slot.anchor.row &&
                     w.rotated === slot.rotated,

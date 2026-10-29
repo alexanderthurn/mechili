@@ -14,13 +14,13 @@ import {
 } from './tactics';
 import type { TechTree } from './tech';
 import type { Loadout } from './techCatalog';
-import { formationHeadcount, hasAbility, hpWithdrawOf, isPlayerBuyable, type BuildingAbilityId, type Team, type Unit, type UnitType } from './units';
+import { formationHeadcount, hasAbility, hpWithdrawOf, isPlayerBuyable, wallPostCost, type BuildingAbilityId, type Team, type Unit, type UnitType } from './units';
 import type { TypeRegistry } from './content/typeRegistry';
 import type { SeatId } from './seats';
 import { itemSlotLimit } from './items';
 import { chooseRebuildCommander, NO_STANCE, YearBrain, type Stance } from './aiYear';
 import { CELL } from './map';
-import { AI_WALL_ID, isSiegeType, orderedWallPlan, placeWallPlan, readEnemyWalls, siegeWanted, wallInSlot, wallPlanCells, type PlanSlot } from './aiWalls';
+import { AI_WALL_ID, isSiegeType, orderedWallPlan, placeWallPlan, readEnemyWalls, sideFrontline, siegeWanted, wallInSlot, wallPlanCells, type PlanSlot } from './aiWalls';
 import type { LevelingSettings } from './settings';
 import { aiFeatures, DEFENDER_WALL_SHARE, type AiDifficulty, type AiFeatures, type AiStyle } from './aiProfile';
 
@@ -440,19 +440,26 @@ export class AiOpponent implements Opponent {
                 }
             }
         }
-        if (!wall || slots.length === 0 || defence.share <= 0) return;
+        if (!wall || slots.length === 0 || defence.share <= 0) {
+            if (wall) this.makeGates(wall);
+            return;
+        }
         if (this.ctx.wallsLeft && this.ctx.wallsLeft() > 0) {
             const count = Math.min(this.ctx.wallsLeft(), Math.floor(left() / Math.max(1, economy.costOf(wall))));
             placeWallPlan(placement, this.team, this.seat, wall, slots, count, (slot) =>
                 dispatch({ kind: 'buy', team: this.team, seat: this.seat, typeId: wall.id, ...slot }),
             );
         }
+        // gates before archers go up (a wall turned into a gate loses its archers)
+        this.makeGates(wall);
         // the walls of its slots: archers onto their posts, then a level each — within the share
         const walls = slots.map((s) => wallInSlot(placement, this.seat, wall, s)).filter((w): w is Unit => !!w);
         if (defence.man) {
             for (const w of walls) {
-                const post = w.type.wall?.posts?.cost ?? Infinity;
-                while (left() >= post && dispatch({ kind: 'buyWallPost', team: this.team, seat: this.seat, unitId: w.id }));
+                const posts = w.type.wall?.posts;
+                if (!posts) continue;
+                const manned = () => placement.allUnits().filter((u) => u.hostUnitId === w.id).length;
+                while (left() >= wallPostCost(posts, manned()) && dispatch({ kind: 'buyWallPost', team: this.team, seat: this.seat, unitId: w.id }));
             }
             for (const w of walls) {
                 if (left() >= (w.type.wall?.upgradeCost ?? Infinity)) dispatch({ kind: 'upgradeTower', team: this.team, seat: this.seat, unitId: w.id });
@@ -465,6 +472,46 @@ export class AiOpponent implements Opponent {
                 const manned = placement.allUnits().filter((u) => u.hostUnitId === keep.id && u.seat === this.seat).length;
                 if (left() < this.ctx.types.garrisonPostCost(keep.type, manned)) break;
                 if (!dispatch({ kind: 'buyStrongholdArcher', team: this.team, seat: this.seat })) break;
+            }
+        }
+    }
+
+    /**
+     * Gates in its fortress (AI_PLAN.md, "Gates"), per half of the front: the
+     * inner front piece next to the hole once it stands, and the front-most
+     * flank piece once its own packs stand outside that flank wall, so they
+     * move freely. Paid from what it holds, not the defence share.
+     */
+    private makeGates(wall: UnitType): void {
+        const { placement, economy, dispatch } = this.ctx;
+        const make = wall.wall?.makeGate;
+        if (!make) return;
+        const plan = orderedWallPlan(placement, this.team, this.seat, wall);
+        const { colMin, colMax } = sideFrontline(placement, this.team);
+        const mid = (colMin + colMax + 1) / 2;
+        const packs = this.ownPacks();
+        for (const half of [-1, 1]) {
+            const front = plan.filter((s) => s.phase === 0 && s.half === half).sort((a, b) => Math.abs(a.col - mid) - Math.abs(b.col - mid))[0];
+            const flank = plan.filter((s) => s.phase === 2 && s.half === half);
+            const want: PlanSlot[] = front ? [front] : [];
+            const corner = [...flank].sort((a, b) => a.step - b.step)[0];
+            if (corner) {
+                // the rows the flank wall runs over, and its column: own packs beyond it want a way through
+                const rows = flank.flatMap((s) => [s.anchor.row, s.anchor.row + wall.footprint.cols - 1]);
+                const top = Math.min(...rows);
+                const bottom = Math.max(...rows);
+                const outside = packs.some((u) => {
+                    const fp = u.rotated ? { cols: u.type.footprint.rows, rows: u.type.footprint.cols } : u.type.footprint;
+                    const col = u.cell.col + fp.cols / 2;
+                    const row = u.cell.row + fp.rows / 2;
+                    return row >= top && row <= bottom + 1 && (half < 0 ? col < corner.anchor.col : col > corner.anchor.col + 1);
+                });
+                if (outside) want.push(corner);
+            }
+            for (const slot of want) {
+                const piece = wallInSlot(placement, this.seat, wall, slot);
+                if (!piece || piece.type.id !== wall.id || economy.balance(this.seat) < make.cost) continue;
+                dispatch({ kind: 'makeGate', team: this.team, seat: this.seat, unitId: piece.id });
             }
         }
     }

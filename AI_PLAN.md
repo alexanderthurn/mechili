@@ -195,6 +195,15 @@ Not planned for now: marking enemy walls (`setTargetMark`). Siege packs break wa
 
 Wall segments come from the fixed plan in `aiWalls.ts`. Only the segments the AI intends to build reserve their tiles.
 
+### Gates
+
+Per half of the front (`makeGates` in `ai.ts`), every personality and difficulty, as soon as the piece stands and supply covers the 50:
+
+- the inner front piece, next to the hole, becomes a gate;
+- the front-most flank piece becomes a gate only while its own packs stand outside that flank wall, so they can move freely.
+
+It turns them into gates before posting archers (a wall turned into a gate loses its archers). Gates still take their levels like the other pieces.
+
 ## Counter table
 
 Worked out by rules from the unit data (`aiCounters.ts`), so new units need no list — not perfect, but automatic. Traits: flies, hits air, swarm (10+ models), single model, splash (radius 3+, no big hits), big hitter (300+ damage per hit, ramping beam, convert ray), tank (1000+ HP per model), range. Y counters X when:

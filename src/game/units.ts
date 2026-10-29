@@ -690,7 +690,10 @@ export interface UnitType {
         posts?: {
             count: number;
             unitTypeId: string;
+            /** the first archer's price */
             cost: number;
+            /** added for each archer already posted on this wall (as the Stronghold's garrison.priceStep); omit = 0 */
+            priceStep?: number;
             spacing: number;
             back: number;
             /** the walkway's top at level 1, × the wall's level-1 height */
@@ -1315,6 +1318,11 @@ export type ProceduralModelId =
     | 'tower';
 
 /** Is `id` a known procedural model? (for validating loaded definitions) */
+/** the next wall archer's price on a wall that already has `manned` posted */
+export function wallPostCost(posts: { cost: number; priceStep?: number }, manned: number): number {
+    return posts.cost + (posts.priceStep ?? 0) * manned;
+}
+
 export function isProceduralModelId(id: string): id is ProceduralModelId {
     return Object.prototype.hasOwnProperty.call(PROCEDURAL_MODELS, id);
 }
