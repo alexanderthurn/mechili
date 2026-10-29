@@ -12035,6 +12035,11 @@ export class Game {
             get forgeSlots() { return game.forgeSlots; },
             get forgeSpellOwned() { return game.forgeSpellOwned; },
             get buildingIntelSnapshot() { return game.buildingIntelSnapshot; },
+            deployLeft: () => {
+                const d = this.deployState;
+                const seat = this.humanSeat;
+                return (d.limit[seat] ?? 0) + (d.extra[seat] ?? 0) - (d.used[seat] ?? 0);
+            },
             resolvedStats: (unit) => this.resolvedStats(unit),
             resolvedStatsView: (unit) => this.resolvedStatsView(unit),
             levelInfo: (u) => this.levelInfo(u),

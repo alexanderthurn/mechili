@@ -21,7 +21,7 @@ import { actorSeat, actorTeam, type Actor, type BattleSim } from './sim';
 import { TechTree, effectiveTargets, type ResolvedStats } from './tech';
 import { type Loadout, allowedTechIds, techSlotLimit, techsForUnit } from './techCatalog';
 import type { TutorialRuntime } from './tutorialRuntime';
-import { type BattleTeam, type BuildingAbilityId, type Team, type Unit, type UnitType, hasAbility, isTargetMarked, techDescription, techIcon, wallPostCost } from './units';
+import { type BattleTeam, type BuildingAbilityId, type Team, type Unit, type UnitType, hasAbility, isTargetMarked, techDescription, techIcon } from './units';
 
 /** deploy-intel capture of Research Center / Command Tower / Stronghold seat state */
 export interface BuildingIntelSnapshot {
@@ -81,6 +81,8 @@ export interface SelectionInfoHost {
     readonly forgeSpellOwned: readonly (readonly string[])[];
     /** the deploy-intel capture shown while the enemy's deployment is fogged */
     readonly buildingIntelSnapshot: BuildingIntelSnapshot | null;
+    /** the round's buys my seat has left (packs and posted units alike) */
+    deployLeft(): number;
     resolvedStats(unit: Unit): ResolvedStats;
     /** {@link resolvedStats}, or the fogged view of an enemy pack */
     resolvedStatsView(unit: Unit): ResolvedStats;
@@ -218,10 +220,11 @@ export class SelectionInfoBuilder {
                 if (!ownInteractive || !posts || !u.wallWalk) return undefined;
                 const owned = this.host.placement.allUnits().filter((p) => p.hostUnitId === u.id).length;
                 return {
-                    cost: wallPostCost(posts, owned),
+                    cost: this.host.types.postCost(u.type),
                     owned,
                     max: posts.count,
-                    affordable: this.host.economy.balance(this.host.humanSeat) >= wallPostCost(posts, owned),
+                    // a posted archer is one of the round's buys, like a pack
+                    affordable: this.host.deployLeft() > 0 && this.host.economy.balance(this.host.humanSeat) >= this.host.types.postCost(u.type),
                 };
             })(),
             // a wall of mine: turn it into a gate (one way)
@@ -582,7 +585,7 @@ export class SelectionInfoBuilder {
                 : fogged && this.host.buildingIntelSnapshot && u.type.baseAnchor === 'stronghold'
                   ? (this.host.buildingIntelSnapshot.strongholdArchers[team] ?? 0)
                   : this.postedOn(u);
-            const nextCost = this.host.types.garrisonPostCost(u.type, manned);
+            const nextCost = this.host.types.postCost(u.type);
             const slotMax = own
                 ? garrisonSeatSlots(u, this.host.seats, this.host.humanSeat).length
                 : garrison.ownerOnly
@@ -596,6 +599,8 @@ export class SelectionInfoBuilder {
                 affordable:
                     canBuy &&
                     manned < slotMax &&
+                    // a posted archer is one of the round's buys, like a pack
+                    this.host.deployLeft() > 0 &&
                     this.host.economy.balance(this.host.humanSeat) >= nextCost,
             };
         }

@@ -567,8 +567,8 @@ export interface UnitType {
     diesWithHost?: boolean;
     /**
      * Units can be posted onto this building's authored `UnitN` pads, one at a
-     * time, from its panel. The first post costs the posted type's own `cost`;
-     * each further post adds `priceStep`. Posted units get
+     * time, from its panel — each like a bought pack: the posted type's own
+     * `cost`, and one of the round's buys. Posted units get
      * {@link Unit.hostUnitId} = this building.
      */
     /**
@@ -602,7 +602,6 @@ export interface UnitType {
         perSeat: number;
         /** type posted on each pad (looked up in the match's type registry) */
         unitTypeId: string;
-        priceStep: number;
         /**
          * The building is one seat's own (a Vanguard): only that seat mans it,
          * from the first `perSeat` pads. Omit for a side's shared keep.
@@ -689,11 +688,8 @@ export interface UnitType {
          */
         posts?: {
             count: number;
+            /** the posted type: bought like a pack (its own cost, one of the round's buys) */
             unitTypeId: string;
-            /** the first archer's price */
-            cost: number;
-            /** added for each archer already posted on this wall (as the Stronghold's garrison.priceStep); omit = 0 */
-            priceStep?: number;
             spacing: number;
             back: number;
             /** the walkway's top at level 1, × the wall's level-1 height */
@@ -1318,11 +1314,6 @@ export type ProceduralModelId =
     | 'tower';
 
 /** Is `id` a known procedural model? (for validating loaded definitions) */
-/** the next wall archer's price on a wall that already has `manned` posted */
-export function wallPostCost(posts: { cost: number; priceStep?: number }, manned: number): number {
-    return posts.cost + (posts.priceStep ?? 0) * manned;
-}
-
 export function isProceduralModelId(id: string): id is ProceduralModelId {
     return Object.prototype.hasOwnProperty.call(PROCEDURAL_MODELS, id);
 }

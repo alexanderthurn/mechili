@@ -63,6 +63,7 @@ import {
     TUTORIAL_1_R3_ENEMY_ARCHERS,
     TUTORIAL_1_R3_ENEMY_DWARVES,
     TUTORIAL_1_ROUNDS,
+    TUTORIAL_2_ARCHER_COUNT,
     TUTORIAL_2_ID,
     TUTORIAL_2_ROUNDS,
     TUTORIAL_2_STRONGHOLD_ROW_FRAC,
@@ -860,7 +861,9 @@ export class TutorialRuntime {
             if (humanHave < humanNeed) host.economy.credit(host.humanSeat, humanNeed - humanHave);
         } else {
             host.unlockedUnits[host.humanSeat] = [];
-            host.deployState.limit[host.humanSeat] = 0;
+            // the shop stays shut; round 1's buys are its battlement archers (a posted
+            // archer is one of the round's buys, like a pack)
+            host.deployState.limit[host.humanSeat] = round === 1 ? TUTORIAL_2_ARCHER_COUNT : 0;
             host.hud.setShopColumnVisible(false);
         }
 

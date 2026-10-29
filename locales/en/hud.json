@@ -241,7 +241,7 @@
   "towerArcher": "Tower archer {{n}}/{{m}}",
   "towerArcherDesc": "Post an archer on top of the tower. He shoots all around and never leaves his spot — nothing aims at him, but he falls with the tower.",
   "towerArcherFull": "The tower top is manned.",
-  "strongholdArchersDesc": "Post an archer on the battlements. He shoots like any other archer and never leaves his spot — nothing can shoot back at him, but he falls with the keep. Each one costs more than the last.",
+  "strongholdArchersDesc": "Post an archer on the battlements. He shoots like any other archer and never leaves his spot — nothing can shoot back at him, but he falls with the keep. He costs an archer's price and counts as one of the round's buys.",
   "forgeChargeSuffix": "Adds one charge to your {{tactics}} — once per match.",
   "ifDestroyed": "If destroyed",
   "splash": "Splash",

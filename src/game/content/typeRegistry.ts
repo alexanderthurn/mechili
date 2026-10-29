@@ -193,13 +193,14 @@ export class TypeRegistry {
     }
 
     /**
-     * Price of the next post on a garrison building that already has `manned`
-     * units posted — the posted type's cost plus one `priceStep` per earlier
-     * post. Shared by the action and the panel so they can't quote different prices.
+     * Price of a unit posted on this building (its garrison, or a wall's
+     * walkway): the posted type's own cost, like the pack it is — every post
+     * the same. Shared by the actions, the panels and the AI so they can't
+     * quote different prices.
      */
-    garrisonPostCost(host: UnitType, manned: number): number {
-        const g = host.garrison;
-        if (!g) return Number.POSITIVE_INFINITY;
-        return (this.byId(g.unitTypeId)?.cost ?? 0) + g.priceStep * manned;
+    postCost(host: UnitType): number {
+        const id = host.garrison?.unitTypeId ?? host.wall?.posts?.unitTypeId;
+        const posted = id ? this.byId(id) : null;
+        return posted ? posted.cost : Number.POSITIVE_INFINITY;
     }
 }

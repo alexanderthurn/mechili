@@ -206,10 +206,8 @@ export function armyValue(
         if (!type) continue;
         const levels = Math.max(0, u.level - 1) * Math.round((type.levelBasis ?? type.cost) * prices.levelCostFactor);
         const runes = (u.items ?? []).reduce((sum, id) => sum + (types.rune(id)?.cardCost ?? 0), 0);
-        const wallPosts = type.wall?.posts;
-        let posts = 0;
-        // each archer posted adds the step to the next one's price (units.ts wallPostCost)
-        for (let i = 0; i < (u.posts ?? 0) && wallPosts; i++) posts += wallPosts.cost + (wallPosts.priceStep ?? 0) * i;
+        // posted archers at their own price, like packs (TypeRegistry.postCost)
+        const posts = (u.posts ?? 0) * (type.wall?.posts ? types.postCost(type) : 0);
         value[u.team] += type.cost + levels + runes + posts;
     }
     for (const side of ['player', 'enemy'] as const) {

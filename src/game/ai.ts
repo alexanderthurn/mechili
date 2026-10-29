@@ -14,7 +14,7 @@ import {
 } from './tactics';
 import type { TechTree } from './tech';
 import type { Loadout } from './techCatalog';
-import { formationHeadcount, hasAbility, hpWithdrawOf, isPlayerBuyable, wallPostCost, type BuildingAbilityId, type Team, type Unit, type UnitType } from './units';
+import { formationHeadcount, hasAbility, hpWithdrawOf, isPlayerBuyable, type BuildingAbilityId, type Team, type Unit, type UnitType } from './units';
 import type { TypeRegistry } from './content/typeRegistry';
 import type { SeatId } from './seats';
 import { itemSlotLimit } from './items';
@@ -435,8 +435,7 @@ export class AiOpponent implements Opponent {
                 const level = this.ctx.upgradeCostOf?.(t) ?? null;
                 if (level !== null && left() >= level) dispatch({ kind: 'upgradeTower', team: this.team, seat: this.seat, unitId: t.id });
                 if (t.type.garrison) {
-                    const manned = placement.allUnits().filter((u) => u.hostUnitId === t.id && u.seat === this.seat).length;
-                    if (left() >= this.ctx.types.garrisonPostCost(t.type, manned)) dispatch({ kind: 'buyStrongholdArcher', team: this.team, seat: this.seat, unitId: t.id });
+                    if (left() >= this.ctx.types.postCost(t.type)) dispatch({ kind: 'buyStrongholdArcher', team: this.team, seat: this.seat, unitId: t.id });
                 }
             }
         }
@@ -458,8 +457,7 @@ export class AiOpponent implements Opponent {
             for (const w of walls) {
                 const posts = w.type.wall?.posts;
                 if (!posts) continue;
-                const manned = () => placement.allUnits().filter((u) => u.hostUnitId === w.id).length;
-                while (left() >= wallPostCost(posts, manned()) && dispatch({ kind: 'buyWallPost', team: this.team, seat: this.seat, unitId: w.id }));
+                while (left() >= this.ctx.types.postCost(w.type) && dispatch({ kind: 'buyWallPost', team: this.team, seat: this.seat, unitId: w.id }));
             }
             for (const w of walls) {
                 if (left() >= (w.type.wall?.upgradeCost ?? Infinity)) dispatch({ kind: 'upgradeTower', team: this.team, seat: this.seat, unitId: w.id });
@@ -469,8 +467,7 @@ export class AiOpponent implements Opponent {
         if (style === 'defender') {
             const keep = placement.allUnits().find((u) => u.team === this.team && !u.destroyed && u.type.baseAnchor === 'stronghold' && !!u.type.garrison);
             for (let guard = 0; keep && guard < 5; guard++) {
-                const manned = placement.allUnits().filter((u) => u.hostUnitId === keep.id && u.seat === this.seat).length;
-                if (left() < this.ctx.types.garrisonPostCost(keep.type, manned)) break;
+                if (left() < this.ctx.types.postCost(keep.type)) break;
                 if (!dispatch({ kind: 'buyStrongholdArcher', team: this.team, seat: this.seat })) break;
             }
         }

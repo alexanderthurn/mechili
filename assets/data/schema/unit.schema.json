@@ -148,9 +148,6 @@
               "type": "string",
               "description": "type posted on each pad (looked up in the match's type registry)"
             },
-            "priceStep": {
-              "type": "number"
-            },
             "ownerOnly": {
               "type": "boolean",
               "description": "The building is one seat's own (a Vanguard): only that seat mans it, from the first `perSeat` pads. Omit for a side's shared keep."
@@ -163,8 +160,7 @@
           "required": [
             "slots",
             "perSeat",
-            "unitTypeId",
-            "priceStep"
+            "unitTypeId"
           ],
           "additionalProperties": false
         },
@@ -262,15 +258,8 @@
                   "type": "number"
                 },
                 "unitTypeId": {
-                  "type": "string"
-                },
-                "cost": {
-                  "type": "number",
-                  "description": "the first archer's price"
-                },
-                "priceStep": {
-                  "type": "number",
-                  "description": "added for each archer already posted on this wall (as the Stronghold's garrison.priceStep); omit = 0"
+                  "type": "string",
+                  "description": "the posted type: bought like a pack (its own cost, one of the round's buys)"
                 },
                 "spacing": {
                   "type": "number"
@@ -298,7 +287,6 @@
               "required": [
                 "count",
                 "unitTypeId",
-                "cost",
                 "spacing",
                 "back",
                 "top",

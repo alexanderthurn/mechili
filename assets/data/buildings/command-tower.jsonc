@@ -31,5 +31,5 @@
     "onDestroyed": { "seatDebuff": true },
     "abilities": ["armyBoosts", "selling", "rallyRoute", "vanguardSpells"],
     // one archer on the tower's top (its Unit1 pad), all round — this seat's own tower
-    "garrison": { "slots": [1], "perSeat": 1, "unitTypeId": "archer", "priceStep": 0, "ownerOnly": true },
+    "garrison": { "slots": [1], "perSeat": 1, "unitTypeId": "archer", "ownerOnly": true },
 }

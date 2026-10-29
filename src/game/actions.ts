@@ -59,7 +59,6 @@ import {
     isFixture,
     strongholdArcherSlotWorld,
     wallPostWorld,
-    wallPostCost,
     levelBasisOf,
     isPlayerBuyable,
     isTargetMarked,
@@ -845,6 +844,13 @@ export class ActionDispatcher {
         return clampTacticPoint(x, z, map.halfW, map.halfH, radius);
     }
 
+    /** one of the round's buys still free for this seat (the editor's sandbox has no limit) */
+    private deploySlotFree(seat: SeatId): boolean {
+        if (this.ctx.editorSandbox) return true;
+        const deploy = this.ctx.deployState;
+        return (deploy.used[seat] ?? 0) < (deploy.limit[seat] ?? 0) + (deploy.extra[seat] ?? 0);
+    }
+
     /**
      * Spends one charge of `tacticId` and records it on the log entry —
      * cooldown, undo, replay and the strip's greyed-out entry all derive
@@ -1092,11 +1098,14 @@ export class ActionDispatcher {
                 if (!postedType) return false;
                 const post = nextGarrisonPost(placement, keep, seat);
                 if (!post) return false; // own block full, or the model lacks the pad
-                const cost = this.ctx.types.garrisonPostCost(keep.type, post.manned);
+                // a posted unit is a bought pack: one of the round's buys, at its own price
+                if (!this.deploySlotFree(seat)) return false;
+                const cost = this.ctx.types.postCost(keep.type);
                 if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
                 const archer = spawnGarrisonPost(placement, postedType, keep, action.team, seat)!;
                 entry.strongholdArcherUnit = archer;
+                this.ctx.deployState.used[seat] = (this.ctx.deployState.used[seat] ?? 0) + 1;
                 return true;
             }
             case 'buyLevelBatch': {
@@ -1154,12 +1163,18 @@ export class ActionDispatcher {
                 if (!wall || !posts || wall.team !== action.team || wall.seat !== seat || !wall.wallWalk) return false;
                 const postedType = this.ctx.types.byId(posts.unitTypeId);
                 if (!postedType || freeWallPost(placement, wall) < 0) return false;
-                const cost = wallPostCost(posts, placement.allUnits().filter((u) => u.hostUnitId === wall.id).length);
+                // a posted unit is a bought pack: one of the round's buys, at its own price
+                if (!this.deploySlotFree(seat)) return false;
+                const cost = this.ctx.types.postCost(wall.type);
                 if (!economy.spend(seat, cost)) return false;
-                entry.paid = cost;
                 const archer = spawnWallPost(placement, postedType, wall, action.team, seat);
-                if (!archer) return false;
+                if (!archer) {
+                    economy.credit(seat, cost);
+                    return false;
+                }
+                entry.paid = cost;
                 entry.strongholdArcherUnit = archer;
+                this.ctx.deployState.used[seat] = (this.ctx.deployState.used[seat] ?? 0) + 1;
                 return true;
             }
             case 'setTargetMark': {
@@ -1996,6 +2011,7 @@ export class ActionDispatcher {
             case 'buyStrongholdArcher': {
                 if (e.strongholdArcherUnit) placement.removeUnit(e.strongholdArcherUnit);
                 economy.credit(seat, e.paid!);
+                this.ctx.deployState.used[seat] = (this.ctx.deployState.used[seat] ?? 0) - 1;
                 break;
             }
             case 'buyLevelBatch': {
@@ -2029,6 +2045,7 @@ export class ActionDispatcher {
             case 'buyWallPost': {
                 if (e.strongholdArcherUnit) placement.removeUnit(e.strongholdArcherUnit);
                 economy.credit(seat, e.paid!);
+                this.ctx.deployState.used[seat] = (this.ctx.deployState.used[seat] ?? 0) - 1;
                 break;
             }
             case 'setTargetMark': {
