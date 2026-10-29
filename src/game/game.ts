@@ -1751,6 +1751,18 @@ export class Game {
             if (!s.loadout) return { ...s, loadout: randomLoadout() };
             return s;
         });
+        // an AI opponent's name carries its strength ("Foe Hard"): read from the roster, alike on
+        // every client — not in a replay (it keeps the names it recorded), a tutorial or an
+        // authored level (its names are the author's). Solo play drives the enemy seat by AI
+        // even though its roster entry says 'human'.
+        if (!this.watching && !this.scenario && !isTutorial(settings)) {
+            const soloEnemy = star ? -1 : primarySeatOf(this.seats, 'enemy');
+            this.seats = this.seats.map((s, i) => {
+                if (i === humanSeat || (s.controller !== 'ai' && i !== soloEnemy)) return s;
+                const difficulty = s.aiDifficulty ?? this.rules.aiDifficulty ?? DEFAULT_AI_DIFFICULTY;
+                return { ...s, name: `${s.name} ${t(`menu:aiDifficulty.${difficulty}`)}` };
+            });
+        }
         if (preloadedRosterMmr) {
             for (const [name, mmr] of preloadedRosterMmr) this.rosterMmr.set(name, mmr);
             this.rosterProfilesLoaded = true;
@@ -5468,8 +5480,8 @@ export class Game {
                   controller: def.controller,
               }))
             : [
-                  { name: this.playerNames.local, role: 'player', team: 'player' },
-                  { name: this.playerNames.opponent, role: 'player', team: 'enemy' },
+                  { name: this.ownerName('player'), role: 'player', team: 'player' },
+                  { name: this.ownerName('enemy'), role: 'player', team: 'enemy' },
               ];
         return [
             ...players,
@@ -12126,14 +12138,22 @@ export class Game {
     }
 
     /** display name for the side (or, in duo modes, the SEAT) that owns a pack */
+    /**
+     * A seat's display name: every other seat's from its roster entry (one
+     * source, any seat count — an AI's carries its strength), my own from
+     * the live playerNames.local (a mid-match rename updates only that).
+     * Without a seat: me for my side, the primary seat for theirs. playerNames itself is only
+     * what the menu handed in (the solo roster's names, retry, reporting).
+     */
     private ownerName(team: BattleTeam, seat?: SeatId): string {
         if (team === 'horde') return DISPLAY.horde;
-        // classic two-seat roster: exact existing wording, unchanged
-        if (this.seats.length <= 2 || seat === undefined || seat < 0) {
-            return team === 'player' ? this.playerNames.local : this.playerNames.opponent;
+        if (seat === undefined || seat < 0) {
+            if (team === 'player') return this.playerNames.local;
+            seat = primarySeatOf(this.seats, team);
         }
-        if (seat === this.humanSeat) return this.playerNames.local;
-        return this.seats[seat]?.name ?? (team === 'player' ? this.playerNames.local : this.playerNames.opponent);
+        const s = seat;
+        if (s === this.humanSeat) return this.playerNames.local;
+        return this.seats[s]?.name ?? this.playerNames.opponent;
     }
 
     /** the HUD's topbar commander cards — shared by the constructor's
