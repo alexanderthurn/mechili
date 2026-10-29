@@ -74,7 +74,7 @@ function counterStrength(x: Traits, y: Traits): number {
 
 /** the units that fight in battle: no buildings, walls, extras or harmless units */
 function fighter(t: UnitType): boolean {
-    return !t.structure && !t.extra && !t.wall && !t.fixture && !t.target && t.damage > 0;
+    return !t.structure && !t.extra && !t.wall && !t.fixture && t.target !== false && t.damage > 0;
 }
 
 const tables = new WeakMap<TypeRegistry, CounterTable>();
