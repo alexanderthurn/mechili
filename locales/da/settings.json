@@ -13,6 +13,7 @@
   "musicVolume": "Musik",
   "uiVolume": "Brugerflade",
   "voicesEnabled": "Enheds- og kommandantstemmer",
+  "voiceLanguage": "Stemmesprog",
   "multiplayer": "Multiplayer",
   "connection": "Forbindelse",
   "debug": "Fejlfinding",

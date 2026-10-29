@@ -13,6 +13,7 @@
   "musicVolume": "Musiikki",
   "uiVolume": "Käyttöliittymä",
   "voicesEnabled": "Yksiköiden ja komentajien äänet",
+  "voiceLanguage": "Äänien kieli",
   "multiplayer": "Moninpeli",
   "connection": "Yhteys",
   "debug": "Virheenjäljitys",

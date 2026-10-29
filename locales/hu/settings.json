@@ -13,6 +13,7 @@
   "musicVolume": "Zene",
   "uiVolume": "Felület",
   "voicesEnabled": "Egység- és parancsnokhangok",
+  "voiceLanguage": "Hangok nyelve",
   "multiplayer": "Többjátékos mód",
   "connection": "Kapcsolat",
   "debug": "Hibakeresés",

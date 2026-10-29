@@ -5,6 +5,10 @@ import { steam } from 'steam-electron-build/native';
 import { detectDeviceLanguage, matchSteamGameLanguage } from '../i18n/detect';
 import type { LanguageId } from '../i18n/languages';
 import { isLanguageId } from '../i18n/languages';
+
+/** Languages the spoken lines ship in (`assets/audio/<lang>/`; English is the shared base). */
+export const VOICE_LANGUAGES = ['en', 'de', 'es', 'ru', 'zh'] as const satisfies readonly LanguageId[];
+export type VoiceLanguage = (typeof VOICE_LANGUAGES)[number];
 import { probeHardware, probeMobile, type HardwareProbe } from './hardwareTier';
 import { touchFirstDevice } from './inputCapabilities';
 import { isUserStorageKey } from './userStorage';
@@ -57,6 +61,8 @@ export interface Prefs {
     uiVolume: number;
     /** Spoken unit + commander VO (select, death, pick, win). Off = silence those only. */
     voicesEnabled: boolean;
+    /** Language of the spoken lines, independent of the UI language (English until the dubs match its variety). */
+    voiceLanguage: VoiceLanguage;
     /**
      * Outer world quality. Applies immediately (rebuilds scenery mid-match).
      * - ultra: dense forest + Tripo on the board, dense mountain grid + future cliff sculpt
@@ -352,6 +358,7 @@ const DEFAULTS: Prefs = {
     musicVolume: 0.7,
     uiVolume: 1,
     voicesEnabled: true,
+    voiceLanguage: 'en',
     ...GRAPHICS_PRESETS.medium,
     controlScheme: 'auto',
     language: detectDeviceLanguage(),
@@ -735,6 +742,7 @@ const SANITIZERS: Partial<Record<keyof Prefs, Sanitizer>> = {
     musicVolume: asUnitInterval(),
     uiVolume: asUnitInterval(),
     voicesEnabled: asBool,
+    voiceLanguage: asWord(VOICE_LANGUAGES),
     debugOverlay: asBool,
     renderDeadUnits: asBool,
     antialias: asBool,

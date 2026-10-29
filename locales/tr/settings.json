@@ -13,6 +13,7 @@
   "musicVolume": "Müzik",
   "uiVolume": "Arayüz",
   "voicesEnabled": "Birlik ve komutan sesleri",
+  "voiceLanguage": "Ses dili",
   "multiplayer": "Çok oyunculu",
   "connection": "Bağlantı",
   "debug": "Hata ayıklama",

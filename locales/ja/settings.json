@@ -13,6 +13,7 @@
   "musicVolume": "音楽",
   "uiVolume": "インターフェース",
   "voicesEnabled": "ユニットと指揮官の声",
+  "voiceLanguage": "音声言語",
   "multiplayer": "マルチプレイヤー",
   "connection": "接続",
   "debug": "デバッグ",

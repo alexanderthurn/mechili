@@ -13,6 +13,7 @@
   "musicVolume": "Musik",
   "uiVolume": "Antarmuka",
   "voicesEnabled": "Suara unit dan komandan",
+  "voiceLanguage": "Bahasa suara",
   "multiplayer": "Pemain multipemain",
   "connection": "Koneksi",
   "debug": "Debug",

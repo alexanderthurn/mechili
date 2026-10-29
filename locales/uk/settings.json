@@ -13,6 +13,7 @@
   "musicVolume": "Музика",
   "uiVolume": "Інтерфейс",
   "voicesEnabled": "Голоси загонів і командирів",
+  "voiceLanguage": "Мова озвучення",
   "multiplayer": "Багатокористувацький режим",
   "connection": "З'єднання",
   "debug": "Налагодження",

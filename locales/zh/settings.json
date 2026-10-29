@@ -13,6 +13,7 @@
   "musicVolume": "音乐",
   "uiVolume": "界面",
   "voicesEnabled": "单位与指挥官语音",
+  "voiceLanguage": "语音语言",
   "multiplayer": "多人游戏",
   "connection": "连接方式",
   "debug": "调试",

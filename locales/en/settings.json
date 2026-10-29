@@ -9,6 +9,7 @@
   "audio": "Audio",
   "audioMuted": "Mute all sound",
   "voicesEnabled": "Unit & commander voices",
+  "voiceLanguage": "Voice language",
   "masterVolume": "Master",
   "sfxVolume": "Sound effects",
   "musicVolume": "Music",

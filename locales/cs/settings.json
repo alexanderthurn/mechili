@@ -13,6 +13,7 @@
   "musicVolume": "Hudba",
   "uiVolume": "Rozhraní",
   "voicesEnabled": "Hlasy jednotek a velitelů",
+  "voiceLanguage": "Jazyk hlasů",
   "multiplayer": "Vícehráčský režim",
   "connection": "Spojení",
   "debug": "Ladit",

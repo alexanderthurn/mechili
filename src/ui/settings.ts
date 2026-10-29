@@ -6,8 +6,10 @@ import {
     prefs,
     resetSettingsStorage,
     updatePrefs,
+    VOICE_LANGUAGES,
     type GraphicsPreset,
     type Prefs,
+    type VoiceLanguage,
 } from '../game/prefs';
 import { isElectron, win } from 'steam-electron-build/native';
 
@@ -21,7 +23,7 @@ import {
 } from '../i18n';
 import { applyLanguageFont } from '../theme';
 import { removeWithDialogFade, withDialogFade } from './dialogFade';
-import { audio } from '../game/audio';
+import { audio, LOGO_LINE_COUNT } from '../game/audio';
 
 const STEAM_URL = 'https://steam.melodan.com';
 
@@ -54,6 +56,9 @@ export function openSettings(parent: HTMLElement): void {
     const langOptions = LANGUAGE_IDS.map(
         (id) => `<option value="${id}">${LANGUAGE_NATIVE_NAMES[id]}</option>`,
     ).join('');
+    const voiceLangOptions = VOICE_LANGUAGES.map(
+        (id) => `<option value="${id}">${LANGUAGE_NATIVE_NAMES[id]}</option>`,
+    ).join('');
 
     const overlay = withDialogFade(document.createElement('div'));
     overlay.classList.add('mechili-settings');
@@ -82,6 +87,7 @@ export function openSettings(parent: HTMLElement): void {
         overlay.querySelector('.s-combat-text')!.textContent = t('settings:combatChat');
         overlay.querySelector('.s-audio-mute-text')!.textContent = t('settings:audioMuted');
         overlay.querySelector('.s-voices-text')!.textContent = t('settings:voicesEnabled');
+        overlay.querySelector('.s-voice-lang-label')!.textContent = t('settings:voiceLanguage');
         overlay.querySelector('.s-master-vol-label')!.textContent = t('settings:masterVolume');
         overlay.querySelector('.s-sfx-vol-label')!.textContent = t('settings:sfxVolume');
         overlay.querySelector('.s-music-vol-label')!.textContent = t('settings:musicVolume');
@@ -248,6 +254,7 @@ export function openSettings(parent: HTMLElement): void {
         `<section class="s-section">` +
         `<label class="s-row"><input type="checkbox" class="s-audio-mute" /> <span class="s-audio-mute-text"></span></label>` +
         `<label class="s-row"><input type="checkbox" class="s-voices" /> <span class="s-voices-text"></span></label>` +
+        `<label class="s-row"><span class="s-voice-lang-label"></span> <select class="s-voice-lang">${voiceLangOptions}</select></label>` +
         `<label class="s-row s-audio-slider"><span class="s-master-vol-label"></span> <input type="range" class="s-master-vol" min="0" max="100" step="1" /></label>` +
         `<label class="s-row s-audio-slider"><span class="s-sfx-vol-label"></span> <input type="range" class="s-sfx-vol" min="0" max="100" step="1" /></label>` +
         `<label class="s-row s-audio-slider"><span class="s-music-vol-label"></span> <input type="range" class="s-music-vol" min="0" max="100" step="1" /></label>` +
@@ -385,6 +392,7 @@ export function openSettings(parent: HTMLElement): void {
     const combat = overlay.querySelector<HTMLInputElement>('.s-combat')!;
     const audioMute = overlay.querySelector<HTMLInputElement>('.s-audio-mute')!;
     const voicesToggle = overlay.querySelector<HTMLInputElement>('.s-voices')!;
+    const voiceLangSel = overlay.querySelector<HTMLSelectElement>('.s-voice-lang')!;
     const masterVol = overlay.querySelector<HTMLInputElement>('.s-master-vol')!;
     const sfxVol = overlay.querySelector<HTMLInputElement>('.s-sfx-vol')!;
     const musicVol = overlay.querySelector<HTMLInputElement>('.s-music-vol')!;
@@ -422,6 +430,8 @@ export function openSettings(parent: HTMLElement): void {
         combat.checked = p.combatChat;
         audioMute.checked = p.audioMuted;
         voicesToggle.checked = p.voicesEnabled;
+        voiceLangSel.value = p.voiceLanguage;
+        voiceLangSel.disabled = !p.voicesEnabled;
         masterVol.value = String(Math.round(p.masterVolume * 100));
         sfxVol.value = String(Math.round(p.sfxVolume * 100));
         musicVol.value = String(Math.round(p.musicVolume * 100));
@@ -512,7 +522,15 @@ export function openSettings(parent: HTMLElement): void {
     debugToggle.addEventListener('change', () => updatePrefs({ debugOverlay: debugToggle.checked }));
     combat.addEventListener('change', () => updatePrefs({ combatChat: combat.checked }));
     audioMute.addEventListener('change', () => updatePrefs({ audioMuted: audioMute.checked }));
-    voicesToggle.addEventListener('change', () => updatePrefs({ voicesEnabled: voicesToggle.checked }));
+    voicesToggle.addEventListener('change', () => {
+        updatePrefs({ voicesEnabled: voicesToggle.checked });
+        syncFromPrefs();
+    });
+    voiceLangSel.addEventListener('change', () => {
+        updatePrefs({ voiceLanguage: voiceLangSel.value as VoiceLanguage });
+        // a sample in the new language: one of the narrator's title lines
+        audio.playLogoLine(1 + Math.floor(Math.random() * LOGO_LINE_COUNT));
+    });
     const onVol = (el: HTMLInputElement, key: 'masterVolume' | 'sfxVolume' | 'musicVolume' | 'uiVolume') => {
         el.addEventListener('input', () => {
             updatePrefs({ [key]: Math.max(0, Math.min(1, Number(el.value) / 100)) });

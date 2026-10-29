@@ -13,6 +13,7 @@
   "musicVolume": "Музыка",
   "uiVolume": "Интерфейс",
   "voicesEnabled": "Голоса отрядов и командиров",
+  "voiceLanguage": "Язык озвучки",
   "multiplayer": "Мультиплеер",
   "connection": "Подключение",
   "debug": "Отладка",

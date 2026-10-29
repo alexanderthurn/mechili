@@ -13,6 +13,7 @@
   "musicVolume": "Musikk",
   "uiVolume": "Grensesnitt",
   "voicesEnabled": "Enhets- og kommandantstemmer",
+  "voiceLanguage": "Stemmespråk",
   "multiplayer": "Flerspiller",
   "connection": "Forbindelse",
   "debug": "Feilsøking",

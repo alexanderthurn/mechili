@@ -13,6 +13,7 @@
   "musicVolume": "Muziek",
   "uiVolume": "Interface",
   "voicesEnabled": "Stemmen van eenheden en commandanten",
+  "voiceLanguage": "Taal van de stemmen",
   "multiplayer": "Multiplayer",
   "connection": "Verbinding",
   "debug": "Foutopsporing",

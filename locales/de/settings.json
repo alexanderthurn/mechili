@@ -13,6 +13,7 @@
   "musicVolume": "Musik",
   "uiVolume": "Oberfläche",
   "voicesEnabled": "Einheiten- und Kommandantenstimmen",
+  "voiceLanguage": "Sprache der Stimmen",
   "multiplayer": "Mehrspieler",
   "connection": "Verbindung",
   "debug": "Debug",

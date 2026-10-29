@@ -13,6 +13,7 @@
   "musicVolume": "Musica",
   "uiVolume": "Interfaccia",
   "voicesEnabled": "Voci di unità e comandanti",
+  "voiceLanguage": "Lingua delle voci",
   "multiplayer": "Multigiocatore",
   "connection": "Connessione",
   "debug": "Debug",

@@ -13,24 +13,21 @@ import type { Actor } from './sim';
 import { BASE_TYPES } from './units';
 import type { TypeRegistry } from './content/typeRegistry';
 import { parseElementalId } from './runeMix';
-import { getLanguage, onLanguageChange } from '../i18n';
 
 /**
- * Spoken lines (unit and commander voices, narration) follow the game's language: when a
- * translated take ships under `audio/<lang>/` with the same file name, that one is loaded instead.
- * Everything else — and every line without a translation — stays the shared English file.
- * Only the current language is ever fetched and decoded.
+ * Spoken lines (unit and commander voices, narration) follow the voice language setting
+ * (prefs.voiceLanguage, English by default): when a take ships under `audio/<lang>/` with the
+ * same file name, that one is loaded instead. Everything else — and every line without a
+ * translation — stays the shared English file. Only the chosen language is fetched and decoded.
  */
-/** UI language → the voice track it plays (Latin-American Spanish and Traditional Chinese share one) */
-const VOICE_LANGUAGES: Readonly<Record<string, string>> = { de: 'de', zh: 'zh', 'zh-Hant': 'zh', ru: 'ru', es: 'es', 'es-419': 'es' };
 /** narration_logo_1…N: the lines clicking the menu logo plays after the welcome */
 export const LOGO_LINE_COUNT = 8;
 function isVoicePath(path: string): boolean {
     return /^audio\/(unit|commander|narration)_[^/]+\.ogg$/.test(path);
 }
 function localizedAudioPath(path: string): string {
-    const lang = VOICE_LANGUAGES[getLanguage()];
-    if (!lang || !isVoicePath(path)) return path;
+    const lang = prefs().voiceLanguage;
+    if (lang === 'en' || !isVoicePath(path)) return path;
     const localized = `audio/${lang}/${path.slice('audio/'.length)}`;
     return isBaseAsset(localized) ? localized : path;
 }
@@ -3961,7 +3958,6 @@ class AudioBus {
     /** The bed being decoded right now (not yet audible), so a repeat ask doesn't restart it. */
     private loadingMusic: string | null = null;
     private unsubPrefs: (() => void) | null = null;
-    private unsubLanguage: (() => void) | null = null;
     /** Sustained beam / hazard loops keyed by cue id. */
     private loops = new Map<
         string,
@@ -5417,11 +5413,12 @@ class AudioBus {
         this.groups.ui.connect(this.master);
         this.applyPrefs();
         if (!this.unsubPrefs) {
-            this.unsubPrefs = onPrefsChange(() => this.applyPrefs());
-        }
-        if (!this.unsubLanguage) {
-            // spoken lines are per language: drop them so the next play loads the new language's take
-            this.unsubLanguage = onLanguageChange(() => {
+            let voiceLanguage = prefs().voiceLanguage;
+            this.unsubPrefs = onPrefsChange(() => {
+                this.applyPrefs();
+                // spoken lines are per language: drop them so the next play loads the new language's take
+                if (prefs().voiceLanguage === voiceLanguage) return;
+                voiceLanguage = prefs().voiceLanguage;
                 for (const path of [...this.buffers.keys()]) if (isVoicePath(path)) this.buffers.delete(path);
             });
         }
