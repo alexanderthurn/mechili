@@ -1382,7 +1382,8 @@ export class BattleSim {
     /** duration of the previous sim step — converts actor.mv* into velocity for lead aim */
     private prevStepDt = 1 / SIM_HZ;
     /** line-of-fire verdicts per shooter→target pair: the loft that clears (0 = blocked) */
-    private readonly losCache = new Map<number, { until: number; loft: number }>();
+    /** line of fire per shooter → target: the lowest clear arc (0 = none), and the enemy wall that stops the normal one */
+    private readonly losCache = new Map<number, { until: number; loft: number; wall?: Actor | null }>();
     /** talents with an opening crowd spread (Loose Rank), per unit type — see crowdRadius */
     private readonly spreadTalents = new Map<UnitType, { list: TechDef[]; seconds: number }>();
     private readonly buildingScratch: Actor[] = [];
@@ -5753,15 +5754,16 @@ export class BattleSim {
         const known = this.losCache.get(key);
         if (known && known.until > this.elapsed) return known.loft;
         let loft = 0;
+        const stop: { wall: Actor | null } = { wall: null };
         for (let level = 1; level <= CLASSIC_LOFT_TIME.length; level++) {
             const plan = this.planShot(a, target, speed, 0, level, false);
             if (!plan) break;
-            if (this.shotClears(plan, a, target)) {
+            if (this.shotClears(plan, a, target, undefined, level === 1 ? stop : undefined)) {
                 loft = level;
                 break;
             }
         }
-        this.losCache.set(key, { until: this.elapsed + LOS_RECHECK_S, loft });
+        this.losCache.set(key, { until: this.elapsed + LOS_RECHECK_S, loft, wall: loft > 0 ? null : stop.wall });
         return loft;
     }
 
@@ -5792,6 +5794,7 @@ export class BattleSim {
         const n = Math.min(160, Math.max(2, Math.ceil(total / LOS_SAMPLE_WU)));
         const buildings = this.buildingsNearLine(a, target, a.x, a.z, tx, tz);
         let open = true;
+        let stoppedBy: Actor | null = null;
         for (let i = 1; i < n && open; i++) {
             const f = i / n;
             const x = a.x + dx * f;
@@ -5800,12 +5803,15 @@ export class BattleSim {
             // a marked wall: reaching its stone (or a neighbour's overlapping it) is the hit
             if (wall && this.nearWallStone(target, x, z)) break;
             if (buildings.length > 0 && this.insideBuilding(buildings, x, y, z)) open = false;
-            if (this.wallBoxes.length > 0 && this.insideWallStone(x, y, z, a.unit.hostUnitId)) open = false;
+            if (this.wallBoxes.length > 0 && this.insideWallStone(x, y, z, a.unit.hostUnitId)) {
+                open = false;
+                stoppedBy = this.wallStoneAt(x, z, a, target);
+            }
             const along = total * f;
             if (along < skipStart || total - along < skipEnd) continue;
             if (y < simGroundHeightAt(x, z) + LOS_CLEARANCE) open = false;
         }
-        this.losCache.set(key, { until: this.elapsed + LOS_RECHECK_S, loft: open ? 1 : 0 });
+        this.losCache.set(key, { until: this.elapsed + LOS_RECHECK_S, loft: open ? 1 : 0, wall: stoppedBy });
         return open;
     }
 
@@ -5886,9 +5892,35 @@ export class BattleSim {
         return true;
     }
 
+    /** the wall whose stone is at (x, z) — not the one `a` stands on, not the one it aims at */
+    private wallStoneAt(x: number, z: number, a: Actor, target: Actor): Actor | null {
+        for (const r of this.wallBoxes) {
+            if (r.owner === target || r.owner.unit.id === a.unit.hostUnitId) continue;
+            if (insideBox(x, z, r, 0)) return r.owner;
+        }
+        return null;
+    }
+
+    /**
+     * What blocks the shot becomes the target: the enemy wall that stops `a`'s
+     * attack on `target` (in reach, behind that wall), when `a` can hit the
+     * wall from where it stands — so it breaks the wall from its own distance
+     * instead of walking up. Null when no such wall.
+     */
+    private wallInTheWay(a: Actor, target: Actor, range: number, minRange: number): Actor | null {
+        if (!this.inReachOf(a, target, range) || this.attackLineOpen(a, target)) return null;
+        const wall = this.losCache.get(a.index * 1048576 + target.index)?.wall ?? null;
+        if (!wall || !wall.alive || actorTeam(wall) === actorTeam(a)) return null;
+        const d2 = this.gap2(a, wall);
+        const reach = this.reachOf(a, wall, range);
+        if (d2 > reach * reach) return null;
+        if (minRange > 0 && d2 < (minRange + a.radius + wall.radius) ** 2) return null;
+        return this.attackLineOpen(a, wall) ? wall : null;
+    }
+
     /** whether a planned flight stays above the ground between the shooter and the target */
-    /** `why` (debug): where and on what the flight is stopped */
-    private shotClears(p: ShotPlan, a: Actor, target: Actor, why?: string[]): boolean {
+    /** `why` (debug): where and on what the flight is stopped; `stop`: the wall it is stopped in */
+    private shotClears(p: ShotPlan, a: Actor, target: Actor, why?: string[], stop?: { wall: Actor | null }): boolean {
         const flat = hypot(p.vx, p.vz);
         const flight = p.expectedFlight;
         if (flat < 1e-6 || flight <= 0) return true;
@@ -5915,6 +5947,7 @@ export class BattleSim {
             if (walls && this.insideWallStone(x, y, z, a.unit.hostUnitId, target.unit.type.wall ? target : null)) {
                 // at the marked wall already (a neighbour overlapping its end): arrived
                 if (target.unit.type.wall && this.nearWallStone(target, x, z)) return true;
+                if (stop) stop.wall = this.wallStoneAt(x, z, a, target);
                 if (why) {
                     const r = this.wallBoxes.find((b) => b.owner !== target && insideBox(x, z, b, 0));
                     why.push(`wall #${r?.owner.unit.id ?? '?'} stone${at}`);
@@ -8512,7 +8545,9 @@ export class BattleSim {
         );
         // Prefer outside-dead-zone (shoot or approach); only then kite the
         // closest too-close foe.
-        const result: Actor | null = best ?? bestAside ?? bestAny;
+        let result: Actor | null = best ?? bestAside ?? bestAny;
+        // nothing clear to shoot, but a foe in reach behind an enemy wall: the wall is the target
+        if (!best && bestAside && ranged && !anyLayer && native.ground) result = this.wallInTheWay(from, bestAside, stats.range, minRange) ?? result;
         if (!anyLayer) {
             if (from.cachedEnemy !== result) {
                 from.approachOx = 0;

@@ -19,6 +19,7 @@
     "cleave": { "radius": 2 },
     "cleaveScar": false, // no ground crater stamp on swings
     "crushOnKill": true, // the club presses its kills flat from above
+    "buildingDamageMult": 4, // club: × damage against buildings and walls
     "hp": 1620,
     "damage": 195,
     "range": 3.4, // short melee reach
