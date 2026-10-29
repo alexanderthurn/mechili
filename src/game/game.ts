@@ -2665,7 +2665,13 @@ export class Game {
         this.hud.onMakeGate = () => {
             const unit = this.placement.selectedUnit;
             if (!unit || this.phase !== 'build' || unit.team !== 'player' || !unit.type.wall?.makeGate) return;
-            this.dispatchPlayer({ kind: 'makeGate', team: 'player', unitId: unit.id });
+            const { cell, rotated, seat } = unit;
+            if (!this.dispatchPlayer({ kind: 'makeGate', team: 'player', unitId: unit.id })) return;
+            // the wall is gone: the gate that took its spot stays selected
+            const gate = this.placement
+                .allUnits()
+                .find((u) => u.type.wall?.gate && u.seat === seat && u.rotated === rotated && u.cell.col === cell.col && u.cell.row === cell.row);
+            if (gate) this.placement.selectUnit(gate);
         };
         this.hud.onToggleTargetMark = () => {
             const unit = this.placement.selectedUnit;
