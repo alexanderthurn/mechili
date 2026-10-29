@@ -113,6 +113,8 @@ export interface RotateAction {
     /** target anchor (defaults to the current one) — mirrored boards need it
      *  because rotating a non-square footprint in place shifts its rectangle */
     anchor?: Cell;
+    /** the turn to set outright (a carried pack dropped turned) — omit = its next turn */
+    turn?: { rotated: boolean; flipped: boolean };
 }
 export interface BuyTechAction {
     kind: 'buyTech';
@@ -1015,7 +1017,7 @@ export class ActionDispatcher {
                 if (!unit || unit.team !== action.team || unit.seat !== seat || !placement.canReposition(unit)) return false;
                 entry.from = { ...unit.cell };
                 entry.turnFrom = { rotated: unit.rotated, flipped: unit.flipped };
-                return placement.rotateUnit(unit, action.anchor);
+                return placement.rotateUnit(unit, action.anchor, action.turn);
             }
             case 'buyTech': {
                 const type = this.ctx.types.byId(action.typeId);

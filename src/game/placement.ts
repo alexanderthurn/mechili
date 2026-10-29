@@ -594,6 +594,12 @@ export class PlacementController {
      * stays selected in details mode until picked up again.
      */
     private carryingSelected = false;
+    /**
+     * The committed turn of the carried pack while it shows another: turning a
+     * carried pack is local until it is dropped (one rotate action, landing
+     * spot and turn together), and a cancel turns it back.
+     */
+    private carryTurnFrom: { rotated: boolean; flipped: boolean } | null = null;
     /** rect-selected movable packs; a lone pack here still uses formation drop */
     private selectedGroup: Unit[] = [];
     /** true after a rubber-band select (not a plain click-select) */
@@ -1057,6 +1063,12 @@ export class PlacementController {
             u.view.position.copy(u.world);
             u.seatMembers(u.world.x, u.world.z);
         };
+        if (this.selectedUnit && this.carryTurnFrom) {
+            // a turn shown while carried was never committed: back to the real one
+            this.selectedUnit.setWallTurn(this.carryTurnFrom.rotated, this.carryTurnFrom.flipped);
+            this.selectedUnit.faceClosestOf(this.opponentMechPositions(this.selectedUnit.team, this.selectedUnit));
+        }
+        this.carryTurnFrom = null;
         if (this.selectedUnit) restore(this.selectedUnit);
         for (const u of this.selectedGroup) restore(u);
     }
@@ -1261,25 +1273,22 @@ export class PlacementController {
         if (this.formationActive) return; // formations don't rotate
         const unit = this.selectedUnit;
         if (!unit || unit.team === 'horde' || !this.enabled || !this.isMovable(unit)) return;
+        // it rides the cursor turned — committed only when dropped (see carryTurnFrom)
         if (!this.carryingSelected) this.carryingSelected = true;
-        this.dispatch?.({ kind: 'rotate', team: unit.team, unitId: unit.id });
+        this.carryTurnFrom ??= { rotated: unit.rotated, flipped: unit.flipped };
+        const next = unit.type.wall ? nextWallTurn(unit.rotated, unit.flipped) : { rotated: !unit.rotated, flipped: unit.flipped };
+        unit.setWallTurn(next.rotated, next.flipped);
+        unit.faceClosestOf(this.opponentMechPositions(unit.team, unit));
     }
 
-    /** Rotates a pack in place (dispatcher-only). While carrying, rotation is
-     *  visual-only — drop validity is checked separately on move. */
+    /** Rotates a pack, in place or onto `anchor` (dispatcher-only). */
     rotateUnit(unit: Unit, anchor: Cell = unit.cell, turn?: { rotated: boolean; flipped: boolean }): boolean {
         // a wall walks its four quarter turns (which side its back is on matters);
-        // `turn` sets one outright (undo)
+        // `turn` sets one outright (a carried pack's drop, undo)
         const next =
             turn ??
             (unit.type.wall ? nextWallTurn(unit.rotated, unit.flipped) : { rotated: !unit.rotated, flipped: unit.flipped });
         const rotated = next.rotated;
-
-        if (this.carryingSelected && unit === this.selectedUnit) {
-            unit.setWallTurn(rotated, next.flipped);
-            unit.faceClosestOf(this.opponentMechPositions(unit.team, unit));
-            return true;
-        }
 
         const fp = this.footprintOf(unit.type, rotated);
         const cells = this.coveredCells(fp, anchor);
@@ -2781,14 +2790,24 @@ export class PlacementController {
         }
         // empty ground: drop only while carrying; mere selection clears
         if (this.selectedUnit && this.isMovable(this.selectedUnit) && this.carryingSelected) {
-            const anchor = this.landingAnchor(this.selectedUnit.type, this.selectedUnit.rotated, cell, this.selectedUnit).anchor;
-            const done = this.dispatch?.({
-                kind: 'move',
-                team: 'player',
-                unitId: this.selectedUnit.id,
-                anchor,
-            });
-            if (done) this.carryingSelected = false; // placed — stay selected, details only
+            const unit = this.selectedUnit;
+            const anchor = this.landingAnchor(unit.type, unit.rotated, cell, unit).anchor;
+            const from = this.carryTurnFrom;
+            const turned = !!from && (from.rotated !== unit.rotated || from.flipped !== unit.flipped);
+            let done: boolean | undefined;
+            if (turned) {
+                // dropped turned: one rotate onto the landing spot, from the committed turn
+                const turn = { rotated: unit.rotated, flipped: unit.flipped };
+                unit.setWallTurn(from.rotated, from.flipped);
+                done = this.dispatch?.({ kind: 'rotate', team: 'player', unitId: unit.id, anchor, turn });
+                if (!done) unit.setWallTurn(turn.rotated, turn.flipped);
+            } else {
+                done = this.dispatch?.({ kind: 'move', team: 'player', unitId: unit.id, anchor });
+            }
+            if (done) {
+                this.carryingSelected = false; // placed — stay selected, details only
+                this.carryTurnFrom = null;
+            }
         } else {
             this.deselect();
         }
