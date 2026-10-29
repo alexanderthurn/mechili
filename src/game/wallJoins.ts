@@ -9,7 +9,8 @@ import type { WallMeetHeight } from './units';
  * Two walls in a straight line that share an end tile read as one long wall:
  * neither stands its tower there (towers, rubble at their feet), and the
  * sections run through. A corner (the walls turned to each other) keeps its
- * tower. Render-only, from the placed walls; re-checked only when one moves,
+ * tower. A gate (no sections) hides its tower there and the wall keeps its own.
+ * Render-only, from the placed walls; re-checked only when one moves,
  * turns, comes or goes. Tweak live:
  * - nudge: model units one of two meeting walls' sections step forward, so
  *   the slivers where they overlap on the shared tile don't flicker
@@ -64,6 +65,14 @@ export class WallJoins {
                 // (sharing the same end would lay them on top of each other)
                 const join = same(ea[1], eb[0]) ? ([1, 0] as const) : same(ea[0], eb[1]) ? ([0, 1] as const) : null;
                 if (!join) continue;
+                // a gate has no stone sections to run through: a wall meeting it keeps its
+                // tower there (its walkway ends against it), the gate hides its own; two gates
+                // keep one tower between them
+                if (a.type.wall?.gate || b.type.wall?.gate) {
+                    if (a.type.wall?.gate) add(hidden, a, join[0]);
+                    else add(hidden, b, join[1]);
+                    continue;
+                }
                 add(hidden, a, join[0]);
                 add(hidden, b, join[1]);
                 if (a.wallWalk && b.wallWalk) {

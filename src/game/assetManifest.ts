@@ -2604,6 +2604,7 @@ const RAW = import.meta.glob(
         '../../assets/models/units/command-tower.glb',
         '../../assets/models/units/crow-rider.glb',
         '../../assets/models/units/dwarf.glb',
+        '../../assets/models/units/gate.glb',
         '../../assets/models/units/goblin.glb',
         '../../assets/models/units/hammerer.glb',
         '../../assets/models/units/horde.glb',

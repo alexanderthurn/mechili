@@ -1,0 +1,6 @@
+// gate: the stone wall's two end towers (wall.glb) with a full-width wooden gate between them —
+// leaves doorLeft / doorRight (their hinges at the towers), each plank its own mesh so it steps
+// along a slope; aged oak and rusty iron textures. Built from wall.glb by a Blender script
+// (misc/make-gate.py).
+// Turned so its length runs across the battlefield (x).
+{ "file": "models/units/gate.glb", "yawDeg": 90, "scale": 0.87 }

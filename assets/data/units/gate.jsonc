@@ -1,8 +1,6 @@
 {
     "id": "gate",
     "name": "Gate",
-    // the wall's model until the wooden gate is built
-    "modelId": "wall",
     "cost": 50,
     // a wall its own side walks through (wall.gate) — otherwise just like the Stone Wall
     // one 6-cell piece (two tower tiles, four between), lying across the battlefield
@@ -27,25 +25,11 @@
         "height": 4.35,
         "upgradeCost": 25,
         "heightPerLevel": 0.25,
-        // every wall comes with its walkway (free): it shows which side is the back
-        "autoWalk": true,
+        // no walkway and no archers: wood from tower to tower
         // the wall stands this far toward its front, so wall + walkway fill the tile row
         "shift": 0.7,
-        // nobody walks onto the walkway: solid this far behind the stone (to the tile row's
-        // back edge), for movement only — shots still meet just the stone
-        "walkBack": 1.4,
         // solid to shots below the crown (× the model's height): flat shots stop in it, lobs pass over
         "crown": 0.8,
-        // archers on the walkway — two, ±spacing from the wall's middle (a single post would
-        // stand in the middle), on the walkway's top (≈ 0.48 of the
-        // wall's height), behind its middle.
-        // The plain archer (same unit, same upgrades); the wall covers him: blasts × splash,
-        // melee from its front side × meleeFront — and only weapons reaching ≥ frontReach
-        // get over the stone from the front (the ogre's 3.4; a knight's 3 not)
-        "posts": {
-            "count": 2, "unitTypeId": "archer", "cost": 100, "spacing": 5, "back": 1.4, "top": 0.48, "crown": 0.8, "rise": 0.8,
-            "cover": { "splash": 0.2, "meleeFront": 0.3, "frontReach": 3.2 },
-        },
     },
     "collisionRadius": 1,
     "soundSize": "large",

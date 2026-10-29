@@ -195,6 +195,7 @@ import { SelectionInfoBuilder, type BuildingIntelSeat, type BuildingIntelSnapsho
 import { getUnitVisualHeight, modelGeometryFingerprint, modelGeometrySnapshot, usesWingFlapModel } from './unitModels';
 import { BirdFlocks } from './birdFlocks';
 import { WallJoins } from './wallJoins';
+import { GateDoors } from './gateDoors';
 import { clearScreenShake, installScreenShake, screenShake, updateScreenShake } from './screenShake';
 import { Scenery } from './scenery';
 import { draftTerrain, packagedTerrain, terrainFileText } from './scenario/scenarioTerrain';
@@ -472,6 +473,8 @@ export class Game {
     private readonly birds: BirdFlocks;
     /** straight runs of walls drop the towers where they meet */
     private wallJoins!: WallJoins;
+    /** gate leaves swinging open for their own side's units (render-only) */
+    private readonly gateDoors = new GateDoors();
     private birdsStartled = false;
     private readonly fireFx: FireFx;
     private readonly acidFx: AcidFx;
@@ -11577,6 +11580,7 @@ export class Game {
         this.placement.repositioningEnabled = this.playerCanAct;
         this.placement.update(this.time, gameDt);
         this.wallJoins.update(this.placement.allUnits());
+        this.gateDoors.update(this.placement.allUnits(), this.phase === 'battle' ? (this.sim?.actors ?? null) : null, gameDt);
         this.updateLandings();
         this.birds.update(gameDt);
         // the grass lies down under the plates placed this frame (read by the next scenery update)
