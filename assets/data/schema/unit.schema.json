@@ -210,6 +210,23 @@
               "type": "boolean",
               "description": "A gate: its own side's units walk through it (allies and converts too — whoever fights on its side); for the enemy it is a wall. Shots it stops like any wall. Omit = false."
             },
+            "makeGate": {
+              "type": "object",
+              "properties": {
+                "typeId": {
+                  "type": "string"
+                },
+                "cost": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "typeId",
+                "cost"
+              ],
+              "additionalProperties": false,
+              "description": "A button on the wall turns it into this gate type, for `cost` supply — one way, keeping its spot, turn, level and what was paid into it; its posted archers go (no refund). Omit = no button."
+            },
             "crown": {
               "type": "number",
               "description": "where shots pass over: the crown, × its height (its level height included); omit = 0.8"

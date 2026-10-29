@@ -172,6 +172,16 @@ export interface BuildWallWalkAction {
     team: Team;
     unitId: number;
 }
+/**
+ * Turns one of my walls into a gate (UnitType.wall.makeGate), one way: same
+ * spot, turn, level and what was paid into it; archers posted on it go,
+ * without a refund.
+ */
+export interface MakeGateAction {
+    kind: 'makeGate';
+    team: Team;
+    unitId: number;
+}
 /** unlocks selling PERMANENTLY (Research Center, once per match) */
 export interface BuySellAbilityAction {
     kind: 'buySellAbility';
@@ -416,6 +426,7 @@ type ActionVariant =
     | RecruitLevelAction
     | UpgradeTowerAction
     | BuildWallWalkAction
+    | MakeGateAction
     | SetTargetMarkAction
     | BuyWallPostAction
     | BuySellAbilityAction
@@ -503,7 +514,7 @@ interface LogEntry extends LoggedAction {
     xpBefore?: number;
     /** buyLevelBatch: per-unit paid + xp snapshot (successful levels only) */
     levelBatch?: { unitId: number; paid: number; xpBefore: number }[];
-    /** chooseCard: the spawned starting army + the HP it replaced + granted items */
+    /** chooseCard: the spawned starting army + the HP it replaced + granted items; makeGate: the wall and its archers */
     units?: Unit[];
     prevHp?: number;
     grantedItems?: string[];
@@ -1154,6 +1165,35 @@ export class ActionDispatcher {
                 if (isTargetMarked(unit, seat) === action.on) return false;
                 entry.markBefore = unit.targetBy[seat];
                 unit.targetBy[seat] = action.on ? !(unit.type.target ?? true) : undefined;
+                return true;
+            }
+            case 'makeGate': {
+                const wall = placement.unitById(action.unitId);
+                const make = wall?.type.wall?.makeGate;
+                if (!wall || !make || wall.destroyed || wall.team !== action.team || wall.seat !== seat) return false;
+                const gateType = this.ctx.types.byId(make.typeId);
+                if (!gateType?.wall) return false;
+                if (!economy.spend(seat, make.cost)) return false;
+                const archers = placement.allUnits().filter((u) => u.hostUnitId === wall.id);
+                for (const a of archers) placement.removeUnit(a);
+                placement.removeUnit(wall);
+                // the wall's own spot, unchecked: it stood there (the zones may have moved since)
+                const gate = placement.spawn(gateType, wall.cell, wall.team, wall.rotated, true, seat);
+                if (!gate) {
+                    placement.restoreUnit(wall);
+                    for (const a of archers) placement.restoreUnit(a);
+                    economy.credit(seat, make.cost);
+                    return false;
+                }
+                gate.setWallTurn(wall.rotated, wall.flipped);
+                gate.deployedRound = wall.deployedRound;
+                gate.level = wall.level;
+                gate.upgradePaid = wall.upgradePaid + make.cost;
+                gate.targetBy = [...wall.targetBy];
+                gate.refreshLevelBadge();
+                entry.paid = make.cost;
+                entry.unit = gate;
+                entry.units = [wall, ...archers];
                 return true;
             }
             case 'buildWallWalk': {
@@ -1990,6 +2030,12 @@ export class ActionDispatcher {
             case 'setTargetMark': {
                 const unit = placement.unitById(action.unitId);
                 if (unit) unit.targetBy[seat] = e.markBefore;
+                break;
+            }
+            case 'makeGate': {
+                placement.removeUnit(e.unit!);
+                for (const u of e.units ?? []) placement.restoreUnit(u);
+                economy.credit(seat, e.paid!);
                 break;
             }
             case 'buildWallWalk': {

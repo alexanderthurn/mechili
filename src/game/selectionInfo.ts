@@ -224,6 +224,16 @@ export class SelectionInfoBuilder {
                     affordable: this.host.economy.balance(this.host.humanSeat) >= posts.cost,
                 };
             })(),
+            // a wall of mine: turn it into a gate (one way)
+            makeGate:
+                ownInteractive && u.type.wall?.makeGate
+                    ? {
+                          typeId: u.type.wall.makeGate.typeId,
+                          cost: u.type.wall.makeGate.cost,
+                          affordable: this.host.economy.balance(this.host.humanSeat) >= u.type.wall.makeGate.cost,
+                          archers: this.host.placement.hasPosts(u),
+                      }
+                    : undefined,
             // an enemy wall: my Target switch, while I deploy
             targetMark:
                 u.type.wall && u.team === 'enemy' && this.host.phase === 'build' && this.host.playerCanAct

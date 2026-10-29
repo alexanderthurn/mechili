@@ -119,6 +119,8 @@ interface ActionTile {
     /** the data-* attribute string the click handler dispatches on, e.g. `data-tech="ap"` */
     data: string;
     icon: string;
+    /** a picture shown instead of the icon (a unit's rendered portrait, see setUnitIcons) */
+    art?: string;
     title: string;
     desc: string;
     /** supply price; negative = a refund. Omitted when there's nothing to pay. */
@@ -273,6 +275,8 @@ export interface SelectionInfo {
     wallWalk?: { cost: number; affordable: boolean; built: boolean };
     /** experiment: archers posted on that walkway */
     wallPosts?: { cost: number; owned: number; max: number; affordable: boolean };
+    /** a wall of mine: turn it into a gate (`typeId`, one way); `archers`: posted archers would go */
+    makeGate?: { typeId: string; cost: number; affordable: boolean; archers: boolean };
     /** an enemy wall: whether my units go for it (my target mark) — offered while I deploy */
     targetMark?: { on: boolean };
     /** the once-per-round level-2 recruit switch (Research Center only) */
@@ -354,6 +358,7 @@ export class Hud {
     onUpgradeTower: (() => void) | null = null;
     onBuildWallWalk: (() => void) | null = null;
     onBuyWallPost: (() => void) | null = null;
+    onMakeGate: (() => void) | null = null;
     /** the selected enemy wall's Target switch */
     onToggleTargetMark: (() => void) | null = null;
     onBuySellAbility: (() => void) | null = null;
@@ -1122,6 +1127,7 @@ export class Hud {
             else if (button.dataset.towerupgrade) this.onUpgradeTower?.();
             else if (button.dataset.wallwalk) this.onBuildWallWalk?.();
             else if (button.dataset.wallpost) this.onBuyWallPost?.();
+            else if (button.dataset.makegate) this.onMakeGate?.();
             else if (button.dataset.targetmark) this.onToggleTargetMark?.();
             else if (button.dataset.sellability) this.onBuySellAbility?.();
             else if (button.dataset.rallyroute) this.onBuyRallyRouteAbility?.();
@@ -3358,6 +3364,25 @@ export class Hud {
                 state: full ? 'owned' : wp.affordable ? 'buy' : 'locked',
             });
         }
+        if (info.makeGate) {
+            const mg = info.makeGate;
+            tiles.push({
+                data: 'data-makegate="1"',
+                // the gate's own portrait (as in the shop); the icon only if none was rendered
+                icon: 'ability-plus-deploy',
+                art: this.unitIcons.get(mg.typeId),
+                title: t('hud:makeGate', { defaultValue: 'Make gate' }),
+                desc: mg.archers
+                    ? t('hud:makeGateArchersDesc', {
+                          defaultValue: 'Turn this wall into a gate your own units walk through. Its archers are lost. It can\'t be turned back into a wall.',
+                      })
+                    : t('hud:makeGateDesc', {
+                          defaultValue: 'Turn this wall into a gate your own units walk through. It can\'t be turned back into a wall.',
+                      }),
+                cost: mg.cost,
+                state: mg.affordable ? 'buy' : 'locked',
+            });
+        }
         if (info.targetMark) {
             const on = info.targetMark.on;
             tiles.push({
@@ -3784,14 +3809,14 @@ export class Hud {
                               ? `<span class="at-cost${t.cost < 0 ? ' refund' : ''}">${t.cost < 0 ? `+${-t.cost}` : t.cost}</span>`
                               : '';
                     const levelIcon = t.icon.startsWith('ability-level');
-                    const icoClass = levelIcon ? 'at-icon m-icon mask-ico' : 'at-icon m-icon';
-                    const icoStyle = levelIcon ? iconMaskCss(t.icon) : iconCss(t.icon);
+                    const icoClass = t.art ? 'at-icon at-art' : levelIcon ? 'at-icon m-icon mask-ico' : 'at-icon m-icon';
+                    const icoStyle = t.art ? `background-image:${cssUrl(t.art)}` : levelIcon ? iconMaskCss(t.icon) : iconCss(t.icon);
                     return (
                         `<button class="action-tile ${t.state}${t.on ? ' on' : ''}" ${t.data}` +
                         ` data-ttitle="${escapeAttr(t.title)}" data-tdesc="${escapeAttr(t.desc)}"` +
-                        ` data-ticon="${escapeAttr(t.icon)}" data-tcost="${t.cost ?? ''}"` +
+                        ` data-ticon="${t.art ? '' : escapeAttr(t.icon)}" data-tcost="${t.cost ?? ''}"` +
                         ` data-tstate="${t.state}" data-tnote="${escapeAttr(t.note ?? '')}">` +
-                        `<span class="${icoClass}" style="${icoStyle}"></span>${badge}</button>`
+                        `<span class="${icoClass}" style="${escapeAttr(icoStyle)}"></span>${badge}</button>`
                     );
                 })
                 .join('') +

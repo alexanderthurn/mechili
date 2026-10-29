@@ -652,6 +652,12 @@ export interface UnitType {
          * it stops like any wall. Omit = false.
          */
         gate?: boolean;
+        /**
+         * A button on the wall turns it into this gate type, for `cost` supply —
+         * one way, keeping its spot, turn, level and what was paid into it; its
+         * posted archers go (no refund). Omit = no button.
+         */
+        makeGate?: { typeId: string; cost: number };
         /** where shots pass over: the crown, × its height (its level height included); omit = 0.8 */
         crown?: number;
         /** supply per level up, the same for every level (base buildings climb a price ladder instead) */

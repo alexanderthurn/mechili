@@ -21,6 +21,8 @@
         // scale 0.87). Fixed so the crown and the archer posts don't depend on a loaded model.
         "height": 4.35,
         "upgradeCost": 25,
+        // a button turns it into a gate (one way; its archers go, no refund)
+        "makeGate": { "typeId": "gate", "cost": 50 },
         "heightPerLevel": 0.25,
         // every wall comes with its walkway (free): it shows which side is the back
         "autoWalk": true,

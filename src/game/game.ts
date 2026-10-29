@@ -2648,6 +2648,11 @@ export class Game {
             if (!unit || this.phase !== 'build' || unit.team !== 'player' || !unit.type.wall) return;
             this.dispatchPlayer({ kind: 'buyWallPost', team: 'player', unitId: unit.id });
         };
+        this.hud.onMakeGate = () => {
+            const unit = this.placement.selectedUnit;
+            if (!unit || this.phase !== 'build' || unit.team !== 'player' || !unit.type.wall?.makeGate) return;
+            this.dispatchPlayer({ kind: 'makeGate', team: 'player', unitId: unit.id });
+        };
         this.hud.onToggleTargetMark = () => {
             const unit = this.placement.selectedUnit;
             if (!unit || this.phase !== 'build' || unit.team === 'player' || !unit.type.wall) return;

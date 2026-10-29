@@ -963,6 +963,15 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-sidebar .inv-item:not(.tactic) { border-radius: 50%; overflow: hidden; padding: 0; }
 .mechili-sidebar .inv-item:not(.tactic) .m-icon { width: 100%; height: 100%; }
 .mechili-panel .action-tile .at-icon.m-icon { width: 28px; height: 28px; font-size: 0; }
+/* a rendered unit portrait instead of an icon (e.g. a wall's Make gate) — the whole tile, cost strip on top */
+.mechili-panel .action-tile .at-icon.at-art {
+    position: absolute;
+    inset: 2px;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    pointer-events: none;
+}
 .mechili-panel .action-info .ai-icon.m-icon { width: 28px; height: 28px; font-size: 0; }
 .mechili-panel .item-sq.m-icon { width: 44px; height: 44px; font-size: 0; border-radius: 50%; overflow: hidden; }
 .mechili-phonebar button .pb-ico.m-icon { width: 22px; height: 22px; font-size: 0; }

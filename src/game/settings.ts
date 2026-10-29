@@ -124,7 +124,7 @@ export function climbAttackerTeam(climb: ClimbSettings, localSide = 0): 'player'
  * and every other mode (practice, multiplayer, …) — the Stone Wall (`wall`) and the Gate (`gate`).
  */
 export const ATTACKER_BOARD_EXTRAS: readonly string[] = ['rocket', 'shield'];
-export const DEFAULT_BOARD_EXTRAS: readonly string[] = ['wall', 'gate'];
+export const DEFAULT_BOARD_EXTRAS: readonly string[] = ['wall'];
 
 export function boardExtrasFor(climbAttacker: 'player' | 'enemy' | null, team: 'player' | 'enemy'): readonly string[] {
     return climbAttacker !== null && team === climbAttacker ? ATTACKER_BOARD_EXTRAS : DEFAULT_BOARD_EXTRAS;
