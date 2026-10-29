@@ -133,7 +133,7 @@ One AI; difficulty switches features and the quality of choices.
 
 Placement and the personality's plan are the same at every level.
 
-**Practice defaults:** Easy, Random.
+**Practice defaults:** Easy, Random, the first time. After that the lobby remembers each seat's chips (difficulty, personality, and the army and role chips too, which today reset every time) along with the other Practice settings.
 
 **Seat takeover** (a human disconnects in multiplayer): the AI plays the lobby defaults, Easy and Random.
 
@@ -212,6 +212,7 @@ To come, in a session with the user's "good player" rules (e.g. dwarf beaten by 
 1. **Unify the brains, and the selectors** (built together, tested together):
    - Practice on the planner in keep mode;
    - difficulty and personality chips on the AI seats in the lobby roster, with the difficulty switches wired in (unit choice, spells, building upgrades).
+   - the lobby remembers every seat's chips (difficulty, personality, army, role) with the Practice settings.
 2. **Threat map, last-battle record and debug readout.**
 3. **Personalities:** Rusher (side, stall, race check), Defender (fortress, overbuild), Wide.
 4. **Priorities:** army first (with extra buy, credit, army boosts, recruit level), defence by threat, upgrades last. `WALL_MADNESS` goes.
