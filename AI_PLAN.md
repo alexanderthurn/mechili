@@ -23,7 +23,7 @@ Steps 1–5 are built (2026-10-29); the counter table (step 6) is to come.
 - **Difficulty and personality** (`aiProfile.ts`): chips on AI seats in the lobby (remembered); scenario rules carry them too (`rules.aiDifficulty` / `aiPersonality`). Random and the Rusher's side resolve from the match seed.
 - **Threat map and last battle** (`aiThreat.ts`): sectors, depth from the zone's front, posture, side totals; every tower's fall time or HP left. Shown in the debug overlay.
 - **Personalities and defence** (`ai.ts`): Rusher (side, guard, stall growing with danger, weak tower upgraded), Wide (spread forward, walls where in danger), Defender (back, full fortress plan, posts, levels, Stronghold archers, supply share by difficulty). Walls come from the fixed plan in `aiWalls.ts`; only intended slots are kept free of packs.
-- **Extras** (`ai.ts`): the +1 pack, credit when nearly dead, army boosts, recruit level 2, range / speed boosts, card charges (tutor, Marching Orders) and card choice, sending supply to an ally — each only while it owns a building that sells it.
+- **Extras** (`ai.ts`): the +1 pack, credit when nearly dead, army boosts, range / speed boosts, card charges (tutor) and card choice, sending supply to an ally — each only while it owns a building that sells it.
 
 ## One brain
 
@@ -36,7 +36,7 @@ Everything below sits on top of the one brain.
 
 ## Round flow (priorities)
 
-"Army first", as decided in testing (2026-10-29): on Hard the round's packs (the normal two) are bought before anything else; the defence the round wants is planned first (its wall tiles kept free of packs) but built afterwards, out of what the packs left (at most its share of the round's supply). Easy and Medium still build their defence first — a Defender there overbuilds. A third pack (the +1 buy) is a very late option on every level: only once every slot is used and supply is still left, after talents, spells and boosts.
+"Army first", as decided in testing (2026-10-29): on Hard the round's packs (the normal two) are bought before anything else; the defence the round wants is planned first (its wall tiles kept free of packs) but built afterwards, out of what the packs left (at most its share of the round's supply). Easy and Medium still build their defence first — a Defender there overbuilds. A third pack (the +1 buy, Medium and Hard) comes right after: its slot is bought before the army is planned, whenever supply covers the slot and every slot filled with an average pack, and the planner fills it like the others.
 
 1. **Read** the enemy: the threat map.
 2. **Army:** composition and placement for the personality's plan; packs that may still move this round (a starting army) are moved to the plan too. It gets most of the supply, including the Research Centre's extra buy and, when nearly dead, its credit (see "Extra buy and round boosts").
@@ -119,7 +119,6 @@ One AI; difficulty switches features and the quality of choices.
 | Extra buy (+1 pack per round) | no | yes, random pack | yes, chaff or main unit by score |
 | Credit when nearly dead (HP modes only) | no | yes | yes |
 | Army boosts (Command Tower) | no | yes, when supply allows | yes, when worth more than a pack |
-| Recruit level 2, Marching Orders card | no | no | yes |
 | Stronghold archers | Defender | Defender | Defender |
 | Uses card charges | no | yes | yes |
 | Siege packs vs enemy walls | no | no | yes |
@@ -145,8 +144,7 @@ Placement and the personality's plan are the same at every level.
 The Research Centre (and the Siege attacker's Tent) sells a **+1 buy for the running round** (`buyDeploySlot`, 50 supply, once per round: 2 packs → 3). Good players use it nearly every round, for chaff (dwarfs, goblins) or another main unit. No AI buys it today. It only matters where the pack limit binds: Practice, 1v1, 2v2. The Siege AI already gets 40 packs a round (`CLIMB_AI_DEPLOY_LIMIT`).
 
 - **Easy:** never.
-- **Medium:** whenever supply covers the slot plus a pack. The third pack is a random affordable one.
-- **Hard:** whenever the extra pack helps the army more than the 50 would elsewhere (nearly always). It chooses between cheap chaff in front of its main army and another main unit, whichever scores better against the enemy's army.
+- **Medium, Hard:** before the army is planned, whenever supply covers the slot and all three slots filled with an average pack. The planner fills the third slot like the others (Medium at random, Hard by score).
 
 **Credit (loan):** the Research Centre (and the Tent) also lends **+200 supply now, 300 paid back at the start of the next round** (`buyCredit`, once per round). The AI takes it only when it is nearly dead, so this round decides whether it survives and next round's debt matters less than more army now:
 
@@ -164,10 +162,10 @@ Unused by every AI today. They make the army stronger, so they belong to the arm
 - **Army boosts** (`buyBoost`, Command Tower; the Siege attacker has none): permanent, army-wide; +10 % / +20 % attack and +15 % / +30 % HP, tiers at 100 and 300.
   - **Medium:** buys them at some point, when supply allows.
   - **Hard:** as soon as the boost is worth more than another pack, i.e. once its army is big enough. That comes early for an army that stays all match (Practice).
-- **Recruit level 2** (`recruitLevel`, Research Centre or Tent): once per round, every later buy that round arrives at level 2, for a premium. Hard only, when it buys several packs of one type.
+- **Recruit level 2:** the AI doesn't buy it; level 1 packs are enough.
 - **Stronghold archers** (`buyStrongholdArcher`): more archers on the keep's battlements (5 per seat, 100 rising by 50 each). A Defender's purchase (every difficulty, within its defence share), and the Siege defender's.
-- **Card charges** (Medium, Hard): the AI uses what its round cards grant ("move an old pack", "tutor", "mobilize"), or doesn't pick cards it can't use.
-- **Moving an old pack:** only through the "Marching Orders" round card (no building sells it any more). Hard picks that card when a plan needs an old pack elsewhere (a Rusher's weak side under real pressure).
+- **Card charges** (Medium, Hard): the AI uses the tutor charges its round cards grant, and doesn't pick cards it can't use (selling, Marching Orders).
+- **Moving an old pack:** the AI doesn't (no Marching Orders).
 
 - **Sending supply to an ally** (`sendSupply`, Stronghold, 2v2): Medium and Hard send supply they can't use well this round (pack limit reached, nothing worth buying left) to their ally, human or AI. It arrives with the next round's income.
 
@@ -232,8 +230,8 @@ Not yet: Medium using the list; personality preferences (a Rusher's faster units
    - a hosted multiplayer lobby (Custom Game) remembers the chips of its AI seats with its own settings (human seats change with who joins).
 2. **Threat map, last-battle record and debug readout.**
 3. **Personalities:** Rusher (side, stall, race check), Defender (fortress, overbuild), Wide.
-4. **Priorities:** army first (with extra buy, credit, army boosts, recruit level), defence by threat, upgrades last. `WALL_MADNESS` goes.
-5. **The extras:** card charges, Marching Orders, sending supply to an ally.
+4. **Priorities:** army first (with extra buy, credit, army boosts), defence by threat, upgrades last. `WALL_MADNESS` goes.
+5. **The extras:** tutor charges, sending supply to an ally.
 6. **Counter table.**
 
 ## Open questions

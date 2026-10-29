@@ -20,7 +20,7 @@ import type { SeatId } from './seats';
 import { itemSlotLimit } from './items';
 import { chooseRebuildCommander, NO_STANCE, YearBrain, type Stance } from './aiYear';
 import { CELL } from './map';
-import { AI_WALL_ID, isSiegeType, sideFrontline, orderedWallPlan, placeWallPlan, readEnemyWalls, siegeWanted, wallInSlot, wallPlanCells, type PlanSlot } from './aiWalls';
+import { AI_WALL_ID, isSiegeType, orderedWallPlan, placeWallPlan, readEnemyWalls, siegeWanted, wallInSlot, wallPlanCells, type PlanSlot } from './aiWalls';
 import type { LevelingSettings } from './settings';
 import { aiFeatures, DEFENDER_WALL_SHARE, type AiDifficulty, type AiFeatures, type AiStyle } from './aiProfile';
 
@@ -49,13 +49,11 @@ const WIDE_FORWARD = 3;
 const DEFENDER_BACK = 8;
 /** borrow when the enemy's army, all surviving, would take this share of its HP */
 const CREDIT_MARGIN = 0.8;
-/** recruit level 2 only where the round's pack limit binds (Practice's 2; a Siege's rebuild gets 40) */
+/** the +1 buy only where the round's pack limit binds (Practice's 2; a Siege's rebuild gets 40) */
 const EXTRA_BUY_UP_TO = 3;
 /** range from which a pack counts as ranged, and the ranged share that buys the range boost */
 const RANGED_FROM = 10;
 const RANGED_SHARE = 0.5;
-/** a pack this far (world units) from the weak tower is one Marching Orders may send there */
-const GUARD_NEAR = 20;
 /** sending supply: keep this much, send only from this much on */
 const SEND_KEEP = 100;
 const SEND_MIN = 100;
@@ -177,24 +175,13 @@ export class AiOpponent implements Opponent {
 
     /**
      * The between-round card: Easy any it can afford; Medium and Hard only
-     * cards whose charges it uses (it never sells; Marching Orders only as a
-     * Rusher) — and Hard takes Marching Orders when its weak side is in danger.
+     * cards whose charges it uses (it never sells or moves old packs).
      */
     onRoundCards(offer: readonly RoundCard[]): void {
         const features = aiFeatures(this.ctx.difficulty);
         let affordable = offer.filter((c) => this.ctx.economy.balance(this.seat) >= c.cost);
-        let pick: RoundCard | null = null;
-        if (features.extras) {
-            const moves = (c: RoundCard) => !!c.tactics?.includes(MOVE_UNIT_ID);
-            affordable = affordable.filter((c) => !c.tactics?.includes(SELL_UNIT_ID) && (!moves(c) || this.ctx.style === 'rusher'));
-            if (features.reaction === 'now' && this.ctx.style === 'rusher') {
-                this.threat = readThreat(this.ctx.placement, this.team, this.seat);
-                const towers = this.ownTowers();
-                const weak = towers[1 - this.ctx.rushSide];
-                if (weak && this.danger(features, weak) > 0) pick = affordable.find(moves) ?? null;
-            }
-        }
-        if (!pick && affordable.length > 0) pick = affordable[Math.floor(this.ctx.rng() * affordable.length)]!;
+        if (features.extras) affordable = affordable.filter((c) => !c.tactics?.includes(SELL_UNIT_ID) && !c.tactics?.includes(MOVE_UNIT_ID));
+        const pick = affordable.length > 0 ? affordable[Math.floor(this.ctx.rng() * affordable.length)]! : null;
         this.ctx.dispatch({
             kind: 'roundCard',
             team: this.team,
@@ -243,9 +230,9 @@ export class AiOpponent implements Opponent {
         const packsFirst = features.unitChoice === 'counter';
         if (!packsFirst) this.buildDefence(features, defence, towers, danger, weak, roundSupply);
         if (features.antiWall) this.answerEnemyWalls(rng);
-        // the army's helpers before it buys: recruit level 2, tutor charges
-        if (features.roundAbilities) this.recruitAtLevel2();
+        // the army's helpers before it buys: tutor charges, and a third pack slot (the +1 buy) when supply fills it
         if (features.extras) this.useTutorCharges();
+        if (features.extras) this.buyExtraPack();
         // 1) the army's packs, where the personality wants them
         const brain = new YearBrain(
             this.ctx,
@@ -260,8 +247,6 @@ export class AiOpponent implements Opponent {
         );
         const slots = this.ctx.deployCap();
         brain.playRound({ keep: !this.ctx.climb, slots, finish: false });
-        // after the planner has placed (and moved) its packs: Marching Orders sends an old one to the weak tower
-        if (features.extras) this.useMarchingOrders(towers, danger, weak);
         // 2) Hard: the defence now, out of what the packs left
         if (packsFirst) this.buildDefence(features, defence, towers, danger, weak, roundSupply);
         // 3) the rest of the army: talents (and packs, should a slot be left)
@@ -276,9 +261,7 @@ export class AiOpponent implements Opponent {
         // 6) what's left: army boosts (Hard only where worth more than another pack), range / speed
         if (features.armyBoosts !== 'none') this.buyArmyBoosts(features.armyBoosts === 'worth');
         if (features.roundAbilities) this.buyRoundBoosts();
-        // 7) very late, with supply still left: a third pack (the +1 buy)
-        if (features.extras && this.buyExtraPack()) brain.finish(brain.packsBought + this.ctx.deployCap());
-        // 8) supply for an ally, then runes with what's left — as many as its packs have room for
+        // 7) supply for an ally, then runes with what's left — as many as its packs have room for
         if (features.extras) this.sendSpareSupply();
         this.buyRunesForFreeSlots(rng);
     }
@@ -526,33 +509,19 @@ export class AiOpponent implements Opponent {
     }
 
     /**
-     * The +1 buy of the round (Medium, Hard), very late: only once every pack
-     * slot is used (so not in a Siege's rebuild, with its 40) and supply
-     * still covers the slot and a pack. True when bought — the caller then
-     * fills it (Hard with the best-value pack, Medium at random).
+     * The +1 buy of the round (Medium, Hard), before the army is planned:
+     * where the pack limit binds (not in a Siege's rebuild, with its 40) and
+     * supply covers the slot and every slot filled with an average pack. The
+     * planner then fills the third slot like the others.
      */
-    private buyExtraPack(): boolean {
-        if (this.ctx.deployCap() > 0 || !this.owns('deploySlot')) return false;
-        const cheapest = Math.min(...this.affordableArmyTypes().map((t) => this.ctx.economy.costOf(t)));
-        if (!Number.isFinite(cheapest)) return false;
-        if (this.ctx.economy.balance(this.seat) < this.ctx.deploySettings.extraSlotCost + cheapest) return false;
-        return this.ctx.dispatch({ kind: 'buyDeploySlot', team: this.team, seat: this.seat });
-    }
-
-    /**
-     * Recruit level 2 (Hard): every later buy this round arrives at level 2.
-     * Worth it where the pack limit binds and the supply can still fill every
-     * slot at the higher price — a level doubles a pack for half its price.
-     */
-    private recruitAtLevel2(): void {
+    private buyExtraPack(): void {
         const cap = this.ctx.deployCap();
-        if (cap <= 0 || cap > EXTRA_BUY_UP_TO || (this.ctx.roundRecruitLevel?.() ?? 1) > 1 || !this.owns('recruitLevel')) return;
+        if (cap <= 0 || cap > EXTRA_BUY_UP_TO || !this.owns('deploySlot')) return;
         const types = this.affordableArmyTypes();
         if (types.length === 0) return;
-        const { leveling, economy } = this.ctx;
-        const avg = types.reduce((sum, t) => sum + economy.costOf(t), 0) / types.length;
-        const need = leveling.recruitLevel2Cost + cap * avg * (1 + leveling.levelCostFactor);
-        if (economy.balance(this.seat) >= need) this.ctx.dispatch({ kind: 'recruitLevel', team: this.team, seat: this.seat });
+        const avg = types.reduce((sum, t) => sum + this.ctx.economy.costOf(t), 0) / types.length;
+        if (this.ctx.economy.balance(this.seat) < this.ctx.deploySettings.extraSlotCost + (cap + 1) * avg) return;
+        this.ctx.dispatch({ kind: 'buyDeploySlot', team: this.team, seat: this.seat });
     }
 
     /**
@@ -617,40 +586,6 @@ export class AiOpponent implements Opponent {
                 .sort((a, b) => b.type.cost * b.level - a.type.cost * a.level || a.id - b.id);
             if (!best.some((u) => dispatch({ kind: 'tutorUnit', team: this.team, seat: this.seat, unitId: u.id }))) break;
         }
-    }
-
-    /** a Marching Orders charge (Medium, Hard): an old pack to a Rusher's weak tower when that side is in danger */
-    private useMarchingOrders(towers: readonly Unit[], danger: readonly number[], weak: 0 | 1 | null): void {
-        const { placement, dispatch, tactics } = this.ctx;
-        if (this.ctx.climb || weak === null || (danger[weak] ?? 0) === 0 || !tactics[this.seat]!.includes(MOVE_UNIT_ID)) return;
-        const tower = towers[weak]!;
-        // the cheapest old pack far from the weak tower — the rush keeps its best
-        const old = this.ownPacks()
-            .filter((u) => !placement.canReposition(u) && Math.abs(u.world.x - tower.world.x) > GUARD_NEAR)
-            .sort((a, b) => a.type.cost * a.level - b.type.cost * b.level || a.id - b.id)[0];
-        if (!old) return;
-        const spot = this.spotNear(old, tower);
-        if (!spot) return;
-        if (!dispatch({ kind: 'mobilizeUnit', team: this.team, seat: this.seat, unitId: old.id })) return;
-        dispatch({ kind: 'move', team: this.team, seat: this.seat, unitId: old.id, anchor: spot });
-    }
-
-    /** a free spot for `unit` in front of `tower`, off the wall plan's tiles */
-    private spotNear(unit: Unit, tower: Unit): { col: number; row: number } | null {
-        const { placement } = this.ctx;
-        const { forward } = sideFrontline(placement, this.team);
-        const fp = unit.rotated ? { cols: unit.type.footprint.rows, rows: unit.type.footprint.cols } : unit.type.footprint;
-        const front = forward > 0 ? tower.cell.row + tower.type.footprint.rows : tower.cell.row - fp.rows;
-        const col0 = tower.cell.col + Math.floor((tower.type.footprint.cols - fp.cols) / 2);
-        for (let r = 0; r < 12; r++) {
-            for (let dc = 0; dc <= 8; dc++) {
-                for (const col of dc === 0 ? [col0] : [col0 - dc, col0 + dc]) {
-                    const anchor = { col, row: front + forward * r };
-                    if (placement.canPlaceAt(this.team, this.seat, unit.type, anchor, unit.rotated) && !placement.aiAvoidsAt(this.seat, unit.type, anchor, unit.rotated)) return anchor;
-                }
-            }
-        }
-        return null;
     }
 
     /**
