@@ -5902,7 +5902,7 @@ export class BattleSim {
     }
 
     /**
-     * What blocks the shot becomes the target: the enemy wall that stops `a`'s
+     * What blocks the shot becomes the target (shooters only, not beams): the enemy wall that stops `a`'s
      * attack on `target` (in reach, behind that wall), when `a` can hit the
      * wall from where it stands — so it breaks the wall from its own distance
      * instead of walking up. Null when no such wall.
@@ -8546,8 +8546,11 @@ export class BattleSim {
         // Prefer outside-dead-zone (shoot or approach); only then kite the
         // closest too-close foe.
         let result: Actor | null = best ?? bestAside ?? bestAny;
-        // nothing clear to shoot, but a foe in reach behind an enemy wall: the wall is the target
-        if (!best && bestAside && ranged && !anyLayer && native.ground) result = this.wallInTheWay(from, bestAside, stats.range, minRange) ?? result;
+        // nothing clear to shoot, but a foe in reach behind an enemy wall: the wall is the target —
+        // shots only: a beam holds just a foe (beamHolds), and an unmarked wall isn't one
+        if (!best && bestAside && from.unit.type.projectileSpeed && !anyLayer && native.ground) {
+            result = this.wallInTheWay(from, bestAside, stats.range, minRange) ?? result;
+        }
         if (!anyLayer) {
             if (from.cachedEnemy !== result) {
                 from.approachOx = 0;
