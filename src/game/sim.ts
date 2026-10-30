@@ -70,7 +70,8 @@ import { getUnitInstanceRenderer } from './unitInstances';
 import type { TypeRegistry } from './content/typeRegistry';
 import { computeCrowWingRate, crowWingDeathSplay, setCrowWingDeathSplay, setCrowWingRateOnProxy, setCrowWingRestOnProxy } from './crowWingFlap';
 import { hasUnitDeathAnim, playUnitDeathAnim, playUnitFireAnim, unitDeathFallLocal } from './unitAnimated';
-import { attackNodeWorld, getUnitAttackNodeLocal, getUnitVisualHalfWidth, getUnitVisualHeight, usesWingFlapModel } from './unitModels';
+import { attackNodeWorld, getUnitAttackNodeLocal, getUnitVisualHalfWidth, getUnitVisualHeight, instancedSkinOf, usesWingFlapModel } from './unitModels';
+import { driveFlyerSkin, playInstancedSkinOnce } from './instancedSkin';
 import {
     beginDeathClip,
     beginDeathFall,
@@ -4594,6 +4595,8 @@ export class BattleSim {
         if (a.cooldown > prevCd + 1e-4) {
             a.recoil = 1;
             if (a.mesh.userData.animated) playUnitFireAnim(a.mesh);
+            const skin = a.mesh.userData.instancedSkin ? instancedSkinOf(a.unit.type.modelId ?? a.unit.type.id) : null;
+            if (skin) playInstancedSkinOnce(a.mesh, 'fire', skin);
         }
         a.prevCooldown = a.cooldown;
         const recoil = a.recoil ?? 0;
@@ -4744,6 +4747,20 @@ export class BattleSim {
             a.impulseZ = 0;
         }
 
+        const skin = a.mesh.userData.instancedSkin ? instancedSkinOf(a.unit.type.modelId ?? a.unit.type.id) : null;
+        if (skin) {
+            driveFlyerSkin(
+                a.mesh,
+                {
+                    dead: !a.alive || !!a.mesh.userData.dead,
+                    inDeployment: false,
+                    flightLift: a.unit.flightLift,
+                    altitude: a.altitude,
+                    moving,
+                },
+                skin,
+            );
+        }
         if (usesWingFlapModel(a.unit.type.modelId ?? a.unit.type.id) && a.mesh.userData.instanced) {
             setCrowWingRestOnProxy(a.mesh, 0);
             setCrowWingRateOnProxy(
@@ -5003,6 +5020,10 @@ export class BattleSim {
                     fallStartY,
                     tips.tipX,
                 );
+                // rigged flyers go limp on the way down instead of flapping through the crash
+                if (target.mesh.userData.animated && hasUnitDeathAnim(target.mesh)) playUnitDeathAnim(target.mesh);
+                const skin = target.mesh.userData.instancedSkin ? instancedSkinOf(t.modelId ?? t.id) : null;
+                if (skin) playInstancedSkinOnce(target.mesh, 'death', skin);
             } else if (target.mesh.userData.animated && hasUnitDeathAnim(target.mesh)) {
                 // Skinned fall clip: ease yaw so authored tip-over follows the knock
                 const fallLocal = unitDeathFallLocal(target.mesh) ?? { x: 0, z: -1 };

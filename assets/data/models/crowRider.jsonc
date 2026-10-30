@@ -1,16 +1,13 @@
+// Rigged crow rider, drawn by the instance pools with GPU skinning: the clips are
+// baked into a bone texture at load (see instancedSkin.ts). Beak along +Z in the GLB.
 {
     "file": "models/units/crow-rider.glb",
-    // tip-heavy stroke: wings whip at the ends, the rider's body stays steady
-    "wingFlap": {
-        "flapAmp": 0.88,
-        "flapSpeed": 10.5,
-        "flapBias": -0.28, // rest pose is already high — dip about as far as it rises
-        "tipFloor": 0.36,
-        "tipPower": 1.32,
-        "innerRFrac": 0.22,
-        "minYFrac": 0.22,
-        "maxYCutFrac": 0.04,
-        "outerRScale": 0.98,
-        "softYFrac": 0.03,
+    "yawDeg": 90,
+    "instancedSkin": true,
+    "animation": {
+        "walk": { "clip": "walk" }, // flight wingbeat
+        "idle": { "clip": "idle" }, // lazy hover
+        "fire": { "clip": "fire" }, // beak peck
+        "death": { "clip": "death" }, // goes limp, wings roll under
     },
 }

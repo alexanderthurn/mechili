@@ -46,7 +46,8 @@ export interface AnimClip {
 /**
  * Battle animation of a rigged GLB (`"animation"` in `assets/data/models/<id>.jsonc`).
  * A model with this block is driven by an AnimationMixer instead of an
- * InstancedMesh; it needs `"skinned": true`.
+ * InstancedMesh; it needs `"skinned": true` — unless it sets `"instancedSkin"`,
+ * then the clips are baked for GPU skinning in the instance pools ({@link instancedSkin}).
  */
 export interface ModelAnimation {
     /** Locomotion loop (swagger / walk / run). */
@@ -54,6 +55,8 @@ export interface ModelAnimation {
         /** Keep only this time window of the clip (seconds). */
         range?: ClipTimeRange;
     };
+    /** Standing / hovering loop — instanced-skin models only so far. */
+    idle?: AnimClip;
     /** One-shot attack; omit if the asset has none. */
     fire?: AnimClip & {
         /** Keep only this time window of the clip (seconds). */
@@ -89,7 +92,8 @@ export const ANIM_SPECS: Record<string, AnimSpec> = {};
 function syncAnimSpecs(): void {
     for (const id of Object.keys(ANIM_SPECS)) delete ANIM_SPECS[id];
     for (const [id, spec] of Object.entries(MODEL_SPECS)) {
-        if (spec.animation) ANIM_SPECS[id] = spec as AnimSpec;
+        // instanced-skin models bake their clips into the instance pools instead
+        if (spec.animation && !spec.instancedSkin) ANIM_SPECS[id] = spec as AnimSpec;
     }
 }
 syncAnimSpecs();

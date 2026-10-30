@@ -40,8 +40,10 @@ import {
     loadUnitModels,
     proceduralModelHeights,
     setProceduralModelHeights,
+    instancedSkinOf,
     usesWingFlapModel,
 } from './unitModels';
+import { driveFlyerSkin, resetInstancedSkin } from './instancedSkin';
 import {
     computeCrowWingRate,
     setCrowWingRateOnProxy,
@@ -2095,6 +2097,7 @@ export class Unit {
             clearCorpsePose(m.mesh);
             clearHammerCrush(m.mesh);
             if (m.mesh.userData.animated) resetAnimatedUnit(m.mesh);
+            resetInstancedSkin(m.mesh);
             if (usesWingFlapModel(this.type.modelId ?? this.type.id)) {
                 setCrowWingRateOnProxy(m.mesh, 0);
                 setCrowWingRestOnProxy(m.mesh, 0);
@@ -2170,6 +2173,17 @@ export class Unit {
 
     /** Instanced wing flap speed from deployment pose / movement. */
     private updateCrowWingRates(moving: number, altitude = 0): void {
+        const skin = instancedSkinOf(this.type.modelId ?? this.type.id);
+        if (skin) {
+            for (const m of this.members) {
+                driveFlyerSkin(
+                    m.mesh,
+                    { dead: !!m.mesh.userData.dead, inDeployment: this.inDeployment, flightLift: this.flightLift, altitude, moving },
+                    skin,
+                );
+            }
+            return;
+        }
         if (!usesWingFlapModel(this.type.modelId ?? this.type.id)) return;
         for (const m of this.members) {
             if (!m.mesh.userData.instanced) continue;

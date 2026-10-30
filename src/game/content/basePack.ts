@@ -225,8 +225,11 @@ export function loadPack(files: Record<string, string>, label: string): BasePack
             continue;
         }
         for (const e of validateSchema(MODEL_SCHEMA, data)) errors.push(`${where}: ${e}`);
-        if (data.animation !== undefined && data.skinned !== true) {
-            errors.push(`${where}: "animation" needs "skinned": true (a rigged model)`);
+        if (data.animation !== undefined && data.skinned !== true && data.instancedSkin !== true) {
+            errors.push(`${where}: "animation" needs "skinned": true or "instancedSkin": true (a rigged model)`);
+        }
+        if (data.skinned === true && data.instancedSkin === true) {
+            errors.push(`${where}: "skinned" and "instancedSkin" are two different paths — pick one`);
         }
         models[id] = data as unknown as ModelSpecData;
     }

@@ -32,6 +32,15 @@ import {
     type InstancePart,
 } from './unitModels';
 import { attachBuildingSnow } from './buildingSnow';
+import {
+    attachInstancedSkin,
+    flagInstancedSkinUpload,
+    registerInstancedSkinProxy,
+    setupInstancedSkinAttributes,
+    updateInstancedSkinClock,
+    writeInstancedSkin,
+    type InstancedSkinData,
+} from './instancedSkin';
 import { prefs, type Prefs } from './prefs';
 import type { BattleTeam } from './units';
 
@@ -50,6 +59,8 @@ interface Pool {
     parts: InstancedMesh[];
     /** dense list of proxy groups currently in this pool */
     owners: Group[];
+    /** GPU-skinned model: baked clips, clip state written per instance in {@link UnitInstanceRenderer.sync} */
+    skin?: InstancedSkinData;
 }
 
 interface PoolMeta {
@@ -232,9 +243,13 @@ export class UnitInstanceRenderer {
 
     /** Push proxy world matrices into every alive/dead InstancedMesh. */
     sync(dtSeconds = 0, wingFlapActive = true): void {
-        if (dtSeconds > 0 && wingFlapActive) updateCrowWingFlap(dtSeconds);
+        if (dtSeconds > 0 && wingFlapActive) {
+            updateCrowWingFlap(dtSeconds);
+            updateInstancedSkinClock(dtSeconds);
+        }
         const showDead = prefs().renderDeadUnits;
         for (const [key, pool] of this.pools) {
+            if (pool.skin) this.syncSkin(pool, pool.skin);
             if (key.endsWith(':dead') && !showDead) {
                 // Pref hides normal wrecks; hammer pancakes stay visible via proxy.visible.
                 for (let i = 0; i < pool.owners.length; i++) {
@@ -261,6 +276,17 @@ export class UnitInstanceRenderer {
             }
         }
         this.needsColor = false;
+    }
+
+    /** Mirror each mech's clip state into its slot; upload only when something changed. */
+    private syncSkin(pool: Pool, skin: InstancedSkinData): void {
+        for (const mesh of pool.parts) {
+            let changed = false;
+            for (let i = 0; i < pool.owners.length; i++) {
+                if (writeInstancedSkin(mesh, i, pool.owners[i]!, skin)) changed = true;
+            }
+            if (changed) flagInstancedSkinUpload(mesh);
+        }
     }
 
     dispose(): void {
@@ -335,6 +361,7 @@ export class UnitInstanceRenderer {
         }
         const index = pool.owners.length;
         pool.owners.push(proxy);
+        if (pool.skin) registerInstancedSkinProxy(proxy);
         if (usesWingFlapModel(typeId)) {
             const phase =
                 typeof proxy.userData.wingPhase === 'number'
@@ -425,7 +452,7 @@ export class UnitInstanceRenderer {
 
         const parts = asset.parts.map((part) => makeInstanced(part, typeId, team));
         for (const mesh of parts) this.scene.add(mesh);
-        pool = { parts, owners: [] };
+        pool = { parts, owners: [], skin: asset.parts[0]?.skin };
         this.pools.set(key, pool);
         return pool;
     }
@@ -463,6 +490,10 @@ function makeInstanced(part: InstancePart, typeId: string, team: BattleTeam): In
     }
     const mesh = new InstancedMesh(part.geometry.clone(), mat, POOL_CAPACITY);
     if (usesWingFlapModel(typeId)) setupCrowWingInstanceAttributes(mesh, POOL_CAPACITY);
+    if (part.skin) {
+        setupInstancedSkinAttributes(mesh, POOL_CAPACITY);
+        attachInstancedSkin(mesh, mat, part.skin);
+    }
     mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     mesh.frustumCulled = false;
     mesh.castShadow = unitShadowCast(typeId, prefs().shadows);

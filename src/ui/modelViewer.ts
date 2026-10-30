@@ -1,9 +1,11 @@
 import {
     AmbientLight,
+    AnimationMixer,
     Box3,
     DirectionalLight,
     Group,
     HemisphereLight,
+    LoopOnce,
     MathUtils,
     PerspectiveCamera,
     Scene,
@@ -11,6 +13,7 @@ import {
     Spherical,
     Vector3,
     WebGLRenderer,
+    type AnimationAction,
     type Object3D,
 } from 'three';
 import {
@@ -18,8 +21,10 @@ import {
     getUnitInstanceAsset,
     getUnitVisualHeight,
     hasUnitModel,
+    instancedSkinOf,
     wingFlapOf,
 } from '../game/unitModels';
+import type { InstancedSkinData, SkinRole } from '../game/instancedSkin';
 import {
     attachDragonWingFlap,
     attachShowcaseWingFlap,
@@ -58,6 +63,13 @@ const MIN_ZOOM = 0.55; // closer
 const MAX_ZOOM = 2.5; // further
 const ZOOM_SPEED = 0.0015;
 const FIT_PADDING = 1.2; // headroom so the model doesn't touch the canvas edge
+/** Showcase of a GPU-skinned unit: what each click plays next (missing clips are skipped). */
+const SHOWCASE_CLICK_ORDER: readonly Exclude<SkinRole, 'idle'>[] = ['fire', 'walk', 'death'];
+const SHOWCASE_FADE = 0.2;
+/** seconds the walk loop runs before settling back to idle */
+const SHOWCASE_WALK_SECONDS = 2.4;
+/** seconds a finished death pose holds before the unit is idle again */
+const SHOWCASE_DEATH_HOLD = 1.2;
 /** Spell previews sit this much closer than units → read ~2× larger. */
 const SPELL_SHOWCASE_SIZE_MULT = 2;
 /**
@@ -163,6 +175,12 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
     let wingFlapActive = false;
     let animActive = false;
     let clickHandler: (() => void) | null = null;
+    /** rigged instanced-skin unit: a plain mixer on the clone, idle until clicked */
+    let skinMixer: AnimationMixer | null = null;
+    let skinActions: Partial<Record<SkinRole, AnimationAction>> = {};
+    let skinPlaying: AnimationAction | null = null;
+    let skinStep = 0;
+    let skinReturnTimer = 0;
     let lastTickMs = performance.now();
     /** Ignores stale spell loads if the user clicked another pick mid-fetch. */
     let spellLoadGen = 0;
@@ -214,9 +232,65 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
     }
 
     function clearCurrent(): void {
+        stopSkinShowcase();
         if (!current) return;
         scene.remove(current);
         current = null;
+    }
+
+    function stopSkinShowcase(): void {
+        window.clearTimeout(skinReturnTimer);
+        skinMixer?.stopAllAction();
+        skinMixer = null;
+        skinActions = {};
+        skinPlaying = null;
+        skinStep = 0;
+    }
+
+    /** Loop idle on a freshly presented rigged unit; clicks then step through its other clips. */
+    function startSkinShowcase(root: Group, skin: InstancedSkinData): void {
+        const mixer = new AnimationMixer(root);
+        for (const [role, baked] of Object.entries(skin.clips) as [SkinRole, NonNullable<InstancedSkinData['clips'][SkinRole]>][]) {
+            const action = mixer.clipAction(baked.clip);
+            action.timeScale = baked.speed;
+            if (!baked.loop) {
+                action.setLoop(LoopOnce, 1);
+                action.clampWhenFinished = true;
+            }
+            skinActions[role] = action;
+        }
+        mixer.addEventListener('finished', (e) => {
+            if (e.action !== skinPlaying) return;
+            const hold = skinPlaying === skinActions.death ? SHOWCASE_DEATH_HOLD : 0;
+            skinReturnTimer = window.setTimeout(() => fadeSkinTo('idle'), hold * 1000);
+        });
+        skinMixer = mixer;
+        const rest = skinActions.idle ?? skinActions.walk;
+        rest?.play();
+        skinPlaying = rest ?? null;
+        mixer.update(0);
+    }
+
+    function fadeSkinTo(role: SkinRole): void {
+        const next = skinActions[role];
+        if (!skinMixer || !next) return;
+        window.clearTimeout(skinReturnTimer);
+        next.reset();
+        next.setEffectiveWeight(1);
+        next.play();
+        if (skinPlaying && skinPlaying !== next) skinPlaying.crossFadeTo(next, SHOWCASE_FADE, false);
+        skinPlaying = next;
+    }
+
+    /** Next clip in {@link SHOWCASE_CLICK_ORDER}; a walk settles back to idle on its own. */
+    function playNextSkinClip(): void {
+        const order = SHOWCASE_CLICK_ORDER.filter((r) => skinActions[r]);
+        if (order.length === 0) return;
+        const role = order[skinStep++ % order.length]!;
+        fadeSkinTo(role);
+        if (role === 'walk') {
+            skinReturnTimer = window.setTimeout(() => fadeSkinTo('idle'), SHOWCASE_WALK_SECONDS * 1000);
+        }
     }
 
     function present(
@@ -247,6 +321,7 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
         lastTickMs = now;
         if (wingFlapActive) updateCrowWingFlap(dt);
         if (animActive) updateAnimatedUnits(dt);
+        skinMixer?.update(dt);
         if (current && autoRotate) {
             spherical.theta += AUTO_ROTATE_SPEED;
             updateCamera();
@@ -297,7 +372,10 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
         if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
         scheduleAutoRotateResume();
         // Click (not orbit) on the model — loadout pick bark, etc.
-        if (dragTravel < 6 && current) clickHandler?.();
+        if (dragTravel < 6 && current) {
+            playNextSkinClip();
+            clickHandler?.();
+        }
     }
 
     function onWheel(e: WheelEvent): void {
@@ -357,6 +435,8 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
             // Game models face −Z; default camera is on +Z — flip so the face shows first.
             if (wingFlap && !baked) attachShowcaseWingFlap(wingFlap, next);
             present(next, { yaw: Math.PI, wingFlap: flap, meshScale });
+            const skin = instancedSkinOf(unitId);
+            if (skin) startSkinShowcase(next, skin);
         },
         async showSpell(spellId: SpellAssetId) {
             if (disposed) return;

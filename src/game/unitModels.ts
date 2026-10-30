@@ -25,6 +25,7 @@ import type { BattleTeam, UnitType } from './units';
 import type { ModelAnimation } from './unitAnimated';
 import { assetUrl, hasAsset, onAssetOverlaySwitch } from './assets';
 import { disposeScene } from '../engine/disposeScene';
+import { bakeInstancedSkin, type InstancedSkinData } from './instancedSkin';
 import { BASE_PACK } from './content/basePack';
 
 /**
@@ -73,8 +74,14 @@ export interface ModelSpec {
         clip?: string | 'first' | 'longest' | 'shortest';
         time?: number;
     };
-    /** Battle animation clips for a rigged model (needs `skinned`). */
+    /** Battle animation clips for a rigged model (needs `skinned`, or `instancedSkin`). */
     animation?: ModelAnimation;
+    /**
+     * Rigged GLB drawn by the instance pools with GPU skinning: every `animation`
+     * clip is baked into a bone texture at load ({@link bakeInstancedSkin}).
+     * Leave `skinned` off — that is the one-mixer-per-mech path.
+     */
+    instancedSkin?: boolean;
     /** Wing-flap shader stroke for a winged model (crow rider, bat, …), defined per model. */
     wingFlap?: WingFlapData;
 }
@@ -134,6 +141,16 @@ export function wingFlapOf(modelId: string): WingFlapData | null {
     return MODEL_SPECS[modelId]?.wingFlap ?? null;
 }
 
+/** Is this model drawn by the instance pools with GPU-skinned clips? */
+export function usesInstancedSkinModel(modelId: string): boolean {
+    return MODEL_SPECS[modelId]?.instancedSkin === true;
+}
+
+/** Baked clips of a loaded instanced-skin model (null until it has loaded). */
+export function instancedSkinOf(modelId: string): InstancedSkinData | null {
+    return instanceAssets.get(modelId)?.parts[0]?.skin ?? null;
+}
+
 /** Does this model flap its wings (has a `wingFlap` stroke)? */
 export function usesWingFlapModel(modelId: string): boolean {
     return MODEL_SPECS[modelId]?.wingFlap !== undefined;
@@ -170,6 +187,8 @@ const loader = getGltfLoader();
 export interface InstancePart {
     geometry: BufferGeometry;
     material: MeshStandardMaterial;
+    /** baked clips for GPU skinning (instanced-skin models only) */
+    skin?: InstancedSkinData;
 }
 
 export interface InstanceAsset {
@@ -892,7 +911,11 @@ async function loadUnitModelsNow(
             // Rigged units stay on SkinnedMesh + mixer — baking would freeze bind pose.
             // bakePose models are static after bakeSkinnedPose and use InstancedMesh.
             if (!spec.skinned) {
-                const baked = bakeInstanceAsset(root);
+                const skinned =
+                    spec.instancedSkin && spec.animation
+                        ? bakeInstancedSkin(root, gltf.animations ?? [], spec.animation)
+                        : null;
+                const baked: InstanceAsset = skinned ? { parts: [skinned] } : bakeInstanceAsset(root);
                 if (isStructureModel(id)) {
                     attachBuildingSnowToObject(root);
                     for (const part of baked.parts) attachBuildingSnow(part.material);
@@ -906,7 +929,15 @@ async function loadUnitModelsNow(
             }
             console.info(
                 `[unitModels] loaded '${id}' from ${spec.url} (height ${visualHeights.get(id)!.toFixed(2)}` +
-                    (spec.skinned ? ', skinned — no InstancedMesh' : spec.bakePose ? ', bakePose → InstancedMesh' : '') +
+                    (spec.skinned
+                        ? ', skinned — no InstancedMesh'
+                        : spec.instancedSkin
+                          ? instancedSkinOf(id)
+                              ? ', GPU-skinned InstancedMesh'
+                              : ', instancedSkin FAILED (no skinned mesh) → static InstancedMesh'
+                          : spec.bakePose
+                            ? ', bakePose → InstancedMesh'
+                            : '') +
                     ')',
             );
             failedModels.delete(id);

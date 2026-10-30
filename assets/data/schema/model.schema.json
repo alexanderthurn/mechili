@@ -73,7 +73,11 @@
         },
         "animation": {
           "$ref": "#/definitions/ModelAnimation",
-          "description": "Battle animation clips for a rigged model (needs `skinned`)."
+          "description": "Battle animation clips for a rigged model (needs `skinned`, or `instancedSkin`)."
+        },
+        "instancedSkin": {
+          "type": "boolean",
+          "description": "Rigged GLB drawn by the instance pools with GPU skinning: every `animation` clip is baked into a bone texture at load (bakeInstancedSkin). Leave `skinned` off — that is the one-mixer-per-mech path."
         },
         "wingFlap": {
           "$ref": "#/definitions/WingFlapData",
@@ -109,6 +113,10 @@
             "clip"
           ],
           "description": "Locomotion loop (swagger / walk / run)."
+        },
+        "idle": {
+          "$ref": "#/definitions/AnimClip",
+          "description": "Standing / hovering loop — instanced-skin models only so far."
         },
         "fire": {
           "type": "object",
@@ -176,7 +184,7 @@
         "walk"
       ],
       "additionalProperties": false,
-      "description": "Battle animation of a rigged GLB (`\"animation\"` in `assets/data/models/<id>.jsonc`). A model with this block is driven by an AnimationMixer instead of an InstancedMesh; it needs `\"skinned\": true`."
+      "description": "Battle animation of a rigged GLB (`\"animation\"` in `assets/data/models/<id>.jsonc`). A model with this block is driven by an AnimationMixer instead of an InstancedMesh; it needs `\"skinned\": true` — unless it sets `\"instancedSkin\"`, then the clips are baked for GPU skinning in the instance pools (instancedSkin)."
     },
     "ClipTimeRange": {
       "type": "object",
@@ -213,6 +221,24 @@
         }
       ],
       "description": "Pick a clip when the exporter names them uselessly (NlaTrack / NlaTrack.001). `longest` / `shortest` by duration; or a substring of the clip name; or index."
+    },
+    "AnimClip": {
+      "type": "object",
+      "properties": {
+        "clip": {
+          "$ref": "#/definitions/ClipPick",
+          "description": "Which clip: a substring of its name (`\"walk\"`, `\"pitch_baseball\"`), `\"longest\"` / `\"shortest\"` by duration, or an index."
+        },
+        "speed": {
+          "type": "number",
+          "description": "Playback rate (default 1). Higher = less slide on walks, faster long swings."
+        }
+      },
+      "required": [
+        "clip"
+      ],
+      "additionalProperties": false,
+      "description": "One clip role of a rigged model."
     },
     "WingFlapData": {
       "type": "object",
