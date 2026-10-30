@@ -5930,7 +5930,7 @@ export class BattleSim {
     }
 
     /**
-     * What blocks the shot becomes the target (shooters only, not beams): the enemy wall that stops `a`'s
+     * What blocks the shot becomes the target (shooters and beams): the enemy wall that stops `a`'s
      * attack on `target` (in reach, behind that wall), when `a` can hit the
      * wall from where it stands — so it breaks the wall from its own distance
      * instead of walking up. Null when no such wall.
@@ -8582,9 +8582,9 @@ export class BattleSim {
         // Prefer outside-dead-zone (shoot or approach); only then kite the
         // closest too-close foe.
         let result: Actor | null = best ?? bestAside ?? bestAny;
-        // nothing clear to shoot, but a foe in reach behind an enemy wall: the wall is the target —
-        // shots only: a beam holds just a foe (beamHolds), and an unmarked wall isn't one
-        if (!best && bestAside && from.unit.type.projectileSpeed && !anyLayer && native.ground) {
+        // nothing clear to shoot, but a foe in reach behind an enemy wall: the wall is the target
+        // (a beam may hold it too: beamHolds)
+        if (!best && bestAside && ranged && !anyLayer && native.ground) {
             result = this.wallInTheWay(from, bestAside, stats.range, minRange) ?? result;
         }
         if (!anyLayer) {
@@ -8605,7 +8605,8 @@ export class BattleSim {
     }
 
     /**
-     * Whether a beam's lock on `t` holds this step: still a foe ({@link foeFor}),
+     * Whether a beam's lock on `t` holds this step: still a foe ({@link foeFor}) —
+     * or the enemy wall blocking its target, which it goes for ({@link wallInTheWay}) —
      * in reach, inside the fire cone (`yawHalf`, the prism's) and nothing —
      * hill, building, wall — between them.
      */
@@ -8616,7 +8617,8 @@ export class BattleSim {
         stats: ResolvedStats,
         yawHalf?: number,
     ): boolean {
-        if (!this.foeFor(caster, t, native) || !this.inReachOf(caster, t, stats.range)) return false;
+        const blocking = !!t.unit.type.wall && t === caster.cachedEnemy && t.alive && actorTeam(t) !== actorTeam(caster);
+        if (!(blocking || this.foeFor(caster, t, native)) || !this.inReachOf(caster, t, stats.range)) return false;
         if (yawHalf != null && Math.abs(deltaAngle(caster.facing, this.beamYaw(caster, t))) > yawHalf) return false;
         return this.rayLineOpen(caster, t);
     }
