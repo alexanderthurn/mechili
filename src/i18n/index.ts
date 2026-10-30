@@ -31,33 +31,45 @@ const NAMESPACES = [
 
 type Namespace = (typeof NAMESPACES)[number];
 
-/** Eager locale JSON — one entry per `locales/<lang>/<ns>.json`. */
-const localeFiles = import.meta.glob('../../locales/*/*.json', {
+type Bundle = Record<Namespace, Record<string, unknown>>;
+
+/** English is built in (the fallback for every missing key); every other language loads when chosen. */
+const englishFiles = import.meta.glob('../../locales/en/*.json', {
     eager: true,
     import: 'default',
 }) as Record<string, Record<string, unknown>>;
+const otherFiles = import.meta.glob(['../../locales/*/*.json', '!../../locales/en/*.json'], {
+    import: 'default',
+}) as Record<string, () => Promise<Record<string, unknown>>>;
 
-function loadNamespace(lang: LanguageId, ns: Namespace): Record<string, unknown> {
-    const path = `../../locales/${lang}/${ns}.json`;
-    const data = localeFiles[path];
-    if (!data) {
-        throw new Error(`Missing locale file ${path}`);
-    }
-    return data;
+function localePath(lang: LanguageId, ns: Namespace): string {
+    return `../../locales/${lang}/${ns}.json`;
 }
 
-function loadLanguage(lang: LanguageId): Record<Namespace, Record<string, unknown>> {
-    const out = {} as Record<Namespace, Record<string, unknown>>;
-    for (const ns of NAMESPACES) {
-        out[ns] = loadNamespace(lang, ns);
-    }
-    return out;
-}
+const resources: Partial<Record<LanguageId, Bundle>> = {
+    en: Object.fromEntries(
+        NAMESPACES.map((ns) => {
+            const data = englishFiles[localePath('en', ns)];
+            if (!data) throw new Error(`Missing locale file ${localePath('en', ns)}`);
+            return [ns, data];
+        }),
+    ) as Bundle,
+};
 
-const resources = Object.fromEntries(LANGUAGE_IDS.map((id) => [id, loadLanguage(id)])) as Record<
-    LanguageId,
-    Record<Namespace, Record<string, unknown>>
->;
+/** loads `lang`'s files once (and hands them to i18next once it runs) */
+async function ensureLanguage(lang: LanguageId): Promise<void> {
+    if (resources[lang]) return;
+    const entries = await Promise.all(
+        NAMESPACES.map(async (ns) => {
+            const load = otherFiles[localePath(lang, ns)];
+            if (!load) throw new Error(`Missing locale file ${localePath(lang, ns)}`);
+            return [ns, await load()] as const;
+        }),
+    );
+    const bundle = Object.fromEntries(entries) as Bundle;
+    resources[lang] = bundle;
+    if (ready) for (const ns of NAMESPACES) i18next.addResourceBundle(lang, ns, bundle[ns], true, true);
+}
 
 let ready = false;
 const languageListeners: Array<() => void> = [];
@@ -68,6 +80,7 @@ const languageListeners: Array<() => void> = [];
  */
 export async function initI18n(language?: LanguageId): Promise<LanguageId> {
     const lng = language ?? detectDeviceLanguage();
+    await ensureLanguage(lng);
     if (!ready) {
         await i18next.init({
             lng,
@@ -76,7 +89,7 @@ export async function initI18n(language?: LanguageId): Promise<LanguageId> {
             nonExplicitSupportedLngs: false,
             defaultNS: 'common',
             ns: [...NAMESPACES],
-            resources,
+            resources: resources as Record<LanguageId, Bundle>,
             interpolation: { escapeValue: false },
             returnNull: false,
         });
@@ -114,6 +127,7 @@ export async function setLanguage(language: LanguageId): Promise<LanguageId> {
         notifyLanguageListeners();
         return lng;
     }
+    await ensureLanguage(language);
     await i18next.changeLanguage(language);
     applyDocumentLang(language);
     notifyLanguageListeners();
