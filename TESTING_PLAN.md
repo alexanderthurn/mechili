@@ -101,7 +101,8 @@ manual testing; a headless run can't measure it.
 
 ## Order
 
-1. Smoke matches and determinism (steps 1 and 2): the most value for the least work.
-2. The lesson bot for tutorial 2, then the other lessons.
+1. The lesson bot for tutorial 2, then the other lessons (step 4) — top priority:
+   the tutorials are what gets played through by hand most often.
+2. Smoke matches and determinism (steps 1 and 2): the most value for the least work.
 3. Golden replays and the performance budget.
 4. The browser test, only if the HUD keeps breaking in ways the headless checks miss.
