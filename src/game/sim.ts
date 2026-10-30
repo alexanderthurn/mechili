@@ -553,6 +553,9 @@ export interface Actor {
     gaitTime?: number;
     /** render-only: last frame's cooldown, to detect a fresh shot */
     prevCooldown?: number;
+    /** render-only: cooldown seen falling since the last shot (engaged) / fire clip already started for it */
+    skinCountingDown?: boolean;
+    skinFireStarted?: boolean;
     /** render-only: sim elapsed when a flying cleave slam started */
     stompAt?: number;
     /** render-only: ram an air target instead of planting on the lawn */
@@ -4592,11 +4595,22 @@ export class BattleSim {
         // fire detection: the sim bumps cooldown UP by attackInterval on a shot,
         // otherwise it counts down — so an increase means "just fired".
         const prevCd = a.prevCooldown ?? a.cooldown;
+        const skin = a.mesh.userData.instancedSkin ? instancedSkinOf(a.unit.type.modelId ?? a.unit.type.id) : null;
+        // A wind-up clip starts `fireLead` ahead so its blow lands with the damage: while
+        // engaged the cooldown counts down predictably to the next attack (render-only guess —
+        // if the target dies first, the swing just plays at nothing).
+        if (a.cooldown < prevCd - 1e-6) a.skinCountingDown = true;
+        if (skin && skin.fireLead > 0 && a.skinCountingDown && !a.skinFireStarted && a.cooldown > 0 && a.cooldown <= skin.fireLead) {
+            playInstancedSkinOnce(a.mesh, 'fire', skin);
+            a.skinFireStarted = true;
+        }
         if (a.cooldown > prevCd + 1e-4) {
             a.recoil = 1;
             if (a.mesh.userData.animated) playUnitFireAnim(a.mesh);
-            const skin = a.mesh.userData.instancedSkin ? instancedSkinOf(a.unit.type.modelId ?? a.unit.type.id) : null;
-            if (skin) playInstancedSkinOnce(a.mesh, 'fire', skin);
+            // no lead (or the attack came sooner than predicted): swing on the shot as before
+            if (skin && !a.skinFireStarted) playInstancedSkinOnce(a.mesh, 'fire', skin);
+            a.skinFireStarted = false;
+            a.skinCountingDown = false;
         }
         a.prevCooldown = a.cooldown;
         const recoil = a.recoil ?? 0;
@@ -4747,7 +4761,6 @@ export class BattleSim {
             a.impulseZ = 0;
         }
 
-        const skin = a.mesh.userData.instancedSkin ? instancedSkinOf(a.unit.type.modelId ?? a.unit.type.id) : null;
         if (skin) {
             const dead = !a.alive || !!a.mesh.userData.dead;
             if (a.unit.type.flying) {

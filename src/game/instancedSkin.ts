@@ -62,6 +62,8 @@ export interface InstancedSkinData {
     clips: Partial<Record<SkinRole, BakedClip>>;
     /** where the death clip lays the body, holder XZ (rest forward −Z) — see ModelAnimation.death */
     deathFallLocal: { x: number; z: number };
+    /** game seconds from the fire clip's start to its blow (hitAt / speed); 0 = start on the shot */
+    fireLead: number;
     /** bone count (texture width / 4) */
     bones: number;
     /** bind-pose skinned geometry — the CPU picks bones under arrow hits from it */
@@ -131,6 +133,7 @@ export function bakeInstancedSkin(
         texture: null!,
         clips: {},
         deathFallLocal: anim.death?.fallLocal ?? { x: 0, z: -1 },
+        fireLead: anim.fire?.hitAt ? anim.fire.hitAt / (anim.fire.speed ?? 1) : 0,
         bones,
         geometry: mesh.geometry,
     };

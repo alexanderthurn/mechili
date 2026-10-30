@@ -2,7 +2,8 @@
 // Faces +Z in the GLB. Tripo placed the right-hand joint ~10 cm above the wrist and
 // retargeted the clips onto it, so the axe hand swung off the arm. Fixed before cutting:
 // scripts/glb-move-joint.mjs moved the pivot into the wrist, and glb-prep-clips
-// "freeze" locks mixamorig:RightHand to the forearm (no wrist bend; the axe rides the arm).
+// "freeze" locks mixamorig:RightHand to the forearm (no wrist bend; the axe rides the arm),
+// "aim" sets that fixed wrist per clip: axe upright in idle, carried forward in the run.
 // Clips cut from Tripo's run / chop / fall / idle (the full 15 s idle loop) with scripts/glb-prep-clips.mjs;
 // the source file also had pitch_baseball and volleyball as attack candidates.
 // `scale` multiplies the auto-fitted size (default 1) for art tweaks.
@@ -14,8 +15,9 @@
     "animation": {
         "walk": { "clip": "walk" }, // Tripo run
         "idle": { "clip": "idle" },
-        // chop 1.1–2.55 s, hit ≈ 0.97 s in; ×2.05 fits attackInterval 0.7
-        "fire": { "clip": "fire", "speed": 2.05 },
+        // chop 1.1–2.55 s, ×2.05 fits attackInterval 0.7; the blow lands 0.97 s in,
+        // so the swing starts ~0.47 s ahead of the attack
+        "fire": { "clip": "fire", "speed": 2.05, "hitAt": 0.97 },
         // fall 0.4–2.9 s: lands toward its left, slightly forward
         "death": { "clip": "death", "fallLocal": { "x": -0.95, "z": -0.31 } },
     },

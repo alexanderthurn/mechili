@@ -130,6 +130,10 @@
               "type": "boolean",
               "description": "Keep the attack playing even if the mesh moves (crowd jostle / turn). Melee windups need this — by default the attack is dropped as soon as the unit relocates so long attack poses don't stick after the swing."
             },
+            "hitAt": {
+              "type": "number",
+              "description": "Seconds into the clip (authored time, before `speed`) where the blow lands. Instanced-skin units start the clip that much ahead of the attack, so the hit shows when the damage happens instead of a wind-up later."
+            },
             "clip": {
               "$ref": "#/definitions/ClipPick",
               "description": "Which clip: a substring of its name (`\"walk\"`, `\"pitch_baseball\"`), `\"longest\"` / `\"shortest\"` by duration, or an index."

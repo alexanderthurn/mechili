@@ -67,6 +67,12 @@ export interface ModelAnimation {
          * as the unit relocates so long attack poses don't stick after the swing.
          */
         hold?: boolean;
+        /**
+         * Seconds into the clip (authored time, before `speed`) where the blow lands.
+         * Instanced-skin units start the clip that much ahead of the attack, so the
+         * hit shows when the damage happens instead of a wind-up later.
+         */
+        hitAt?: number;
     };
     /** One-shot death / tip-over clip; omit to keep the procedural death tip. */
     death?: AnimClip & {

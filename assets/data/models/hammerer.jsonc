@@ -9,7 +9,7 @@
     "animation": {
         "walk": { "clip": "walk", "speed": 1.35 },
         "idle": { "clip": "idle" },
-        // authored ~1.5 s, sped up so the swing fits attackInterval 0.7
-        "fire": { "clip": "fire", "speed": 2.85 },
+        // authored ~1.5 s, sped up to fit attackInterval 0.7 (×2.3 → 0.65 s; ×2.85 read too quick)
+        "fire": { "clip": "fire", "speed": 2.3 },
     },
 }

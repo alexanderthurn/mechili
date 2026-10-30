@@ -7,7 +7,7 @@
     "animation": {
         "walk": { "clip": "walk" }, // flight wingbeat
         "idle": { "clip": "idle" }, // lazy hover
-        "fire": { "clip": "fire" }, // beak peck
+        "fire": { "clip": "fire", "hitAt": 0.36 }, // beak peck — the lunge arrives 0.36 s in
         "death": { "clip": "death" }, // goes limp, wings roll under
     },
 }
