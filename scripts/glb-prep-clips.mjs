@@ -11,6 +11,9 @@
 // plan: { "hips": "mixamorig:Hips", "clips": { "walk": { "from": "run", "loop": true }, "fire": { "from": "volleyball", "start": 1.3, "end": 2.8 }, … },
 //   "loop": the source already cycles (Tripo/Mixamo walks/runs) — wrap last key → first key.
 //   "loopFix": seconds to ease the tail into frame 0, only for clips that don't close.
+// plan.freeze: joint names whose keys are dropped in every clip, so they hold their rest
+//   pose relative to their parent — e.g. a wrist the exporter retargeted badly (the
+//   dwarf's axe hand bent 90° off the arm); the hand then rides the forearm rigidly.
 //         "idleLoop": { "from": "idle", "min": 3, "max": 6 } }   // optional: pick the best-matching loop end
 import { load, pose, duration, qmul, qrot } from './glb-sample.mjs';
 
@@ -101,6 +104,8 @@ for (let p = parentOf.get(hips); p; p = parentOf.get(p)) hipsParentRot = qmul(p.
 const toWorld = (v) => qrot(hipsParentRot, v);
 const toLocal = (v) => qrot([-hipsParentRot[0], -hipsParentRot[1], -hipsParentRot[2], hipsParentRot[3]], v);
 const hipsRestWorld = toWorld(hips.getTranslation());
+const frozen = new Set(plan.freeze ?? []);
+for (const name of frozen) if (!root.listNodes().some((n) => n.getName() === name)) throw new Error(`freeze: no joint ${name}`);
 const made = [];
 for (const [role, spec] of Object.entries(plan.clips)) {
     const src = byName(spec.from);
@@ -140,6 +145,10 @@ for (const [role, spec] of Object.entries(plan.clips)) {
     let kept = 0;
     let dropped = 0;
     for (const ch of src.listChannels()) {
+        if (frozen.has(ch.getTargetNode().getName())) {
+            dropped++;
+            continue;
+        }
         const s = ch.getSampler();
         const path = ch.getTargetPath();
         const n = path === 'rotation' ? 4 : 3;
