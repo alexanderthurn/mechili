@@ -1,7 +1,7 @@
 /**
  * An AI seat's two lobby settings (AI_PLAN.md): how well it plays
- * (difficulty) and how (personality). One AI; difficulty only switches
- * features off and makes choices poorer.
+ * (difficulty) and how (personality). One AI; for now every difficulty
+ * plays Hard — parts come out of it for the easier ones once it plays well.
  */
 
 export type AiDifficulty = 'easy' | 'medium' | 'hard';
@@ -33,37 +33,6 @@ export function personalitiesFor(role: 'attacker' | 'defender' | null): readonly
     return AI_PERSONALITIES;
 }
 
-/** what a difficulty switches */
-export interface AiFeatures {
-    /** 'poor': random among affordable types; 'counter': the planner's scored choice */
-    unitChoice: 'poor' | 'counter';
-    /** buys forge spells and casts its tactics */
-    spells: boolean;
-    /** reinforces a tower the last battle hurt: a level up, an archer on its top */
-    buildingUpgrades: boolean;
-    /** reacts to threats on its towers: 'none' (Easy), 'late' (last battle only), 'now' (also the threat map) */
-    reaction: 'none' | 'late' | 'now';
-    /** brings siege packs against the enemy's walls */
-    antiWall: boolean;
-    /** buys the +1 pack of the round, borrows when nearly dead, uses its card charges, sends spare supply to an ally */
-    extras: boolean;
-    /** army boosts: 'leftover' after the army, 'worth' as soon as one beats another pack */
-    armyBoosts: 'none' | 'leftover' | 'worth';
-    /** recruit level 2 and the round's range / speed boosts, where they fit */
-    roundAbilities: boolean;
-}
-
-export function aiFeatures(difficulty: AiDifficulty): AiFeatures {
-    switch (difficulty) {
-        case 'easy':
-            return { unitChoice: 'poor', spells: false, buildingUpgrades: false, reaction: 'none', antiWall: false, extras: false, armyBoosts: 'none', roundAbilities: false };
-        case 'medium':
-            return { unitChoice: 'poor', spells: true, buildingUpgrades: true, reaction: 'late', antiWall: false, extras: true, armyBoosts: 'leftover', roundAbilities: false };
-        case 'hard':
-            return { unitChoice: 'counter', spells: true, buildingUpgrades: true, reaction: 'now', antiWall: true, extras: true, armyBoosts: 'worth', roundAbilities: true };
-    }
-}
-
 /** a personality as it plays: Random has picked one */
 export type AiStyle = Exclude<AiPersonality, 'random'>;
 
@@ -83,5 +52,5 @@ export function resolvePersonality(
     return { style, rushSide: rnd() < 0.5 ? 0 : 1 };
 }
 
-/** how much of its supply a Defender may put into walls, posts and their levels in a round — the easier, the more */
-export const DEFENDER_WALL_SHARE: Readonly<Record<AiDifficulty, number>> = { easy: 0.6, medium: 0.35, hard: 0.25 };
+/** how much of its supply a Defender may put into walls, posts and their levels in a round */
+export const DEFENDER_WALL_SHARE = 0.25;

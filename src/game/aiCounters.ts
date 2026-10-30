@@ -1,9 +1,9 @@
 /**
  * The AI's counter table (AI_PLAN.md, "Counter table"): for each unit, the
  * units that are good against it — worked out by rules from the unit data,
- * so new units are covered without a list. Hard uses it next to its battle
- * model: a unit that answers what the enemy fields, and that its own army
- * doesn't answer yet, scores higher.
+ * so new units are covered without a list. Not used by the AI since its
+ * roles (aiRoles.ts) took over; the content check prints it. Chaff
+ * ({@link isChaff}) is read from the same traits.
  */
 import type { TypeRegistry } from './content/typeRegistry';
 import type { UnitType } from './units';
@@ -107,28 +107,4 @@ export function counterTable(types: TypeRegistry): CounterTable {
     }
     tables.set(types, table);
     return table;
-}
-
-/** an army by unit id: value (cost × level) per type */
-export type ArmyValue = ReadonlyMap<string, number>;
-
-/**
- * How much of the enemy's army a unit of `typeId` answers that its own army
- * doesn't answer yet, 0…1 of the enemy's value: for every enemy unit type
- * that `typeId` counters, its value less what the own army already fields of
- * that type's counters.
- */
-export function missingCounterShare(typeId: string, enemy: ArmyValue, own: ArmyValue, table: CounterTable): number {
-    let total = 0;
-    for (const v of enemy.values()) total += v;
-    if (total <= 0) return 0;
-    let missing = 0;
-    for (const [enemyType, value] of enemy) {
-        const counters = table.get(enemyType);
-        if (!counters?.includes(typeId)) continue;
-        let answered = 0;
-        for (const c of counters) answered += own.get(c) ?? 0;
-        missing += Math.max(0, value - answered);
-    }
-    return missing / total;
 }

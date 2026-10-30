@@ -4,8 +4,7 @@
  *
  * - **Read** the other side's walls ({@link readEnemyWalls}): how many, how
  *   much of the front they cover, how many archers stand on them. Walls that
- *   matter call for siege packs ({@link siegeWanted}) — the units built to
- *   break stone (UnitType.buildingDamageMult).
+ *   matter call for siege (aiRoles: Hard's ballistas).
  * - **Build** walls of its own ({@link orderedWallPlan}, {@link placeWallPlan}):
  *   one fixed fortress plan per side (see {@link wallPlan}), walls joined at
  *   their end tiles. Which slots, and how many, the personality decides
@@ -36,13 +35,6 @@ const CORRIDOR_PIECES = 1;
 const FLANK_PIECES = 4;
 /** the other side's walls matter once they cover this share of the front (or carry archers) */
 const RELEVANT_COVER = 0.2;
-/** siege packs wanted per this many walls that matter (at least one, at most MAX_SIEGE_PACKS) */
-const WALLS_PER_SIEGE_PACK = 3;
-const MAX_SIEGE_PACKS = 3;
-/** whether this type breaks stone better than it fights (stones, bolts, shells) */
-export function isSiegeType(type: UnitType): boolean {
-    return (type.buildingDamageMult ?? 1) > 1;
-}
 
 /** a side's front edge row, which way is forward (+1 = higher rows) and its columns without the flanks */
 export function sideFrontline(
@@ -95,12 +87,6 @@ export function readEnemyWalls(placement: PlacementController, team: Team): Enem
     const { colMin, colMax } = sideFrontline(placement, team);
     const cover = Math.min(1, cols.size / Math.max(1, colMax - colMin + 1));
     return { count: walls.length, posted, cover, relevant: walls.length > 0 && (cover >= RELEVANT_COVER || posted > 0) };
-}
-
-/** siege packs `team` should field against these walls (whatever it already has counts) */
-export function siegeWanted(walls: EnemyWalls): number {
-    if (!walls.relevant) return 0;
-    return Math.min(MAX_SIEGE_PACKS, Math.max(1, Math.ceil(walls.count / WALLS_PER_SIEGE_PACK)));
 }
 
 /** one fixed wall slot: its anchor (top-left tile), lengthwise or turned, and which way its back is */

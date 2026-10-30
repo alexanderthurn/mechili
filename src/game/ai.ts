@@ -14,16 +14,17 @@ import {
 } from './tactics';
 import type { TechTree } from './tech';
 import type { Loadout } from './techCatalog';
-import { formationHeadcount, hasAbility, hpWithdrawOf, isPlayerBuyable, type BuildingAbilityId, type Team, type Unit, type UnitType } from './units';
+import { formationHeadcount, hasAbility, hpWithdrawOf, type BuildingAbilityId, type Team, type Unit, type UnitType } from './units';
 import type { TypeRegistry } from './content/typeRegistry';
 import type { SeatId } from './seats';
 import { itemSlotLimit } from './items';
-import { chooseRebuildCommander, NO_STANCE, YearBrain, type Stance } from './aiYear';
+import { chooseRebuildCommander, NO_STANCE, YearBrain, type PackPick, type Stance } from './aiYear';
+import { AI_ROLES, readNeeds, STRONG_FROM, strongHelpless, THIRD_PACK_FREE_FROM, type Need, type Roster } from './aiRoles';
 import { CELL } from './map';
 import { isChaff } from './aiCounters';
-import { AI_WALL_ID, isSiegeType, orderedWallPlan, placeWallPlan, readEnemyWalls, sideFrontline, siegeWanted, wallInSlot, wallPlanCells, type PlanSlot } from './aiWalls';
+import { AI_WALL_ID, orderedWallPlan, placeWallPlan, sideFrontline, wallInSlot, wallPlanCells, type PlanSlot } from './aiWalls';
 import type { LevelingSettings } from './settings';
-import { aiFeatures, DEFENDER_WALL_SHARE, type AiDifficulty, type AiFeatures, type AiStyle } from './aiProfile';
+import { DEFENDER_WALL_SHARE, type AiDifficulty, type AiStyle } from './aiProfile';
 
 /** what a round's defence wants: wall slots, the share of the round's supply it may use, and whether to man the walls */
 interface Defence {
@@ -35,7 +36,7 @@ interface Defence {
 
 /** a Rusher's weak tower fell "first" unless it held this many seconds beyond the rush's tower */
 const RACE_MARGIN = 5;
-/** the share of the enemy on one side that puts the tower there in danger now (Hard) */
+/** the share of the enemy on one side that puts the tower there in danger now */
 const SIDE_THREAT = 0.5;
 /** front walls per stall step: the minimum, and two more per danger level */
 const STALL_WALLS = 2;
@@ -58,8 +59,6 @@ const RANGED_SHARE = 0.5;
 /** sending supply: keep this much, send only from this much on */
 const SEND_KEEP = 100;
 const SEND_MIN = 100;
-/** buys a round keeps for its packs before posting archers (a posted archer is one of the round's buys) */
-const PACK_BUYS = 2;
 import { laneCols, ownTowers, readThreat, threatLines, towerCol, type BattleRecord, type ThreatMap } from './aiThreat';
 
 /**
@@ -176,14 +175,11 @@ export class AiOpponent implements Opponent {
         this.ctx.dispatch({ kind: 'chooseCard', team: this.team, seat: this.seat, cardId: pick.id });
     }
 
-    /**
-     * The between-round card: Easy any it can afford; Medium and Hard only
-     * cards whose charges it uses (it never sells or moves old packs).
-     */
+    /** the between-round card: any it can afford whose charges it uses (it never sells or moves old packs) */
     onRoundCards(offer: readonly RoundCard[]): void {
-        const features = aiFeatures(this.ctx.difficulty);
-        let affordable = offer.filter((c) => this.ctx.economy.balance(this.seat) >= c.cost);
-        if (features.extras) affordable = affordable.filter((c) => !c.tactics?.includes(SELL_UNIT_ID) && !c.tactics?.includes(MOVE_UNIT_ID));
+        const affordable = offer.filter(
+            (c) => this.ctx.economy.balance(this.seat) >= c.cost && !c.tactics?.includes(SELL_UNIT_ID) && !c.tactics?.includes(MOVE_UNIT_ID),
+        );
         const pick = affordable.length > 0 ? affordable[Math.floor(this.ctx.rng() * affordable.length)]! : null;
         this.ctx.dispatch({
             kind: 'roundCard',
@@ -193,7 +189,11 @@ export class AiOpponent implements Opponent {
         });
     }
 
+    /** the round being built */
+    private round = 1;
+
     onBuildPhase(round: number): void {
+        this.round = round;
         // a scenario's authored army fights as placed — lock in, nothing else
         if (this.ctx.opponents !== 'lockInOnly') {
             // a Siege rebuilds this side from nothing every round; elsewhere the army stays
@@ -212,33 +212,26 @@ export class AiOpponent implements Opponent {
      * One build phase, every mode (AI_PLAN.md): read the enemy, the defence
      * its personality wants (walls, posts, the weak tower), then the planner's
      * army in the personality's stance (kept and extended, or rebuilt in a
-     * Siege; scored or, on the easier levels, random), then runes, spells and
-     * building levels as the difficulty allows.
+     * Siege; its packs by roles), then runes, spells and building levels.
+     * Every difficulty plays this for now (AI_PLAN.md, "Difficulty").
      */
     private build(rng: () => number): void {
-        const features = aiFeatures(this.ctx.difficulty);
         const { economy } = this.ctx;
         // read the enemy first: where its army stands, which posture that is
         this.threat = readThreat(this.ctx.placement, this.team, this.seat);
         const towers = this.ownTowers();
-        // how much danger each of its sides is in (0…2): the last battle, and on Hard what stands there now
-        const danger = towers.map((t) => this.danger(features, t));
+        // how much danger each of its sides is in (0…2): the last battle, and what stands there now
+        const danger = towers.map((t) => this.danger(t));
         const weak = this.ctx.style === 'rusher' && towers.length === 2 ? (1 - this.ctx.rushSide) as 0 | 1 : null;
         // nearly dead where HP carries over: borrow, it all goes into the army
-        if (features.extras) this.borrowIfDying();
+        this.borrowIfDying();
         const roundSupply = economy.balance(this.seat);
         // the defence this round wants: its wall slots are kept free of packs from now on
-        const defence = this.planDefence(features, towers, danger, weak);
-        // Easy and Medium build it first (a Defender there overbuilds); Hard buys its packs first
-        const packsFirst = features.unitChoice === 'counter';
-        if (!packsFirst) this.buildDefence(features, defence, towers, danger, weak, roundSupply);
-        // every other pack is chaff (the 1st, the 3rd): a chaff type unlocked first, if there's none yet
-        this.unlockChaff();
-        const wantSiege = features.antiWall && this.answerEnemyWalls();
-        // the army's helpers before it buys: tutor charges, and a third pack slot (the +1 buy) when supply fills it
-        if (features.extras) this.useTutorCharges();
-        if (features.extras) this.buyExtraPack();
-        // 1) the army's packs, where the personality wants them
+        const defence = this.planDefence(towers, danger, weak);
+        // the army's helpers before it buys: tutor charges
+        this.useTutorCharges();
+        // 1) the army's packs by roles (aiRoles), where the personality wants them; the +1 buy
+        //    after its levels, when a pack for it makes sense
         const brain = new YearBrain(
             this.ctx,
             this.team,
@@ -247,28 +240,23 @@ export class AiOpponent implements Opponent {
             rng,
             // outside a Siege there is no base to huddle round: no pull toward its own Stronghold
             { ...(this.ctx.climb ? {} : { keepPull: 0 }), ...this.ctx.plannerOverrides },
-            features.unitChoice,
             this.stance(towers, danger, weak),
-            wantSiege,
         );
-        const slots = this.ctx.deployCap();
-        brain.playRound({ keep: !this.ctx.climb, slots, finish: false });
-        // 2) Hard: the defence now, out of what the packs left
-        if (packsFirst) this.buildDefence(features, defence, towers, danger, weak, roundSupply);
+        brain.playRound({ keep: !this.ctx.climb, slots: this.ctx.deployCap(), finish: false, pick: this.rolePick(rng), extraSlot: this.extraPackSlot });
+        // 2) the defence, out of what the packs left
+        this.buildDefence(defence, towers, danger, weak, roundSupply);
         // 3) the rest of the army: talents (and packs, should a slot be left)
-        brain.finish(slots);
+        brain.finish(brain.packsBought + this.ctx.deployCap());
         // 4) what the bag holds (cards, a cleared Siege army) onto packs
         this.applyItems(rng);
         // 5) spells: the Stronghold's forge spells (not in a Siege's rebuilt army), then the strip
-        if (features.spells) {
-            if (!this.ctx.climb) this.buyForgeSpells();
-            this.placeTactics(rng);
-        }
-        // 6) what's left: army boosts (Hard only where worth more than another pack), range / speed
-        if (features.armyBoosts !== 'none') this.buyArmyBoosts(features.armyBoosts === 'worth');
-        if (features.roundAbilities) this.buyRoundBoosts();
+        if (!this.ctx.climb) this.buyForgeSpells();
+        this.placeTactics(rng);
+        // 6) what's left: army boosts where worth more than another pack, range / speed
+        this.buyArmyBoosts();
+        this.buyRoundBoosts();
         // 7) supply for an ally, then runes with what's left — as many as its packs have room for
-        if (features.extras) this.sendSpareSupply();
+        this.sendSpareSupply();
         this.buyRunesForFreeSlots(rng);
     }
 
@@ -278,17 +266,16 @@ export class AiOpponent implements Opponent {
     }
 
     /**
-     * How much danger a tower is in, 0…2. Medium and Hard: +1 when the last
-     * battle went badly there — it fell, or lost more than half its HP while
-     * the enemy's tower on the other end (the rush target, for a Rusher's weak
-     * side) still stood. Hard also +1 when most of the enemy stands on its
-     * side right now. Easy: always 0.
+     * How much danger a tower is in, 0…2: +1 when the last battle went badly
+     * there — it fell, or lost more than half its HP while the enemy's tower
+     * on the other end (the rush target, for a Rusher's weak side) still
+     * stood — and +1 when most of the enemy stands on its side right now.
      */
-    private danger(features: AiFeatures, tower: Unit): number {
-        if (features.reaction === 'none' || !this.threat) return 0;
+    private danger(tower: Unit): number {
+        if (!this.threat) return 0;
         let level = this.hurtLastBattle(tower) ? 1 : 0;
         const side = this.ownTowers().indexOf(tower);
-        if (features.reaction === 'now' && side >= 0 && (this.threat.sides[side] ?? 0) >= SIDE_THREAT) level++;
+        if (side >= 0 && (this.threat.sides[side] ?? 0) >= SIDE_THREAT) level++;
         return Math.min(2, level);
     }
 
@@ -333,8 +320,8 @@ export class AiOpponent implements Opponent {
 
     /**
      * Where the personality wants the round's new packs:
-     * - Rusher: gathered on the enemy tower it goes for; from Medium on, a
-     *   guard pack per danger level at its weak tower.
+     * - Rusher: gathered on the enemy tower it goes for; a guard pack per
+     *   danger level at its weak tower.
      * - Wide: spread over its two towers and the centre, standing forward.
      * - Defender: standing back, opposite the enemy.
      */
@@ -358,10 +345,9 @@ export class AiOpponent implements Opponent {
     /**
      * The defence its personality wants this round (AI_PLAN.md, "Walls by
      * personality"), as wall slots and a share of the round's supply:
-     * - Defender (every difficulty): the whole fortress plan, posts and
-     *   levels on it, then Stronghold archers — the easier, the bigger the
-     *   share (it overbuilds).
-     * - Every other style (Medium, Hard): before a tower in danger, the walls
+     * - Defender: the whole fortress plan, posts and levels on it, then
+     *   Stronghold archers, within its share.
+     * - Every other style: before a tower in danger, the walls
      *   already there and two more per danger level (a Rusher's weak tower two
      *   more, its stall) — front first, then on through the plan, so every
      *   round in danger adds to it without end — archers on them (against
@@ -369,7 +355,7 @@ export class AiOpponent implements Opponent {
      * A tower the last battle hurt is also reinforced (buildDefence). The
      * slots it intends stay free of its own packs from here on.
      */
-    private planDefence(features: AiFeatures, towers: readonly Unit[], danger: readonly number[], weak: 0 | 1 | null): Defence {
+    private planDefence(towers: readonly Unit[], danger: readonly number[], weak: 0 | 1 | null): Defence {
         const { placement } = this.ctx;
         const wall = this.ctx.types.byId(AI_WALL_ID) ?? null;
         const style = this.ctx.style;
@@ -393,10 +379,10 @@ export class AiOpponent implements Opponent {
         const defence: Defence = { wall, slots: [], share: 0, man: false };
         if (style === 'defender') {
             defence.slots = plan;
-            defence.share = DEFENDER_WALL_SHARE[this.ctx.difficulty];
+            defence.share = DEFENDER_WALL_SHARE;
             defence.man = true;
-        } else if (features.reaction !== 'none') {
-            // a tower in danger — its side hurt last battle, or (Hard) the enemy there now — gets walls
+        } else {
+            // a tower in danger — its side hurt last battle, or the enemy there now — gets walls
             // before it with archers on them (against flyers too: the archers shoot them); a Rusher's
             // weak tower two more, its stall
             towers.forEach((t, i) => {
@@ -420,7 +406,6 @@ export class AiOpponent implements Opponent {
      * still holds.
      */
     private buildDefence(
-        features: AiFeatures,
         defence: Defence,
         towers: readonly Unit[],
         danger: readonly number[],
@@ -431,22 +416,18 @@ export class AiOpponent implements Opponent {
         const { wall, slots } = defence;
         const style = this.ctx.style;
         const start = economy.balance(this.seat);
-        const budget = Math.min(start, roundSupply * Math.max(defence.share, features.buildingUpgrades ? STALL_SHARE : 0));
+        const budget = Math.min(start, roundSupply * Math.max(defence.share, STALL_SHARE));
         const left = () => budget - (start - economy.balance(this.seat));
-        // a posted archer is one of the round's buys: before its packs (Easy, Medium) it keeps
-        // PACK_BUYS of them for the army; after them (Hard) whatever is left is spare
-        const reserve = features.unitChoice === 'counter' ? 0 : PACK_BUYS;
-        const spareBuy = () => this.ctx.deployCap() > reserve;
-        // a tower the last battle hurt (Medium, Hard): a level up — more HP, a shorter debuff when it
-        // falls — and an archer on its top where it has a pad
-        if (features.buildingUpgrades) {
-            for (const t of towers) {
-                if (!this.hurtLastBattle(t)) continue;
-                const level = this.ctx.upgradeCostOf?.(t) ?? null;
-                if (level !== null && left() >= level) dispatch({ kind: 'upgradeTower', team: this.team, seat: this.seat, unitId: t.id });
-                if (t.type.garrison) {
-                    if (spareBuy() && left() >= this.ctx.types.postCost(t.type)) dispatch({ kind: 'buyStrongholdArcher', team: this.team, seat: this.seat, unitId: t.id });
-                }
+        // a posted archer is one of the round's buys: after its packs, whatever is left is spare
+        const spareBuy = () => this.ctx.deployCap() > 0;
+        // a tower the last battle hurt: a level up — more HP, a shorter debuff when it falls —
+        // and an archer on its top where it has a pad
+        for (const t of towers) {
+            if (!this.hurtLastBattle(t)) continue;
+            const level = this.ctx.upgradeCostOf?.(t) ?? null;
+            if (level !== null && left() >= level) dispatch({ kind: 'upgradeTower', team: this.team, seat: this.seat, unitId: t.id });
+            if (t.type.garrison) {
+                if (spareBuy() && left() >= this.ctx.types.postCost(t.type)) dispatch({ kind: 'buyStrongholdArcher', team: this.team, seat: this.seat, unitId: t.id });
             }
         }
         if (!wall || slots.length === 0 || defence.share <= 0) {
@@ -547,7 +528,7 @@ export class AiOpponent implements Opponent {
     }
 
     /**
-     * The loan (Medium, Hard): only where HP carries over, and only when a
+     * The loan: only where HP carries over, and only when a
      * lost battle could end the match — the enemy's army, should it all
      * survive, takes its cost from the loser's HP. Next round's debt matters
      * less than this round.
@@ -564,28 +545,24 @@ export class AiOpponent implements Opponent {
     }
 
     /**
-     * The +1 buy of the round (Medium, Hard), before the army is planned:
-     * where the pack limit binds (not in a Siege's rebuild, with its 40) and
-     * supply covers the slot and every slot filled with an average pack. The
-     * planner then fills the third slot like the others.
+     * The +1 buy, after its first packs and levels: where the pack limit
+     * binds, every slot is filled, and supply covers the slot and a pack of
+     * its chaff (or its cheapest pack) — the pick then chooses that pack.
      */
-    private buyExtraPack(): void {
-        const cap = this.ctx.deployCap();
-        if (cap <= 0 || cap > EXTRA_BUY_UP_TO || !this.owns('deploySlot')) return;
-        const types = this.affordableArmyTypes();
-        if (types.length === 0) return;
-        const avg = types.reduce((sum, t) => sum + this.ctx.economy.costOf(t), 0) / types.length;
-        if (this.ctx.economy.balance(this.seat) < this.ctx.deploySettings.extraSlotCost + (cap + 1) * avg) return;
-        this.ctx.dispatch({ kind: 'buyDeploySlot', team: this.team, seat: this.seat });
-    }
+    private extraPackSlot = (slots: number, cost: (t: UnitType) => number): boolean => {
+        if (slots > EXTRA_BUY_UP_TO || this.ctx.deployCap() > 0 || !this.owns('deploySlot')) return false;
+        const chaff = this.roster ? this.ctx.types.byId(this.roster.chaff) : null;
+        const pack = chaff && this.ctx.unlockedUnits[this.seat]!.includes(chaff.id) ? chaff : this.cheapestArmyType(cost);
+        if (!pack || this.ctx.economy.balance(this.seat) < this.ctx.deploySettings.extraSlotCost + cost(pack)) return false;
+        return this.ctx.dispatch({ kind: 'buyDeploySlot', team: this.team, seat: this.seat });
+    };
 
     /**
      * The Command Tower's permanent army boosts, HP before attack, tier by
-     * tier. `worth` (Hard): only a tier whose bonus on the army it fields (or,
-     * rebuilt in a Siege, the supply it will field) beats its price;
-     * otherwise (Medium) whatever it can pay for.
+     * tier: only a tier whose bonus on the army it fields (or, rebuilt in a
+     * Siege, the supply it will field) beats its price.
      */
-    private buyArmyBoosts(worth: boolean): void {
+    private buyArmyBoosts(): void {
         const boosts = this.ctx.armyBoosts?.();
         if (!boosts || !this.owns('armyBoosts')) return;
         const { costs, attackTiers, hpTiers } = boosts.settings;
@@ -598,13 +575,13 @@ export class AiOpponent implements Opponent {
             if (cost === undefined) break;
             const steps = boost === 'hp' ? hpTiers : attackTiers;
             const gain = army * ((steps[tier] ?? 0) - (tier > 0 ? (steps[tier - 1] ?? 0) : 0));
-            if (worth && gain < cost) break;
+            if (gain < cost) break;
             if (!this.ctx.dispatch({ kind: 'buyBoost', team: this.team, seat: this.seat, boost })) break;
             tiers[boost]++;
         }
     }
 
-    /** the round's range boost with a mostly ranged army, the speed boost for a Rusher's race (Hard) */
+    /** the round's range boost with a mostly ranged army, the speed boost for a Rusher's race */
     private buyRoundBoosts(): void {
         let ranged = 0;
         let total = 0;
@@ -628,7 +605,7 @@ export class AiOpponent implements Opponent {
     }
 
     /**
-     * Tutor charges (Medium, Hard; not in a Siege's rebuilt army): each fills
+     * Tutor charges (not in a Siege's rebuilt army): each fills
      * the XP bar of its most valuable pack that can still level — the planner
      * then buys the level.
      */
@@ -644,7 +621,7 @@ export class AiOpponent implements Opponent {
     }
 
     /**
-     * 2v2 (Medium, Hard): supply it can't use this round — every pack slot
+     * 2v2: supply it can't use this round — every pack slot
      * filled — goes to its ally (arriving with next round's income), keeping
      * a little for its own leftovers.
      */
@@ -656,41 +633,111 @@ export class AiOpponent implements Opponent {
         this.ctx.dispatch({ kind: 'sendSupply', team: this.team, seat: this.seat, toSeat: ally, amount });
     }
 
+    /** its roles this match: its chaff and strong units (aiRoles), set at its first build */
+    private roster: Roster | null = null;
+
     /**
-     * Whether this round's free pack (the 2nd) should be siege against the
-     * enemy's walls (Hard): while it fields fewer than the walls want —
-     * unlocking a siege type if none is in the shop yet. One a round at most.
+     * Its packs by roles (AI_PLAN.md, "Chaff and roles"): the round's 1st pack is
+     * chaff, and so is the 3rd before round {@link THIRD_PACK_FREE_FROM}; every
+     * other pack answers what of the enemy is answered least — air (archers),
+     * chaff (hammerers), walls that matter (ballistas), the rest (its strong
+     * unit) — while what it costs leaves the round's chaff affordable. Locked
+     * role units are unlocked when the round's unlock is still free.
      */
-    private answerEnemyWalls(): boolean {
-        const { placement } = this.ctx;
-        const have = placement
-            .allUnits()
-            .filter((u) => u.seat === this.seat && !u.destroyed && !u.type.structure && isSiegeType(u.type)).length;
-        if (siegeWanted(readEnemyWalls(placement, this.team)) <= have) return false;
-        if (this.affordableArmyTypes(isSiegeType).length === 0) this.unlockCheapest(isSiegeType);
-        return true;
+    private rolePick(rng: () => number): PackPick {
+        const roster = this.rosterFor(rng);
+        const chaffPack = (i: number) => i === 0 || (i === 2 && this.round < THIRD_PACK_FREE_FROM);
+        return (index, slots, cost) => {
+            const chaff = this.ctx.types.byId(roster.chaff);
+            let reserve = 0;
+            for (let j = index + 1; j < slots; j++) if (chaffPack(j) && chaff) reserve += cost(chaff);
+            const fallback = () => this.readyRole(roster.chaff, cost, 0) ?? this.cheapestArmyType(cost);
+            if (chaffPack(index)) return fallback();
+            const needs = readNeeds(this.ctx.placement, this.team, this.seat, roster);
+            const order = (Object.keys(needs) as Need[]).filter((k) => needs[k] > 0).sort((a, b) => needs[b] - needs[a]);
+            // nothing left unanswered: the strong unit
+            if (!order.includes('strong')) order.push('strong');
+            for (const need of order) {
+                for (const id of this.roleUnits(need, roster)) {
+                    const type = this.readyRole(id, cost, reserve);
+                    if (type) return type;
+                }
+            }
+            return fallback();
+        };
     }
 
-    /** a chaff type in the shop: unlocks the cheapest one when none is unlocked yet */
-    private unlockChaff(): void {
-        const unlocked = this.ctx.unlockedUnits[this.seat]!;
-        if (unlocked.some((id) => { const t = this.ctx.types.byId(id); return !!t && isChaff(t); })) return;
-        this.unlockCheapest(isChaff);
+    /** the unit ids that fill `need`, best first (a second strong unit — the first is helpless — before the first) */
+    private roleUnits(need: Need, roster: Roster): readonly string[] {
+        if (need === 'air') return [AI_ROLES.antiAir];
+        if (need === 'chaff') return [AI_ROLES.antiChaff];
+        if (need === 'walls') return [AI_ROLES.antiWall];
+        return [...roster.strong].reverse();
     }
 
-    /** this round's unlock on the cheapest `kind` of the shop, if it's still free and affordable */
-    private unlockCheapest(kind: (t: UnitType) => boolean): void {
-        const { economy, unlockedUnits, unlockUsedThisRound, commander, types } = this.ctx;
-        if (unlockUsedThisRound[this.seat]) return;
-        const owner = types.commander(commander[this.seat] ?? '');
-        let best: { id: string; cost: number } | null = null;
-        for (const id of this.shop()) {
-            const t = types.byId(id);
-            if (!t || !kind(t) || unlockedUnits[this.seat]!.includes(id)) continue;
-            const cost = unlockCostFor(id, owner, types);
-            if (cost <= economy.balance(this.seat) && (!best || cost < best.cost)) best = { id, cost };
+    /**
+     * The roles' chaff and strong unit: the commander's own (its starting
+     * army's chaff, its starting unit of {@link STRONG_FROM} or more), else the
+     * first role chaff of its shop and a random strong unit. A second strong
+     * unit joins once the first can't hit most of the enemy's army.
+     */
+    private rosterFor(rng: () => number): Roster {
+        const { types, placement } = this.ctx;
+        const shop = this.shop();
+        if (!this.roster) {
+            const starting = types.commander(this.ctx.commander[this.seat] ?? '')?.units ?? [];
+            const inShop = (id: string) => shop.includes(id) && !!types.byId(id);
+            const chaff = starting.find((id) => inShop(id) && isChaff(types.byId(id)!)) ?? AI_ROLES.chaff.find(inShop) ?? AI_ROLES.chaff[0]!;
+            const strong = starting.find((id) => inShop(id) && this.strongCandidate(types.byId(id)!)) ?? this.randomStrong(rng, () => true);
+            this.roster = { chaff, strong: strong ? [strong] : [] };
         }
-        if (best) this.ctx.dispatch({ kind: 'unlockUnit', team: this.team, seat: this.seat, typeId: best.id });
+        const first = this.roster.strong.length === 1 ? types.byId(this.roster.strong[0]!) : null;
+        if (first && strongHelpless(placement, this.team, first)) {
+            // one that hits what the first can't
+            const second = this.randomStrong(rng, (t) => (first.targets.air ? t.targets.ground : t.targets.air));
+            if (second) this.roster.strong.push(second);
+        }
+        return this.roster;
+    }
+
+    /** a unit of {@link STRONG_FROM} or more that fights, and isn't one of the fixed roles */
+    private strongCandidate(t: UnitType): boolean {
+        const fixed = [AI_ROLES.antiChaff, AI_ROLES.antiAir, AI_ROLES.antiWall, ...AI_ROLES.chaff];
+        return t.cost >= STRONG_FROM && !t.structure && !t.extra && !t.wall && t.damage > 0 && t.target !== false && !fixed.includes(t.id);
+    }
+
+    /** a random strong unit of its shop that `fits`, or null */
+    private randomStrong(rng: () => number, fits: (t: UnitType) => boolean): string | null {
+        const { types } = this.ctx;
+        const options = this.shop().filter((id) => {
+            const t = types.byId(id);
+            return !!t && this.strongCandidate(t) && fits(t) && !this.roster?.strong.includes(id);
+        });
+        return options.length > 0 ? options[Math.floor(rng() * options.length)]! : null;
+    }
+
+    /**
+     * `id` when it can be bought now with `reserve` left over — unlocking it
+     * first if it's still locked and the round's unlock is free.
+     */
+    private readyRole(id: string, cost: (t: UnitType) => number, reserve: number): UnitType | null {
+        const { types, economy, unlockedUnits, unlockUsedThisRound, commander, dispatch } = this.ctx;
+        const type = types.byId(id);
+        if (!type || !this.shop().includes(id)) return null;
+        if (!unlockedUnits[this.seat]!.includes(id)) {
+            if (unlockUsedThisRound[this.seat]) return null;
+            const unlock = unlockCostFor(id, types.commander(commander[this.seat] ?? ''), types);
+            if (unlock + cost(type) + reserve > economy.balance(this.seat)) return null;
+            if (!dispatch({ kind: 'unlockUnit', team: this.team, seat: this.seat, typeId: id })) return null;
+        }
+        return economy.balance(this.seat) - cost(type) >= reserve ? type : null;
+    }
+
+    /** the cheapest army type it can buy now, or null */
+    private cheapestArmyType(cost: (t: UnitType) => number): UnitType | null {
+        let best: UnitType | null = null;
+        for (const t of this.affordableArmyTypes()) if (cost(t) <= this.ctx.economy.balance(this.seat) && (!best || cost(t) < cost(best))) best = t;
+        return best;
     }
 
     /** the unit types this seat's shop holds (its commander's own shop, else the normal one) */

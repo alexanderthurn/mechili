@@ -12,27 +12,23 @@
  *    interval, range, speed, air/ground layers, splash and cleave against the
  *    target's formation density, overkill, conversion rays, production and
  *    on-kill spawns, shields, the Stronghold lifeline). No unit ids.
- * 2. **Compose** — {@link YearBrain.compose}: greedy spending. Each step adds
- *    the pack or talent that improves the estimate most per supply, scored
- *    against the visible army AND against that army plus the best counter the
- *    player can still buy with the supply they hold — a plan that only beats
- *    what is on the board loses to the player's answer.
+ * 2. **Choose** — the packs come from the AI's roles (aiRoles.ts, picked in
+ *    ai.ts); the brain buys the talents that improve the estimate most.
  * 3. **Place** — lanes and depth by role: front-liners ahead, artillery at the
  *    back, each pack opposite the enemy group it is best against, spread out
  *    when the enemy splashes, defenders covering their base.
  *
  * The same brain plays a side that keeps its army (`keep`): Practice, 1v1,
- * 2v2 and the arena's player stand-in. On Easy and Medium it chooses poorly
- * (`unitChoice: 'poor'`: random packs, unlocks and talents), placed the same way.
+ * 2v2 and the arena's player stand-in. Every difficulty plays it for now.
  *
  * Deterministic for the same board and stream: it reads only match state and
  * the stream it is handed.
  */
 import type { Action } from './actions';
-import { counterTable, isChaff, missingCounterShare, type CounterTable } from './aiCounters';
-import { unlockCostFor, type StartCard } from './cards';
+import { isChaff } from './aiCounters';
+import type { StartCard } from './cards';
 import type { TypeRegistry } from './content/typeRegistry';
-import { isSiegeType, sideFrontline } from './aiWalls';
+import { sideFrontline } from './aiWalls';
 import { CELL } from './map';
 import type { PlacementController } from './placement';
 import type { SeatId } from './seats';
@@ -156,16 +152,6 @@ export const MODEL = {
  * the arena (`--planner key=value`).
  */
 export const PLANNER = {
-    /** weight on a talent's estimated gain (packs are 1) */
-    techWeight: 1,
-    /** share of the score from the plan against the visible army plus the player's best counter */
-    counterWeight: 0.4,
-    /** small penalty per pack of a type already in the plan (keeps the army flexible) */
-    diversityTilt: 0.00002,
-    /** credit for an unlock (it widens every later round's shop) */
-    unlockBonus: 0.02,
-    /** share of the player's liquid supply assumed spent on their counter */
-    enemyBudgetShare: 1,
     /** lateral spacing between packs of one lane (tiles × CELL) — more when the enemy splashes */
     laneSpacing: 11,
     laneSpacingSplash: 18,
@@ -179,12 +165,6 @@ export const PLANNER = {
     hpWeight: 1,
     /** 1 = score plans by The Year's round rule (surviving value, tie to the defender); 0 = by HP margin */
     ruleScore: 0,
-    /**
-     * weight of the counter table (aiCounters.ts, worked out from the unit data) next to the battle model:
-     * a pack that answers all of the enemy's army its own doesn't answer yet adds this much to its
-     * score (the model's margin runs -1…+1)
-     */
-    counterList: 0.3,
 };
 
 function levelMult(level: number, leveling: LevelingSettings): number {
@@ -468,9 +448,6 @@ function depthFor(type: UnitType): number {
     });
 }
 
-/** the poor unit choice's chance to spend the round's unlock (the classic AI's habit) */
-const POOR_UNLOCK_CHANCE = 0.85;
-
 /**
  * How a personality places the round's new packs on top of the planner's own
  * choice (opposite the enemy group each pack is best against).
@@ -490,15 +467,18 @@ export interface Stance {
 
 export const NO_STANCE: Stance = { focusX: null, pull: 0, spread: [], depthShift: 0, guard: null };
 
-interface Plan {
-    packs: { type: UnitType; depth: number }[];
-    techs: { type: UnitType; techId: string; cost: number }[];
-    spent: number;
-}
+/** chooses the round's pack number `index` (0 = its first) of `slots` itself — null: none */
+export type PackPick = (index: number, slots: number, cost: (t: UnitType) => number) => UnitType | null;
+/** buys one more pack slot for the round when a pack for it makes sense — whether it did */
+export type ExtraSlot = (slots: number, cost: (t: UnitType) => number) => boolean;
+/** with picked packs, these come before the kept army's levels; the rest after */
+const PICKS_BEFORE_LEVELS = 2;
 
 export class YearBrain {
     /** packs bought in this build phase (the deploy cap counts these) */
     private bought = 0;
+    /** set: the packs are chosen by this (Hard's roles), the planner only places them */
+    private pick: PackPick | null = null;
     get packsBought(): number {
         return this.bought;
     }
@@ -513,12 +493,8 @@ export class YearBrain {
         private readonly role: 'attacker' | 'defender',
         private readonly rng: () => number,
         overrides: Partial<typeof PLANNER> = {},
-        /** 'poor' (Easy, Medium): random packs, unlocks and talents — placed like the scored ones */
-        private readonly unitChoice: 'poor' | 'counter' = 'counter',
         /** where the personality wants the round's new packs (AI_PLAN.md, "Personalities") */
         private readonly stance: Stance = NO_STANCE,
-        /** the round's free pack goes to siege (the enemy's walls matter) */
-        private readonly wantSiege = false,
     ) {
         this.p = { ...PLANNER, ...overrides };
     }
@@ -531,16 +507,6 @@ export class YearBrain {
 
     private effectsOf(seat: SeatId) {
         return this.host.types.commander(this.host.commander[seat] ?? '')?.effects;
-    }
-
-    private shopOf(seat: SeatId): readonly string[] {
-        return this.host.types.shopFor(this.host.types.commander(this.host.commander[seat] ?? ''));
-    }
-
-    private get enemySeat(): SeatId {
-        const foe = this.host.placement.allUnits().find((u) => u.team !== this.team && u.team !== 'horde' && u.seat >= 0);
-        if (foe) return foe.seat;
-        return this.seat === 0 ? 1 : 0;
     }
 
     /** my side's front edge row and which way is forward (+1 = higher rows) */
@@ -607,46 +573,6 @@ export class YearBrain {
     }
 
     /**
-     * The best answer the enemy can still buy against `army`: their supply,
-     * spent on the single type from their shop that hurts it most.
-     */
-    private enemyCounter(army: readonly BattleGroup[], theirs: readonly BattleGroup[], budget: number): BattleGroup[] {
-        const seat = this.enemySeat;
-        const unlocked = this.host.unlockedUnits[seat] ?? [];
-        const shop = this.shopOf(seat);
-        let best: BattleGroup[] = [];
-        let bestScore = -Infinity;
-        for (const id of shop) {
-            const type = this.host.types.byId(id);
-            if (!type || type.cost <= 0 || type.cost > budget) continue;
-            // a locked type costs its unlock first (and only one a round)
-            const unlockCost = unlocked.includes(id) ? 0 : unlockCostFor(id, this.host.types.commander(this.host.commander[seat] ?? ''), this.host.types);
-            if (!Number.isFinite(unlockCost)) continue;
-            const count = Math.min(6, Math.floor((budget - unlockCost) / type.cost));
-            if (count <= 0) continue;
-            const add = groupOf(type, {
-                seat,
-                level: 1,
-                items: [],
-                count,
-                depth: 4,
-                hasTech: this.hasTech,
-                types: this.host.types,
-                leveling: this.host.leveling,
-                effects: this.effectsOf(seat),
-                lifeline: false,
-            });
-            // their best answer: the one that leaves me the worst round
-            const score = -this.roundScore(estimateBattle(army, [...theirs, add]));
-            if (score > bestScore) {
-                bestScore = score;
-                best = [add];
-            }
-        }
-        return best;
-    }
-
-    /**
      * A round of The Year as the rules decide it: each side's surviving units
      * take their value off the other's HP, higher HP wins, a tie (both wiped
      * included) goes to the defender. Scored -1..1 with the size of the lead.
@@ -659,284 +585,30 @@ export class YearBrain {
         return (wins ? 0.45 : -0.45) + 0.35 * Math.tanh(lead / scale) + 0.2 * (est.mine - est.theirs) * this.p.hpWeight;
     }
 
-    private score(army: readonly BattleGroup[], theirs: readonly BattleGroup[], counter: readonly BattleGroup[]): number {
-        const now = this.roundScore(estimateBattle(army, theirs));
-        if (counter.length === 0) return now;
-        const answered = this.roundScore(estimateBattle(army, [...theirs, ...counter]));
-        return (1 - this.p.counterWeight) * now + this.p.counterWeight * answered;
-    }
-
     /**
-     * Greedy spending over packs and talents. `base` is what already fights on
-     * my side (buildings, a kept army); `shop` the types I may buy.
+     * Play one build phase: the packs `pick` chooses — the first two, then
+     * (`keep`: the side keeps its army) the army's levels, then, with a slot
+     * bought if one makes sense, the rest; otherwise the army was just cleared.
      */
-    private compose(base: readonly BattleGroup[], theirs: readonly BattleGroup[], shop: readonly UnitType[], budget: number, slots: number): Plan {
-        const { economy, types } = this.host;
-        const plan: Plan = { packs: [], techs: [], spent: 0 };
-        const army: BattleGroup[] = [...base];
-        const ownedTechs = new Map<string, Set<string>>();
-        const enemyBudget = economy.balance(this.enemySeat) * this.p.enemyBudgetShare;
-        let counter = this.enemyCounter(army, theirs, enemyBudget);
-        let current = this.score(army, theirs, counter);
-        const minCost = Math.min(...shop.map((t) => this.buyCost(t)));
-        const values = this.armyValues();
-
-        for (let step = 0; step < 60; step++) {
-            const left = budget - plan.spent;
-            if (left < Math.min(minCost, 100)) break;
-            let bestGain = -Infinity;
-            let bestPick: { kind: 'pack'; type: UnitType; group: BattleGroup; cost: number } | { kind: 'tech'; type: UnitType; techId: string; cost: number } | null = null;
-            let bestScore = current;
-
-            if (plan.packs.length < slots) {
-                // the counter table: what the enemy fields that its army (and this plan) doesn't answer yet
-                const own = new Map(values.own);
-                for (const p of plan.packs) own.set(p.type.id, (own.get(p.type.id) ?? 0) + p.type.cost * this.recruitLevel(p.type));
-                const pool = this.forPack(shop.filter((t) => this.buyCost(t) <= left), this.bought + plan.packs.length);
-                for (const type of pool) {
-                    const cost = this.buyCost(type);
-                    const flying = effectiveFlying(type, this.seat, this.hasTech, types) > 0;
-                    const stats = TechTree.statsWithOwned(type, ownedTechs.get(type.id) ?? new Set(), types);
-                    const depth = preferredDepth(type, { range: stats.range, minRange: stats.minRange, flying, convert: !!type.convertRay || !!type.rampBeam });
-                    const group = this.plannedGroup(type, depth, ownedTechs.get(type.id));
-                    const s = this.score([...army, group], theirs, counter);
-                    // gain per supply; a small tilt toward packs we have few of keeps the army flexible
-                    const have = plan.packs.filter((p) => p.type === type).length;
-                    const listed = this.p.counterList * missingCounterShare(type.id, values.enemy, own, this.counters);
-                    const gain = (s - current + listed) / cost - have * this.p.diversityTilt;
-                    if (gain > bestGain) {
-                        bestGain = gain;
-                        bestPick = { kind: 'pack', type, group, cost };
-                        bestScore = s;
-                    }
-                }
-            }
-            // talents for types the plan already fields
-            const fielded = [...new Set(plan.packs.map((p) => p.type))];
-            for (const type of fielded) {
-                const owned = ownedTechs.get(type.id) ?? new Set<string>();
-                for (const tech of techsForUnit(type, types, this.host.loadoutOf(this.seat))) {
-                    if (owned.has(tech.id) || this.hasTech(this.seat, type.id, tech.id)) continue;
-                    const cost = economy.techCostOf(tech, owned.size + this.host.techTree.ownedFor(this.seat, type.id).size);
-                    if (cost > left) continue;
-                    const next = new Set(owned).add(tech.id);
-                    const rebuilt = army.map((g, i) => {
-                        const pack = i - base.length;
-                        if (pack < 0 || plan.packs[pack]?.type !== type) return g;
-                        return this.plannedGroup(type, g.depth, next);
-                    });
-                    const s = this.score(rebuilt, theirs, counter);
-                    // Skip talents the estimator can't see (e.g. Blightburst onDeath) —
-                    // zero gain would otherwise dump leftover supply into them.
-                    if (s <= current) continue;
-                    const gain = ((s - current) / cost) * this.p.techWeight;
-                    if (gain > bestGain) {
-                        bestGain = gain;
-                        bestPick = { kind: 'tech', type, techId: tech.id, cost };
-                        bestScore = s;
-                    }
-                }
-            }
-            if (!bestPick) break;
-            // Packs may still take leftover supply at a weak gain; talents must
-            // actually raise the estimate (otherwise Blightburst etc. get bought).
-            if (bestPick.kind === 'tech' && bestGain <= 0) break;
-            // nothing helps any more: still spend — idle supply is wasted when the army is rebuilt
-            if (bestPick.kind === 'pack') {
-                army.push(bestPick.group);
-                plan.packs.push({ type: bestPick.type, depth: bestPick.group.depth });
-            } else {
-                const owned = ownedTechs.get(bestPick.type.id) ?? new Set<string>();
-                owned.add(bestPick.techId);
-                ownedTechs.set(bestPick.type.id, owned);
-                plan.techs.push({ type: bestPick.type, techId: bestPick.techId, cost: bestPick.cost });
-                for (let i = 0; i < army.length; i++) {
-                    const pack = i - base.length;
-                    if (pack >= 0 && plan.packs[pack]?.type === bestPick.type) army[i] = this.plannedGroup(bestPick.type, army[i]!.depth, owned);
-                }
-            }
-            plan.spent += bestPick.cost;
-            current = bestScore;
-            // the enemy's best answer shifts as the plan grows
-            if (step % 4 === 3) {
-                counter = this.enemyCounter(army, theirs, enemyBudget);
-                current = this.score(army, theirs, counter);
-            }
-        }
-        return plan;
-    }
-
-    /** my buyable types right now (unlocked, in my shop) */
-    private buyableTypes(extra: string | null = null): UnitType[] {
-        const unlocked = this.host.unlockedUnits[this.seat] ?? [];
-        return this.shopOf(this.seat)
-            .filter((id) => unlocked.includes(id) || id === extra)
-            .map((id) => this.host.types.byId(id))
-            .filter((t): t is UnitType => !!t && !t.extra && !t.structure);
-    }
-
-    /**
-     * The types the round's pack number `index` (0 = its first) may be: every
-     * other pack — the 1st, the 3rd, … — is chaff, the ones between are the
-     * planner's free choice (siege first when the enemy's walls matter). When
-     * none of the wanted kind is among `types`, any of them.
-     */
-    private forPack(types: readonly UnitType[], index: number): readonly UnitType[] {
-        const want = index % 2 === 0 ? isChaff : index === 1 && this.wantSiege ? isSiegeType : null;
-        if (!want) return types;
-        const fit = types.filter(want);
-        return fit.length > 0 ? fit : types;
-    }
-
-    /**
-     * Plan and play one build phase. `keep` = the side keeps its army (levels
-     * it first); otherwise the army was just cleared.
-     */
-    playRound(opts: { keep: boolean; slots: number; finish?: boolean }): void {
-        const { economy, types, dispatch } = this.host;
-        if (opts.keep) this.buyLevels();
+    playRound(opts: { keep: boolean; slots: number; finish?: boolean; pick: PackPick; extraSlot?: ExtraSlot }): void {
         // what may still move goes where this round's plan wants it (round 1: the starting army)
         this.repositionMovable();
-        if (this.unitChoice === 'poor') {
-            this.playPoorRound(opts.slots);
-            if (opts.finish !== false) this.finish(opts.slots);
-            return;
-        }
-        const board = this.boardGroups();
-        const base = board.mine;
-        const theirs = board.theirs;
-        let budget = economy.balance(this.seat);
-
-        // the round's unlock: the locked type whose best plan beats the plan without it
-        let unlock: string | null = null;
-        if (!this.host.unlockUsedThisRound[this.seat]) {
-            const commander = types.commander(this.host.commander[this.seat] ?? '');
-            const without = this.compose(base, theirs, this.buyableTypes(), budget, opts.slots);
-            let bestScore = this.planScore(base, theirs, without);
-            for (const id of this.shopOf(this.seat)) {
-                if ((this.host.unlockedUnits[this.seat] ?? []).includes(id)) continue;
-                const cost = unlockCostFor(id, commander, types);
-                if (!Number.isFinite(cost) || cost > budget) continue;
-                const withIt = this.compose(base, theirs, this.buyableTypes(id), budget - cost, opts.slots);
-                // unlocks stay for later rounds — a little credit for a wider shop
-                const score = this.planScore(base, theirs, withIt) + this.p.unlockBonus;
-                if (score > bestScore) {
-                    bestScore = score;
-                    unlock = id;
-                }
-            }
-            if (unlock && dispatch({ kind: 'unlockUnit', team: this.team, seat: this.seat, typeId: unlock })) {
-                budget = economy.balance(this.seat);
-            } else {
-                unlock = null;
-            }
-        }
-
-        const plan = this.compose(base, theirs, this.buyableTypes(), budget, opts.slots);
-        this.placePlan(plan);
-        for (const tech of plan.techs) {
-            dispatch({ kind: 'buyTech', team: this.team, seat: this.seat, typeId: tech.type.id, techId: tech.techId });
-        }
-        if (opts.finish !== false) this.finish(opts.slots);
+        this.pick = opts.pick;
+        this.placePicks(Math.min(opts.slots, PICKS_BEFORE_LEVELS));
+        if (opts.keep) this.buyLevels();
+        const slots = opts.slots + (opts.extraSlot?.(opts.slots, (t) => this.buyCost(t)) ? 1 : 0);
+        this.placePicks(slots);
+        if (opts.finish !== false) this.finish(slots);
     }
-
     /**
-     * The rest of the round after its packs: more packs while `slots` (the
-     * round's pack limit) allows and supply covers them, then talents — the
-     * scored best-value ones, or random ones with the poor choice. Called by
-     * playRound, or later when the AI spends on other things first.
+     * The rest of the round after its packs: more picked packs while `slots`
+     * (the round's pack limit) allows and supply covers them, then the
+     * talents that improve the battle estimate. Called by playRound, or later
+     * when the AI spends on other things first.
      */
     finish(slots: number): void {
-        if (this.unitChoice === 'counter') {
-            this.spendLeftover(slots);
-            return;
-        }
-        const { economy } = this.host;
-        const lanes = this.enemyLanes();
-        for (let guard = 0; guard < 40 && this.bought < slots; guard++) {
-            const affordable = this.forPack(this.buyableTypes().filter((t) => this.buyCost(t) <= economy.balance(this.seat)), this.bought);
-            if (affordable.length === 0) break;
-            const type = affordable[Math.floor(this.rng() * affordable.length)]!;
-            if (!this.placeOne(type, depthFor(type), lanes, [])) break;
-        }
-        this.buyRandomTalents();
-    }
-
-    /**
-     * The poor unit choice (Easy, Medium): a random unlock now and then,
-     * random affordable packs for every slot the supply covers (talents
-     * come in {@link finish}). Placement is the planner's own.
-     */
-    private playPoorRound(slots: number): void {
-        const { economy, types, dispatch } = this.host;
-        if (!this.host.unlockUsedThisRound[this.seat] && this.rng() < POOR_UNLOCK_CHANCE) {
-            const commander = types.commander(this.host.commander[this.seat] ?? '');
-            const unlocked = this.host.unlockedUnits[this.seat] ?? [];
-            const locked = this.shopOf(this.seat).filter(
-                (id) => !unlocked.includes(id) && unlockCostFor(id, commander, types) <= economy.balance(this.seat),
-            );
-            if (locked.length > 0) {
-                const typeId = locked[Math.floor(this.rng() * locked.length)]!;
-                dispatch({ kind: 'unlockUnit', team: this.team, seat: this.seat, typeId });
-            }
-        }
-        const packs: Plan['packs'] = [];
-        let left = economy.balance(this.seat);
-        for (let i = 0; i < slots; i++) {
-            const affordable = this.forPack(this.buyableTypes().filter((t) => this.buyCost(t) <= left), this.bought + i);
-            if (affordable.length === 0) break;
-            const type = affordable[Math.floor(this.rng() * affordable.length)]!;
-            left -= this.buyCost(type);
-            packs.push({ type, depth: depthFor(type) });
-        }
-        this.placePlan({ packs, techs: [], spent: economy.balance(this.seat) - left });
-    }
-
-    /** the poor choice's talents: random among what it can pay for, on the types it fields */
-    private buyRandomTalents(): void {
-        const { economy, types, dispatch } = this.host;
-        for (let guard = 0; guard < 20; guard++) {
-            const fielded = [
-                ...new Set(
-                    this.host.placement
-                        .allUnits()
-                        .filter((u) => u.seat === this.seat && !u.type.structure && !u.type.extra)
-                        .map((u) => u.type),
-                ),
-            ];
-            const options: { type: UnitType; techId: string }[] = [];
-            for (const type of fielded) {
-                const owned = this.host.techTree.ownedFor(this.seat, type.id);
-                for (const tech of techsForUnit(type, types, this.host.loadoutOf(this.seat))) {
-                    if (!owned.has(tech.id) && economy.techCostOf(tech, owned.size) <= economy.balance(this.seat)) options.push({ type, techId: tech.id });
-                }
-            }
-            if (options.length === 0) break;
-            const pick = options[Math.floor(this.rng() * options.length)]!;
-            if (!dispatch({ kind: 'buyTech', team: this.team, seat: this.seat, typeId: pick.type.id, techId: pick.techId })) break;
-        }
-    }
-
-    /** the counter table of the match's unit types (worked out once) */
-    private get counters(): CounterTable {
-        return counterTable(this.host.types);
-    }
-
-    /** both armies by unit type: value (cost × level) of what stands on the board */
-    private armyValues(): { enemy: Map<string, number>; own: Map<string, number> } {
-        const enemy = new Map<string, number>();
-        const own = new Map<string, number>();
-        for (const u of this.host.placement.allUnits()) {
-            if (u.team === 'horde' || u.destroyed || u.summoned || u.type.structure || u.type.extra) continue;
-            const into = u.team === this.team ? (u.seat === this.seat ? own : null) : enemy;
-            if (into) into.set(u.type.id, (into.get(u.type.id) ?? 0) + u.type.cost * Math.max(1, u.level));
-        }
-        return { enemy, own };
-    }
-
-    private planScore(base: readonly BattleGroup[], theirs: readonly BattleGroup[], plan: Plan): number {
-        const army = [...base, ...plan.packs.map((p) => this.plannedGroup(p.type, p.depth, new Set(plan.techs.filter((t) => t.type === p.type).map((t) => t.techId))))];
-        return this.roundScore(estimateBattle(army, theirs));
+        this.placePicks(slots);
+        this.buyTalents();
     }
 
     /** a kept army levels whatever it can afford first: a level doubles a pack for half its price */
@@ -954,29 +626,26 @@ export class YearBrain {
         }
     }
 
-    /** whatever supply is left: more of the plan's best-value pack, then talents */
-    private spendLeftover(slots: number): void {
-        const { economy, dispatch } = this.host;
-        for (let guard = 0; guard < 30; guard++) {
-            const board = this.boardGroups();
-            const types = this.forPack(this.buyableTypes().filter((t) => this.buyCost(t) <= economy.balance(this.seat)), this.bought);
-            if (types.length === 0) break;
-            if (this.bought >= slots) break;
-            let best: UnitType | null = null;
-            let bestScore = -Infinity;
-            for (const type of types) {
-                const g = this.plannedGroup(type, 4);
-                const values = this.armyValues();
-                const listed = this.p.counterList * missingCounterShare(type.id, values.enemy, values.own, this.counters);
-                const s = (this.roundScore(estimateBattle([...board.mine, g], board.theirs)) + listed) / Math.max(1, this.buyCost(type));
-                if (s > bestScore) {
-                    bestScore = s;
-                    best = type;
-                }
-            }
-            if (!best) break;
-            if (!this.placeOne(best, depthFor(best), this.enemyLanes(), [])) break;
+    /**
+     * The packs `pick` chooses, one after another while slots are left, each
+     * placed as the planner would — a Rusher's first ones as its weak-side guard.
+     */
+    private placePicks(slots: number): void {
+        if (!this.pick) return;
+        const lanes = this.enemyLanes();
+        this.setFocus(lanes);
+        const placed: { x: number; type: UnitType }[] = [];
+        const guards = this.stance.guard?.packs ?? 0;
+        while (this.bought < slots) {
+            const type = this.pick(this.bought, slots, (t) => this.buyCost(t));
+            if (!type || this.buyCost(type) > this.host.economy.balance(this.seat)) break;
+            if (!this.placeOne(type, depthFor(type), lanes, placed, this.bought < guards ? this.stance.guard!.x : undefined)) break;
         }
+    }
+
+    /** whatever supply is left: the talents that improve the battle estimate */
+    private buyTalents(): void {
+        const { economy, dispatch } = this.host;
         // Talents that improve the battle estimate — never dump leftover into
         // zero-effect picks (Blightburst / Loose Rank aren't modeled yet).
         for (let guard = 0; guard < 20; guard++) {
@@ -1068,19 +737,6 @@ export class YearBrain {
 
     /** where the army concentrates this round (world x) */
     private focusX = 0;
-
-    private placePlan(plan: Plan): void {
-        const lanes = this.enemyLanes();
-        this.setFocus(lanes);
-        const placed: { x: number; type: UnitType }[] = [];
-        // big and front-line packs first — they claim the front, the rest fills behind
-        const order = [...plan.packs].sort((a, b) => a.depth - b.depth || b.type.cost - a.type.cost);
-        // a Rusher's guard: its first front-liners hold the weak tower
-        const guards = this.stance.guard ? Math.min(this.stance.guard.packs, order.length) : 0;
-        for (let i = 0; i < order.length; i++) {
-            this.placeOne(order[i]!.type, order[i]!.depth, lanes, placed, i < guards ? this.stance.guard!.x : undefined);
-        }
-    }
 
     /**
      * Its packs that may still move this round (a starting army, packs of an

@@ -112,16 +112,18 @@ As the Siege attacker (no walls, must take the base), Wide spreads over the whol
 
 One AI; difficulty switches features and the quality of choices.
 
+**For now (2026-10-30) every difficulty plays Hard**: Easy's and Medium's own code is removed, the lobby choice and the name label stay. Once Hard plays well, parts come out of it again for the easier levels. The table below is the earlier split, kept as a reference for that.
+
 | | Easy | Medium | Hard |
 |---|---|---|---|
-| Unit choice | poor: random among affordable types | poor: random among affordable types | counter-based (battle model + counter table) |
+| Unit choice | poor: random, every other pack chaff | poor: random, every other pack chaff | by roles (see Roles) |
 | Spells / tactics | no | yes | yes |
 | Extra buy (+1 pack per round) | no | yes, random pack | yes, chaff or main unit by score |
 | Credit when nearly dead (HP modes only) | no | yes | yes |
 | Army boosts (Command Tower) | no | yes, when supply allows | yes, when worth more than a pack |
 | Stronghold archers | Defender | Defender | Defender |
 | Uses card charges | no | yes | yes |
-| Siege packs vs enemy walls | no | no | yes |
+| Siege packs vs enemy walls | no | no | yes (a role) |
 | Sends spare supply to an ally (2v2) | no | yes | yes |
 | Building upgrades | no | yes, low priority | yes, low priority |
 | Walls | Defender only, all-in (~60 % of supply) | Defender ~35 % of supply; Rusher's stall and Wide's walls by threat | by personality and threat, no overbuild |
@@ -183,7 +185,7 @@ All of it out of the defence share, and on Hard after the round's packs. Buildin
 
 ## Siege packs against enemy walls
 
-Hard only: part of good unit choice. Easy and Medium ignore the enemy's walls.
+Hard only: one of its roles (ballistas, see Roles). Easy and Medium ignore the enemy's walls.
 
 Not planned for now: marking enemy walls (`setTargetMark`). Siege packs break walls by hitting the stone in their way, and by the automatic mark on walled-in packs at battle start.
 
@@ -205,6 +207,28 @@ Per half of the front (`makeGates` in `ai.ts`), every personality and difficulty
 
 It turns them into gates before posting archers (a wall turned into a gate loses its archers). Gates still take their levels like the other pieces.
 
+## Chaff and roles
+
+Chaff: a fighting unit with 10+ models a pack (dwarf, goblin; `isChaff`, aiCounters.ts). Big hits waste a whole shot on one of its models, which keeps the own expensive units alive. Chaff stands at a random spot of the own zone (not the flanks, not the wall plan's tiles) and is never moved back into rank.
+
+Every difficulty for now (`aiRoles.ts`, decided 2026-10-30): a few fixed types, like a good player keeps:
+
+| Role | Unit |
+|---|---|
+| Chaff | the commander's starting chaff, else goblin or dwarf |
+| Anti-chaff | hammerer |
+| Anti-air | archer |
+| Anti-wall | ballista |
+| Strong | the commander's starting unit of 200+ (ogre, mortar), else a random 200+ unit, kept for the match |
+
+- The round's 1st pack is chaff; the 3rd too before round 5.
+- Order: the first two packs, then the kept army's levels, then the +1 buy — only when supply covers it and a pack — and the 3rd pack.
+- Every other pack answers the need that is largest: enemy air, chaff, walls that matter, and everything else (the strong unit), each the enemy's value less twice the value of the own answer (half the value answers it). Nothing open: the strong unit.
+- An answer costs only what leaves the round's chaff packs affordable — early rounds are cheap packs, the strong unit comes once supply allows. Locked role units take the round's unlock.
+- A second strong unit joins once the first can't hit half of the enemy's army (the ogre against air: a random 200+ unit that hits air).
+
+Next (step 2): record where each enemy pack went in the last battle, and place answers on its expected route, its range back from the clash, in line with the own army (a flank route alone if need be, with chaff in front).
+
 ## Counter table
 
 Worked out by rules from the unit data (`aiCounters.ts`), so new units need no list — not perfect, but automatic. Traits: flies, hits air, swarm (10+ models), single model, splash (radius 3+, no big hits), big hitter (300+ damage per hit, ramping beam, convert ray), tank (1000+ HP per model), range. Y counters X when:
@@ -218,7 +242,7 @@ Worked out by rules from the unit data (`aiCounters.ts`), so new units need no l
 
 Y must be able to hit X. Where two units would counter each other, the air rules (A, B) win over the rest; on a tie neither counts. The content check prints the table. A hand-made list came first (2026-10-29) and matched these rules closely.
 
-Hard only, next to its battle model: a candidate pack gets a bonus for the share of the enemy's army (by value) it counters that its own army (and the round's plan so far) doesn't counter yet — `PLANNER.counterList` (0.3, the model's margin runs -1…+1). Placement is left out: it already sends each pack opposite the enemy group it is best against. 
+Used by the battle model's planner (The Year): a candidate pack gets a bonus for the share of the enemy's army (by value) it counters that its own army (and the round's plan so far) doesn't counter yet — `PLANNER.counterList` (0.3, the model's margin runs -1…+1). Placement is left out: it already sends each pack opposite the enemy group it is best against. 
 Not yet: Medium using the list; personality preferences (a Rusher's faster units, a Defender's range); learning from battle results.
 
 ## Rules for every level

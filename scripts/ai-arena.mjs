@@ -755,7 +755,7 @@ const planTimes = [];
 }
 const aiPlanner = {};
 {
-    // --planner techWeight=0,counterWeight=0.5 — try planner choices without editing code
+    // --planner keepPull=0.3,concentrate=0.2 — try planner choices without editing code
     // planner keys go to the AI seat only; model keys change the shared battle model
     const overrides = arg('planner', '');
     if (overrides) {

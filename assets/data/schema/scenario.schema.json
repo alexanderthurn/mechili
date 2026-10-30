@@ -420,7 +420,7 @@
         "medium",
         "hard"
       ],
-      "description": "An AI seat's two lobby settings (AI_PLAN.md): how well it plays (difficulty) and how (personality). One AI; difficulty only switches features off and makes choices poorer."
+      "description": "An AI seat's two lobby settings (AI_PLAN.md): how well it plays (difficulty) and how (personality). One AI; for now every difficulty plays Hard — parts come out of it for the easier ones once it plays well."
     },
     "AiPersonality": {
       "type": "string",
