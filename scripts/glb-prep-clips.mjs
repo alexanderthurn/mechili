@@ -11,6 +11,8 @@
 // plan: { "hips": "mixamorig:Hips", "clips": { "walk": { "from": "run", "loop": true }, "fire": { "from": "volleyball", "start": 1.3, "end": 2.8 }, … },
 //   "loop": the source already cycles (Tripo/Mixamo walks/runs) — wrap last key → first key.
 //   "loopFix": seconds to ease the tail into frame 0, only for clips that don't close.
+//   "loopDrift": true — a window cut from a clip that doesn't cycle: spread the seam error
+//     evenly over every frame, so the loop closes without slowing down anywhere.
 // clip "aim": { "joint": "mixamorig:RightHand", "prop": [0,1,0], "dir": [0,1,0.25] } — hold that
 //   joint at one fixed angle for the clip, turned so a prop that points along `prop` (world,
 //   bind pose) points along `dir` (world) at the clip's average parent orientation. A rigid
@@ -195,6 +197,25 @@ for (const [role, spec] of Object.entries(plan.clips)) {
         const inV = s.getOutput().getArray();
         const out = new Float32Array(frames * n);
         for (let f = 0; f < frames; f++) out.set(sampleTrack(inT, inV, n, start + times[f], wrapDt), f * n);
+        if (spec.loopDrift) {
+            // last frame must equal the first: shift each frame by its share of the gap
+            const last = frames - 1;
+            let sign = 1;
+            if (n === 4) {
+                let d = 0;
+                for (let k = 0; k < 4; k++) d += out[last * 4 + k] * out[k];
+                sign = d < 0 ? -1 : 1;
+            }
+            const gap = [];
+            for (let k = 0; k < n; k++) gap.push(sign * out[k] - out[last * n + k]);
+            for (let f = 1; f <= last; f++) {
+                for (let k = 0; k < n; k++) out[f * n + k] += gap[k] * (f / last);
+                if (n === 4) {
+                    const l = Math.hypot(out[f * 4], out[f * 4 + 1], out[f * 4 + 2], out[f * 4 + 3]);
+                    for (let k = 0; k < 4; k++) out[f * 4 + k] /= l;
+                }
+            }
+        }
         if (spec.loopFix) {
             // ease the tail into frame 0 so the loop closes without a pop
             const tail = Math.min(frames - 1, Math.round(spec.loopFix * FPS));
