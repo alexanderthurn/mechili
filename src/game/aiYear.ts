@@ -19,7 +19,7 @@
  * Deterministic for the same board and stream: it reads only match state and
  * the stream it is handed.
  */
-import type { Action } from './actions';
+import { levelCost, type Action } from './actions';
 import { isChaff } from './aiCounters';
 import type { TypeRegistry } from './content/typeRegistry';
 import { sideFrontline } from './aiWalls';
@@ -594,6 +594,8 @@ export class YearBrain {
                 .filter((u) => u.seat === this.seat && !u.type.structure && !u.type.extra)
                 .sort((a, b) => b.type.cost - a.type.cost);
             for (const unit of packs) {
+                // the purse it may spend (an easier level sets part of it aside), before the rules' own check
+                if (levelCost(unit.type, this.host.economy, this.host.leveling) > this.host.economy.balance(this.seat)) continue;
                 if (this.host.dispatch({ kind: 'buyLevel', team: this.team, seat: this.seat, unitId: unit.id })) bought = true;
             }
         }

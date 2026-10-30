@@ -979,13 +979,18 @@ export class Economy {
 
     /** escalating income: round 1 grants 200 + 100 flat, round 2 grants 400 + 100, ... — every seat, full share */
     grantRoundIncome(round: number): void {
+        const income = this.roundIncome(round);
+        for (let s = 0; s < this.balances.length; s++) this.balances[s]! += income;
+    }
+
+    /** what {@link grantRoundIncome} credits each seat in `round` */
+    roundIncome(round: number): number {
         const base =
             this.settings.startingSupply + (round - 1) * this.settings.supplyGrowthPerRound;
         // Rounded to a whole number: balances ride in the round hash, so every
         // peer has to credit the identical integer, not a float that differs
         // in the last bit.
-        const income = Math.round(base * this.moneyFactor) + this.flatIncome;
-        for (let s = 0; s < this.balances.length; s++) this.balances[s]! += income;
+        return Math.round(base * this.moneyFactor) + this.flatIncome;
     }
 
     canAfford(seat: SeatId, type: UnitType): boolean {

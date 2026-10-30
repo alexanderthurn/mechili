@@ -24,7 +24,7 @@ import { CELL } from './map';
 import { isChaff } from './aiCounters';
 import { AI_WALL_ID, orderedWallPlan, placeWallPlan, sideFrontline, wallInSlot, wallPlanCells, type PlanSlot } from './aiWalls';
 import type { LevelingSettings } from './settings';
-import { DEFENDER_WALL_SHARE, type AiDifficulty, type AiStyle } from './aiProfile';
+import { AI_SUPPLY_SHARE, DEFENDER_WALL_SHARE, type AiDifficulty, type AiStyle } from './aiProfile';
 
 /** what a round's defence wants: wall slots, the share of the round's supply it may use, and whether to man the walls */
 interface Defence {
@@ -80,6 +80,26 @@ export interface Opponent {
     /** what it read before its last build, for the debug overlay (`name` = the seat's) */
     debugLines?(name: string): string[];
 }
+
+/** actions that cost supply — refused once the brake's set-aside part is all that's left (AI_SUPPLY_SHARE) */
+const SPENDS: ReadonlySet<Action['kind']> = new Set<Action['kind']>([
+    'buy',
+    'buyRune',
+    'buyTech',
+    'buyLevel',
+    'buyLevelBatch',
+    'buyStrongholdArcher',
+    'buyWallPost',
+    'upgradeTower',
+    'makeGate',
+    'unlockUnit',
+    'buyDeploySlot',
+    'buyBoost',
+    'buyRoundRangeBoost',
+    'buyRoundSpeedBoost',
+    'buyForgeSpell',
+    'roundCard',
+]);
 
 export class AiOpponent implements Opponent {
     constructor(
@@ -146,7 +166,28 @@ export class AiOpponent implements Opponent {
             style: AiStyle;
             rushSide: 0 | 1;
         },
-    ) {}
+    ) {
+        // the easier levels' brake (AI_SUPPLY_SHARE): every purse read sees the balance less what is set aside,
+        // and nothing that spends goes out once that is used up
+        const real = ctx.economy;
+        const economy = Object.create(real) as Economy;
+        economy.balance = (s: SeatId) => real.balance(s) - (s === seat ? this.setAside() : 0);
+        const dispatch = ctx.dispatch;
+        this.ctx = {
+            ...ctx,
+            economy,
+            dispatch: (action) => (SPENDS.has(action.kind) && economy.balance(seat) <= 0 ? false : dispatch(action)),
+        };
+    }
+
+    /** the supply its difficulty sets aside for good: the unspendable share of every round's income so far */
+    private setAside(): number {
+        const share = AI_SUPPLY_SHARE[this.ctx.difficulty];
+        if (share >= 1) return 0;
+        let income = 0;
+        for (let r = 1; r <= this.round; r++) income += this.ctx.economy.roundIncome(r);
+        return Math.round(income * (1 - share));
+    }
 
     /** the enemy as read at the start of the last build (AI_PLAN.md, "Threat map") */
     private threat: ThreatMap | null = null;
@@ -537,6 +578,8 @@ export class AiOpponent implements Opponent {
      * its chaff (or its cheapest pack) — the pick then chooses that pack.
      */
     private extraPackSlot = (cost: (t: UnitType) => number): boolean => {
+        // Easy never buys a 3rd pack
+        if (this.ctx.difficulty === 'easy') return false;
         if (this.ctx.deployCap() > 0 || !this.owns('deploySlot')) return false;
         const chaff = this.roster ? this.ctx.types.byId(this.roster.chaff) : null;
         const pack = chaff && this.ctx.unlockedUnits[this.seat]!.includes(chaff.id) ? chaff : this.cheapestArmyType(cost);
@@ -561,7 +604,7 @@ export class AiOpponent implements Opponent {
             if (cost === undefined) break;
             const steps = boost === 'hp' ? hpTiers : attackTiers;
             const gain = army * ((steps[tier] ?? 0) - (tier > 0 ? (steps[tier - 1] ?? 0) : 0));
-            if (gain < cost) break;
+            if (gain < cost || cost > this.ctx.economy.balance(this.seat)) break;
             if (!this.ctx.dispatch({ kind: 'buyBoost', team: this.team, seat: this.seat, boost })) break;
             tiers[boost]++;
         }

@@ -52,5 +52,12 @@ export function resolvePersonality(
     return { style, rushSide: rnd() < 0.5 ? 0 : 1 };
 }
 
+/**
+ * The easier levels' brake: the share of each round's income the AI may
+ * spend — the rest is set aside for good (AiOpponent), so the same brain
+ * fields a smaller army. Hard spends all of it.
+ */
+export const AI_SUPPLY_SHARE: Readonly<Record<AiDifficulty, number>> = { easy: 0.5, medium: 0.75, hard: 1 };
+
 /** how much of its supply a Defender may put into walls, posts and their levels in a round */
 export const DEFENDER_WALL_SHARE = 0.25;

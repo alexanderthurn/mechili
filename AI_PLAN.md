@@ -111,6 +111,8 @@ As the Siege attacker (no walls, must take the base), Wide spreads over the whol
 
 One AI; difficulty switches features and the quality of choices.
 
+**The brake (2026-10-30):** every difficulty plays Hard's brain, but Easy may spend only 50 % of each round's income and Medium 75 % (`AI_SUPPLY_SHARE`), and Easy never buys the +1 (no 3rd pack); the rest is set aside for good, worked out from the round number and the income formula, so a resumed match keeps it. The AI's purse reads show the balance less that part, and its spending actions are refused once only that part is left.
+
 **For now (2026-10-30) every difficulty plays Hard**: Easy's and Medium's own code is removed, the lobby choice and the name label stay. Once Hard plays well, parts come out of it again for the easier levels. The table below is the earlier split, kept as a reference for that.
 
 | | Easy | Medium | Hard |
