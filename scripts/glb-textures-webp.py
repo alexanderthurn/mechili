@@ -1,9 +1,15 @@
-"""Re-encode a GLB's JPEG/PNG textures to WebP in place: same pixel size, geometry untouched."""
+"""Re-encode a GLB's JPEG/PNG textures to WebP in place: same pixel size, geometry untouched.
+
+usage: python3 scripts/glb-textures-webp.py [--quality N] file.glb …  (default 92; rigged units shipped at 80)"""
 import sys,json,struct,io
 from PIL import Image
 def pad4(b,fill=b'\0'):
     return b+fill*((4-len(b)%4)%4)
-for p in sys.argv[1:]:
+args=sys.argv[1:]
+quality=92
+if args[:1]==['--quality']:
+    quality=int(args[1]); args=args[2:]
+for p in args:
     b=open(p,'rb').read()
     jl=struct.unpack('<I',b[12:16])[0]; j=json.loads(b[20:20+jl])
     off=20+jl; bl=struct.unpack('<I',b[off:off+4])[0]; bin_=b[off+8:off+8+bl]
@@ -15,7 +21,7 @@ for p in sys.argv[1:]:
         img=Image.open(io.BytesIO(data)); size=img.size
         hasA = img.mode in ('RGBA','LA') or (img.mode=='P' and 'transparency' in img.info)
         img=img.convert('RGBA' if hasA else 'RGB')
-        out=io.BytesIO(); img.save(out,'WEBP',quality=92,method=6); w=out.getvalue()
+        out=io.BytesIO(); img.save(out,'WEBP',quality=quality,method=6); w=out.getvalue()
         if len(w) > len(data)*0.9: continue
         assert Image.open(io.BytesIO(w)).size==size
         views[im['bufferView']]=w
