@@ -383,6 +383,8 @@ function measureAttackNode(
     root: Object3D,
     clips: AnimationClip[],
     fireClipPick: NonNullable<ModelSpec['bakePose']>['clip'] | string | undefined,
+    /** the fire clip's blow (ModelAnimation.fire.hitAt) — sample there instead of at 85% */
+    hitAt?: number,
 ): { x: number; y: number; z: number } | null {
     const attack = root.getObjectByName('AttackNode');
     if (!attack) return null;
@@ -395,7 +397,7 @@ function measureAttackNode(
             const action = mixer.clipAction(clip);
             action.play();
             action.paused = true;
-            action.time = Math.min(clip.duration * 0.85, Math.max(clip.duration - 1e-4, 0));
+            action.time = Math.min(hitAt ?? clip.duration * 0.85, Math.max(clip.duration - 1e-4, 0));
             mixer.update(0);
         }
     }
@@ -882,6 +884,7 @@ async function loadUnitModelsNow(
                 root,
                 gltf.animations ?? [],
                 typeof firePick === 'number' ? undefined : firePick,
+                spec.animation?.fire?.hitAt,
             );
             if (attackLocal) {
                 attackNodes.set(id, attackLocal);

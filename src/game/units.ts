@@ -2320,8 +2320,9 @@ function applyMeshLevelTint(root: Group, level: number): void {
 }
 
 /** tints a mech during battle — golden > hex > debuff > acid > burn > spawning > normal */
-export type BattleTint = 'normal' | 'golden' | 'hex' | 'debuff' | 'acid' | 'burn' | 'spawning';
+export type BattleTint = 'normal' | 'golden' | 'converting' | 'hex' | 'debuff' | 'acid' | 'burn' | 'spawning';
 
+/** `spawnProgress`: 0..1 progress for `spawning`, and for `converting` (how close the ray is to flipping it) */
 export function syncBattleTint(
     mesh: Group,
     tint: BattleTint,
@@ -2366,6 +2367,26 @@ export function syncBattleTint(
                 child.userData.goldenMat = tinted;
             }
             tinted.emissiveIntensity = goldPulse;
+            child.material = tinted;
+            return;
+        }
+
+        if (tint === 'converting') {
+            // Held by a conversion ray: bolt-white cyan flicker at the beam's rhythm,
+            // stronger as the conversion nears completion
+            let tinted = child.userData.convertMat as MeshStandardMaterial | undefined;
+            const base = child.userData.battleOrigMat as MeshStandardMaterial;
+            if (!tinted) {
+                tinted = base.clone();
+                preserveBuildingSnow(base, tinted);
+                child.userData.convertMat = tinted;
+            }
+            const flick = 0.5 + 0.5 * Math.sin(timeSeconds * 10);
+            const k = 0.35 + 0.55 * Math.min(1, spawnProgress);
+            tintScratch.setRGB(0.66, 0.97, 1);
+            tinted.color.lerpColors(base.color, tintScratch, k * (0.6 + 0.4 * flick));
+            tinted.emissive.setRGB(0.3, 0.8, 1);
+            tinted.emissiveIntensity = (0.3 + 0.7 * flick) * (0.35 + 0.95 * Math.min(1, spawnProgress));
             child.material = tinted;
             return;
         }

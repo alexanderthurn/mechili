@@ -1,1 +1,22 @@
-{ "file": "models/units/wizard.glb" }
+// Rigged wizard (Tripo, Mixamo skeleton), GPU-skinned in the instance pools. Faces +Z.
+// Clips from Tripo's walk / surf / fold_arms / fall, cut with scripts/glb-prep-clips.mjs.
+// The attack is authored on the rig's rest pose — his modeled casting pose (staff up,
+// left hand reaching) — with scripts/glb-pose-clip.mjs: arms lift and the chest leans in
+// at the cast, then he settles back into the pose. Tripo drops empties, so AttackNode
+// (the conversion ray's origin) was re-added with scripts/glb-add-node.mjs on
+// mixamorig:RightHand at the staff's tip; the game measures it at the fire clip's hitAt.
+{
+    "file": "models/units/wizard.glb",
+    "yawDeg": 90,
+    "instancedSkin": true,
+    "animation": {
+        "walk": { "clip": "walk" }, // Tripo walk
+        // Tripo surf 1.8–3.0 s, seam spread over the loop — running on air while Sky-Lifted
+        "fly": { "clip": "fly" },
+        "idle": { "clip": "idle" }, // fold_arms, the full 17 s loop
+        // the cast lands 0.25 s in, so the clip starts that much ahead
+        "fire": { "clip": "fire", "hitAt": 0.25 },
+        // fall 0.9–2.6 s: lands toward his left, slightly forward
+        "death": { "clip": "death", "fallLocal": { "x": -0.93, "z": -0.36 } },
+    },
+}

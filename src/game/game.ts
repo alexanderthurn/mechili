@@ -194,7 +194,7 @@ import { BattleOverlays, type BattleOverlaysHost } from './battleOverlays';
 import { HudViews, type EnemyIntelSnapshot, type HudViewsHost } from './hudViews';
 import { SelectionInfoBuilder, type BuildingIntelSeat, type BuildingIntelSnapshot, type SelectionInfoHost } from './selectionInfo';
 import { getUnitVisualHeight, instancedSkinOf, modelGeometryFingerprint, modelGeometrySnapshot, usesWingFlapModel } from './unitModels';
-import { instancedSkinBoneAt, playInstancedSkinLoop, updateInstancedSkins } from './instancedSkin';
+import { holdInstancedSkinBeam, instancedSkinBoneAt, playInstancedSkinLoop, updateInstancedSkins } from './instancedSkin';
 import { BirdFlocks } from './birdFlocks';
 import { WallJoins } from './wallJoins';
 import { GateDoors } from './gateDoors';
@@ -10356,7 +10356,9 @@ export class Game {
                 const skin = instancedSkinOf(unit.type.modelId ?? unit.type.id);
                 if (!skin) continue;
                 for (const m of unit.members) {
-                    if (!m.mesh.userData.dead) playInstancedSkinLoop(m.mesh, 'idle', 1, skin);
+                    if (m.mesh.userData.dead) continue;
+                    holdInstancedSkinBeam(m.mesh, skin, false); // a beam still on at the end
+                    playInstancedSkinLoop(m.mesh, 'idle', 1, skin);
                 }
             }
             if (

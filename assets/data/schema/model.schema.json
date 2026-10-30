@@ -118,6 +118,10 @@
           "$ref": "#/definitions/AnimClip",
           "description": "Standing / hovering loop — instanced-skin models only so far."
         },
+        "fly": {
+          "$ref": "#/definitions/AnimClip",
+          "description": "Locomotion while lifted into the air (Sky Lift) — instanced-skin ground units; falls back to walk."
+        },
         "fire": {
           "type": "object",
           "additionalProperties": false,

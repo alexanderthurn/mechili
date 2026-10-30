@@ -64,7 +64,7 @@ const MAX_ZOOM = 2.5; // further
 const ZOOM_SPEED = 0.0015;
 const FIT_PADDING = 1.2; // headroom so the model doesn't touch the canvas edge
 /** Showcase of a GPU-skinned unit: what each click plays next (missing clips are skipped). */
-const SHOWCASE_CLICK_ORDER: readonly Exclude<SkinRole, 'idle'>[] = ['fire', 'walk', 'death'];
+const SHOWCASE_CLICK_ORDER: readonly Exclude<SkinRole, 'idle'>[] = ['fire', 'walk', 'fly', 'death'];
 const SHOWCASE_FADE = 0.2;
 /** seconds the walk loop runs before settling back to idle */
 const SHOWCASE_WALK_SECONDS = 2.4;
@@ -282,13 +282,13 @@ export function createShowcaseViewer(canvas: HTMLCanvasElement): ShowcaseViewer 
         skinPlaying = next;
     }
 
-    /** Next clip in {@link SHOWCASE_CLICK_ORDER}; a walk settles back to idle on its own. */
+    /** Next clip in {@link SHOWCASE_CLICK_ORDER}; a walk / fly loop settles back to idle on its own. */
     function playNextSkinClip(): void {
         const order = SHOWCASE_CLICK_ORDER.filter((r) => skinActions[r]);
         if (order.length === 0) return;
         const role = order[skinStep++ % order.length]!;
         fadeSkinTo(role);
-        if (role === 'walk') {
+        if (role === 'walk' || role === 'fly') {
             skinReturnTimer = window.setTimeout(() => fadeSkinTo('idle'), SHOWCASE_WALK_SECONDS * 1000);
         }
     }

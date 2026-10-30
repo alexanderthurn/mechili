@@ -1,6 +1,7 @@
 import {
     AdditiveBlending,
     BufferGeometry,
+    CanvasTexture,
     Color,
     DoubleSide,
     DynamicDrawUsage,
@@ -13,6 +14,8 @@ import {
     RepeatWrapping,
     SRGBColorSpace,
     ShaderMaterial,
+    Sprite,
+    SpriteMaterial,
     TextureLoader,
     Vector3,
     type Scene,
@@ -23,7 +26,8 @@ import { colorForUnit } from './colors';
 import type { BloomQuality } from './prefs';
 import { isSecondarySeat, type SeatDef } from './seats';
 import { actorSeat, actorTeam, type Actor } from './sim';
-import { attackNodeWorld, getUnitAttackNodeLocal } from './unitModels';
+import { attackNodeWorld, getUnitAttackNodeLocal, instancedSkinOf } from './unitModels';
+import { instancedSkinAttackWorld } from './instancedSkin';
 import { projectileAimY } from './units';
 import { THEME } from '../theme';
 import { assetUrl } from './assets';
@@ -34,6 +38,11 @@ const MAX_PRISM = 48;
 const CORE_HALF_W = 0.28;
 const GLOW_HALF_W = 0.55;
 const TEX_URL = (): string => assetUrl('textures/fx/convert-ray-lightning.png');
+/** a convert bolt's cards start this narrow and reach full width by {@link BEAM_TAPER_LEN} of the beam */
+const BEAM_TAPER_START = 0.35;
+const BEAM_TAPER_LEN = 0.1;
+/** soft orb at each convert bolt's muzzle (world diameter at bolt width 1) — hides the cards' cut start */
+const MUZZLE_ORB_SIZE = 2.1;
 
 const _pos = new Vector3();
 const _dir = new Vector3();
@@ -72,10 +81,19 @@ const PRISM_SKY_HDR = PRISM_ATTACK_HDR / 150;
  * side; 2 is enough for the wizard bolt, prism uses more so the sky shaft
  * doesn't go paper-thin when the camera catches a card edge-on.
  */
-function makeBeamCardGeo(halfWidth: number, vRepeat: number, planes = 2): BufferGeometry {
+function makeBeamCardGeo(halfWidth: number, vRepeat: number, planes = 2, taper = false): BufferGeometry {
     const mk = (): PlaneGeometry => {
-        const g = new PlaneGeometry(halfWidth * 2, 1, 1, 4);
+        const g = new PlaneGeometry(halfWidth * 2, 1, 1, taper ? 10 : 4);
         g.translate(0, 0.5, 0);
+        if (taper) {
+            // narrow at the muzzle, full width a short way along: no flat cut-off start
+            const pos = g.attributes.position!;
+            for (let i = 0; i < pos.count; i++) {
+                const t = Math.min(1, pos.getY(i) / BEAM_TAPER_LEN);
+                pos.setX(i, pos.getX(i) * (BEAM_TAPER_START + (1 - BEAM_TAPER_START) * t));
+            }
+            pos.needsUpdate = true;
+        }
         const uv = g.attributes.uv;
         if (uv) {
             for (let i = 0; i < uv.count; i++) uv.setY(i, uv.getY(i)! * vRepeat);
@@ -96,6 +114,24 @@ function makeBeamCardGeo(halfWidth: number, vRepeat: number, planes = 2): Buffer
     return merged;
 }
 
+/** Radial falloff (bright core → transparent rim) for the muzzle orbs. */
+function makeOrbTexture(): CanvasTexture {
+    const size = 64;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const g = canvas.getContext('2d')!;
+    const grad = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.25, 'rgba(255,255,255,0.75)');
+    grad.addColorStop(0.6, 'rgba(255,255,255,0.18)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, size, size);
+    const tex = new CanvasTexture(canvas);
+    tex.colorSpace = SRGBColorSpace;
+    return tex;
+}
+
 /** Stable +Y → dir rotation (setFromUnitVectors alone blows up when nearly parallel). */
 function quatFromUpTo(dir: Vector3, out: Quaternion): void {
     const d = dir.dot(_up);
@@ -110,9 +146,18 @@ function quatFromUpTo(dir: Vector3, out: Quaternion): void {
     out.setFromUnitVectors(_up, dir);
 }
 
+const _liveMuzzle = new Vector3();
+
 /** Beam muzzle for FX / audio — matches sim {@link beamRayOrigin} policy. */
 export function beamMuzzleWorld(caster: Actor): { x: number; y: number; z: number } {
     const ut = caster.unit.type;
+    // GPU-skinned caster with an AttackNode on a bone: draw the beam from where that bone
+    // is now (the wizard's staff tip mid-twirl), not the sim's fixed cast-pose point
+    if (caster.mesh.userData.instancedSkin) {
+        const skin = instancedSkinOf(ut.modelId ?? ut.id);
+        const live = skin ? instancedSkinAttackWorld(caster.mesh, skin, _liveMuzzle) : null;
+        if (live) return { x: live.x, y: live.y, z: live.z };
+    }
     const authored = ut.rampBeam?.muzzleLocal;
     if (authored) {
         return attackNodeWorld(
@@ -320,6 +365,10 @@ export class ConversionFx {
     private readonly prismMesh: InstancedMesh;
     private readonly prismMat: ShaderMaterial;
     private readonly texture: Texture;
+    /** muzzle orbs, one per casting convert unit (camera-facing soft glow) */
+    private readonly orbs: Sprite[] = [];
+    private readonly orbTexture: CanvasTexture;
+    private orbGain = 1;
     roster: SeatDef[] = [];
 
     constructor(scene: Scene) {
@@ -356,6 +405,24 @@ export class ConversionFx {
         for (let i = 0; i < MAX_PRISM; i++) this.prismMesh.setColorAt(i, _sunCore);
         this.group.add(this.prismMesh);
 
+        this.orbTexture = makeOrbTexture();
+        for (let i = 0; i < MAX_CONVERT; i++) {
+            const orb = new Sprite(
+                new SpriteMaterial({
+                    map: this.orbTexture,
+                    transparent: true,
+                    depthWrite: false,
+                    blending: AdditiveBlending,
+                    fog: false,
+                    toneMapped: false,
+                }),
+            );
+            orb.visible = false;
+            orb.renderOrder = 51;
+            this.orbs.push(orb);
+            this.group.add(orb);
+        }
+
         scene.add(this.group);
     }
 
@@ -384,8 +451,8 @@ export class ConversionFx {
             fog: false,
             toneMapped: false,
         });
-        const core = new InstancedMesh(makeBeamCardGeo(CORE_HALF_W, 2.5), coreMat, max);
-        const glow = new InstancedMesh(makeBeamCardGeo(GLOW_HALF_W, 1.8), glowMat, max);
+        const core = new InstancedMesh(makeBeamCardGeo(CORE_HALF_W, 2.5, 2, true), coreMat, max);
+        const glow = new InstancedMesh(makeBeamCardGeo(GLOW_HALF_W, 1.8, 2, true), glowMat, max);
         for (const mesh of [core, glow]) {
             mesh.instanceMatrix.setUsage(DynamicDrawUsage);
             mesh.frustumCulled = false;
@@ -412,8 +479,10 @@ export class ConversionFx {
             this.convert.glowMat.color.setRGB(0.66, 0.97, 1);
             this.prismMat.uniforms.uGain!.value = 1.25;
             this.prismMat.uniforms.uCap!.value = PRISM_CAP_OFF;
+            this.orbGain = 1;
             return;
         }
+        this.orbGain = CONVERT_BLOOM_GAIN;
         // same recipe as prism: lower gain, no widen — bloom supplies the glow
         this.convert.glowWidthMul = 1.85;
         this.convert.coreMat.color.setRGB(CONVERT_BLOOM_GAIN, CONVERT_BLOOM_GAIN, CONVERT_BLOOM_GAIN);
@@ -440,6 +509,7 @@ export class ConversionFx {
 
         let cn = 0;
         let pn = 0;
+        let on = 0;
         for (const caster of actors) {
             if (!caster.alive || !caster.convertRayActive) continue;
             const isRamp = !!caster.unit.type.rampBeam;
@@ -516,6 +586,16 @@ export class ConversionFx {
             const seat = actorSeat(caster);
             const teamHex = colorForUnit(team, isSecondarySeat(this.roster, seat)).hex;
 
+            // the bolt leaves a small ball of light, not a cut card edge
+            const orb = on < this.orbs.length ? this.orbs[on++] : null;
+            if (orb) {
+                const size = MUZZLE_ORB_SIZE * (0.9 + 0.12 * Math.sin(simTime * 10 + caster.index));
+                orb.position.set(from.x, from.y, from.z);
+                orb.scale.set(size, size, 1);
+                orb.material.color.setHex(teamHex).lerp(_orb, 0.5).multiplyScalar(this.orbGain * (0.75 + 0.25 * pulse));
+                orb.visible = true;
+            }
+
             for (let vi = 0; vi < victims.length; vi++) {
                 if (cn >= MAX_CONVERT) break;
                 const victim = victims[vi];
@@ -559,6 +639,7 @@ export class ConversionFx {
             }
         }
         finishLayer(this.convert, cn);
+        for (let i = on; i < this.orbs.length; i++) this.orbs[i]!.visible = false;
         this.prismMesh.count = pn;
         this.prismMesh.instanceMatrix.needsUpdate = true;
         if (this.prismMesh.instanceColor) this.prismMesh.instanceColor.needsUpdate = true;
@@ -567,6 +648,7 @@ export class ConversionFx {
     clear(): void {
         this.convert.core.count = 0;
         this.convert.glow.count = 0;
+        for (const orb of this.orbs) orb.visible = false;
         this.prismMesh.count = 0;
     }
 
@@ -579,5 +661,7 @@ export class ConversionFx {
         this.prismMesh.geometry.dispose();
         this.prismMat.dispose();
         this.texture.dispose();
+        for (const orb of this.orbs) orb.material.dispose();
+        this.orbTexture.dispose();
     }
 }

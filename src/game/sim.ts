@@ -71,7 +71,7 @@ import type { TypeRegistry } from './content/typeRegistry';
 import { computeCrowWingRate, crowWingDeathSplay, setCrowWingDeathSplay, setCrowWingRateOnProxy, setCrowWingRestOnProxy } from './crowWingFlap';
 import { hasUnitDeathAnim, playUnitDeathAnim, playUnitFireAnim, unitDeathFallLocal } from './unitAnimated';
 import { attackNodeWorld, getUnitAttackNodeLocal, getUnitVisualHalfWidth, getUnitVisualHeight, instancedSkinOf, usesWingFlapModel } from './unitModels';
-import { driveFlyerSkin, driveGroundSkin, playInstancedSkinOnce } from './instancedSkin';
+import { driveFlyerSkin, driveGroundSkin, holdInstancedSkinBeam, playInstancedSkinFire, playInstancedSkinOnce } from './instancedSkin';
 import {
     beginDeathClip,
     beginDeathFall,
@@ -4484,11 +4484,15 @@ export class BattleSim {
     ): CrashLand[] {
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.structure) continue;
-            // golden > hex > tower debuff > acid (corroded) > burn DoT > spawning
-            let tint: 'normal' | 'golden' | 'hex' | 'debuff' | 'acid' | 'burn' | 'spawning' = 'normal';
+            // golden > converting > hex > tower debuff > acid (corroded) > burn DoT > spawning
+            let tint: 'normal' | 'golden' | 'converting' | 'hex' | 'debuff' | 'acid' | 'burn' | 'spawning' = 'normal';
             let spawnProgress = 0;
             if (this.isGolden(a)) tint = 'golden';
-            else if (this.isEmpd(a)) tint = 'hex';
+            else if (a.convertBy?.alive && a.convertProgress > 0) {
+                // held by a conversion ray: the tint carries how close it is to flipping
+                tint = 'converting';
+                spawnProgress = a.hp > 0 ? Math.min(1, a.convertProgress / a.hp) : 1;
+            } else if (this.isEmpd(a)) tint = 'hex';
             else if (this.isDebuffed(a) && (debuffTintAt?.(actorSeat(a), a.x, a.z) ?? true)) {
                 tint = 'debuff';
             } else if (a.corrodedUntil > this.elapsed) {
@@ -4596,19 +4600,32 @@ export class BattleSim {
         // otherwise it counts down — so an increase means "just fired".
         const prevCd = a.prevCooldown ?? a.cooldown;
         const skin = a.mesh.userData.instancedSkin ? instancedSkinOf(a.unit.type.modelId ?? a.unit.type.id) : null;
-        // A wind-up clip starts `fireLead` ahead so its blow lands with the damage: while
-        // engaged the cooldown counts down predictably to the next attack (render-only guess —
-        // if the target dies first, the swing just plays at nothing).
+        // A wind-up clip is timed so its blow lands with the damage. The damage comes when the
+        // engaged cooldown runs out, plus meleeHitDelay — a render-only guess: if the target dies
+        // first, the swing plays at nothing. Short on time (a first strike) → start partway in.
+        // beam units (conversion ray, prism) channel instead of firing shots: hold the attack pose
+        if (skin && (a.unit.type.convertRay || a.unit.type.rampBeam)) {
+            holdInstancedSkinBeam(a.mesh, skin, a.alive && a.convertRayActive);
+        }
+        const hitDelay = a.unit.type.meleeHitDelay ?? 0;
         if (a.cooldown < prevCd - 1e-6) a.skinCountingDown = true;
-        if (skin && skin.fireLead > 0 && a.skinCountingDown && !a.skinFireStarted && a.cooldown > 0 && a.cooldown <= skin.fireLead) {
-            playInstancedSkinOnce(a.mesh, 'fire', skin);
+        if (
+            skin &&
+            skin.fireLead > 0 &&
+            a.skinCountingDown &&
+            !a.skinFireStarted &&
+            a.cooldown > 0 &&
+            a.cooldown + hitDelay <= skin.fireLead
+        ) {
+            playInstancedSkinFire(a.mesh, skin, a.cooldown + hitDelay);
             a.skinFireStarted = true;
         }
         if (a.cooldown > prevCd + 1e-4) {
             a.recoil = 1;
             if (a.mesh.userData.animated) playUnitFireAnim(a.mesh);
-            // no lead (or the attack came sooner than predicted): swing on the shot as before
-            if (skin && !a.skinFireStarted) playInstancedSkinOnce(a.mesh, 'fire', skin);
+            // not started ahead (no lead, or the attack came sooner than predicted): the blow is
+            // still meleeHitDelay away — time it to that
+            if (skin && !a.skinFireStarted) playInstancedSkinFire(a.mesh, skin, hitDelay);
             a.skinFireStarted = false;
             a.skinCountingDown = false;
         }
@@ -4771,7 +4788,7 @@ export class BattleSim {
                 );
             } else {
                 const speedRatio = nominal > 1e-6 ? stepDist / nominal : 0;
-                driveGroundSkin(a.mesh, { dead, moving, speedRatio }, skin);
+                driveGroundSkin(a.mesh, { dead, moving, speedRatio, airborne: a.altitude > 0 }, skin);
             }
         }
         if (usesWingFlapModel(a.unit.type.modelId ?? a.unit.type.id) && a.mesh.userData.instanced) {

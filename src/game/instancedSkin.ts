@@ -13,6 +13,7 @@ import {
     RGBADepthPacking,
     RGBAFormat,
     type AnimationClip,
+    type Bone,
     type BufferGeometry,
     type Group,
     type InstancedMesh,
@@ -33,8 +34,9 @@ import type { ModelAnimation } from './unitAnimated';
  * Render-only: nothing here feeds the deterministic sim.
  */
 
-export type SkinRole = 'walk' | 'idle' | 'fire' | 'death';
-const ROLES: readonly SkinRole[] = ['walk', 'idle', 'fire', 'death'];
+export type SkinRole = 'walk' | 'idle' | 'fly' | 'fire' | 'death';
+const ROLES: readonly SkinRole[] = ['walk', 'idle', 'fly', 'fire', 'death'];
+type LoopRole = 'walk' | 'idle' | 'fly';
 
 /** Bake resolution — clips are linearly interpolated between frames. */
 const BAKE_FPS = 30;
@@ -68,6 +70,8 @@ export interface InstancedSkinData {
     bones: number;
     /** bind-pose skinned geometry — the CPU picks bones under arrow hits from it */
     geometry: BufferGeometry;
+    /** AttackNode riding a bone: which bone, and the point in bind (geometry) space — live beam starts */
+    attack?: { bone: number; point: Vector3 };
 }
 
 /** One shared clock for every skinned pool — advanced with sim-scaled dt. */
@@ -160,7 +164,7 @@ export function bakeInstancedSkin(
             row,
             frames: p.frames,
             duration: p.clip.duration,
-            loop: p.role === 'walk' || p.role === 'idle',
+            loop: p.role === 'walk' || p.role === 'idle' || p.role === 'fly',
             speed: p.speed,
             clip: p.clip,
         };
@@ -170,6 +174,14 @@ export function bakeInstancedSkin(
     mixer.uncacheRoot(root);
     mesh.skeleton.pose();
     root.updateMatrixWorld(true);
+
+    // an AttackNode under a bone moves with it — keep it for live (render-only) muzzles
+    const attackNode = root.getObjectByName('AttackNode');
+    const attackBone = attackNode?.parent ? mesh.skeleton.bones.indexOf(attackNode.parent as Bone) : -1;
+    if (attackNode && attackBone >= 0) {
+        const point = attackNode.getWorldPosition(new Vector3()).applyMatrix4(mesh.matrixWorld.clone().invert());
+        out.attack = { bone: attackBone, point };
+    }
 
     const texture = new DataTexture(data, width, Math.max(rows, 1), RGBAFormat, FloatType);
     texture.minFilter = NearestFilter;
@@ -319,6 +331,8 @@ interface SkinAnimState {
     seed: number;
     /** walk vs idle hysteresis */
     walking: boolean;
+    /** channelling a beam: the fire pose holds, loops don't take over */
+    holding: boolean;
     /** ground units: smoothed speed ratio, and since when it has been near zero */
     speed: number;
     stillSince: number;
@@ -336,6 +350,7 @@ function stateOf(proxy: Object3D): SkinAnimState {
             dying: false,
             seed,
             walking: false,
+            holding: false,
             speed: 0,
             stillSince: -1,
             lastDrive: skinTime.value,
@@ -373,9 +388,9 @@ export function registerInstancedSkinProxy(proxy: Object3D): void {
  * rate keeps the current phase, so a wingbeat never jumps. A one-shot (fire)
  * finishes first; a dead mech ignores loops.
  */
-export function playInstancedSkinLoop(proxy: Object3D, role: 'walk' | 'idle', rate: number, skin: InstancedSkinData): void {
+export function playInstancedSkinLoop(proxy: Object3D, role: LoopRole, rate: number, skin: InstancedSkinData): void {
     const s = stateOf(proxy);
-    if (s.dying) return;
+    if (s.dying || s.holding) return;
     const clip = skin.clips[role];
     if (!clip) return;
     const t = skinTime.value;
@@ -393,15 +408,18 @@ export function playInstancedSkinLoop(proxy: Object3D, role: 'walk' | 'idle', ra
     crossTo(s, role, s.seed * clip.duration, r);
 }
 
-/** Play `fire` or `death` once from its start (death holds its last frame). */
-export function playInstancedSkinOnce(proxy: Object3D, role: 'fire' | 'death', skin: InstancedSkinData): void {
+/**
+ * Play `fire` or `death` once (death holds its last frame). `phase`: clip seconds to
+ * start at — negative holds the first frame that long (the shader clamps one-shots).
+ */
+export function playInstancedSkinOnce(proxy: Object3D, role: 'fire' | 'death', skin: InstancedSkinData, phase = 0): void {
     if (!proxy.userData.instancedSkin) return;
     const s = stateOf(proxy);
     if (s.dying) return;
     const clip = skin.clips[role];
     if (!clip) return;
     if (role === 'death') s.dying = true;
-    crossTo(s, role, 0, clip.speed);
+    crossTo(s, role, phase, clip.speed);
 }
 
 /**
@@ -419,12 +437,41 @@ export function freezeInstancedSkin(proxy: Object3D): void {
     s.fadeStart = -1e9;
 }
 
+/**
+ * Start the fire clip so its blow (`hitAt`) lands `secondsUntilHit` from now: begun
+ * partway in when there is less time than the wind-up, held on its first frame when
+ * there is more. Without a hitAt it just starts from the top, as before.
+ */
+export function playInstancedSkinFire(proxy: Object3D, skin: InstancedSkinData, secondsUntilHit: number): void {
+    const clip = skin.clips.fire;
+    const phase = clip && skin.fireLead > 0 ? (skin.fireLead - Math.max(0, secondsUntilHit)) * clip.speed : 0;
+    playInstancedSkinOnce(proxy, 'fire', skin, phase);
+}
+
+/**
+ * A held beam (conversion ray, prism beam): when it switches on, play the fire clip from
+ * its cast moment and keep its last pose for as long as the beam lasts; when it ends,
+ * walk / idle take over again. No-op without a fire clip.
+ */
+export function holdInstancedSkinBeam(proxy: Object3D, skin: InstancedSkinData, active: boolean): void {
+    if (!proxy.userData.instancedSkin || !skin.clips.fire) return;
+    const s = stateOf(proxy);
+    if (active === s.holding) return;
+    if (active) {
+        playInstancedSkinFire(proxy, skin, 0);
+        s.holding = true;
+    } else {
+        s.holding = false;
+    }
+}
+
 /** Round reset / revive: straight back to idle, no fade (flyers' drivers then ground it). */
 export function resetInstancedSkin(proxy: Object3D): void {
     if (!proxy.userData.instancedSkin) return;
     const s = stateOf(proxy);
     s.dying = false;
     s.walking = false;
+    s.holding = false;
     s.a = idlePlay(s.seed);
     s.b = null;
     s.fadeStart = -1e9;
@@ -438,7 +485,7 @@ export function resetInstancedSkin(proxy: Object3D): void {
  */
 export function driveGroundSkin(
     proxy: Object3D,
-    input: { dead?: boolean; moving: number; speedRatio?: number },
+    input: { dead?: boolean; moving: number; speedRatio?: number; airborne?: boolean },
     skin: InstancedSkinData,
 ): void {
     if (!proxy.userData.instancedSkin || input.dead) return;
@@ -459,7 +506,8 @@ export function driveGroundSkin(
         if (t - s.stillSince > STAND_AFTER_SECONDS) s.walking = false;
     }
     const ratio = Math.min(2, Math.max(0.35, s.speed));
-    if (s.walking) playInstancedSkinLoop(proxy, 'walk', ratio, skin);
+    // lifted into the air (Sky Lift) with a fly clip: run on air instead of walking
+    if (s.walking) playInstancedSkinLoop(proxy, input.airborne && skin.clips.fly ? 'fly' : 'walk', ratio, skin);
     else playInstancedSkinLoop(proxy, 'idle', 1, skin);
 }
 
@@ -641,6 +689,20 @@ export function instancedSkinBoneAt(proxy: Object3D, worldPoint: Vector3, skin: 
     boneNow(skin, s, bone, f.matrix);
     f.updateMatrixWorld(true);
     return f;
+}
+
+const _attack = new Matrix4();
+
+/**
+ * Where a GPU-skinned mech's AttackNode is right now (world) — follows the bone
+ * through its clips, e.g. the wizard's staff tip while he twirls. Render-only:
+ * the sim keeps its fixed, measured muzzle. Null when the model has none.
+ */
+export function instancedSkinAttackWorld(proxy: Object3D, skin: InstancedSkinData, out: Vector3): Vector3 | null {
+    if (!skin.attack || !proxy.userData.instancedSkin) return null;
+    boneNow(skin, stateOf(proxy), skin.attack.bone, _attack);
+    proxy.updateWorldMatrix(true, false);
+    return out.copy(skin.attack.point).applyMatrix4(_attack).applyMatrix4(proxy.matrixWorld);
 }
 
 /** Pose every bone follower for this frame (after the skin clock advanced). */

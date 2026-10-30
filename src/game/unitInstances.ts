@@ -1,9 +1,11 @@
 import {
     Color,
     DynamicDrawUsage,
+    InstancedBufferAttribute,
     InstancedMesh,
     Matrix4,
     type Group,
+    type MeshStandardMaterial,
     type Object3D,
     type Scene,
 } from 'three';
@@ -157,7 +159,7 @@ export class UnitInstanceRenderer {
      */
     setTint(
         proxy: Group,
-        tint: 'normal' | 'golden' | 'hex' | 'debuff' | 'acid' | 'burn' | 'spawning',
+        tint: 'normal' | 'golden' | 'converting' | 'hex' | 'debuff' | 'acid' | 'burn' | 'spawning',
         timeSeconds: number,
         debuffStacks = 1,
         spawnProgress = 0,
@@ -174,6 +176,10 @@ export class UnitInstanceRenderer {
             // saturated gold; the pulse swings the whole body's glow
             const pulse = 1.0 + Math.sin(timeSeconds * 4.5) * 0.45;
             _color.setRGB(pulse * 2.6, pulse * 1.75, 0.0);
+        } else if (tint === 'converting') {
+            // Held by a conversion ray: a cool wash here, the real read is the added glow below
+            const k = 0.3 + 0.4 * Math.min(1, spawnProgress);
+            _color.setRGB(1 - 0.35 * k, 1 + 0.25 * k, 1 + 0.45 * k);
         } else if (tint === 'hex') {
             // Hard binary on/off cyan flicker
             const on = Math.sin(timeSeconds * 14) >= 0;
@@ -217,6 +223,17 @@ export class UnitInstanceRenderer {
             if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
         }
         this.needsColor = true;
+
+        // Added light, so it shows on dark skins too (multiplying a dark texture stays dark).
+        // Conversion: cyan-white at the beam's rhythm, from a glimmer to a blaze as it nears flipping.
+        if (tint === 'converting') {
+            const flick = 0.5 + 0.5 * Math.sin(timeSeconds * 10);
+            const k = (0.3 + 0.7 * flick) * (0.35 + 0.95 * Math.min(1, spawnProgress));
+            _glow.setRGB(0.3 * k, 0.8 * k, 1.0 * k);
+        } else {
+            _glow.setRGB(0, 0, 0);
+        }
+        for (const mesh of pool.parts) writeGlow(mesh, meta.index, _glow);
     }
 
     /** Veterancy hue for one mech — a colour write, no pool move. */
@@ -360,6 +377,7 @@ export class UnitInstanceRenderer {
         }
         const index = pool.owners.length;
         pool.owners.push(proxy);
+        for (const mesh of pool.parts) writeGlow(mesh, index, _glow.setRGB(0, 0, 0));
         if (pool.skin) registerInstancedSkinProxy(proxy);
         if (usesWingFlapModel(typeId)) {
             const phase =
@@ -402,6 +420,7 @@ export class UnitInstanceRenderer {
             for (const mesh of pool.parts) {
                 mesh.getMatrixAt(last, _matrix);
                 mesh.setMatrixAt(meta.index, _matrix);
+                copyGlow(mesh, last, meta.index);
                 if (mesh.instanceColor) {
                     mesh.getColorAt(last, _color);
                     mesh.setColorAt(meta.index, _color);
@@ -493,6 +512,7 @@ function makeInstanced(part: InstancePart, typeId: string, team: BattleTeam): In
         setupInstancedSkinAttributes(mesh, POOL_CAPACITY);
         attachInstancedSkin(mesh, mat, part.skin);
     }
+    attachInstanceGlow(mesh, mat, POOL_CAPACITY);
     mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     mesh.frustumCulled = false;
     mesh.castShadow = unitShadowCast(typeId, prefs().shadows);
@@ -500,6 +520,52 @@ function makeInstanced(part: InstancePart, typeId: string, team: BattleTeam): In
     mesh.count = 0;
     mesh.setColorAt(0, _color.setRGB(1, 1, 1));
     return mesh;
+}
+
+const GLOW_ATTR = 'aInstanceGlow';
+const _glow = new Color();
+
+/**
+ * Per-instance added light (emissive) for battle FX — a tint can only multiply the
+ * texture, which leaves dark units dark. Chained after the other shader hooks.
+ */
+function attachInstanceGlow(mesh: InstancedMesh, material: MeshStandardMaterial, capacity: number): void {
+    const attr = new InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
+    attr.setUsage(DynamicDrawUsage);
+    mesh.geometry.setAttribute(GLOW_ATTR, attr);
+    const prevCompile = material.onBeforeCompile;
+    const prevKey = material.customProgramCacheKey;
+    material.onBeforeCompile = (shader, renderer) => {
+        prevCompile?.call(material, shader, renderer);
+        shader.vertexShader =
+            `attribute vec3 ${GLOW_ATTR};\nvarying vec3 vInstanceGlow;\n` +
+            shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\nvInstanceGlow = ${GLOW_ATTR};`);
+        shader.fragmentShader =
+            'varying vec3 vInstanceGlow;\n' +
+            shader.fragmentShader.replace(
+                '#include <emissivemap_fragment>',
+                '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vInstanceGlow;',
+            );
+    };
+    material.customProgramCacheKey = function () {
+        return (prevKey ? prevKey.call(this) : '') + '|iglow';
+    };
+    material.needsUpdate = true;
+}
+
+function writeGlow(mesh: InstancedMesh, index: number, c: Color): void {
+    const attr = mesh.geometry.getAttribute(GLOW_ATTR) as InstancedBufferAttribute | undefined;
+    if (!attr) return;
+    if (attr.getX(index) === c.r && attr.getY(index) === c.g && attr.getZ(index) === c.b) return;
+    attr.setXYZ(index, c.r, c.g, c.b);
+    attr.needsUpdate = true;
+}
+
+function copyGlow(mesh: InstancedMesh, from: number, to: number): void {
+    const attr = mesh.geometry.getAttribute(GLOW_ATTR) as InstancedBufferAttribute | undefined;
+    if (!attr) return;
+    attr.setXYZ(to, attr.getX(from), attr.getY(from), attr.getZ(from));
+    attr.needsUpdate = true;
 }
 
 /** Attached to a Scene and visible all the way up. */

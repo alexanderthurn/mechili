@@ -57,6 +57,8 @@ export interface ModelAnimation {
     };
     /** Standing / hovering loop — instanced-skin models only so far. */
     idle?: AnimClip;
+    /** Locomotion while lifted into the air (Sky Lift) — instanced-skin ground units; falls back to walk. */
+    fly?: AnimClip;
     /** One-shot attack; omit if the asset has none. */
     fire?: AnimClip & {
         /** Keep only this time window of the clip (seconds). */

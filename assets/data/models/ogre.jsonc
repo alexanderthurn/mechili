@@ -10,7 +10,8 @@
         "walk": { "clip": "walk", "speed": 0.55 }, // Tripo run
         "idle": { "clip": "idle" },
         // pitch_baseball 0–2.4 s (wind-up + throw), sped up to fit attackInterval 1.35
-        // the throw lands 1.83 s in → the clip starts ~0.92 s ahead of the attack
+        // the throw lands 1.83 s in (≈0.92 s at ×2) → timed to the damage, which the unit's
+        // meleeHitDelay (0.6) puts after the attack: the clip starts ~0.32 s before it
         "fire": { "clip": "fire", "speed": 2, "hitAt": 1.83 },
         // ~3.0 s authored → ~1.4 s tip; the head falls toward the character's left
         "death": { "clip": "death", "speed": 2.2, "fallLocal": { "x": -1, "z": 0 } },
