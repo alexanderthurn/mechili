@@ -505,6 +505,34 @@ function normalizeTeamBag($raw): array {
 }
 
 /**
+ * Per-pack combat stats ({player, enemy} → list of {typeId, level, kills,
+ * damageDealt, damageTaken, damageTakenRaw}): typed and capped, anything
+ * else dropped. Not part of the fingerprint — the summary fields identify
+ * the match already.
+ */
+function normalizePacks($raw): array {
+    if (!is_array($raw)) return [];
+    $out = [];
+    foreach (['player', 'enemy'] as $team) {
+        if (!isset($raw[$team]) || !is_array($raw[$team])) continue;
+        $list = [];
+        foreach (array_slice($raw[$team], 0, 200) as $p) {
+            if (!is_array($p)) continue;
+            $list[] = [
+                'typeId' => mb_substr((string)($p['typeId'] ?? ''), 0, 40),
+                'level' => max(1, (int)($p['level'] ?? 1)),
+                'kills' => max(0, (int)($p['kills'] ?? 0)),
+                'damageDealt' => max(0, (int)($p['damageDealt'] ?? 0)),
+                'damageTaken' => max(0, (int)($p['damageTaken'] ?? 0)),
+                'damageTakenRaw' => max(0, (int)($p['damageTakenRaw'] ?? 0)),
+            ];
+        }
+        $out[$team] = $list;
+    }
+    return $out;
+}
+
+/**
  * Fill defaults so old/partial clients never break ingest.
  * Id is content-addressed from a stable fingerprint (not the whole body),
  * so host+guest dual-submit and retries dedupe cleanly when fingerprints match.
@@ -543,6 +571,7 @@ function normalizeRecord(array $data): array {
     $unlocked = is_array($data['unlocked'] ?? null) ? $data['unlocked'] : [];
     $techs = normalizeTeamBag($data['techs'] ?? null);
     $damage = normalizeTeamBag($data['damage'] ?? null);
+    $packs = normalizePacks($data['packs'] ?? null);
     $names = is_array($data['names'] ?? null) ? $data['names'] : [];
     $roster = normalizeRoster($data['roster'] ?? null);
 
@@ -614,6 +643,7 @@ function normalizeRecord(array $data): array {
     if ($channel !== '') $out['channel'] = $channel;
     if ($techs !== []) $out['techs'] = $techs;
     if ($damage !== []) $out['damage'] = $damage;
+    if ($packs !== []) $out['packs'] = $packs;
 
     return $out;
 }

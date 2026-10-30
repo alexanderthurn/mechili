@@ -29,6 +29,16 @@ export interface UnitPresence {
     levels: number;
 }
 
+/** one pack's lifetime combat stats (Unit.kills / damageDealt / damageTaken / damageTakenRaw) */
+export interface PackStats {
+    typeId: string;
+    level: number;
+    kills: number;
+    damageDealt: number;
+    damageTaken: number;
+    damageTakenRaw: number;
+}
+
 export interface MatchReplayPayload {
     version: number;
     seed: number;
@@ -78,6 +88,8 @@ export interface MatchTelemetry {
      * Optional on schema-1 records.
      */
     damage?: Record<Team, Record<string, number>>;
+    /** every pack at the match's end with its lifetime combat stats; optional, newer clients only */
+    packs?: Record<Team, PackStats[]>;
     /**
      * Every seat in the match, canonical (side 'a'/'b' — same on every
      * submitter, unlike `names`/`speciality`/`units` above which are all
@@ -128,6 +140,23 @@ export function summarizeUnits(units: readonly Unit[]): Record<Team, Record<stri
         cur.count += 1;
         cur.levels += u.level;
         bag[u.type.id] = cur;
+    }
+    return out;
+}
+
+/** every pack on the final board with its combat stats (skips structures and the horde) */
+export function summarizePacks(units: readonly Unit[]): Record<Team, PackStats[]> {
+    const out: Record<Team, PackStats[]> = { player: [], enemy: [] };
+    for (const u of units) {
+        if (u.type.structure || u.type.extra || u.team === 'horde') continue;
+        out[u.team].push({
+            typeId: u.type.id,
+            level: u.level,
+            kills: u.kills,
+            damageDealt: Math.round(u.damageDealt),
+            damageTaken: Math.round(u.damageTaken),
+            damageTakenRaw: Math.round(u.damageTakenRaw),
+        });
     }
     return out;
 }

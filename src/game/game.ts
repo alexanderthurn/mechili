@@ -86,6 +86,7 @@ import {
     accumulateBattleDamage,
     submitMatchTelemetry,
     summarizeDamage,
+    summarizePacks,
     summarizeTechs,
     summarizeUnits,
     telemetryChannel,
@@ -11099,6 +11100,7 @@ export class Game {
                 units: summarizeUnits(this.placement.allUnits()),
                 techs: summarizeTechs(this.techTree, this.seats),
                 damage: summarizeDamage(this.matchDamageByType),
+                packs: summarizePacks(this.placement.allUnits()),
                 // telemetry reporting only — merges every seat's own unlocks
                 // per side (each seat's shop stays exclusively its own in play)
                 unlocked: {

@@ -1579,6 +1579,14 @@ export class Unit {
     damageDealt = 0;
     /** lifetime individual mechs killed (a wiped 24-dwarf pack counts 24) */
     kills = 0;
+    /** lifetime HP lost (shields and overkill don't count) */
+    damageTaken = 0;
+    /**
+     * lifetime damage taken as the hits came in, uncapped: a 1500 bolt on a
+     * 50-HP dwarf counts 1500 — but each hit once for the pack, however many
+     * of its models its splash reached
+     */
+    damageTakenRaw = 0;
     /** round this unit was deployed in — only units from the current round may be moved */
     deployedRound = 0;
     /**

@@ -1379,6 +1379,10 @@ export class BattleSim {
     readonly damageByType = new Map<string, number>();
     /** HP each pack / building lost (unit id) per attacking type id — the AI's weak points (aiRoles) */
     readonly hpLost = new Map<number, Map<string, number>>();
+    /** the attack now landing: every damage call of one strike, blast, beam tick or hazard step shares it */
+    private hitSeq = 0;
+    /** per pack (unit id): the last attack its raw damage taken counted — a splash counts once a pack */
+    private readonly rawHitOf = new Map<number, number>();
     /** golden auras ({@link UnitType.aura}) are a one-shot at {@link GOLDEN_AURA_APPLY_AT}, not continuous */
     private goldenAuraApplied = false;
     /** duration of the previous sim step — converts actor.mv* into velocity for lead aim */
@@ -1920,6 +1924,7 @@ export class BattleSim {
             const drained = Math.min(amount, target.shieldHp);
             source.damageDealt += drained;
             this.recordDamage(source, amount);
+            this.noteTaken(target, amount, 0);
             target.shieldHp = Math.max(0, target.shieldHp - amount);
             target.hurtTimer = HURT_BAR_SECONDS;
             if (target.spawnUntil > this.elapsed + 1e-9) target.spawnDamaged = true;
@@ -1931,6 +1936,7 @@ export class BattleSim {
         source.damageDealt += drained;
         target.hp -= amount;
         this.recordDamage(source, amount);
+        this.noteTaken(target, amount, drained);
         if (drained > 0) {
             let by = this.hpLost.get(target.unit.id);
             if (!by) this.hpLost.set(target.unit.id, (by = new Map()));
@@ -1941,6 +1947,15 @@ export class BattleSim {
         const steal = this.lifestealFraction(source);
         if (steal > 0 && drained > 0) this.healPack(source, drained * steal);
         if (target.hp <= 0) this.kill(target, source, amount, knockDir);
+    }
+
+    /** a pack's damage taken: the HP it lost, and the hit as it came (once per attack for the pack) */
+    private noteTaken(target: Actor, amount: number, drained: number): void {
+        const u = target.unit;
+        u.damageTaken += drained;
+        if (this.rawHitOf.get(u.id) === this.hitSeq) return;
+        this.rawHitOf.set(u.id, this.hitSeq);
+        u.damageTakenRaw += amount;
     }
 
     /** Hex active right now (researched talents off + slow). */
@@ -2315,6 +2330,7 @@ export class BattleSim {
         dist: number,
     ): void {
         if (damage <= 0) return;
+        this.hitSeq++;
         // Ground swat: swing still happens (caller burned cooldown); bird often escapes.
         if (!this.groundSwatConnects(a, target)) return;
         const radius = this.cleaveRadiusOf(a);
@@ -2795,6 +2811,7 @@ export class BattleSim {
      * The locked focus always connects within engagement reach even when the
      * splash disk is smaller (ogre: tight cleave, strong single-target smash). */
     private cleaveStrike(a: Actor, radius: number, damage: number, focus: Actor): void {
+        this.hitSeq++;
         const team = actorTeam(a);
         const hits: Actor[] = [];
         for (const t of this.actors) {
@@ -2886,6 +2903,8 @@ export class BattleSim {
 
     /** burn DoT + standing in ground fire (both friendly-fire) */
     private stepHazards(dt: number): void {
+        // a step's burn and acid: one hit per pack
+        this.hitSeq++;
         this.hazards.tickFire(this.elapsed);
         // burning cells never leave oil behind when the flames go out
         this.hazards.consumeOilUnderFire(this.elapsed);
@@ -2970,6 +2989,7 @@ export class BattleSim {
         knockDir?: { x: number; z: number },
     ): void {
         if (amount <= 0 || !target.alive) return;
+        this.noteTaken(target, amount, Math.min(amount, Math.max(0, target.hp)));
         target.hp -= amount;
         target.hurtTimer = HURT_BAR_SECONDS;
         if (target.spawnUntil > this.elapsed + 1e-9) target.spawnDamaged = true;
@@ -4125,6 +4145,7 @@ export class BattleSim {
         damage: number,
         strike?: SpellStrike,
     ): void {
+        this.hitSeq++;
         if (damage <= 0) return;
         const domes = this.actors.filter((a) => a.alive && a.unit.type.shield);
         const hitDomes = new Set<Actor>();
@@ -6487,6 +6508,7 @@ export class BattleSim {
                     this.emitStuckAtImpact(p.style, ix, iy, iz, sx, sy, sz, hit, p.scale);
                 } else {
                     const dealt = p.damage * this.damageTakenMult(hit);
+                    this.hitSeq++;
                     this.applyDamage(
                         p.source,
                         hit,
@@ -6758,6 +6780,7 @@ export class BattleSim {
     private stoneStrike(p: Projectile, hit: Actor, ix: number, iy: number, iz: number, sx: number, sz: number): boolean {
         const st = p.stone!;
         st.hit.add(hit.index);
+        this.hitSeq++;
         const speed = hypot(p.vx, p.vy, p.vz);
         const f = Math.min(1, speed / st.refSpeed);
         const dealt = p.damage * f * this.damageTakenMult(hit);
@@ -6838,6 +6861,7 @@ export class BattleSim {
         radius: number,
         shotDir?: { x: number; z: number },
     ): void {
+        this.hitSeq++;
         const targets = effectiveTargets(p.source.type, p.source.seat, this.config.hasTech, this.config.types);
         for (const a of this.actors) {
             if (!a.alive || actorTeam(a) === p.team) continue;
@@ -7780,6 +7804,7 @@ export class BattleSim {
      * own damage taken.
      */
     private hitWallsAt(source: Unit, wall: Actor, base: number, x: number, z: number, knockDir: { x: number; z: number }): void {
+        this.hitSeq++;
         const team = actorTeam(wall);
         const struck = base * this.damageTakenMult(wall);
         if (struck > 0) this.applyDamage(source, wall, struck, knockDir, 'direct');
@@ -7927,6 +7952,8 @@ export class BattleSim {
             const ray = caster.unit.type.convertRay;
             if (!ray || !caster.alive || caster.unit.type.structure) continue;
             if (this.isSpawning(caster) || caster.unit.marchIn) continue;
+            // a ray's tick this step: one hit
+            this.hitSeq++;
 
             if (caster.convertCooldown > 0) {
                 caster.convertCooldown = Math.max(0, caster.convertCooldown - dt);
@@ -8058,6 +8085,8 @@ export class BattleSim {
             const beam = caster.unit.type.rampBeam;
             if (!beam || !caster.alive || caster.unit.type.structure) continue;
             if (this.isSpawning(caster) || caster.unit.marchIn) continue;
+            // a beam's tick this step, splash and all: one hit
+            this.hitSeq++;
 
             const native = this.nativeTargets(caster);
             const team = actorTeam(caster);
