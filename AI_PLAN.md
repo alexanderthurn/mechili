@@ -222,11 +222,12 @@ Every difficulty for now (`aiRoles.ts`, decided 2026-10-30): a few fixed types, 
 
 - The round's 1st pack is chaff; the 3rd too before round 5.
 - Order: the first two packs, then the kept army's levels, then the +1 buy — only when supply covers it and a pack — and the 3rd pack.
-- Every other pack answers the need that is largest: enemy air, chaff, walls that matter, and everything else (the strong unit), each the enemy's value less twice the value of the own answer (half the value answers it). Nothing open: the strong unit.
+- Every other pack answers a **weak point** of the last battle (from round 2): what its own side lost, by share of HP, weighted — a pack 1, a debuff tower 3, the Stronghold (or Tent) 5; chaff, walls and other buildings 0 (they're there to be hit). The loss is split by what dealt it: air → archer, chaff → hammerer, anything else → the strong unit. The biggest kind first (from 0.5 on), each kind once a round. The answer stands just behind the own pack or building that lost most to it. What went well gets nothing more.
+- No weak point left: ballistas when the enemy's walls matter (enemy walls' value less twice the own ballistas' value), else the strong unit. Round 1 (no battle yet): the board — enemy air, chaff, walls and the rest, each its value less twice the own answer's value, the largest first.
 - An answer costs only what leaves the round's chaff packs affordable — early rounds are cheap packs, the strong unit comes once supply allows. Locked role units take the round's unlock.
 - A second strong unit joins once the first can't hit half of the enemy's army (the ogre against air: a random 200+ unit that hits air).
 
-Next (step 2): record where each enemy pack went in the last battle, and place answers on its expected route, its range back from the clash, in line with the own army (a flank route alone if need be, with chaff in front).
+The battle records every pack's and building's HP lost per attacking type (`BattleSim.hpLost`, `BattleRecord.losses`); the debug overlay shows the weak points (`weak: air 1.4 at ballista`).
 
 ## Counter table
 

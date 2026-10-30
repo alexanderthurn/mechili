@@ -1377,6 +1377,8 @@ export class BattleSim {
     private readonly empBaseStats = new Map<string, ResolvedStats>();
     /** damage dealt per `${team}:${typeId}` — the post-battle report data */
     readonly damageByType = new Map<string, number>();
+    /** HP each pack / building lost (unit id) per attacking type id — the AI's weak points (aiRoles) */
+    readonly hpLost = new Map<number, Map<string, number>>();
     /** golden auras ({@link UnitType.aura}) are a one-shot at {@link GOLDEN_AURA_APPLY_AT}, not continuous */
     private goldenAuraApplied = false;
     /** duration of the previous sim step — converts actor.mv* into velocity for lead aim */
@@ -1929,6 +1931,11 @@ export class BattleSim {
         source.damageDealt += drained;
         target.hp -= amount;
         this.recordDamage(source, amount);
+        if (drained > 0) {
+            let by = this.hpLost.get(target.unit.id);
+            if (!by) this.hpLost.set(target.unit.id, (by = new Map()));
+            by.set(source.type.id, (by.get(source.type.id) ?? 0) + drained);
+        }
         target.hurtTimer = HURT_BAR_SECONDS;
         if (target.spawnUntil > this.elapsed + 1e-9) target.spawnDamaged = true;
         const steal = this.lifestealFraction(source);

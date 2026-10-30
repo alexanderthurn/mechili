@@ -180,12 +180,25 @@ export interface TowerRecord {
     hpLeft: number;
 }
 
-/** the towers of the last battle (AI_PLAN.md, "Last battle") */
+/** what one pack or building lost in a battle, by the type that dealt it */
+export interface LossRecord {
+    unitId: number;
+    typeId: string;
+    seat: SeatId;
+    team: Team;
+    /** all its members' HP together */
+    maxHp: number;
+    /** HP lost per attacking type id */
+    by: Map<string, number>;
+}
+
+/** the towers of the last battle (AI_PLAN.md, "Last battle") and what every pack and building lost */
 export interface BattleRecord {
     round: number;
     /** how long the battle ran, seconds */
     duration: number;
     towers: TowerRecord[];
+    losses: LossRecord[];
 }
 
 /** read from a finished battle — the same on every peer and in a resumed match (battles replay) */
@@ -203,7 +216,17 @@ export function recordBattle(sim: BattleSim, round: number): BattleRecord {
             hpLeft: a.alive ? Math.max(0, Math.min(1, a.hp / Math.max(1, a.maxHp))) : 0,
         });
     }
-    return { round, duration: sim.elapsed, towers };
+    const maxHp = new Map<number, number>();
+    for (const a of sim.actors) maxHp.set(a.unit.id, (maxHp.get(a.unit.id) ?? 0) + a.maxHp);
+    const losses: LossRecord[] = [];
+    const seen = new Set<number>();
+    for (const a of sim.actors) {
+        const by = sim.hpLost.get(a.unit.id);
+        if (!by || a.unit.team === 'horde' || seen.has(a.unit.id)) continue;
+        seen.add(a.unit.id);
+        losses.push({ unitId: a.unit.id, typeId: a.unit.type.id, seat: a.unit.seat, team: a.unit.team, maxHp: maxHp.get(a.unit.id) ?? 1, by });
+    }
+    return { round, duration: sim.elapsed, towers, losses };
 }
 
 /** the threat map and the last battle as lines for the debug overlay */

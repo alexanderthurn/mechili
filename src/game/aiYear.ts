@@ -434,8 +434,8 @@ export interface Stance {
 
 export const NO_STANCE: Stance = { focusX: null, pull: 0, spread: [], depthShift: 0, guard: null };
 
-/** chooses the round's pack number `index` (0 = its first) of `slots` itself — null: none */
-export type PackPick = (index: number, slots: number, cost: (t: UnitType) => number) => UnitType | null;
+/** chooses the round's pack number `index` (0 = its first) of `slots` itself, maybe to stand by `near` — null: none */
+export type PackPick = (index: number, slots: number, cost: (t: UnitType) => number) => { type: UnitType; near?: Unit } | null;
 /** buys one more pack slot for the round when a pack for it makes sense — whether it did */
 export type ExtraSlot = (cost: (t: UnitType) => number) => boolean;
 /** with picked packs, these come before the kept army's levels; the rest after */
@@ -603,9 +603,16 @@ export class YearBrain {
         const placed: { x: number; type: UnitType }[] = [];
         const guards = this.stance.guard?.packs ?? 0;
         while (this.bought < slots) {
-            const type = this.pick(this.bought, slots, (t) => this.buyCost(t));
-            if (!type || this.buyCost(type) > this.host.economy.balance(this.seat)) break;
-            if (!this.placeOne(type, depthFor(type), lanes, placed, this.bought < guards ? this.stance.guard!.x : undefined)) break;
+            const pick = this.pick(this.bought, slots, (t) => this.buyCost(t));
+            if (!pick || this.buyCost(pick.type) > this.host.economy.balance(this.seat)) break;
+            const { type, near } = pick;
+            const guard = this.bought < guards ? this.stance.guard!.x : undefined;
+            // an answer to a weak point stands just behind what was hurt
+            const at = near && guard === undefined ? this.spotBehind(type, near) : null;
+            if (at) {
+                if (!this.buyAt(type, at)) break;
+                placed.push({ x: at.x, type });
+            } else if (!this.placeOne(type, depthFor(type), lanes, placed, guard)) break;
         }
     }
 
@@ -760,13 +767,9 @@ export class YearBrain {
     ): boolean {
         // chaff stands anywhere: the enemy comes from many angles, so it screens best spread at random
         const at = isChaff(type) && atX === undefined ? this.randomSpot(type) : this.spotFor(type, depth, lanes, placed, atX, false);
-        if (!at) return false;
-        const ok = this.host.dispatch({ kind: 'buy', team: this.team, seat: this.seat, typeId: type.id, anchor: at.spot, rotated: false });
-        if (ok) {
-            placed.push({ x: at.x, type });
-            this.bought++;
-        }
-        return ok;
+        if (!at || !this.buyAt(type, at)) return false;
+        placed.push({ x: at.x, type });
+        return true;
     }
 
     /** any spot of the side's zone a new pack of `type` may stand on, at random */
@@ -828,6 +831,18 @@ export class YearBrain {
         const wantCol = Math.round((x + map.halfW) / CELL - fp.cols / 2);
         // the pack's center sits `depth` tiles behind the front edge (anchor = its first row)
         const wantRow = Math.round(frontRow - forward * (depth + fp.rows / 2) - fp.rows / 2);
+        const best = this.nearestSpot(type, wantCol, wantRow, rotated, colMin, colMax);
+        if (best) return { spot: best, x };
+        // nothing near the wanted spot: anywhere it may stand (a new pack only — a moved one keeps its place)
+        if (rotated) return null;
+        const any = placement.findAiSpot(this.team, this.seat, type, this.rng);
+        return any && !any.rotated ? { spot: any.anchor, x } : null;
+    }
+
+    /** the free spot for `type` nearest to the wanted anchor, the row kept before the column; null when none is near */
+    private nearestSpot(type: UnitType, wantCol: number, wantRow: number, rotated: boolean, colMin: number, colMax: number): { col: number; row: number } | null {
+        const { placement } = this.host;
+        const fp = rotated ? { cols: type.footprint.rows, rows: type.footprint.cols } : type.footprint;
         let best: { col: number; row: number; d: number } | null = null;
         for (let radius = 0; radius < 22 && !best; radius++) {
             for (let dc = -radius; dc <= radius; dc++) {
@@ -845,10 +860,24 @@ export class YearBrain {
                 }
             }
         }
-        if (best) return { spot: { col: best.col, row: best.row }, x };
-        // nothing near the wanted spot: anywhere it may stand (a new pack only — a moved one keeps its place)
-        if (rotated) return null;
-        const any = placement.findAiSpot(this.team, this.seat, type, this.rng);
-        return any && !any.rotated ? { spot: any.anchor, x } : null;
+        return best ? { col: best.col, row: best.row } : null;
+    }
+
+    /** the spot just behind `unit` (toward the own base) for a new pack of `type`, or null when nothing fits near it */
+    private spotBehind(type: UnitType, unit: Unit): { spot: { col: number; row: number }; x: number } | null {
+        const { forward, colMin, colMax } = this.frontline(this.team);
+        const own = unit.rotated ? { cols: unit.type.footprint.rows, rows: unit.type.footprint.cols } : unit.type.footprint;
+        const fp = type.footprint;
+        const centerCol = unit.cell.col + own.cols / 2;
+        const centerRow = unit.cell.row + own.rows / 2 - forward * (own.rows / 2 + fp.rows / 2 + 1);
+        const spot = this.nearestSpot(type, Math.round(centerCol - fp.cols / 2), Math.round(centerRow - fp.rows / 2), false, colMin, colMax);
+        return spot ? { spot, x: unit.world.x } : null;
+    }
+
+    /** buys a pack of `type` on `at` */
+    private buyAt(type: UnitType, at: { spot: { col: number; row: number } }): boolean {
+        const ok = this.host.dispatch({ kind: 'buy', team: this.team, seat: this.seat, typeId: type.id, anchor: at.spot, rotated: false });
+        if (ok) this.bought++;
+        return ok;
     }
 }

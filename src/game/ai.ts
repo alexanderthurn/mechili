@@ -19,7 +19,7 @@ import type { TypeRegistry } from './content/typeRegistry';
 import type { SeatId } from './seats';
 import { itemSlotLimit } from './items';
 import { NO_STANCE, YearBrain, type PackPick, type Stance } from './aiYear';
-import { AI_ROLES, readNeeds, STRONG_FROM, strongHelpless, THIRD_PACK_FREE_FROM, type Need, type Roster } from './aiRoles';
+import { AI_ROLES, readNeeds, readWeakPoints, STRONG_FROM, strongHelpless, THIRD_PACK_FREE_FROM, type LossKind, type Need, type Roster, type WeakPoint } from './aiRoles';
 import { CELL } from './map';
 import { isChaff } from './aiCounters';
 import { AI_WALL_ID, orderedWallPlan, placeWallPlan, sideFrontline, wallInSlot, wallPlanCells, type PlanSlot } from './aiWalls';
@@ -154,7 +154,12 @@ export class AiOpponent implements Opponent {
     debugLines(name: string): string[] {
         if (!this.threat) return [];
         const style = this.ctx.style === 'rusher' ? `rusher ${this.ctx.rushSide === 0 ? 'low' : 'high'} side` : this.ctx.style;
-        return threatLines(`${name} (${this.ctx.difficulty}, ${style})`, this.threat, this.ctx.lastBattle?.() ?? null, this.team, this.seat);
+        const lines = threatLines(`${name} (${this.ctx.difficulty}, ${style})`, this.threat, this.ctx.lastBattle?.() ?? null, this.team, this.seat);
+        if (this.weakPoints.length > 0) {
+            const at = (id: number) => this.ctx.placement.allUnits().find((u) => u.id === id)?.type.id ?? '?';
+            lines.push('  weak: ' + this.weakPoints.map((w) => `${w.kind} ${w.loss.toFixed(1)} at ${at(w.victimId)}`).join(', '));
+        }
+        return lines;
     }
 
     chooseStarter(offer: readonly StartCard[]): void {
@@ -618,31 +623,58 @@ export class AiOpponent implements Opponent {
     /** its roles this match: its chaff and strong units (aiRoles), set at its first build */
     private roster: Roster | null = null;
 
+    /** the last battle's weak points, as read at the last build (for the debug overlay) */
+    private weakPoints: WeakPoint[] = [];
+
     /**
      * Its packs by roles (AI_PLAN.md, "Chaff and roles"): the round's 1st pack is
-     * chaff, and so is the 3rd before round {@link THIRD_PACK_FREE_FROM}; every
-     * other pack answers what of the enemy is answered least — air (archers),
-     * chaff (hammerers), walls that matter (ballistas), the rest (its strong
-     * unit) — while what it costs leaves the round's chaff affordable. Locked
-     * role units are unlocked when the round's unlock is still free.
+     * chaff, and so is the 3rd before round {@link THIRD_PACK_FREE_FROM}. Every
+     * other pack answers a weak point of the last battle — what hurt it most
+     * that the round hasn't answered yet: air (archers), chaff (hammerers),
+     * the rest (its strong unit) — standing by what was hurt; with none left,
+     * walls that matter (ballistas), else the strong unit. Round 1 (no battle
+     * yet): what of the enemy's army is answered least. An answer only costs
+     * what leaves the round's chaff affordable; locked role units are unlocked
+     * when the round's unlock is still free.
      */
     private rolePick(rng: () => number): PackPick {
         const roster = this.rosterFor(rng);
         const chaffPack = (i: number) => i === 0 || (i === 2 && this.round < THIRD_PACK_FREE_FROM);
+        const last = this.ctx.lastBattle?.() ?? null;
+        this.weakPoints = last ? readWeakPoints(last, this.seat, this.ctx.types) : [];
+        const answered = new Set<LossKind>();
         return (index, slots, cost) => {
             const chaff = this.ctx.types.byId(roster.chaff);
             let reserve = 0;
             for (let j = index + 1; j < slots; j++) if (chaffPack(j) && chaff) reserve += cost(chaff);
-            const fallback = () => this.readyRole(roster.chaff, cost, 0) ?? this.cheapestArmyType(cost);
+            const fallback = () => {
+                const type = this.readyRole(roster.chaff, cost, 0) ?? this.cheapestArmyType(cost);
+                return type ? { type } : null;
+            };
             if (chaffPack(index)) return fallback();
+            // a weak point of the last battle, by what was hurt
+            for (const weak of this.weakPoints) {
+                if (answered.has(weak.kind)) continue;
+                const need: Need = weak.kind === 'other' ? 'strong' : weak.kind;
+                for (const id of this.roleUnits(need, roster)) {
+                    const type = this.readyRole(id, cost, reserve);
+                    if (!type) continue;
+                    answered.add(weak.kind);
+                    const near = this.ctx.placement.allUnits().find((u) => u.id === weak.victimId && !u.gridless);
+                    return { type, near };
+                }
+            }
             const needs = readNeeds(this.ctx.placement, this.team, this.seat, roster);
-            const order = (Object.keys(needs) as Need[]).filter((k) => needs[k] > 0).sort((a, b) => needs[b] - needs[a]);
+            // after a battle only walls still count from the board; before one, all of it
+            const order: Need[] = last
+                ? needs.walls > 0 ? ['walls', 'strong'] : ['strong']
+                : (Object.keys(needs) as Need[]).filter((k) => needs[k] > 0).sort((a, b) => needs[b] - needs[a]);
             // nothing left unanswered: the strong unit
             if (!order.includes('strong')) order.push('strong');
             for (const need of order) {
                 for (const id of this.roleUnits(need, roster)) {
                     const type = this.readyRole(id, cost, reserve);
-                    if (type) return type;
+                    if (type) return { type };
                 }
             }
             return fallback();
