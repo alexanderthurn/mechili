@@ -4757,7 +4757,8 @@ export class BattleSim {
                     skin,
                 );
             } else {
-                driveGroundSkin(a.mesh, { dead, moving }, skin);
+                const speedRatio = nominal > 1e-6 ? stepDist / nominal : 0;
+                driveGroundSkin(a.mesh, { dead, moving, speedRatio }, skin);
             }
         }
         if (usesWingFlapModel(a.unit.type.modelId ?? a.unit.type.id) && a.mesh.userData.instanced) {

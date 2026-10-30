@@ -37,7 +37,6 @@ import {
     flagInstancedSkinUpload,
     registerInstancedSkinProxy,
     setupInstancedSkinAttributes,
-    updateInstancedSkinClock,
     writeInstancedSkin,
     type InstancedSkinData,
 } from './instancedSkin';
@@ -244,8 +243,6 @@ export class UnitInstanceRenderer {
     /** Push proxy world matrices into every alive/dead InstancedMesh. */
     sync(dtSeconds = 0, wingFlapActive = true): void {
         if (dtSeconds > 0 && wingFlapActive) updateCrowWingFlap(dtSeconds);
-        // skinned units idle in deployment too — their drivers pick still poses where needed
-        if (dtSeconds > 0) updateInstancedSkinClock(dtSeconds);
         const showDead = prefs().renderDeadUnits;
         for (const [key, pool] of this.pools) {
             if (pool.skin) this.syncSkin(pool, pool.skin);

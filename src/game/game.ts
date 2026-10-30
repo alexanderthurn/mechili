@@ -194,7 +194,7 @@ import { BattleOverlays, type BattleOverlaysHost } from './battleOverlays';
 import { HudViews, type EnemyIntelSnapshot, type HudViewsHost } from './hudViews';
 import { SelectionInfoBuilder, type BuildingIntelSeat, type BuildingIntelSnapshot, type SelectionInfoHost } from './selectionInfo';
 import { getUnitVisualHeight, instancedSkinOf, modelGeometryFingerprint, modelGeometrySnapshot, usesWingFlapModel } from './unitModels';
-import { playInstancedSkinLoop } from './instancedSkin';
+import { instancedSkinBoneAt, playInstancedSkinLoop, updateInstancedSkins } from './instancedSkin';
 import { BirdFlocks } from './birdFlocks';
 import { WallJoins } from './wallJoins';
 import { GateDoors } from './gateDoors';
@@ -11364,7 +11364,10 @@ export class Game {
                         structure: !!a.unit.type.structure,
                         exactSeat: !!a.unit.type.wall,
                         // skinned units: ride the bone under the hit (death clips carry it)
-                        boneAt: (world) => stuckBoltBoneAt(stuckBoltAttachOf(a.mesh), world),
+                        boneAt: (world) => {
+                            const skin = a.mesh.userData.instancedSkin ? instancedSkinOf(a.unit.type.modelId ?? a.unit.type.id) : null;
+                            return skin ? instancedSkinBoneAt(a.mesh, world, skin) : stuckBoltBoneAt(stuckBoltAttachOf(a.mesh), world);
+                        },
                     };
                 });
                 this.stoneChips.spawnFromEvents(battleEvents, (x, z) => groundHeightAt(x, z));
@@ -11453,6 +11456,7 @@ export class Game {
                 if (profile) cpu.end('battleVisuals');
                 // Pose / foot-align before bolt follow so shafts ride the inner model
                 updateAnimatedUnits(gameDt);
+                updateInstancedSkins(gameDt);
                 this.stuckBolts.sync();
                 this.projectileRenderer.update(this.sim.projectiles, this.sim.alpha, gameDt);
                 this.dragonFx.update(this.sim.renderElapsed);
@@ -11592,6 +11596,7 @@ export class Game {
         // Battle already advanced mixers before stuckBolts.sync above.
         if (this.phase !== 'battle') {
             updateAnimatedUnits(gameDt); // rigged walk/fire — scales with battle speed
+            updateInstancedSkins(gameDt); // GPU-skinned packs idle in deployment too
         }
         // Hide “you can move me” hints + disable visual repositioning once
         // End Deployment has locked this seat in.

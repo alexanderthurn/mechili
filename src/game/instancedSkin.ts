@@ -5,6 +5,8 @@ import {
     FloatType,
     InstancedBufferAttribute,
     Matrix4,
+    Object3D,
+    Vector3,
     MeshDepthMaterial,
     MeshStandardMaterial,
     NearestFilter,
@@ -15,7 +17,6 @@ import {
     type Group,
     type InstancedMesh,
     type Material,
-    type Object3D,
     type SkinnedMesh,
 } from 'three';
 import { computeCrowWingRate, type CrowWingRateInput } from './crowWingFlap';
@@ -39,6 +40,8 @@ const ROLES: readonly SkinRole[] = ['walk', 'idle', 'fire', 'death'];
 const BAKE_FPS = 30;
 /** Seconds to cross-fade from the previous clip into the next. */
 const FADE_SECONDS = 0.2;
+/** Ground units drop from walk to idle only after standing this long. */
+const STAND_AFTER_SECONDS = 0.25;
 /** `row * ROW_PACK + frames` packs a clip's texture row and length into one float. */
 const ROW_PACK = 1024;
 
@@ -59,13 +62,22 @@ export interface InstancedSkinData {
     clips: Partial<Record<SkinRole, BakedClip>>;
     /** where the death clip lays the body, holder XZ (rest forward −Z) — see ModelAnimation.death */
     deathFallLocal: { x: number; z: number };
+    /** bone count (texture width / 4) */
+    bones: number;
+    /** bind-pose skinned geometry — the CPU picks bones under arrow hits from it */
+    geometry: BufferGeometry;
 }
 
 /** One shared clock for every skinned pool — advanced with sim-scaled dt. */
 const skinTime = { value: 0 };
 
-export function updateInstancedSkinClock(dtSeconds: number): void {
-    skinTime.value += dtSeconds;
+/**
+ * Advance the skin clock and re-pose stuck-arrow bone followers. Runs every
+ * phase (packs idle in deployment too) — before stuck bolts sync, like mixers.
+ */
+export function updateInstancedSkins(dtSeconds: number): void {
+    if (dtSeconds > 0) skinTime.value += dtSeconds;
+    updateInstancedSkinBones();
 }
 
 function pickClip(clips: readonly AnimationClip[], name: string | number): AnimationClip | null {
@@ -115,7 +127,13 @@ export function bakeInstancedSkin(
     const pre = new Matrix4();
     const m = new Matrix4();
     const mixer = new AnimationMixer(root);
-    const out: InstancedSkinData = { texture: null!, clips: {}, deathFallLocal: anim.death?.fallLocal ?? { x: 0, z: -1 } };
+    const out: InstancedSkinData = {
+        texture: null!,
+        clips: {},
+        deathFallLocal: anim.death?.fallLocal ?? { x: 0, z: -1 },
+        bones,
+        geometry: mesh.geometry,
+    };
     let row = 0;
     for (const p of plan) {
         const action = mixer.clipAction(p.clip);
@@ -298,6 +316,10 @@ interface SkinAnimState {
     seed: number;
     /** walk vs idle hysteresis */
     walking: boolean;
+    /** ground units: smoothed speed ratio, and since when it has been near zero */
+    speed: number;
+    stillSince: number;
+    lastDrive: number;
 }
 
 function stateOf(proxy: Object3D): SkinAnimState {
@@ -311,6 +333,9 @@ function stateOf(proxy: Object3D): SkinAnimState {
             dying: false,
             seed,
             walking: false,
+            speed: 0,
+            stillSince: -1,
+            lastDrive: skinTime.value,
         };
         proxy.userData.skinAnim = s;
     }
@@ -388,14 +413,35 @@ export function resetInstancedSkin(proxy: Object3D): void {
 }
 
 /**
- * Ground locomotion: walk while the unit travels (playback follows its speed,
- * so feet don't skate when slowed), idle when it stands. Same hysteresis as flyers.
+ * Ground locomotion: walk as soon as the unit really travels — a slow shuffle in
+ * a scrum included, or it glides in its idle pose — idle when it stands.
+ * Playback follows the real speed: `speedRatio` is ground speed / UnitType.speed,
+ * up to 2× like the mixer path, so feet keep pace with the ground.
  */
-export function driveGroundSkin(proxy: Object3D, input: { dead?: boolean; moving: number }, skin: InstancedSkinData): void {
+export function driveGroundSkin(
+    proxy: Object3D,
+    input: { dead?: boolean; moving: number; speedRatio?: number },
+    skin: InstancedSkinData,
+): void {
     if (!proxy.userData.instancedSkin || input.dead) return;
     const s = stateOf(proxy);
-    s.walking = s.walking ? input.moving > 0.2 : input.moving > 0.4;
-    if (s.walking) playInstancedSkinLoop(proxy, 'walk', Math.max(0.4, input.moving), skin);
+    // The sim steps at 16 Hz and a unit in a crowd often holds still for a single
+    // step: ease the speed (fast up, slower down) and only stand after a real
+    // pause, or the run drops to idle and restarts every time it is jostled.
+    const t = skinTime.value;
+    const dt = Math.min(0.1, Math.max(0, t - s.lastDrive));
+    s.lastDrive = t;
+    const raw = Math.min(2, input.speedRatio ?? input.moving);
+    s.speed += (raw - s.speed) * Math.min(1, (raw > s.speed ? 14 : 6) * dt);
+    if (raw > 0.1) {
+        s.walking = true;
+        s.stillSince = -1;
+    } else if (s.walking && raw < 0.05) {
+        if (s.stillSince < 0) s.stillSince = t;
+        if (t - s.stillSince > STAND_AFTER_SECONDS) s.walking = false;
+    }
+    const ratio = Math.min(2, Math.max(0.35, s.speed));
+    if (s.walking) playInstancedSkinLoop(proxy, 'walk', ratio, skin);
     else playInstancedSkinLoop(proxy, 'idle', 1, skin);
 }
 
@@ -476,4 +522,119 @@ export function writeInstancedSkin(mesh: InstancedMesh, index: number, proxy: Ob
 
 export function flagInstancedSkinUpload(mesh: InstancedMesh): void {
     for (const name of [A_ATTR, B_ATTR, FADE_ATTR]) mesh.geometry.getAttribute(name).needsUpdate = true;
+}
+
+// ── CPU side: stuck arrows ride a bone ───────────────────────────────────────
+
+const _m0 = new Matrix4();
+const _m1 = new Matrix4();
+const _mB = new Matrix4();
+
+/** One baked bone matrix of `play` at time `t`, frames lerped like the shader does. */
+function clipBone(skin: InstancedSkinData, play: ClipPlay, bone: number, t: number, out: Matrix4): Matrix4 {
+    const clip = skin.clips[play.role];
+    if (!clip) return out.identity();
+    let f = clipSeconds(play, t) * BAKE_FPS;
+    f = clip.loop ? ((f % (clip.frames - 1)) + (clip.frames - 1)) % (clip.frames - 1) : Math.min(Math.max(f, 0), clip.frames - 1);
+    const f0 = Math.floor(f);
+    const f1 = Math.min(f0 + 1, clip.frames - 1);
+    const a = f - f0;
+    const data = skin.texture.image.data as Float32Array;
+    const width = skin.bones * 4;
+    _m0.fromArray(data, ((clip.row + f0) * width + bone * 4) * 4);
+    _m1.fromArray(data, ((clip.row + f1) * width + bone * 4) * 4);
+    for (let k = 0; k < 16; k++) out.elements[k] = _m0.elements[k]! * (1 - a) + _m1.elements[k]! * a;
+    return out;
+}
+
+/** The bone's current skinning matrix for one mech (cross-fade included), proxy-local. */
+function boneNow(skin: InstancedSkinData, s: SkinAnimState, bone: number, out: Matrix4): Matrix4 {
+    const t = skinTime.value;
+    clipBone(skin, s.a, bone, t, out);
+    const k = Math.min(1, Math.max(0, (t - s.fadeStart) / FADE_SECONDS));
+    if (k < 1 && s.b) {
+        clipBone(skin, s.b, bone, t, _mB);
+        for (let i = 0; i < 16; i++) out.elements[i] = out.elements[i]! * k + _mB.elements[i]! * (1 - k);
+    }
+    return out;
+}
+
+/** Live bone followers (proxy children) that {@link updateInstancedSkinBones} keeps posed. */
+const followers = new Set<Object3D>();
+const _v = new Vector3();
+const _best = new Vector3();
+const _skin = new Matrix4();
+/** at most this many vertices are tested per hit */
+const PICK_SAMPLES = 1500;
+
+/**
+ * The bone a stuck arrow should ride on a GPU-skinned mech: the dominant bone of
+ * the posed vertex nearest `worldPoint`, as a child of the proxy that follows that
+ * bone every frame — so shafts fall with a death clip instead of hanging where
+ * the unit stood. Null when the proxy isn't GPU-skinned.
+ */
+export function instancedSkinBoneAt(proxy: Object3D, worldPoint: Vector3, skin: InstancedSkinData): Object3D | null {
+    if (!proxy.userData.instancedSkin) return null;
+    const s = stateOf(proxy);
+    const pos = skin.geometry.getAttribute('position');
+    const idx = skin.geometry.getAttribute('skinIndex');
+    const wts = skin.geometry.getAttribute('skinWeight');
+    if (!pos || !idx || !wts) return null;
+    proxy.updateMatrixWorld(true);
+    const step = Math.max(1, Math.floor(pos.count / PICK_SAMPLES));
+    let bestD = Infinity;
+    let bestI = -1;
+    for (let i = 0; i < pos.count; i += step) {
+        _best.set(0, 0, 0);
+        for (let k = 0; k < 4; k++) {
+            const w = wts.getComponent(i, k);
+            if (w <= 0) continue;
+            boneNow(skin, s, idx.getComponent(i, k), _skin);
+            _v.fromBufferAttribute(pos, i).applyMatrix4(_skin).multiplyScalar(w);
+            _best.add(_v);
+        }
+        const d = _best.applyMatrix4(proxy.matrixWorld).distanceToSquared(worldPoint);
+        if (d < bestD) {
+            bestD = d;
+            bestI = i;
+        }
+    }
+    if (bestI < 0) return null;
+    let bone = 0;
+    let top = -1;
+    for (let k = 0; k < 4; k++) {
+        const w = wts.getComponent(bestI, k);
+        if (w > top) {
+            top = w;
+            bone = idx.getComponent(bestI, k);
+        }
+    }
+    const byBone = (proxy.userData.skinBones ??= {}) as Record<number, Object3D>;
+    let f = byBone[bone];
+    if (!f) {
+        f = new Object3D();
+        f.name = `skinBone${bone}`;
+        f.matrixAutoUpdate = false;
+        f.userData.skinBone = { bone, skin };
+        proxy.add(f);
+        byBone[bone] = f;
+        followers.add(f);
+    }
+    boneNow(skin, s, bone, f.matrix);
+    f.updateMatrixWorld(true);
+    return f;
+}
+
+/** Pose every bone follower for this frame (after the skin clock advanced). */
+function updateInstancedSkinBones(): void {
+    for (const f of followers) {
+        const proxy = f.parent;
+        if (!proxy) {
+            followers.delete(f);
+            continue;
+        }
+        const { bone, skin } = f.userData.skinBone as { bone: number; skin: InstancedSkinData };
+        boneNow(skin, stateOf(proxy), bone, f.matrix);
+        f.matrixWorldNeedsUpdate = true;
+    }
 }

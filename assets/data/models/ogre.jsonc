@@ -1,14 +1,17 @@
+// Rigged ogre (Tripo biped, Z-up rig), GPU-skinned in the instance pools.
+// Clips cut from Tripo's presets with scripts/glb-prep-clips.mjs (hips pinned
+// in world space); idle built with scripts/glb-make-idle.mjs (walk upper body,
+// rest-pose legs, slow breathing).
 {
     "file": "models/units/ogre.glb",
     "yawDeg": 90,
-    "skinned": true,
+    "instancedSkin": true,
     "animation": {
-        // foot align is measured from the walk clip, so deploy and run both sit on the marker
-        "walk": { "clip": "run", "speed": 0.5 },
-        // authored ~3.8s, sped up to fit combat cadence; melee stands in a scrum,
-        // so micro-pushes must not cancel the swing
-        "fire": { "clip": "pitch_baseball", "speed": 3, "hold": true },
-        // ~3.0s authored → ~1.4s tip; the head falls toward the character's left
-        "death": { "clip": "fall", "speed": 2.2, "fallLocal": { "x": -1, "z": 0 } },
+        "walk": { "clip": "walk", "speed": 0.55 }, // Tripo run
+        "idle": { "clip": "idle" },
+        // pitch_baseball 0–2.4 s (wind-up + throw), sped up to fit attackInterval 1.35
+        "fire": { "clip": "fire", "speed": 2 },
+        // ~3.0 s authored → ~1.4 s tip; the head falls toward the character's left
+        "death": { "clip": "death", "speed": 2.2, "fallLocal": { "x": -1, "z": 0 } },
     },
 }
