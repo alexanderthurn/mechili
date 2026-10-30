@@ -35,6 +35,7 @@ import { attachBuildingSnow } from './buildingSnow';
 import {
     attachInstancedSkin,
     flagInstancedSkinUpload,
+    freezeInstancedSkin,
     registerInstancedSkinProxy,
     setupInstancedSkinAttributes,
     writeInstancedSkin,
@@ -106,6 +107,8 @@ export class UnitInstanceRenderer {
     setDead(proxy: Group): void {
         const meta = this.ownerPool.get(proxy);
         if (!meta || meta.life === 'dead') return;
+        // every death path lands here — one without a death clip (a crush) must not keep running
+        freezeInstancedSkin(proxy);
         this.removeFromPool(proxy, meta);
         this.moveTo(proxy, meta.typeId, meta.team, 'dead');
         // Hammer pancakes stay drawn even when the "render dead units" pref is off

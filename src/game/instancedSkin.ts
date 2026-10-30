@@ -401,6 +401,21 @@ export function playInstancedSkinOnce(proxy: Object3D, role: 'fire' | 'death', s
     crossTo(s, role, 0, clip.speed);
 }
 
+/**
+ * Dead without a death clip (crushed flat, or a model that has none): hold the
+ * current pose. No-op when a death clip is already playing.
+ */
+export function freezeInstancedSkin(proxy: Object3D): void {
+    if (!proxy.userData.instancedSkin) return;
+    const s = stateOf(proxy);
+    if (s.dying) return;
+    s.dying = true;
+    const t = skinTime.value;
+    s.a = { ...s.a, phase0: clipSeconds(s.a, t), anchor: t, rate: 0 };
+    s.b = null;
+    s.fadeStart = -1e9;
+}
+
 /** Round reset / revive: straight back to idle, no fade (flyers' drivers then ground it). */
 export function resetInstancedSkin(proxy: Object3D): void {
     if (!proxy.userData.instancedSkin) return;

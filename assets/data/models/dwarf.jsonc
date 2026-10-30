@@ -1,9 +1,20 @@
-// fantasy conversion (Melodan): P1 super-low-poly, static + procedural.
+// Rigged dwarf (Tripo, Mixamo skeleton), GPU-skinned in the instance pools.
+// Faces +Z in the GLB. The right-hand joint sits off the wrist in this rig —
+// harmless in game (bones are baked as final transforms), only odd in editors.
+// Clips cut from Tripo's run / chop / fall / idle with scripts/glb-prep-clips.mjs;
+// the source file also had pitch_baseball and volleyball as attack candidates.
 // `scale` multiplies the auto-fitted size (default 1) for art tweaks.
 {
     "file": "models/units/dwarf.glb",
     "yawDeg": 90,
     "scale": 3,
-    // soles sit a hair above the bbox floor — nudge feet into the lawn
-    "offset": { "y": -0.04 },
+    "instancedSkin": true,
+    "animation": {
+        "walk": { "clip": "walk" }, // Tripo run
+        "idle": { "clip": "idle" },
+        // chop 1.1–2.55 s, hit ≈ 0.97 s in; ×2.05 fits attackInterval 0.7
+        "fire": { "clip": "fire", "speed": 2.05 },
+        // fall 0.4–2.9 s: lands toward its left, slightly forward
+        "death": { "clip": "death", "fallLocal": { "x": -0.95, "z": -0.31 } },
+    },
 }
