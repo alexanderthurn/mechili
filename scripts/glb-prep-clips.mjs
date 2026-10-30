@@ -1,6 +1,6 @@
 // Example (the goblin, from Tripo's run / volleyball / defeat_03 / idle):
 //   node scripts/glb-prep-clips.mjs goblin-skeleton.glb out.glb '{"hips":"mixamorig:Hips",
-//     "clips":{"walk":{"from":"run","loopFix":0.3},"fire":{"from":"volleyball","start":1.3,"end":2.8},
+//     "clips":{"walk":{"from":"run","loop":true},"fire":{"from":"volleyball","start":1.3,"end":2.8},
 //     "death":{"from":"defeat_03","start":1.5,"end":3.8}},"idleLoop":{"from":"idle","min":3,"max":6,"loopFix":0.5}}'
 // then: python3 scripts/glb-textures-webp.py --quality 80 out.glb && Draco (see compress-glb-draco.sh)
 // Turn a Tripo/Mixamo export into game clips: pick a source clip per role, trim
@@ -8,7 +8,9 @@
 // moves the unit), drop constant tracks, and name the result walk/idle/fire/death.
 //
 // usage: node prep-clips.mjs in.glb out.glb '<json plan>'
-// plan: { "hips": "mixamorig:Hips", "clips": { "walk": { "from": "run" }, "fire": { "from": "volleyball", "start": 1.3, "end": 2.8 }, … },
+// plan: { "hips": "mixamorig:Hips", "clips": { "walk": { "from": "run", "loop": true }, "fire": { "from": "volleyball", "start": 1.3, "end": 2.8 }, … },
+//   "loop": the source already cycles (Tripo/Mixamo walks/runs) — wrap last key → first key.
+//   "loopFix": seconds to ease the tail into frame 0, only for clips that don't close.
 //         "idleLoop": { "from": "idle", "min": 3, "max": 6 } }   // optional: pick the best-matching loop end
 import { load, pose, duration, qmul, qrot } from './glb-sample.mjs';
 
@@ -20,32 +22,63 @@ const buffer = root.listBuffers()[0];
 const FPS = 30;
 const byName = (n) => root.listAnimations().find((a) => a.getName() === n);
 
-function sampleTrack(times, vals, n, t) {
+/** `wrapDt`: past the last key, blend back into the first key over this many seconds (loops). */
+function sampleTrack(times, vals, n, t, wrapDt = 0) {
     if (t <= times[0]) return Array.from(vals.slice(0, n));
     const last = times.length - 1;
-    if (t >= times[last]) return Array.from(vals.slice(last * n, last * n + n));
-    let i = 0;
-    while (times[i + 1] < t) i++;
-    const a = (t - times[i]) / (times[i + 1] - times[i]);
+    let i;
+    let j;
+    let a;
+    if (t >= times[last]) {
+        if (!wrapDt || last === 0) return Array.from(vals.slice(last * n, last * n + n));
+        i = last;
+        j = 0;
+        a = Math.min(1, (t - times[last]) / wrapDt);
+    } else {
+        i = 0;
+        while (times[i + 1] < t) i++;
+        j = i + 1;
+        a = (t - times[i]) / (times[j] - times[i]);
+    }
     const o = [];
     if (n === 4) {
         let d = 0;
-        for (let k = 0; k < 4; k++) d += vals[i * 4 + k] * vals[(i + 1) * 4 + k];
+        for (let k = 0; k < 4; k++) d += vals[i * 4 + k] * vals[j * 4 + k];
         const s = d < 0 ? -1 : 1;
-        for (let k = 0; k < 4; k++) o.push(vals[i * 4 + k] * (1 - a) + s * vals[(i + 1) * 4 + k] * a);
+        for (let k = 0; k < 4; k++) o.push(vals[i * 4 + k] * (1 - a) + s * vals[j * 4 + k] * a);
         const l = Math.hypot(...o);
         return o.map((v) => v / l);
     }
-    for (let k = 0; k < n; k++) o.push(vals[i * n + k] * (1 - a) + vals[(i + 1) * n + k] * a);
+    for (let k = 0; k < n; k++) o.push(vals[i * n + k] * (1 - a) + vals[j * n + k] * a);
     return o;
+}
+
+/**
+ * A clip's real key span. Tripo/Mixamo clips start at their first key (often
+ * 1/24 s, not 0 — sampling from 0 holds still for that long) and a cycle closes
+ * one key interval AFTER the last key, back on the first.
+ */
+function keySpan(anim) {
+    let first = Infinity;
+    let last = -Infinity;
+    let dense = [];
+    for (const s of anim.listSamplers()) {
+        const t = s.getInput().getArray();
+        first = Math.min(first, t[0]);
+        last = Math.max(last, t[t.length - 1]);
+        if (t.length > dense.length) dense = t;
+    }
+    const dt = dense.length > 1 ? (dense[dense.length - 1] - dense[0]) / (dense.length - 1) : 1 / FPS;
+    return { first, last, dt };
 }
 
 // best loop end for an idle: the frame in [min, max] whose pose is closest to frame 0
 if (plan.idleLoop) {
     const src = byName(plan.idleLoop.from);
-    const p0 = pose(doc, src, 0);
+    const first = keySpan(src).first;
+    const p0 = pose(doc, src, first);
     let best = { t: plan.idleLoop.max, d: Infinity };
-    for (let t = plan.idleLoop.min; t <= Math.min(plan.idleLoop.max, duration(src)); t += 1 / FPS) {
+    for (let t = first + plan.idleLoop.min; t <= Math.min(first + plan.idleLoop.max, duration(src)); t += 1 / FPS) {
         const p = pose(doc, src, t);
         let d = 0;
         for (const [k, v] of p0) {
@@ -54,8 +87,8 @@ if (plan.idleLoop) {
         }
         if (d < best.d) best = { t, d };
     }
-    console.log(`idle loop: 0 → ${best.t.toFixed(2)}s (pose mismatch ${best.d.toFixed(4)})`);
-    plan.clips.idle = { from: plan.idleLoop.from, start: 0, end: best.t, loopFix: plan.idleLoop.loopFix };
+    console.log(`idle loop: ${first.toFixed(3)} → ${best.t.toFixed(2)}s (pose mismatch ${best.d.toFixed(4)})`);
+    plan.clips.idle = { from: plan.idleLoop.from, start: first, end: best.t, loopFix: plan.idleLoop.loopFix };
 }
 
 const hips = root.listNodes().find((n) => n.getName() === plan.hips);
@@ -72,8 +105,33 @@ const made = [];
 for (const [role, spec] of Object.entries(plan.clips)) {
     const src = byName(spec.from);
     if (!src) throw new Error(`no clip ${spec.from}`);
-    const start = spec.start ?? 0;
-    const end = spec.end ?? duration(src);
+    const span = keySpan(src);
+    // `loop`: the clip already cycles. Most exports close one key interval after the
+    // last key (wrap back onto the first); some already end on the first pose — wrapping
+    // those would add a duplicate frame, a stall every cycle. Tell them apart by the gap.
+    let wrapDt = 0;
+    if (spec.loop) {
+        const dist = (x, y) => {
+            let d = 0;
+            for (const [k, v] of x) {
+                const w = y.get(k);
+                d += Math.hypot(v[0] - w[0], v[1] - w[1], v[2] - w[2]);
+            }
+            return d;
+        };
+        const gap = dist(pose(doc, src, span.first), pose(doc, src, span.last));
+        let step = 0;
+        const probes = 8;
+        for (let i = 0; i < probes; i++) {
+            const t = span.first + ((span.last - span.first - span.dt) * i) / probes;
+            step += dist(pose(doc, src, t), pose(doc, src, t + span.dt)) / probes;
+        }
+        const closed = gap < 0.5 * step;
+        wrapDt = closed ? 0 : span.dt;
+        console.log(`  ${spec.from}: loop ${closed ? 'already closed' : 'closes after the last key'} (gap ${gap.toFixed(3)}, key step ${step.toFixed(3)})`);
+    }
+    const start = spec.start ?? span.first;
+    const end = spec.end ?? span.last + wrapDt;
     const frames = Math.max(2, Math.round((end - start) * FPS) + 1);
     const times = new Float32Array(frames);
     for (let f = 0; f < frames; f++) times[f] = (f / (frames - 1)) * (end - start);
@@ -88,7 +146,7 @@ for (const [role, spec] of Object.entries(plan.clips)) {
         const inT = s.getInput().getArray();
         const inV = s.getOutput().getArray();
         const out = new Float32Array(frames * n);
-        for (let f = 0; f < frames; f++) out.set(sampleTrack(inT, inV, n, start + times[f]), f * n);
+        for (let f = 0; f < frames; f++) out.set(sampleTrack(inT, inV, n, start + times[f], wrapDt), f * n);
         if (spec.loopFix) {
             // ease the tail into frame 0 so the loop closes without a pop
             const tail = Math.min(frames - 1, Math.round(spec.loopFix * FPS));

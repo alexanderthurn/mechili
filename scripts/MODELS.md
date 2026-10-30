@@ -12,8 +12,10 @@ with `"instancedSkin": true` and an `animation` block in `assets/data/models/<id
 3. **Look at the rig** (generic bone names, which part each bone moves):
    `node scripts/glb-bones.mjs export.glb`
 4. **Cut the clips** to the engine roles `walk` / `idle` / `fire` / `death`: trim long
-   source clips to the part that matters, pin the hips (the sim moves the unit), ease
-   loops closed. See the example at the top of `glb-prep-clips.mjs`.
+   source clips to the part that matters, pin the hips (the sim moves the unit), mark
+   walk/run cycles `"loop": true` (Tripo clips start at their first key, ~1/24 s, and most
+   close one key AFTER the last — sampling from 0 or easing the seam stalls every cycle).
+   See the example at the top of `glb-prep-clips.mjs`.
 5. **Compress**: `python3 scripts/glb-textures-webp.py --quality 80 out.glb`, then Draco
    with the settings in `compress-glb-draco.sh`.
 6. **Config**: `yawDeg` from the rig's facing (the game wants −Z forward; Tripo
