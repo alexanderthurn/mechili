@@ -1,7 +1,9 @@
 // Rigged dwarf (Tripo, Mixamo skeleton), GPU-skinned in the instance pools.
-// Faces +Z in the GLB. The right-hand joint sits off the wrist in this rig —
-// harmless in game (bones are baked as final transforms), only odd in editors.
-// Clips cut from Tripo's run / chop / fall / idle with scripts/glb-prep-clips.mjs;
+// Faces +Z in the GLB. Tripo placed the right-hand joint ~10 cm above the wrist and
+// retargeted the clips onto it, so the axe hand swung off the arm. Fixed before cutting:
+// scripts/glb-move-joint.mjs moved the pivot into the wrist, and glb-prep-clips
+// "freeze" locks mixamorig:RightHand to the forearm (no wrist bend; the axe rides the arm).
+// Clips cut from Tripo's run / chop / fall / idle (the full 15 s idle loop) with scripts/glb-prep-clips.mjs;
 // the source file also had pitch_baseball and volleyball as attack candidates.
 // `scale` multiplies the auto-fitted size (default 1) for art tweaks.
 {

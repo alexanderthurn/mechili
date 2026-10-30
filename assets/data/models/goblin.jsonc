@@ -9,7 +9,7 @@
     "instancedSkin": true,
     "animation": {
         "walk": { "clip": "walk" }, // Tripo run (cycle wraps last key → first)
-        "idle": { "clip": "idle" },
+        "idle": { "clip": "idle" }, // Tripo's full 15 s idle — a closed loop
         "fire": { "clip": "fire" }, // volleyball spike 1.3–2.8 s, hit ≈ 0.9 s in
         // defeat_03 1.5–3.8 s: falls forward and to its right
         "death": { "clip": "death", "fallLocal": { "x": 0.62, "z": -0.78 } },
