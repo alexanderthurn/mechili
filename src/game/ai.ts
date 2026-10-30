@@ -234,7 +234,7 @@ export class AiOpponent implements Opponent {
         );
         brain.playRound({ slots: this.ctx.deployCap(), finish: false, pick: this.rolePick(rng), extraSlot: this.extraPackSlot });
         // 2) the defence, out of what the packs left
-        this.buildDefence(defence, towers, danger, weak, roundSupply);
+        this.buildDefence(defence, towers, roundSupply);
         // 3) the rest of the army: talents (and packs, should a slot be left)
         brain.finish(brain.packsBought + this.ctx.deployCap());
         // 4) what the bag holds (cards) onto packs
@@ -398,8 +398,6 @@ export class AiOpponent implements Opponent {
     private buildDefence(
         defence: Defence,
         towers: readonly Unit[],
-        danger: readonly number[],
-        weak: 0 | 1 | null,
         roundSupply: number,
     ): void {
         const { placement, economy, dispatch } = this.ctx;
