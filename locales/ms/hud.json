@@ -237,7 +237,7 @@
   "buyRallyDesc": "Tambahkan satu caj laluan rali pada {{tactics}} anda. Sekali setiap perlawanan.",
   "buyMovePackDesc": "Tambahkan satu caj Pack bergerak pada {{tactics}} anda: buka semula satu Pack daripada pusingan terdahulu untuk penempatan semula. Sekali setiap perlawanan.",
   "strongholdArchersFull": "Setiap kubu pertahanan dijaga.",
-  "strongholdArchersDesc": "Tempatkan seorang pemanah di benteng pertahanan. Dia menembak seperti pemanah lain dan tidak pernah meninggalkan tempatnya — tiada apa yang dapat menembaknya kembali, tetapi dia akan jatuh bersama benteng pertahanan. Setiap satu lebih berharga daripada yang sebelumnya.",
+  "strongholdArchersDesc": "Tempatkan seorang pemanah di benteng pertahanan. Dia menembak seperti pemanah lain dan tidak pernah meninggalkan tempatnya — tiada apa yang dapat menembaknya kembali, tetapi dia akan jatuh bersama benteng pertahanan. Harganya sama dengan seorang pemanah dan dikira sebagai salah satu pembelian pusingan.",
   "forgeChargeSuffix": "Menambah satu cas pada {{tactics}} anda — sekali setiap perlawanan.",
   "ifDestroyed": "Jika musnah",
   "splash": "Percikan",

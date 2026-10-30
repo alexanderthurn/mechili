@@ -237,7 +237,7 @@
   "buyRallyDesc": "Adj hozzá egy gyűlési útvonal díjat a {{tactics}}-hoz. Meccsenként egyszer.",
   "buyMovePackDesc": "Adj hozzá egy mozgatóPack-töltetet a {{tactics}}-hoz: nyiss ki újra egy Packot egy korábbi körből az áthelyezéshez. Meccsenként egyszer.",
   "strongholdArchersFull": "Minden bástyán emberrel van őrség.",
-  "strongholdArchersDesc": "Állíts egy íjászt a mellvédre. Úgy lő, mint bármelyik másik íjász, és soha nem hagyja el a helyét – semmi sem lőhet vissza rá, de a várral együtt elesik. Mindegyik többe kerül, mint az előző.",
+  "strongholdArchersDesc": "Állíts egy íjászt a mellvédre. Úgy lő, mint bármelyik másik íjász, és soha nem hagyja el a helyét – semmi sem lőhet vissza rá, de a várral együtt elesik. Egy íjász árába kerül, és a kör egyik vásárlásának számít.",
   "forgeChargeSuffix": "Egy töltetet ad a {{tactics}}-hoz — meccsenként egyszer.",
   "ifDestroyed": "Ha elpusztul",
   "splash": "Loccsanás",

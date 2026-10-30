@@ -237,7 +237,7 @@
   "buyRallyDesc": "Adaugă o taxă pentru traseul de raliu la {{tactics}}. O dată pe meci.",
   "buyMovePackDesc": "Adaugă o încărcătură de Pack de mișcări la {{tactics}}: redeschide un Pack dintr-o rundă anterioară pentru repoziționare. O dată pe meci.",
   "strongholdArchersFull": "Fiecare meterez este păzită de oameni.",
-  "strongholdArchersDesc": "Puneți un arcaș pe metereze. Trage ca orice alt arcaș și nu-și părăsește niciodată locul — nimic nu-l poate ataca, dar cade odată cu fortăreața. Fiecare dintre ele costă mai mult decât precedentul.",
+  "strongholdArchersDesc": "Puneți un arcaș pe metereze. Trage ca orice alt arcaș și nu-și părăsește niciodată locul — nimic nu-l poate ataca, dar cade odată cu fortăreața. Costă cât un arcaș și contează ca una dintre achizițiile rundei.",
   "forgeChargeSuffix": "Adaugă o încărcare la {{tactics}} — o dată pe meci.",
   "ifDestroyed": "Dacă este distrus",
   "splash": "Stropi",

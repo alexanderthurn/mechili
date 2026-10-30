@@ -237,7 +237,7 @@
   "buyRallyDesc": "Lägg till en avgift för rallyrutt till din {{tactics}}. En gång per match.",
   "buyMovePackDesc": "Lägg till en laddning för ett flyttpaket till din {{tactics}}: öppna en pack från en tidigare runda igen för ompositionering. En gång per match.",
   "strongholdArchersFull": "Varje bröstvärn är bemannat.",
-  "strongholdArchersDesc": "Placera en bågskytt på fästningsmurarna. Han skjuter som vilken annan bågskytt som helst och lämnar aldrig sin plats – ingenting kan skjuta tillbaka på honom, men han faller med fästningen. Varje bågskytt kostar mer än den förra.",
+  "strongholdArchersDesc": "Placera en bågskytt på fästningsmurarna. Han skjuter som vilken annan bågskytt som helst och lämnar aldrig sin plats – ingenting kan skjuta tillbaka på honom, men han faller med fästningen. Han kostar lika mycket som en bågskytt och räknas som ett av rundans köp.",
   "forgeChargeSuffix": "Lägger till en laddning till din {{tactics}} — en gång per match.",
   "ifDestroyed": "Om förstört",
   "splash": "Stänk",

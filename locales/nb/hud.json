@@ -237,7 +237,7 @@
   "buyRallyDesc": "Legg til én rallyruteavgift til din {{tactics}}. Én gang per kamp.",
   "buyMovePackDesc": "Legg til én trekkpakke-ladning til din {{tactics}}: åpne én pakke fra en tidligere runde på nytt for omplassering. Én gang per kamp.",
   "strongholdArchersFull": "Hver festningsvollen er bemannet.",
-  "strongholdArchersDesc": "Plasser en bueskytter på festningsvollene. Han skyter som enhver annen bueskytter og forlater aldri plassen sin – ingenting kan skyte tilbake på ham, men han faller med festningsmuren. Hver og en koster mer enn den forrige.",
+  "strongholdArchersDesc": "Plasser en bueskytter på festningsvollene. Han skyter som enhver annen bueskytter og forlater aldri plassen sin – ingenting kan skyte tilbake på ham, men han faller med festningsmuren. Han koster det samme som en bueskytter og teller som ett av rundens kjøp.",
   "forgeChargeSuffix": "Legger til én lading til din {{tactics}} – én gang per kamp.",
   "ifDestroyed": "Hvis ødelagt",
   "splash": "Sprøtt",

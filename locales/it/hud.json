@@ -237,7 +237,7 @@
   "buyRallyDesc": "Aggiunge una carica di percorso di raduno ai tuoi {{tactics}}. Una volta per partita.",
   "buyMovePackDesc": "Aggiungi una carica Pack mosse al tuo {{tactics}}: riapri un Pack di un round precedente per riposizionarti. Una volta per partita.",
   "strongholdArchersFull": "Ogni bastione è presidiato.",
-  "strongholdArchersDesc": "Posiziona un arciere sui bastioni. Scocca frecce come qualsiasi altro arciere e non si muove mai dalla sua posizione: nessuno può rispondergli al fuoco, ma cade con il mastio. Ogni arciere costa più del precedente.",
+  "strongholdArchersDesc": "Posiziona un arciere sui bastioni. Scocca frecce come qualsiasi altro arciere e non si muove mai dalla sua posizione: nessuno può rispondergli al fuoco, ma cade con il mastio. Costa quanto un arciere e conta come uno degli acquisti del round.",
   "forgeChargeSuffix": "Aggiunge una carica al tuo {{tactics}} — una volta per partita.",
   "ifDestroyed": "Se distrutto",
   "splash": "Splash",

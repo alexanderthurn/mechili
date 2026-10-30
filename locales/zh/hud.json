@@ -237,7 +237,7 @@
   "buyRallyDesc": "为你的{{tactics}}增加一次集结路线充能。整场仅一次。",
   "buyMovePackDesc": "为你的{{tactics}}增加一次移动编队充能：可再次重新部署此前回合的一个编队。整场仅一次。",
   "strongholdArchersFull": "所有城垛均已驻守。",
-  "strongholdArchersDesc": "在城垛上部署一名弓手。他像普通弓手一样射击且不离岗——无法被反击，但会与要塞同毁。每一名费用更高。",
+  "strongholdArchersDesc": "在城垛上部署一名弓手。他像普通弓手一样射击且不离岗——无法被反击，但会与要塞同毁。费用与一名弓手相同，并计为本回合的一次购买。",
   "forgeChargeSuffix": "为你的{{tactics}}增加一次充能——整场仅一次。",
   "ifDestroyed": "被摧毁时",
   "splash": "溅射",

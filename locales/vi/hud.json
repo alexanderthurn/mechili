@@ -237,7 +237,7 @@
   "buyRallyDesc": "Thêm một lượt đi theo tuyến đường tập hợp vào {{tactics}} của bạn. Chỉ một lần cho mỗi trận đấu.",
   "buyMovePackDesc": "Thêm một lượt sử dụng Pack di chuyển vào {{tactics}} của bạn: mở lại một Pack từ vòng trước để định vị lại vị trí. Chỉ một lần mỗi trận đấu.",
   "strongholdArchersFull": "Mỗi vị trí trên tường thành đều có lính canh.",
-  "strongholdArchersDesc": "Bố trí một cung thủ trên tường thành. Anh ta bắn như bất kỳ cung thủ nào khác và không bao giờ rời khỏi vị trí của mình — không gì có thể bắn trả lại anh ta, nhưng anh ta sẽ ngã xuống cùng với pháo đài. Mỗi người được bố trí như vậy sẽ tốn nhiều tiền hơn người trước.",
+  "strongholdArchersDesc": "Bố trí một cung thủ trên tường thành. Anh ta bắn như bất kỳ cung thủ nào khác và không bao giờ rời khỏi vị trí của mình — không gì có thể bắn trả lại anh ta, nhưng anh ta sẽ ngã xuống cùng với pháo đài. Giá bằng một cung thủ và được tính là một lượt mua của vòng.",
   "forgeChargeSuffix": "Thêm một lượt sạc vào {{tactics}} của bạn — một lần cho mỗi trận đấu.",
   "ifDestroyed": "Nếu bị phá hủy",
   "splash": "Tiếng nước bắn tung tóe",

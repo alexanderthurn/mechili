@@ -237,7 +237,7 @@
   "buyRallyDesc": "Dodaje jeden ładunek trasy zbiórki do twoich {{tactics}}. Raz na mecz.",
   "buyMovePackDesc": "Dodaj jeden ładunek Packu ruchu do swojego {{tactics}}: otwórz ponownie jeden Pack z poprzedniej rundy, aby zmienić pozycję. Raz na mecz.",
   "strongholdArchersFull": "Każdy blank jest obsadzony załogą.",
-  "strongholdArchersDesc": "Ustaw łucznika na blankach. Strzela jak każdy inny łucznik i nigdy nie rusza się z miejsca – nic nie może mu odpowiedzieć strzałem, ale on pada wraz z twierdzą. Każdy kolejny kosztuje więcej niż poprzedni.",
+  "strongholdArchersDesc": "Ustaw łucznika na blankach. Strzela jak każdy inny łucznik i nigdy nie rusza się z miejsca – nic nie może mu odpowiedzieć strzałem, ale on pada wraz z twierdzą. Kosztuje tyle co łucznik i liczy się jako jeden z zakupów rundy.",
   "forgeChargeSuffix": "Dodaje jeden ładunek do Twojego {{tactics}} — raz na mecz.",
   "ifDestroyed": "Jeśli zniszczone",
   "splash": "Pluśnięcie",

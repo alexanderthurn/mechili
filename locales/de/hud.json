@@ -241,7 +241,7 @@
   "towerArcher": "Turmschütze {{n}}/{{m}}",
   "towerArcherDesc": "Postet einen Bogenschützen oben auf den Turm. Er schießt in alle Richtungen und verlässt seinen Platz nicht – niemand zielt auf ihn, aber er fällt mit dem Turm.",
   "towerArcherFull": "Die Turmspitze ist besetzt.",
-  "strongholdArchersDesc": "Postet einen Bogenschützen auf den Zinnen. Er schießt wie jeder andere und verlässt seinen Platz nicht – nichts kann zurückschießen, aber er fällt mit der Burg. Jeder einzelne kostet mehr als der vorherige.",
+  "strongholdArchersDesc": "Postet einen Bogenschützen auf den Zinnen. Er schießt wie jeder andere und verlässt seinen Platz nicht – nichts kann zurückschießen, aber er fällt mit der Burg. Er kostet so viel wie ein Bogenschütze und zählt als einer der Käufe der Runde.",
   "forgeChargeSuffix": "Fügt deinem {{tactics}} eine Aufladung hinzu — einmal pro Spiel.",
   "ifDestroyed": "Wenn zerstört",
   "splash": "Splash",

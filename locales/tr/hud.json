@@ -237,7 +237,7 @@
   "buyRallyDesc": "{{tactics}} şeridine bir toplanma rotası yükü ekle. Maç başına bir kez.",
   "buyMovePackDesc": "{{tactics}}'ınıza bir hamle Packi hakkı ekleyin: yeniden konumlandırma için önceki turdan bir Packi tekrar açın. Maç başına bir kez.",
   "strongholdArchersFull": "Her kale surunda birer asker bulunmaktadır.",
-  "strongholdArchersDesc": "Kale surlarına bir okçu yerleştirin. Diğer okçular gibi ok atar ve asla yerinden ayrılmaz; hiçbir şey ona karşılık veremez, ancak kale ile birlikte düşer. Her birinin maliyeti bir öncekinden daha fazladır.",
+  "strongholdArchersDesc": "Kale surlarına bir okçu yerleştirin. Diğer okçular gibi ok atar ve asla yerinden ayrılmaz; hiçbir şey ona karşılık veremez, ancak kale ile birlikte düşer. Bir okçu fiyatına mal olur ve turun alımlarından biri sayılır.",
   "forgeChargeSuffix": "{{tactics}} hesabınıza maç başına bir kez olmak üzere bir şarj ekler.",
   "ifDestroyed": "Eğer imha edilirse",
   "splash": "Sıçrama",

@@ -237,7 +237,7 @@
   "buyRallyDesc": "Lisää yksi rallireitin maksu {{tactics}}-tilillesi. Kerran ottelua kohden.",
   "buyMovePackDesc": "Lisää yksi siirtopakkauksen lataus {{tactics}}-pakkaukseesi: avaa uudelleen yksi pakka aiemmalta kierrokselta uudelleensijoittumista varten. Kerran ottelua kohden.",
   "strongholdArchersFull": "Jokainen taistelukenttä on miehitetty.",
-  "strongholdArchersDesc": "Aseta jousimies taisteluvalleille. Hän ampuu kuten kuka tahansa muu jousimies eikä poistu paikaltaan – mikään ei voi ampua takaisin, mutta hän kaatuu linnoituksen mukana. Jokainen ampuma maksaa enemmän kuin edellinen.",
+  "strongholdArchersDesc": "Aseta jousimies taisteluvalleille. Hän ampuu kuten kuka tahansa muu jousimies eikä poistu paikaltaan – mikään ei voi ampua takaisin, mutta hän kaatuu linnoituksen mukana. Hän maksaa jousimiehen hinnan ja lasketaan yhdeksi kierroksen ostoista.",
   "forgeChargeSuffix": "Lisää yhden latauksen {{tactics}}-tilillesi — kerran ottelua kohden.",
   "ifDestroyed": "Jos tuhoutuu",
   "splash": "Roiske",

@@ -237,7 +237,7 @@
   "buyRallyDesc": "Adiciona uma carga de rota de Rally às suas {{tactics}}. Uma vez por partida.",
   "buyMovePackDesc": "Adicione uma carga de Pack de movimento ao seu {{tactics}}: reabra um Pack de uma rodada anterior para reposicionamento. Uma vez por partida.",
   "strongholdArchersFull": "Todas as fortificações são guarnecidas.",
-  "strongholdArchersDesc": "Posicione um arqueiro nas ameias. Ele atira como qualquer outro arqueiro e nunca sai do seu lugar — nada pode atirar de volta nele, mas ele cai junto com a fortaleza. Cada um custa mais que o anterior.",
+  "strongholdArchersDesc": "Posicione um arqueiro nas ameias. Ele atira como qualquer outro arqueiro e nunca sai do seu lugar — nada pode atirar de volta nele, mas ele cai junto com a fortaleza. Custa o preço de um arqueiro e conta como uma das compras da rodada.",
   "forgeChargeSuffix": "Adiciona uma carga ao seu {{tactics}} — uma vez por partida.",
   "ifDestroyed": "Se destruído",
   "splash": "Splash",

@@ -237,7 +237,7 @@
   "buyRallyDesc": "Tambahkan satu muatan rute reli ke {{tactics}} Anda. Satu kali per pertandingan.",
   "buyMovePackDesc": "Tambahkan satu muatan Pack gerakan ke {{tactics}} Anda: buka kembali satu Pack dari ronde sebelumnya untuk penempatan ulang. Sekali per pertandingan.",
   "strongholdArchersFull": "Setiap benteng dijaga.",
-  "strongholdArchersDesc": "Tempatkan seorang pemanah di benteng. Dia menembak seperti pemanah lainnya dan tidak pernah meninggalkan tempatnya — tidak ada yang bisa membalas tembakannya, tetapi dia akan jatuh bersama benteng. Setiap pemanah harganya lebih mahal daripada yang sebelumnya.",
+  "strongholdArchersDesc": "Tempatkan seorang pemanah di benteng. Dia menembak seperti pemanah lainnya dan tidak pernah meninggalkan tempatnya — tidak ada yang bisa membalas tembakannya, tetapi dia akan jatuh bersama benteng. Harganya sama dengan seorang pemanah dan dihitung sebagai salah satu pembelian ronde.",
   "forgeChargeSuffix": "Menambahkan satu muatan ke {{tactics}} Anda — sekali per pertandingan.",
   "ifDestroyed": "Jika dihancurkan",
   "splash": "Memercikkan",

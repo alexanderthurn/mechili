@@ -237,7 +237,7 @@
   "buyRallyDesc": "Añade una carga de ruta de Rally a tus {{tactics}}. Una vez por partida.",
   "buyMovePackDesc": "Añade una carga de Pack de movimiento a tu {{tactics}}: vuelve a abrir un Pack de una ronda anterior para reposicionarte. Una vez por partida.",
   "strongholdArchersFull": "Todas las murallas están custodiadas.",
-  "strongholdArchersDesc": "Coloca un arquero en las almenas. Dispara como cualquier otro arquero y nunca se mueve de su sitio; nadie puede dispararle, pero cae con la torre del homenaje. Cada uno cuesta más que el anterior.",
+  "strongholdArchersDesc": "Coloca un arquero en las almenas. Dispara como cualquier otro arquero y nunca se mueve de su sitio; nadie puede dispararle, pero cae con la torre del homenaje. Cuesta lo mismo que un arquero y cuenta como una de las compras de la ronda.",
   "forgeChargeSuffix": "Añade un cargo a tu {{tactics}} — una vez por partido.",
   "ifDestroyed": "Si se destruye",
   "splash": "Chapoteo",

@@ -237,7 +237,7 @@
   "buyRallyDesc": "Voeg één rally-route-lading toe aan je {{tactics}}. Eenmaal per wedstrijd.",
   "buyMovePackDesc": "Voeg één verplaatsingsPack-lading toe aan je {{tactics}}: heropen een Pack uit een eerdere ronde om je te herpositioneren. Eenmaal per wedstrijd.",
   "strongholdArchersFull": "Elke kantelenmuur is bemand.",
-  "strongholdArchersDesc": "Plaats een boogschutter op de kantelen. Hij schiet zoals elke andere boogschutter en verlaat nooit zijn plek – niets kan op hem terugschieten, maar hij valt met de burcht. Elke boogschutter kost meer dan de vorige.",
+  "strongholdArchersDesc": "Plaats een boogschutter op de kantelen. Hij schiet zoals elke andere boogschutter en verlaat nooit zijn plek – niets kan op hem terugschieten, maar hij valt met de burcht. Hij kost evenveel als een boogschutter en telt als een van de aankopen van de ronde.",
   "forgeChargeSuffix": "Voegt één lading toe aan je {{tactics}} — eenmaal per wedstrijd.",
   "ifDestroyed": "Indien vernietigd",
   "splash": "Plons",
