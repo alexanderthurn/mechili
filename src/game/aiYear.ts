@@ -1,11 +1,7 @@
 /**
- * The AI's army brain, every mode (AI_PLAN.md): plans a whole round against
- * the army it can see.
- *
- * In a Siege the AI's side is rebuilt from nothing every round (clearArmy),
- * while the player keeps and levels an army. So the whole round is one
- * decision: which units, which talents, which unlock, and
- * where each pack stands. This module makes it in three parts:
+ * The AI's army brain, every mode (AI_PLAN.md): plays a round against the
+ * army it can see — its army is kept, levelled and extended like a player's.
+ * This module makes it in three parts:
  *
  * 1. **Estimate** — {@link estimateBattle}: a fast battle model over groups of
  *    packs, built only from resolved stats and unit attributes (HP, damage,
@@ -18,15 +14,13 @@
  *    back, each pack opposite the enemy group it is best against, spread out
  *    when the enemy splashes, defenders covering their base.
  *
- * The same brain plays a side that keeps its army (`keep`): Practice, 1v1,
- * 2v2 and the arena's player stand-in. Every difficulty plays it for now.
+ * Every mode and every difficulty plays it for now.
  *
  * Deterministic for the same board and stream: it reads only match state and
  * the stream it is handed.
  */
 import type { Action } from './actions';
 import { isChaff } from './aiCounters';
-import type { StartCard } from './cards';
 import type { TypeRegistry } from './content/typeRegistry';
 import { sideFrontline } from './aiWalls';
 import { CELL } from './map';
@@ -401,33 +395,6 @@ export function estimateBattle(mineIn: readonly BattleGroup[], theirsIn: readonl
     return { mine, theirs, damageToMe, damageToThem, margin: Math.max(-1, Math.min(1, margin)) };
 }
 
-/**
- * The commander worth most to a side that is rebuilt every round: income and
- * gift units are wiped or matched away, so only lasting combat effects count —
- * recruiting at a higher level above all (the rebuilt army never levels), then
- * stat and speed bonuses, a wider starting shop, cheaper unlocks.
- */
-export function chooseRebuildCommander(offer: readonly StartCard[], types: TypeRegistry): StartCard {
-    let best = offer[0]!;
-    let bestScore = -Infinity;
-    for (const card of offer) {
-        const e = card.effects ?? {};
-        let score = 0;
-        if ((e.recruitLevel ?? 1) > 1) score += 3 * ((e.recruitLevel ?? 1) - 1);
-        score += (e.unitStatsBonus ?? 0) * 10;
-        score += (e.flyingBonus ?? 0) * 4;
-        score += (e.speedBonus ?? 0) * 0.1;
-        if (e.unlockDiscount) score += 0.3;
-        const shop = types.shopFor(card);
-        score += 0.15 * new Set([...card.units, ...(card.unlock ? [card.unlock] : [])].filter((id) => shop.includes(id))).size;
-        if (score > bestScore) {
-            bestScore = score;
-            best = card;
-        }
-    }
-    return best;
-}
-
 /** role bands: tiles behind the front edge a pack prefers */
 function preferredDepth(type: UnitType, stats: { range: number; minRange: number; flying: boolean; convert: boolean }): number {
     if (stats.flying) return 3;
@@ -470,7 +437,7 @@ export const NO_STANCE: Stance = { focusX: null, pull: 0, spread: [], depthShift
 /** chooses the round's pack number `index` (0 = its first) of `slots` itself — null: none */
 export type PackPick = (index: number, slots: number, cost: (t: UnitType) => number) => UnitType | null;
 /** buys one more pack slot for the round when a pack for it makes sense — whether it did */
-export type ExtraSlot = (slots: number, cost: (t: UnitType) => number) => boolean;
+export type ExtraSlot = (cost: (t: UnitType) => number) => boolean;
 /** with picked packs, these come before the kept army's levels; the rest after */
 const PICKS_BEFORE_LEVELS = 2;
 
@@ -587,16 +554,15 @@ export class YearBrain {
 
     /**
      * Play one build phase: the packs `pick` chooses — the first two, then
-     * (`keep`: the side keeps its army) the army's levels, then, with a slot
-     * bought if one makes sense, the rest; otherwise the army was just cleared.
+     * the army's levels, then, with a slot bought if one makes sense, the rest.
      */
-    playRound(opts: { keep: boolean; slots: number; finish?: boolean; pick: PackPick; extraSlot?: ExtraSlot }): void {
+    playRound(opts: { slots: number; finish?: boolean; pick: PackPick; extraSlot?: ExtraSlot }): void {
         // what may still move goes where this round's plan wants it (round 1: the starting army)
         this.repositionMovable();
         this.pick = opts.pick;
         this.placePicks(Math.min(opts.slots, PICKS_BEFORE_LEVELS));
-        if (opts.keep) this.buyLevels();
-        const slots = opts.slots + (opts.extraSlot?.(opts.slots, (t) => this.buyCost(t)) ? 1 : 0);
+        this.buyLevels();
+        const slots = opts.slots + (opts.extraSlot?.((t) => this.buyCost(t)) ? 1 : 0);
         this.placePicks(slots);
         if (opts.finish !== false) this.finish(slots);
     }

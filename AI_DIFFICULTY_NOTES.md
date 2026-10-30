@@ -112,6 +112,11 @@ Base scoring still respects short-range → front, long-range → back. Random s
 
 # The Year AI (2026-09-14)
 
+**History.** Since 2026-10-30 the AI's Siege side keeps its army like every
+other mode (no rebuild, no wealth sync, no 40-pack limit), its packs come from
+roles (aiRoles.ts) instead of `compose`, and the arena script is removed. What
+follows is kept as the record of how the planner was built and measured.
+
 The Year's AI side is rebuilt every round with the player's wealth, so each
 round is one plan. `src/game/aiYear.ts` makes it; `AiOpponent` uses it in The
 Year (`brain: 'classic'` keeps the old random builder, e.g. for comparison).

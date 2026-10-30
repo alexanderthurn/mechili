@@ -38,11 +38,6 @@ export const CLIMB_SUPPLY_GROWTH_PER_ROUND: number | null = null;
  * Round grant is still `startingSupply + (round - 1) * growth`.
  */
 export const CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND = 200;
-/**
- * Campaign AI rebuild: deploy-slot ceiling so a fresh army can spend income
- * on many packs (normal matches stay at {@link DeploySettings.unitsPerRound}).
- */
-export const CLIMB_AI_DEPLOY_LIMIT = 40;
 
 /**
  * A match's Siege and Rounds rules (see {@link GameSettings.climb}) — single

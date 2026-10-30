@@ -18,7 +18,7 @@ import { formationHeadcount, hasAbility, hpWithdrawOf, type BuildingAbilityId, t
 import type { TypeRegistry } from './content/typeRegistry';
 import type { SeatId } from './seats';
 import { itemSlotLimit } from './items';
-import { chooseRebuildCommander, NO_STANCE, YearBrain, type PackPick, type Stance } from './aiYear';
+import { NO_STANCE, YearBrain, type PackPick, type Stance } from './aiYear';
 import { AI_ROLES, readNeeds, STRONG_FROM, strongHelpless, THIRD_PACK_FREE_FROM, type Need, type Roster } from './aiRoles';
 import { CELL } from './map';
 import { isChaff } from './aiCounters';
@@ -51,8 +51,6 @@ const WIDE_FORWARD = 3;
 const DEFENDER_BACK = 8;
 /** borrow when the enemy's army, all surviving, would take this share of its HP */
 const CREDIT_MARGIN = 0.8;
-/** the +1 buy only where the round's pack limit binds (Practice's 2; a Siege's rebuild gets 40) */
-const EXTRA_BUY_UP_TO = 3;
 /** range from which a pack counts as ranged, and the ranged share that buys the range boost */
 const RANGED_FROM = 10;
 const RANGED_SHARE = 0.5;
@@ -117,15 +115,8 @@ export class AiOpponent implements Opponent {
             forgeSpellOwned: string[][];
             /** this seat's commander forge-spell pool */
             forgeSpellsOf: (seat: SeatId) => readonly string[] | undefined;
-            /**
-             * Campaign climb: wipe + wealth-matched fresh rebuild each round.
-             * Practice / MP leave this unset/false.
-             */
-            climb?: boolean;
             /** 'lockInOnly': skip every purchase and just lock in (scenario opponents) */
             opponents?: 'build' | 'lockInOnly';
-            /** Campaign: deterministic per-round stream (seed + round) */
-            rngForRound?: (round: number) => () => number;
             /** leveling rules (the planner reads level multipliers and prices) */
             leveling: LevelingSettings;
             /** The Year: this seat's role — its planner knows who has the base */
@@ -167,11 +158,7 @@ export class AiOpponent implements Opponent {
     }
 
     chooseStarter(offer: readonly StartCard[]): void {
-        // a Siege rebuilds this side every round: pick for lasting combat effects
-        const pick =
-            this.ctx.climb && offer.length > 0
-                ? chooseRebuildCommander(offer, this.ctx.types)
-                : offer[Math.floor(this.ctx.rng() * offer.length)]!;
+        const pick = offer[Math.floor(this.ctx.rng() * offer.length)]!;
         this.ctx.dispatch({ kind: 'chooseCard', team: this.team, seat: this.seat, cardId: pick.id });
     }
 
@@ -196,9 +183,7 @@ export class AiOpponent implements Opponent {
         this.round = round;
         // a scenario's authored army fights as placed — lock in, nothing else
         if (this.ctx.opponents !== 'lockInOnly') {
-            // a Siege rebuilds this side from nothing every round; elsewhere the army stays
-            if (this.ctx.climb) this.ctx.dispatch({ kind: 'clearArmy', team: this.team, seat: this.seat });
-            this.build(this.ctx.rngForRound?.(round) ?? this.ctx.rng);
+            this.build(this.ctx.rng);
         }
         this.ctx.dispatch({ kind: 'endDeployment', team: this.team, seat: this.seat });
     }
@@ -211,8 +196,8 @@ export class AiOpponent implements Opponent {
     /**
      * One build phase, every mode (AI_PLAN.md): read the enemy, the defence
      * its personality wants (walls, posts, the weak tower), then the planner's
-     * army in the personality's stance (kept and extended, or rebuilt in a
-     * Siege; its packs by roles), then runes, spells and building levels.
+     * army in the personality's stance (kept and extended; its packs by
+     * roles), then runes, spells and building levels.
      * Every difficulty plays this for now (AI_PLAN.md, "Difficulty").
      */
     private build(rng: () => number): void {
@@ -239,18 +224,18 @@ export class AiOpponent implements Opponent {
             this.ctx.yearRole ?? 'defender',
             rng,
             // outside a Siege there is no base to huddle round: no pull toward its own Stronghold
-            { ...(this.ctx.climb ? {} : { keepPull: 0 }), ...this.ctx.plannerOverrides },
+            { ...(this.ctx.yearRole ? {} : { keepPull: 0 }), ...this.ctx.plannerOverrides },
             this.stance(towers, danger, weak),
         );
-        brain.playRound({ keep: !this.ctx.climb, slots: this.ctx.deployCap(), finish: false, pick: this.rolePick(rng), extraSlot: this.extraPackSlot });
+        brain.playRound({ slots: this.ctx.deployCap(), finish: false, pick: this.rolePick(rng), extraSlot: this.extraPackSlot });
         // 2) the defence, out of what the packs left
         this.buildDefence(defence, towers, danger, weak, roundSupply);
         // 3) the rest of the army: talents (and packs, should a slot be left)
         brain.finish(brain.packsBought + this.ctx.deployCap());
-        // 4) what the bag holds (cards, a cleared Siege army) onto packs
+        // 4) what the bag holds (cards) onto packs
         this.applyItems(rng);
-        // 5) spells: the Stronghold's forge spells (not in a Siege's rebuilt army), then the strip
-        if (!this.ctx.climb) this.buyForgeSpells();
+        // 5) spells: the Stronghold's forge spells, then the strip
+        this.buyForgeSpells();
         this.placeTactics(rng);
         // 6) what's left: army boosts where worth more than another pack, range / speed
         this.buyArmyBoosts();
@@ -545,12 +530,11 @@ export class AiOpponent implements Opponent {
     }
 
     /**
-     * The +1 buy, after its first packs and levels: where the pack limit
-     * binds, every slot is filled, and supply covers the slot and a pack of
+     * The +1 buy, after its first packs and levels: every slot is filled, and supply covers the slot and a pack of
      * its chaff (or its cheapest pack) — the pick then chooses that pack.
      */
-    private extraPackSlot = (slots: number, cost: (t: UnitType) => number): boolean => {
-        if (slots > EXTRA_BUY_UP_TO || this.ctx.deployCap() > 0 || !this.owns('deploySlot')) return false;
+    private extraPackSlot = (cost: (t: UnitType) => number): boolean => {
+        if (this.ctx.deployCap() > 0 || !this.owns('deploySlot')) return false;
         const chaff = this.roster ? this.ctx.types.byId(this.roster.chaff) : null;
         const pack = chaff && this.ctx.unlockedUnits[this.seat]!.includes(chaff.id) ? chaff : this.cheapestArmyType(cost);
         if (!pack || this.ctx.economy.balance(this.seat) < this.ctx.deploySettings.extraSlotCost + cost(pack)) return false;
@@ -559,14 +543,13 @@ export class AiOpponent implements Opponent {
 
     /**
      * The Command Tower's permanent army boosts, HP before attack, tier by
-     * tier: only a tier whose bonus on the army it fields (or, rebuilt in a
-     * Siege, the supply it will field) beats its price.
+     * tier: only a tier whose bonus on the army it fields beats its price.
      */
     private buyArmyBoosts(): void {
         const boosts = this.ctx.armyBoosts?.();
         if (!boosts || !this.owns('armyBoosts')) return;
         const { costs, attackTiers, hpTiers } = boosts.settings;
-        const army = Math.max(this.armyValue(), this.ctx.climb ? this.ctx.economy.balance(this.seat) : 0);
+        const army = this.armyValue();
         const tiers = { hp: boosts.hp, attack: boosts.attack };
         for (let guard = 0; guard < 4; guard++) {
             const boost: 'hp' | 'attack' = tiers.hp <= tiers.attack ? 'hp' : 'attack';
@@ -605,12 +588,11 @@ export class AiOpponent implements Opponent {
     }
 
     /**
-     * Tutor charges (not in a Siege's rebuilt army): each fills
+     * Tutor charges: each fills
      * the XP bar of its most valuable pack that can still level — the planner
      * then buys the level.
      */
     private useTutorCharges(): void {
-        if (this.ctx.climb) return;
         const { dispatch, tactics } = this.ctx;
         for (let guard = 0; guard < 5 && tactics[this.seat]!.includes(TUTOR_ID); guard++) {
             const best = this.ownPacks()

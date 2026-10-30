@@ -404,17 +404,6 @@ export interface RemoveSpellAction {
     stampId: number;
 }
 
-/**
- * Campaign AI only: wipe this seat's mobile army + researched techs, refund
- * their supply value, return equipped items to the bag, then set liquid
- * supply to the opposing side's total wealth (liquid + army + tech) so the
- * rebuild spends the same purse the human currently holds.
- */
-export interface ClearArmyAction {
-    kind: 'clearArmy';
-    team: Team;
-}
-
 type ActionVariant =
     | BuyAction
     | BuyRuneAction
@@ -461,8 +450,7 @@ type ActionVariant =
     | PlaceOilSpillAction
     | RemoveOilSpillAction
     | PlaceSpellAction
-    | RemoveSpellAction
-    | ClearArmyAction;
+    | RemoveSpellAction;
 
 /**
  * Every action carries its acting SEAT alongside the side (`team`). Omitted
@@ -542,14 +530,10 @@ interface LogEntry extends LoggedAction {
     /** buyStrongholdArcher: the archer that was raised (for undo) */
     strongholdArcherUnit?: Unit;
     /**
-     * clearArmy / sellUnit: packs removed (items already returned to the bag —
+     * sellUnit: the pack removed (items already returned to the bag —
      * restored onto the pack on undo from {@link clearedPackItems})
      */
     clearedPackItems?: { unitId: number; items: string[]; itemRounds: number[] }[];
-    /** clearArmy: techs removed with the supply that was refunded for each */
-    clearedTechs?: { typeId: string; techId: string; paid: number }[];
-    /** clearArmy: liquid balance after wipe + opposing-wealth sync (for undo) */
-    balanceAfter?: number;
 }
 
 export interface ActionContext {
@@ -688,10 +672,6 @@ export interface ActionContext {
      * (attacker → Fire Bolt, defender → Ward Stone).
      */
     climbAttacker: Team | null;
-    /**
-     * Campaign climb active — gates {@link ClearArmyAction} (AI fresh rebuild).
-     */
-    climbMode: boolean;
     /** current round + seconds into its build phase, stamped onto log entries */
     clock: () => { round: number; t: number };
     /** phase transition lives in the Game — the dispatcher only reports it */
@@ -1867,92 +1847,7 @@ export class ActionDispatcher {
                 this.ctx.spellStamps.splice(i, 1);
                 return true;
             }
-            case 'clearArmy': {
-                if (!this.ctx.climbMode) return false;
-                const balanceBefore = economy.balance(seat);
-                const removed: Unit[] = [];
-                const packItems: { unitId: number; items: string[]; itemRounds: number[] }[] = [];
-                for (const unit of [...placement.allUnits()]) {
-                    if (unit.seat !== seat || unit.team !== action.team) continue;
-                    if (unit.type.structure || unit.type.extra) continue;
-                    if (isFixture(unit)) continue;
-                    const items = [...unit.items];
-                    const itemRounds = [...unit.itemAppliedRound];
-                    for (const itemId of items) this.ctx.items[seat]!.push(itemId);
-                    unit.items.length = 0;
-                    unit.itemAppliedRound.length = 0;
-                    const levelPremium =
-                        unit.level > 1
-                            ? levelCost(unit.type, economy, leveling) * (unit.level - 1)
-                            : 0;
-                    const refund =
-                        Math.round(economy.costOf(unit.type) * this.ctx.sellSettings.refundFactor) +
-                        levelPremium;
-                    economy.credit(seat, refund);
-                    packItems.push({ unitId: unit.id, items, itemRounds });
-                    placement.removeUnit(unit);
-                    removed.push(unit);
-                }
-                const clearedTechs: { typeId: string; techId: string; paid: number }[] = [];
-                const ownedSnap = techTree.snapshotOwned()[seat];
-                if (ownedSnap) {
-                    for (const [typeId, set] of ownedSnap) {
-                        const ids = [...set];
-                        for (let i = ids.length - 1; i >= 0; i--) {
-                            const techId = ids[i]!;
-                            const tech = this.ctx.types.talent(techId);
-                            const paid = tech ? economy.techCostOf(tech, i) : 0;
-                            techTree.remove(seat, typeId, techId);
-                            if (paid > 0) economy.credit(seat, paid);
-                            clearedTechs.push({ typeId, techId, paid });
-                        }
-                    }
-                }
-                // Match opposing side wealth so the rebuild spends the same
-                // purse the human currently holds (liquid + army + tech).
-                let target = 0;
-                for (let s = 0; s < this.ctx.seats.length; s++) {
-                    if (this.ctx.seats[s]!.team === action.team) continue;
-                    target += this.seatClimbWealth(s);
-                }
-                const beforeSync = economy.balance(seat);
-                const delta = target - beforeSync;
-                if (delta > 0) economy.credit(seat, delta);
-                else if (delta < 0) economy.debit(seat, -delta);
-                entry.units = removed;
-                entry.clearedPackItems = packItems;
-                entry.clearedTechs = clearedTechs;
-                entry.paid = balanceBefore;
-                entry.balanceAfter = economy.balance(seat);
-                return true;
-            }
         }
-    }
-
-    /** Liquid + mobile army + researched tech value for Campaign wealth sync. */
-    private seatClimbWealth(seat: SeatId): number {
-        const { placement, economy, techTree, leveling, sellSettings } = this.ctx;
-        let total = economy.balance(seat);
-        for (const unit of placement.allUnits()) {
-            if (unit.seat !== seat) continue;
-            if (unit.type.structure || unit.type.extra) continue;
-            if (isFixture(unit)) continue;
-            total += Math.round(economy.costOf(unit.type) * sellSettings.refundFactor);
-            if (unit.level > 1) {
-                total += levelCost(unit.type, economy, leveling) * (unit.level - 1);
-            }
-        }
-        const ownedSnap = techTree.snapshotOwned()[seat];
-        if (ownedSnap) {
-            for (const [, set] of ownedSnap) {
-                const ids = [...set];
-                for (let i = 0; i < ids.length; i++) {
-                    const tech = this.ctx.types.talent(ids[i]!);
-                    if (tech) total += economy.techCostOf(tech, i);
-                }
-            }
-        }
-        return total;
     }
 
     /** exact inverse of apply — safe because a round's reverts run newest-first */
@@ -2261,38 +2156,6 @@ export class ActionDispatcher {
             }
             case 'removeSpell': {
                 this.ctx.spellStamps.push(e.spellStamp!);
-                break;
-            }
-            case 'clearArmy': {
-                // Physical restore first (no money), then snap liquid to pre-wipe.
-                const techs = e.clearedTechs ?? [];
-                for (let i = techs.length - 1; i >= 0; i--) {
-                    const step = techs[i]!;
-                    techTree.add(seat, step.typeId, step.techId);
-                }
-                const itemMap = new Map(
-                    (e.clearedPackItems ?? []).map((p) => [p.unitId, p] as const),
-                );
-                for (const unit of e.units ?? []) {
-                    const snap = itemMap.get(unit.id);
-                    if (snap) {
-                        const bag = this.ctx.items[seat]!;
-                        for (let i = snap.items.length - 1; i >= 0; i--) {
-                            const id = snap.items[i]!;
-                            const at = bag.lastIndexOf(id);
-                            if (at >= 0) bag.splice(at, 1);
-                        }
-                        unit.items.length = 0;
-                        unit.itemAppliedRound.length = 0;
-                        for (const id of snap.items) unit.items.push(id);
-                        for (const r of snap.itemRounds) unit.itemAppliedRound.push(r);
-                    }
-                    placement.restoreUnit(unit);
-                }
-                const want = e.paid ?? 0; // balanceBefore stamped in apply
-                const d = want - economy.balance(seat);
-                if (d > 0) economy.credit(seat, d);
-                else if (d < 0) economy.debit(seat, -d);
                 break;
             }
             case 'chooseCard':

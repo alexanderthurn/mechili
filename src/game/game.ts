@@ -217,7 +217,6 @@ import {
 import { RallyVisuals, type RallyDraft } from './rallyVisuals';
 import { SpellVisuals, type SpellChargeMarker, type SpellDraft } from './spellVisuals';
 import {
-    CLIMB_AI_DEPLOY_LIMIT,
     DEFAULT_SETTINGS,
     describeGameSettings,
     Economy,
@@ -2410,7 +2409,6 @@ export class Game {
             starterArmy: this.rules.commander.mode !== 'fixed' || this.rules.commander.starterArmy,
             playerUnlocks: this.rules.playerUnlocks,
             playerUnlockable: this.rules.playerUnlockable,
-            climbMode: isSiege(settings),
             climbAttacker: isSiege(settings) ? this.yearAttackerTeam() : null,
             clock: () => ({
                 round: this.round,
@@ -3994,12 +3992,6 @@ export class Game {
         this.creditUsed.fill(false);
         this.deployState.used.fill(0);
         this.deployState.extrasSpent.fill(0);
-        // Siege's bots (the Year AI) rebuild a full army each round — raise their deploy caps.
-        if (isSiege(this.settings)) {
-            for (let seat = 0; seat < this.seats.length; seat++) {
-                if (this.seatIsBot(seat)) this.deployState.limit[seat] = CLIMB_AI_DEPLOY_LIMIT;
-            }
-        }
         this.tutorial?.applyDeployCaps();
         this.deployReady.player = false;
         this.deployReady.enemy = false;
@@ -4123,7 +4115,7 @@ export class Game {
      * Normal matches: escalating income for every seat.
      * Campaign: human uses the same starting supply but
      * {@link ClimbSettings.playerSupplyGrowthPerRound} (+200, like the normal
-     * game); AI keeps standard growth (then wealth-syncs on rebuild).
+     * game); AI keeps standard growth.
      */
     private grantClimbAwareRoundIncome(): void {
         const climb = this.settings.climb;
@@ -4758,9 +4750,7 @@ export class Game {
         deploySettings: DeploySettings;
         forgeSpellOwned: string[][];
         forgeSpellsOf: (seat: SeatId) => readonly string[] | undefined;
-        climb?: boolean;
         opponents?: 'build' | 'lockInOnly';
-        rngForRound?: (round: number) => () => number;
         leveling: LevelingSettings;
         yearRole?: 'attacker' | 'defender';
         deployCap: () => number;
@@ -4780,12 +4770,7 @@ export class Game {
             types: this.types,
             dispatch: (action: Action) => {
                 const ok = this.dispatcher.dispatch(action);
-                if (
-                    ok &&
-                    (action.kind === 'buyTech' ||
-                        action.kind === 'buy' ||
-                        action.kind === 'clearArmy')
-                ) {
+                if (ok && (action.kind === 'buyTech' || action.kind === 'buy')) {
                     this.refreshFlightAlts();
                 }
                 // star host: an AI seat's actions bypass dispatchPlayer
@@ -4816,10 +4801,7 @@ export class Game {
             deploySettings: this.settings.deploy,
             forgeSpellOwned: this.forgeSpellOwned,
             forgeSpellsOf: (s: SeatId) => this.forgeSpellsOf(s),
-            climb: isSiege(this.settings),
             opponents: this.rules.opponents,
-            rngForRound: (round: number) =>
-                mulberry32(seedFrom(this.seed, `ai-climb-${seat}-${round}`)),
             leveling: this.settings.leveling,
             ...(isSiege(this.settings)
                 ? { yearRole: this.yearAttackerTeam() === this.seats[seat]?.team ? ('attacker' as const) : ('defender' as const) }

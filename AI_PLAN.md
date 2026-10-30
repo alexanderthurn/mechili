@@ -19,7 +19,7 @@ The army is the top priority: it is what takes the enemy's HP down. Losing a tow
 
 Steps 1–5 are built (2026-10-29); the counter table (step 6) is to come.
 
-- **One brain** (`aiYear.ts`, `YearBrain`): every mode. Siege rebuilds the army each round; Practice, 1v1 and 2v2 keep and extend it. `unitChoice: 'poor'` (Easy, Medium) picks random unlocks, packs and talents; Hard scores with the fitted battle model. A `Stance` places the round's new packs for the personality.
+- **One brain** (`aiYear.ts`, `YearBrain`): every mode keeps and extends its army, Siege too (its rebuild every round is removed, 2026-10-30). The packs come from the roles (`aiRoles.ts`); the fitted battle model picks talents and lanes. A `Stance` places the round's new packs for the personality.
 - **Difficulty and personality** (`aiProfile.ts`): chips on AI seats in the lobby (remembered); scenario rules carry them too (`rules.aiDifficulty` / `aiPersonality`). Random and the Rusher's side resolve from the match seed.
 - **Threat map and last battle** (`aiThreat.ts`): sectors, depth from the zone's front, posture, side totals; every tower's fall time or HP left. Shown in the debug overlay.
 - **Personalities and defence** (`ai.ts`): Rusher (side, guard, stall growing with danger, weak tower upgraded), Wide (spread forward, walls where in danger), Defender (back, full fortress plan, posts, levels, Stronghold archers, supply share by difficulty). Walls come from the fixed plan in `aiWalls.ts`; only intended slots are kept free of packs.
@@ -27,10 +27,9 @@ Steps 1–5 are built (2026-10-29); the counter table (step 6) is to come.
 
 ## One brain
 
-The Year planner becomes the army brain for every mode. The classic builder goes completely (no debug option to keep it); its random pick survives only as the "poor" unit choice of Easy and Medium. The arena script's `--ai classic` / `--human classic` go with it (the stand-in becomes the planner, or the planner at Easy).
+The Year planner becomes the army brain for every mode. The classic builder goes completely (no debug option to keep it); its random pick survives only as the "poor" unit choice of Easy and Medium. 
 
-- **Siege:** the planner rebuilds the army every round, as now (a Siege rule).
-- **Practice, 1v1, 2v2:** the planner keeps the army and extends it each round ("keep" mode). Packs from earlier rounds are locked, as for a player: only this round's packs can be placed freely, an older one only with a "move pack" charge. So a plan changes the army through its new packs (a Rusher's weak-side troops are new packs placed there).
+- **Every mode** (Siege too, since 2026-10-30): the planner keeps the army and extends it each round ("keep" mode). Packs from earlier rounds are locked, as for a player: only this round's packs can be placed freely, an older one only with a "move pack" charge. So a plan changes the army through its new packs (a Rusher's weak-side troops are new packs placed there).
 
 Everything below sits on top of the one brain.
 
@@ -46,7 +45,7 @@ Everything below sits on top of the one brain.
 
 ## Threat map
 
-What the AI sees of the enemy at the start of its build: the army on the board, or the enemy's last army where it is rebuilt every round.
+What the AI sees of the enemy at the start of its build: the army on the board.
 
 - **Five sectors** across the side's width: left flank, left tower, centre, right tower, right flank.
 - **Per sector:**

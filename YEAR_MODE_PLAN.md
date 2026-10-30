@@ -36,7 +36,7 @@ between two machines, the end screen, the loading card on a resumed match.
   becomes per controller / per canonical side:
   - the free Sell Pack charge: every human seat;
   - round income: human seats get the Year's growth, AI seats the normal one;
-  - raised deploy cap: AI seats (they rebuild each round), not "not me";
+  - raised deploy cap: AI seats (they rebuild each round), not "not me" — removed 2026-10-30, the AI keeps its army;
   - the round outcome and match end run in star mode and for spectators too.
 - Bots in a Year room play the Year AI as in single player.
 

@@ -64,8 +64,6 @@ export class TutorialAi implements Opponent {
             deploySettings: DeploySettings;
             forgeSpellOwned: string[][];
             forgeSpellsOf: (seat: SeatId) => readonly string[] | undefined;
-            climb?: boolean;
-            rngForRound?: (round: number) => () => number;
         },
     ) {}
 

@@ -11,9 +11,6 @@ How to know, without playing, that the game still works after a change. Written
   tests: terrain grid, landscapes, the shared 2v2 forge, scenario packages,
   campaigns, level overlays, the AI counter table.
 - **`npm run check:det-math`**: the deterministic math the battle sim relies on.
-- **`scripts/ai-arena.mjs`**: plays The Year headless, with the real placement,
-  action dispatcher, AI and BattleSim, but no renderer and no HUD. It measures
-  how an AI does over many rounds.
 
 None of these runs a match end to end the way a player does: menu → match →
 build → battle → next round → result. That is the gap, and it is where most
@@ -22,7 +19,7 @@ through, a desync).
 
 ## Steps, cheapest first
 
-### 1. Smoke matches (headless, extends the arena)
+### 1. Smoke matches (headless)
 
 `scripts/smoke.mjs`, run as `npm run check:smoke`. For a fixed list of
 setups (1v1, 2v2, horde, Siege attacker and defender; Easy, Medium, Hard;
@@ -37,8 +34,10 @@ and fails on any of these:
   usually means the AI and the rules disagree (as with archers counting as
   buys).
 
-Reuses the arena's browser stubs. Seconds per setup, so all of them stay
-under a minute.
+Runs the real placement, action dispatcher, AI and BattleSim in Node, with
+small browser stubs and no renderer or HUD (the removed `ai-arena.mjs` did the
+same; its setup is in git history, before 2026-10-30). Seconds per setup, so
+all of them stay under a minute.
 
 ### 2. Determinism
 

@@ -5558,7 +5558,6 @@ function playerActionCue(kind: string): string | null {
         case 'buyLevelBatch':
         case 'applyItem':
         case 'forfeitSide':
-        case 'clearArmy':
             return null;
         default:
             return 'ui_confirm';
