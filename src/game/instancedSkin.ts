@@ -57,6 +57,8 @@ interface BakedClip {
 export interface InstancedSkinData {
     texture: DataTexture;
     clips: Partial<Record<SkinRole, BakedClip>>;
+    /** where the death clip lays the body, holder XZ (rest forward −Z) — see ModelAnimation.death */
+    deathFallLocal: { x: number; z: number };
 }
 
 /** One shared clock for every skinned pool — advanced with sim-scaled dt. */
@@ -113,7 +115,7 @@ export function bakeInstancedSkin(
     const pre = new Matrix4();
     const m = new Matrix4();
     const mixer = new AnimationMixer(root);
-    const out: InstancedSkinData = { texture: null!, clips: {} };
+    const out: InstancedSkinData = { texture: null!, clips: {}, deathFallLocal: anim.death?.fallLocal ?? { x: 0, z: -1 } };
     let row = 0;
     for (const p of plan) {
         const action = mixer.clipAction(p.clip);
@@ -158,6 +160,35 @@ export function bakeInstancedSkin(
         `[instancedSkin] baked ${plan.map((p) => `${p.role}=${p.clip.name}(${p.frames}f)`).join(' ')} · ${bones} bones · ${width}×${rows} texels`,
     );
     return { geometry: mesh.geometry, material, skin: out };
+}
+
+/**
+ * Hold the template in the first idle (else walk) frame so the size the game
+ * measures — HP bars, effects, aim spread — is a standing unit, not a T-pose.
+ * Call the returned release() after measuring: stopping the mixer restores the bind pose.
+ */
+export function poseInstancedSkinRest(root: Group, clips: readonly AnimationClip[], anim: ModelAnimation): () => void {
+    const spec = anim.idle ?? anim.walk;
+    const clip = typeof spec.clip === 'number' || typeof spec.clip === 'string' ? pickClip(clips, spec.clip) : null;
+    if (!clip) return () => {};
+    const mixer = new AnimationMixer(root);
+    const action = mixer.clipAction(clip);
+    action.play();
+    action.paused = true;
+    action.time = 0;
+    mixer.update(0);
+    root.updateMatrixWorld(true);
+    const remeasure = () =>
+        root.traverse((o) => {
+            if ((o as SkinnedMesh).isSkinnedMesh) (o as SkinnedMesh).computeBoundingBox(); // in the current pose
+        });
+    remeasure();
+    return () => {
+        mixer.stopAllAction();
+        mixer.uncacheRoot(root);
+        root.updateMatrixWorld(true);
+        remeasure();
+    };
 }
 
 // ── shader ────────────────────────────────────────────────────────────────────
@@ -274,7 +305,7 @@ function stateOf(proxy: Object3D): SkinAnimState {
     if (!s) {
         const seed = Math.random();
         s = {
-            a: { role: 'idle', phase0: 0, anchor: skinTime.value, rate: 0 },
+            a: idlePlay(seed),
             b: null,
             fadeStart: -1e9,
             dying: false,
@@ -284,6 +315,11 @@ function stateOf(proxy: Object3D): SkinAnimState {
         proxy.userData.skinAnim = s;
     }
     return s;
+}
+
+/** A fresh idle loop at a per-mech offset (the shader wraps the phase into the clip). */
+function idlePlay(seed: number): ClipPlay {
+    return { role: 'idle', phase0: seed * 16, anchor: skinTime.value, rate: 1 };
 }
 
 function clipSeconds(p: ClipPlay, t: number): number {
@@ -340,15 +376,27 @@ export function playInstancedSkinOnce(proxy: Object3D, role: 'fire' | 'death', s
     crossTo(s, role, 0, clip.speed);
 }
 
-/** Round reset / revive: back to a still hover pose, no fade. */
+/** Round reset / revive: straight back to idle, no fade (flyers' drivers then ground it). */
 export function resetInstancedSkin(proxy: Object3D): void {
     if (!proxy.userData.instancedSkin) return;
     const s = stateOf(proxy);
     s.dying = false;
     s.walking = false;
-    s.a = { role: 'idle', phase0: 0, anchor: skinTime.value, rate: 0 };
+    s.a = idlePlay(s.seed);
     s.b = null;
     s.fadeStart = -1e9;
+}
+
+/**
+ * Ground locomotion: walk while the unit travels (playback follows its speed,
+ * so feet don't skate when slowed), idle when it stands. Same hysteresis as flyers.
+ */
+export function driveGroundSkin(proxy: Object3D, input: { dead?: boolean; moving: number }, skin: InstancedSkinData): void {
+    if (!proxy.userData.instancedSkin || input.dead) return;
+    const s = stateOf(proxy);
+    s.walking = s.walking ? input.moving > 0.2 : input.moving > 0.4;
+    if (s.walking) playInstancedSkinLoop(proxy, 'walk', Math.max(0.4, input.moving), skin);
+    else playInstancedSkinLoop(proxy, 'idle', 1, skin);
 }
 
 /**

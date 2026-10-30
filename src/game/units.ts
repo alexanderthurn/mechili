@@ -43,7 +43,7 @@ import {
     instancedSkinOf,
     usesWingFlapModel,
 } from './unitModels';
-import { driveFlyerSkin, resetInstancedSkin } from './instancedSkin';
+import { driveFlyerSkin, driveGroundSkin, resetInstancedSkin } from './instancedSkin';
 import {
     computeCrowWingRate,
     setCrowWingRateOnProxy,
@@ -2176,11 +2176,12 @@ export class Unit {
         const skin = instancedSkinOf(this.type.modelId ?? this.type.id);
         if (skin) {
             for (const m of this.members) {
-                driveFlyerSkin(
-                    m.mesh,
-                    { dead: !!m.mesh.userData.dead, inDeployment: this.inDeployment, flightLift: this.flightLift, altitude, moving },
-                    skin,
-                );
+                const dead = !!m.mesh.userData.dead;
+                if (this.type.flying) {
+                    driveFlyerSkin(m.mesh, { dead, inDeployment: this.inDeployment, flightLift: this.flightLift, altitude, moving }, skin);
+                } else {
+                    driveGroundSkin(m.mesh, { dead, moving }, skin);
+                }
             }
             return;
         }

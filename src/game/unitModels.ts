@@ -25,7 +25,7 @@ import type { BattleTeam, UnitType } from './units';
 import type { ModelAnimation } from './unitAnimated';
 import { assetUrl, hasAsset, onAssetOverlaySwitch } from './assets';
 import { disposeScene } from '../engine/disposeScene';
-import { bakeInstancedSkin, type InstancedSkinData } from './instancedSkin';
+import { bakeInstancedSkin, poseInstancedSkinRest, type InstancedSkinData } from './instancedSkin';
 import { BASE_PACK } from './content/basePack';
 
 /**
@@ -857,6 +857,11 @@ async function loadUnitModelsNow(
             if (spec.bakePose && !spec.skinned) {
                 bakeSkinnedPose(root, gltf.animations ?? [], spec.bakePose);
             }
+            // GPU-skinned units are measured standing in their idle, not in the rig's T-pose
+            const releaseRestPose =
+                spec.instancedSkin && spec.animation
+                    ? poseInstancedSkinRest(root, gltf.animations ?? [], spec.animation)
+                    : null;
             // measure after normalize+offset — real top relative to member origin
             const box = new Box3().setFromObject(root);
             visualHeights.set(id, Math.max(box.max.y, 0.05));
@@ -907,6 +912,7 @@ async function loadUnitModelsNow(
                     `[unitModels] Flag '${id}' @ (${p.x.toFixed(3)}, ${p.y.toFixed(3)}, ${p.z.toFixed(3)})`,
                 );
             }
+            releaseRestPose?.();
             templates.set(id, root);
             // Rigged units stay on SkinnedMesh + mixer — baking would freeze bind pose.
             // bakePose models are static after bakeSkinnedPose and use InstancedMesh.

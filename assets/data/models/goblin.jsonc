@@ -1,8 +1,17 @@
+// Rigged goblin (Tripo, Mixamo skeleton), GPU-skinned in the instance pools.
+// Faces −X in the GLB, hence yawDeg 180. Clips were cut from Tripo's
+// run / volleyball / defeat_03 / idle and renamed to the engine roles.
 {
     "file": "models/units/goblin.glb",
-    "yawDeg": 90,
+    "yawDeg": 180,
     "scale": 2.85,
     "offset": { "y": -0.04 },
-    // skinned walk clip → bake frame 0 into InstancedMesh (no runtime mixer)
-    "bakePose": { "clip": "walk", "time": 0 },
+    "instancedSkin": true,
+    "animation": {
+        "walk": { "clip": "walk" }, // Tripo run, loop eased closed
+        "idle": { "clip": "idle" },
+        "fire": { "clip": "fire" }, // volleyball spike 1.3–2.8 s, hit ≈ 0.9 s in
+        // defeat_03 1.5–3.8 s: falls forward and to its right
+        "death": { "clip": "death", "fallLocal": { "x": 0.62, "z": -0.78 } },
+    },
 }

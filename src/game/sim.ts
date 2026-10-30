@@ -71,7 +71,7 @@ import type { TypeRegistry } from './content/typeRegistry';
 import { computeCrowWingRate, crowWingDeathSplay, setCrowWingDeathSplay, setCrowWingRateOnProxy, setCrowWingRestOnProxy } from './crowWingFlap';
 import { hasUnitDeathAnim, playUnitDeathAnim, playUnitFireAnim, unitDeathFallLocal } from './unitAnimated';
 import { attackNodeWorld, getUnitAttackNodeLocal, getUnitVisualHalfWidth, getUnitVisualHeight, instancedSkinOf, usesWingFlapModel } from './unitModels';
-import { driveFlyerSkin, playInstancedSkinOnce } from './instancedSkin';
+import { driveFlyerSkin, driveGroundSkin, playInstancedSkinOnce } from './instancedSkin';
 import {
     beginDeathClip,
     beginDeathFall,
@@ -4623,7 +4623,7 @@ export class BattleSim {
             // cosmetic (mesh.position.y only): the sim itself walks the flat
             // plane (see feetY), so this can't affect determinism.
             const groundY = worldHeightAt(a.rx, a.rz) + GROUND_UNIT_Y;
-            if (!a.mesh.userData.animated) {
+            if (!a.mesh.userData.animated && !a.mesh.userData.instancedSkin) {
                 const lean = a.unit.type.walkLean ?? 1;
                 const cadence = a.unit.type.walkCadence ?? 1;
                 // Integrate on render frames (not SIM_HZ) — stepping phase only
@@ -4749,17 +4749,16 @@ export class BattleSim {
 
         const skin = a.mesh.userData.instancedSkin ? instancedSkinOf(a.unit.type.modelId ?? a.unit.type.id) : null;
         if (skin) {
-            driveFlyerSkin(
-                a.mesh,
-                {
-                    dead: !a.alive || !!a.mesh.userData.dead,
-                    inDeployment: false,
-                    flightLift: a.unit.flightLift,
-                    altitude: a.altitude,
-                    moving,
-                },
-                skin,
-            );
+            const dead = !a.alive || !!a.mesh.userData.dead;
+            if (a.unit.type.flying) {
+                driveFlyerSkin(
+                    a.mesh,
+                    { dead, inDeployment: false, flightLift: a.unit.flightLift, altitude: a.altitude, moving },
+                    skin,
+                );
+            } else {
+                driveGroundSkin(a.mesh, { dead, moving }, skin);
+            }
         }
         if (usesWingFlapModel(a.unit.type.modelId ?? a.unit.type.id) && a.mesh.userData.instanced) {
             setCrowWingRestOnProxy(a.mesh, 0);
@@ -5024,6 +5023,19 @@ export class BattleSim {
                 if (target.mesh.userData.animated && hasUnitDeathAnim(target.mesh)) playUnitDeathAnim(target.mesh);
                 const skin = target.mesh.userData.instancedSkin ? instancedSkinOf(t.modelId ?? t.id) : null;
                 if (skin) playInstancedSkinOnce(target.mesh, 'death', skin);
+            } else if (target.mesh.userData.instancedSkin && instancedSkinOf(t.modelId ?? t.id)?.clips.death) {
+                // GPU-skinned fall clip: same seating + knock-aligned yaw as the mixer path below
+                const skin = instancedSkinOf(t.modelId ?? t.id)!;
+                const death = skin.clips.death!;
+                const endYaw = deathYawFromKnock(
+                    knockDir?.x ?? 0,
+                    knockDir?.z ?? 0,
+                    skin.deathFallLocal.x,
+                    skin.deathFallLocal.z,
+                    target.facing,
+                );
+                playInstancedSkinOnce(target.mesh, 'death', skin);
+                beginDeathClip(target.mesh, groundY, death.duration / Math.max(1e-4, death.speed), -1, endYaw, 0.4);
             } else if (target.mesh.userData.animated && hasUnitDeathAnim(target.mesh)) {
                 // Skinned fall clip: ease yaw so authored tip-over follows the knock
                 const fallLocal = unitDeathFallLocal(target.mesh) ?? { x: 0, z: -1 };

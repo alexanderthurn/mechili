@@ -193,7 +193,8 @@ import { reachToward } from './terrainCombat';
 import { BattleOverlays, type BattleOverlaysHost } from './battleOverlays';
 import { HudViews, type EnemyIntelSnapshot, type HudViewsHost } from './hudViews';
 import { SelectionInfoBuilder, type BuildingIntelSeat, type BuildingIntelSnapshot, type SelectionInfoHost } from './selectionInfo';
-import { getUnitVisualHeight, modelGeometryFingerprint, modelGeometrySnapshot, usesWingFlapModel } from './unitModels';
+import { getUnitVisualHeight, instancedSkinOf, modelGeometryFingerprint, modelGeometrySnapshot, usesWingFlapModel } from './unitModels';
+import { playInstancedSkinLoop } from './instancedSkin';
 import { BirdFlocks } from './birdFlocks';
 import { WallJoins } from './wallJoins';
 import { GateDoors } from './gateDoors';
@@ -10350,6 +10351,14 @@ export class Game {
             this.applyBattleResult(this.sim);
             this.lastBattle = recordBattle(this.sim, this.round);
             freezeAllCrowWingRates(this.placement.allUnits(), usesWingFlapModel);
+            // the sim stops driving skinned packs here — settle the living into idle
+            for (const unit of this.placement.allUnits()) {
+                const skin = instancedSkinOf(unit.type.modelId ?? unit.type.id);
+                if (!skin) continue;
+                for (const m of unit.members) {
+                    if (!m.mesh.userData.dead) playInstancedSkinLoop(m.mesh, 'idle', 1, skin);
+                }
+            }
             if (
                 !this.hydrating &&
                 built.sources.length > 0 &&
