@@ -10,7 +10,7 @@
 // usage: node prep-clips.mjs in.glb out.glb '<json plan>'
 // plan: { "hips": "mixamorig:Hips", "clips": { "walk": { "from": "run" }, "fire": { "from": "volleyball", "start": 1.3, "end": 2.8 }, … },
 //         "idleLoop": { "from": "idle", "min": 3, "max": 6 } }   // optional: pick the best-matching loop end
-import { load, pose, duration } from './glb-sample.mjs';
+import { load, pose, duration, qmul, qrot } from './glb-sample.mjs';
 
 const [inFile, outFile, planJson] = process.argv.slice(2);
 const plan = JSON.parse(planJson);
@@ -59,7 +59,15 @@ if (plan.idleLoop) {
 }
 
 const hips = root.listNodes().find((n) => n.getName() === plan.hips);
-const hipsRest = hips.getTranslation();
+// The hips' parent may be rotated (Z-up rigs turn the root −90° about X), so pin in
+// world space: hold the hips' world X/Z at rest, keep its world height.
+const parentOf = new Map();
+for (const n of root.listNodes()) for (const c of n.listChildren()) parentOf.set(c, n);
+let hipsParentRot = [0, 0, 0, 1];
+for (let p = parentOf.get(hips); p; p = parentOf.get(p)) hipsParentRot = qmul(p.getRotation(), hipsParentRot);
+const toWorld = (v) => qrot(hipsParentRot, v);
+const toLocal = (v) => qrot([-hipsParentRot[0], -hipsParentRot[1], -hipsParentRot[2], hipsParentRot[3]], v);
+const hipsRestWorld = toWorld(hips.getTranslation());
 const made = [];
 for (const [role, spec] of Object.entries(plan.clips)) {
     const src = byName(spec.from);
@@ -103,8 +111,10 @@ for (const [role, spec] of Object.entries(plan.clips)) {
         if (ch.getTargetNode() === hips && path === 'translation') {
             // the sim owns horizontal travel: hold the hips over the feet, keep the bob/fall
             for (let f = 0; f < frames; f++) {
-                out[f * 3] = hipsRest[0];
-                out[f * 3 + 2] = hipsRest[2];
+                const w = toWorld([out[f * 3], out[f * 3 + 1], out[f * 3 + 2]]);
+                w[0] = hipsRestWorld[0];
+                w[2] = hipsRestWorld[2];
+                out.set(toLocal(w), f * 3);
             }
         }
         // a track that never moves off the rest value is dead weight

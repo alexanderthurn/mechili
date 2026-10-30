@@ -20,7 +20,12 @@ with `"instancedSkin": true` and an `animation` block in `assets/data/models/<id
    models face +X by default), `death.fallLocal` from where the clip lays the body.
 
 A rig nobody can animate by hand can be keyframed by script —
-`glb-animate-crow.mjs` is how the crow rider's clips were made.
+`glb-animate-crow.mjs` is how the crow rider's clips were made. A biped with no
+idle gets one from `glb-make-idle.mjs` (a calm upper-body frame of another clip,
+rest-pose legs, slow breathing) — that's the ogre's idle.
+
+Hips are pinned in world space, so Z-up rigs (Tripo biped presets turn the root
+−90° about X) work the same as Y-up Mixamo rigs.
 
 ## Mesh checks
 
