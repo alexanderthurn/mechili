@@ -434,8 +434,15 @@ export interface Stance {
 
 export const NO_STANCE: Stance = { focusX: null, pull: 0, spread: [], depthShift: 0, guard: null };
 
-/** chooses the round's pack number `index` (0 = its first) of `slots` itself, maybe to stand by `near` — null: none */
-export type PackPick = (index: number, slots: number, cost: (t: UnitType) => number) => { type: UnitType; near?: Unit } | null;
+/**
+ * chooses the round's pack number `index` (0 = its first) of `slots` itself, maybe to stand by `near`
+ * or at a flank (`side` 0: the lower columns) level with `row` — null: none
+ */
+export type PackPick = (
+    index: number,
+    slots: number,
+    cost: (t: UnitType) => number,
+) => { type: UnitType; near?: Unit; flank?: { side: 0 | 1; row: number } } | null;
 /** buys one more pack slot for the round when a pack for it makes sense — whether it did */
 export type ExtraSlot = (cost: (t: UnitType) => number) => boolean;
 /** with picked packs, these come before the kept army's levels; the rest after */
@@ -605,10 +612,10 @@ export class YearBrain {
         while (this.bought < slots) {
             const pick = this.pick(this.bought, slots, (t) => this.buyCost(t));
             if (!pick || this.buyCost(pick.type) > this.host.economy.balance(this.seat)) break;
-            const { type, near } = pick;
+            const { type, near, flank } = pick;
             const guard = this.bought < guards ? this.stance.guard!.x : undefined;
-            // an answer to a weak point stands just behind what was hurt
-            const at = near && guard === undefined ? this.spotBehind(type, near) : null;
+            // a flank's answer stands at that flank; an answer to a weak point just behind what was hurt
+            const at = flank ? this.spotAtFlank(type, flank.side, flank.row) : near && guard === undefined ? this.spotBehind(type, near) : null;
             if (at) {
                 if (!this.buyAt(type, at)) break;
                 placed.push({ x: at.x, type });
@@ -872,6 +879,14 @@ export class YearBrain {
         const centerRow = unit.cell.row + own.rows / 2 - forward * (own.rows / 2 + fp.rows / 2 + 1);
         const spot = this.nearestSpot(type, Math.round(centerCol - fp.cols / 2), Math.round(centerRow - fp.rows / 2), false, colMin, colMax);
         return spot ? { spot, x: unit.world.x } : null;
+    }
+
+    /** the spot in the zone's outer columns on `side` (0: the lower) level with `row`, or null when nothing fits near it */
+    private spotAtFlank(type: UnitType, side: 0 | 1, row: number): { spot: { col: number; row: number }; x: number } | null {
+        const { colMin, colMax } = this.frontline(this.team);
+        const fp = type.footprint;
+        const spot = this.nearestSpot(type, side === 0 ? colMin : colMax - fp.cols + 1, Math.round(row - fp.rows / 2), false, colMin, colMax);
+        return spot ? { spot, x: (spot.col + fp.cols / 2) * CELL - this.host.placement.map.halfW } : null;
     }
 
     /** buys a pack of `type` on `at` */

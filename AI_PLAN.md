@@ -220,7 +220,9 @@ Every difficulty for now (`aiRoles.ts`, decided 2026-10-30): a few fixed types, 
 | Anti-wall | ballista |
 | Strong | the commander's starting unit of 200+ (ogre, mortar), else a random 200+ unit, kept for the match |
 
-- The round's 1st pack is chaff; the 3rd too before round 5.
+- The round's 1st pack is chaff, at a random spot.
+- **Flanks** come next, whatever the personality: each flank strip beside the AI's half on its own, one answer per enemy pack standing there — an archer per flyer, a chaff pack per ground unit of 200+, a hammerer per chaff pack — less the answers already standing in that flank's band (the own zone's 12 outer columns). Both flanks are served in turn; the answer stands in the outer columns level with the enemy there. Before weak points, and before the 3rd pack's chaff.
+- Then the 3rd pack is chaff before round 5.
 - Order: the first two packs, then the kept army's levels, then the +1 buy — only when supply covers it and a pack — and the 3rd pack.
 - Every other pack answers a **weak point** of the last battle (from round 2): what its own side lost, by share of HP, weighted — a pack 1, a debuff tower 3, the Stronghold (or Tent) 5; chaff, walls and other buildings 0 (they're there to be hit). The loss is split by what dealt it: air → archer, chaff → hammerer, anything else → the strong unit. The biggest kind first (from 0.5 on), each kind once a round. The answer stands just behind the own pack or building that lost most to it. What went well gets nothing more.
 - No weak point left: ballistas when the enemy's walls matter (enemy walls' value less twice the own ballistas' value), else the strong unit. Round 1 (no battle yet): the board — enemy air, chaff, walls and the rest, each its value less twice the own answer's value, the largest first.

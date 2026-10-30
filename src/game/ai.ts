@@ -19,7 +19,7 @@ import type { TypeRegistry } from './content/typeRegistry';
 import type { SeatId } from './seats';
 import { itemSlotLimit } from './items';
 import { NO_STANCE, YearBrain, type PackPick, type Stance } from './aiYear';
-import { AI_ROLES, readNeeds, readWeakPoints, STRONG_FROM, strongHelpless, THIRD_PACK_FREE_FROM, type LossKind, type Need, type Roster, type WeakPoint } from './aiRoles';
+import { AI_ROLES, readFlankNeeds, readNeeds, readWeakPoints, STRONG_FROM, strongHelpless, THIRD_PACK_FREE_FROM, type LossKind, type Need, type Roster, type WeakPoint } from './aiRoles';
 import { CELL } from './map';
 import { isChaff } from './aiCounters';
 import { AI_WALL_ID, orderedWallPlan, placeWallPlan, sideFrontline, wallInSlot, wallPlanCells, type PlanSlot } from './aiWalls';
@@ -628,8 +628,11 @@ export class AiOpponent implements Opponent {
 
     /**
      * Its packs by roles (AI_PLAN.md, "Chaff and roles"): the round's 1st pack is
-     * chaff, and so is the 3rd before round {@link THIRD_PACK_FREE_FROM}. Every
-     * other pack answers a weak point of the last battle — what hurt it most
+     * chaff, at random. The enemy's flank packs come next, each flank on its
+     * own and both served in turn: one answer per enemy pack there (an archer
+     * per flyer, chaff per 200+ unit, a hammerer per chaff), standing at that
+     * flank level with them. Then the 3rd pack is chaff before round
+     * {@link THIRD_PACK_FREE_FROM}, and every other pack answers a weak point of the last battle — what hurt it most
      * that the round hasn't answered yet: air (archers), chaff (hammerers),
      * the rest (its strong unit) — standing by what was hurt; with none left,
      * walls that matter (ballistas), else the strong unit. Round 1 (no battle
@@ -643,6 +646,8 @@ export class AiOpponent implements Opponent {
         const last = this.ctx.lastBattle?.() ?? null;
         this.weakPoints = last ? readWeakPoints(last, this.seat, this.ctx.types) : [];
         const answered = new Set<LossKind>();
+        const flanks = readFlankNeeds(this.ctx.placement, this.team, this.seat, roster);
+        const served = [0, 0];
         return (index, slots, cost) => {
             const chaff = this.ctx.types.byId(roster.chaff);
             let reserve = 0;
@@ -651,6 +656,16 @@ export class AiOpponent implements Opponent {
                 const type = this.readyRole(roster.chaff, cost, 0) ?? this.cheapestArmyType(cost);
                 return type ? { type } : null;
             };
+            if (index === 0) return fallback();
+            // the enemy's flanks: the one served less this round first (then the one needing more)
+            const sides = ([0, 1] as const).filter((s) => flanks[s].length > 0).sort((a, b) => served[a]! - served[b]! || flanks[b].length - flanks[a].length);
+            for (const side of sides) {
+                const at = flanks[side].findIndex((n) => !!this.readyRole(n.typeId, cost, reserve));
+                if (at < 0) continue;
+                const need = flanks[side].splice(at, 1)[0]!;
+                served[side]!++;
+                return { type: this.ctx.types.byId(need.typeId)!, flank: { side, row: need.row } };
+            }
             if (chaffPack(index)) return fallback();
             // a weak point of the last battle, by what was hurt
             for (const weak of this.weakPoints) {

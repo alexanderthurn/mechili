@@ -5,7 +5,7 @@
  */
 import { isChaff } from './aiCounters';
 import type { BattleRecord } from './aiThreat';
-import { readEnemyWalls } from './aiWalls';
+import { readEnemyWalls, sideFrontline } from './aiWalls';
 import type { TypeRegistry } from './content/typeRegistry';
 import type { PlacementController } from './placement';
 import type { SeatId } from './seats';
@@ -35,6 +35,8 @@ const HELPLESS_SHARE = 0.5;
 const LOSS_WEIGHT = { pack: 1, tower: 3, keep: 5 };
 /** a weak point counts from this much loss (half a pack) */
 const WEAK_FROM = 0.5;
+/** own packs this many tiles in from the zone's outer column count as a flank's answers */
+const FLANK_BAND = 12;
 
 export type Need = 'air' | 'chaff' | 'walls' | 'strong';
 
@@ -158,4 +160,49 @@ export function readWeakPoints(record: BattleRecord, seat: SeatId, types: TypeRe
         .filter((k) => total[k] >= WEAK_FROM && worst[k])
         .map((k) => ({ kind: k, loss: total[k], victimId: worst[k]!.id }))
         .sort((a, b) => b.loss - a.loss);
+}
+
+/** one answer a flank still needs: a pack of `typeId` level with the enemy there (`row`, its middle) */
+export interface FlankNeed {
+    /** 0: the side of the lower columns, 1: the higher */
+    side: 0 | 1;
+    typeId: string;
+    row: number;
+}
+
+/**
+ * What the enemy's flank packs (on the flank strips beside this side's half)
+ * still need answered, each flank on its own: one answer per enemy pack —
+ * an archer per flyer, a chaff pack per ground unit of {@link STRONG_FROM} or
+ * more, a hammerer per chaff pack — less the answers already standing in
+ * that flank's band of the own zone. Per side in that order.
+ */
+export function readFlankNeeds(placement: PlacementController, team: Team, seat: SeatId, roster: Roster): [FlankNeed[], FlankNeed[]] {
+    const { colMin, colMax } = sideFrontline(placement, team);
+    const sideOfCol = (col: number): 0 | 1 => (col < (colMin + colMax) / 2 ? 0 : 1);
+    const enemy: [Unit[], Unit[]] = [[], []];
+    const own: [Unit[], Unit[]] = [[], []];
+    for (const u of placement.allUnits()) {
+        if (!isPack(u) || u.gridless) continue;
+        if (u.team !== team) {
+            if (placement.isOnFlank(u)) enemy[sideOfCol(u.cell.col)].push(u);
+        } else if (u.seat === seat) {
+            if (u.cell.col < colMin + FLANK_BAND) own[0].push(u);
+            else if (u.cell.col + u.type.footprint.cols - 1 > colMax - FLANK_BAND) own[1].push(u);
+        }
+    }
+    const answers: [string, (u: Unit) => boolean][] = [
+        [AI_ROLES.antiAir, (u) => !!u.type.flying],
+        [roster.chaff, (u) => !u.type.flying && !isChaff(u.type) && u.type.cost >= STRONG_FROM],
+        [AI_ROLES.antiChaff, (u) => !u.type.flying && isChaff(u.type)],
+    ];
+    return ([0, 1] as const).map((side) => {
+        const out: FlankNeed[] = [];
+        for (const [typeId, faces] of answers) {
+            const them = enemy[side].filter(faces);
+            const have = own[side].filter((u) => u.type.id === typeId).length;
+            for (const u of them.slice(have)) out.push({ side, typeId, row: u.cell.row + u.type.footprint.rows / 2 });
+        }
+        return out;
+    }) as [FlankNeed[], FlankNeed[]];
 }
