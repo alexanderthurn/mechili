@@ -1,4 +1,4 @@
-import { InstancedMesh, Matrix4, Quaternion, Vector3, type Scene } from 'three';
+import { InstancedMesh, Matrix4, Object3D, Quaternion, Vector3, type Scene } from 'three';
 import {
     attachInstancedWingFlap,
     preserveCrowWingFlap,
@@ -6,7 +6,15 @@ import {
     setCrowWingRate,
     setupCrowWingInstanceAttributes,
 } from './crowWingFlap';
-import { getUnitInstanceAsset, wingFlapOf } from './unitModels';
+import { getUnitInstanceAsset, instancedSkinOf, wingFlapOf } from './unitModels';
+import {
+    attachInstancedSkin,
+    flagInstancedSkinUpload,
+    playInstancedSkinLoop,
+    registerInstancedSkinProxy,
+    setupInstancedSkinAttributes,
+    writeInstancedSkin,
+} from './instancedSkin';
 
 /**
  * Birds startled out of the forest by a battle's first noise (the first shot or
@@ -44,6 +52,8 @@ interface Bird {
     /** this bird's own drift around the flock heading (radians) */
     wobble: number;
     phase: number;
+    /** clip state holder when the bat is GPU-skinned (its wingbeat loop) */
+    anim: Object3D;
 }
 
 const _m = new Matrix4();
@@ -64,13 +74,19 @@ export class BirdFlocks {
         if (this.parts) return this.parts;
         const asset = getUnitInstanceAsset(MODEL);
         const wing = wingFlapOf(MODEL);
-        if (!asset || !wing) return null;
+        // the rigged bat flaps by GPU skinning; a level's old shader-flap bat still works
+        if (!asset || (!wing && !asset.parts[0]?.skin)) return null;
         this.parts = asset.parts.map((part) => {
             const mat = part.material.clone();
-            preserveCrowWingFlap(part.material, mat);
-            attachInstancedWingFlap(wing, mat, part.geometry);
             const mesh = new InstancedMesh(part.geometry.clone(), mat, CAPACITY);
-            setupCrowWingInstanceAttributes(mesh, CAPACITY);
+            if (part.skin) {
+                setupInstancedSkinAttributes(mesh, CAPACITY);
+                attachInstancedSkin(mesh, mat, part.skin);
+            } else if (wing) {
+                preserveCrowWingFlap(part.material, mat);
+                attachInstancedWingFlap(wing, mat, part.geometry);
+                setupCrowWingInstanceAttributes(mesh, CAPACITY);
+            }
             mesh.frustumCulled = false;
             mesh.castShadow = false;
             mesh.count = 0;
@@ -110,6 +126,7 @@ export class BirdFlocks {
                     heading: away.clone(),
                     wobble: (Math.random() - 0.5) * 0.5,
                     phase: Math.random() * Math.PI * 2,
+                    anim: new Object3D(),
                 });
             }
         }
@@ -125,6 +142,7 @@ export class BirdFlocks {
             b.t += dtSeconds;
             if (b.t - b.delay > B.seconds) this.birds.splice(i, 1);
         }
+        const skin = instancedSkinOf(MODEL);
         for (const b of this.birds) {
             const t = b.t - b.delay;
             if (t < 0) continue;
@@ -141,9 +159,15 @@ export class BirdFlocks {
             _m.compose(b.pos, _q, _s.set(k, k, k));
             for (const mesh of parts) {
                 mesh.setMatrixAt(n, _m);
-                setCrowWingPhase(mesh, n, b.phase);
-                // fast beats at take-off, steadier once up
-                setCrowWingRate(mesh, n, t < 1.5 ? 1 : 0.7);
+                if (skin) {
+                    // fast beats at take-off, steadier once up
+                    if (!b.anim.userData.instancedSkin) registerInstancedSkinProxy(b.anim);
+                    playInstancedSkinLoop(b.anim, 'walk', t < 1.5 ? 1 : 0.7, skin);
+                    if (writeInstancedSkin(mesh, n, b.anim, skin)) flagInstancedSkinUpload(mesh);
+                } else {
+                    setCrowWingPhase(mesh, n, b.phase);
+                    setCrowWingRate(mesh, n, t < 1.5 ? 1 : 0.7);
+                }
             }
             n++;
         }

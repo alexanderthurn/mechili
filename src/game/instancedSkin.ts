@@ -40,6 +40,9 @@ type LoopRole = 'walk' | 'idle' | 'fly';
 
 /** Bake resolution — clips are linearly interpolated between frames. */
 const BAKE_FPS = 30;
+/** short clips (a bat's 0.2 s wingbeat) bake denser: at least this many frames, at most 120 fps */
+const MIN_CLIP_FRAMES = 24;
+const MAX_BAKE_FPS = 120;
 /** Seconds to cross-fade from the previous clip into the next. */
 const FADE_SECONDS = 0.2;
 /** Ground units drop from walk to idle only after standing this long. */
@@ -57,6 +60,8 @@ interface BakedClip {
     speed: number;
     /** the source clip — the showcase viewer plays it on a plain mixer */
     clip: AnimationClip;
+    /** frames per authored second in the texture (BAKE_FPS, more for short clips) */
+    fps: number;
 }
 
 export interface InstancedSkinData {
@@ -120,7 +125,8 @@ export function bakeInstancedSkin(
             console.warn(`[instancedSkin] no clip '${String(spec.clip)}' for ${role}`);
             continue;
         }
-        plan.push({ role, clip, speed: spec.speed ?? 1, frames: Math.max(2, Math.round(clip.duration * BAKE_FPS) + 1) });
+        const fps = Math.min(MAX_BAKE_FPS, Math.max(BAKE_FPS, (MIN_CLIP_FRAMES - 1) / Math.max(clip.duration, 1e-3)));
+        plan.push({ role, clip, speed: spec.speed ?? 1, frames: Math.max(2, Math.round(clip.duration * fps) + 1) });
     }
     const rows = plan.reduce((n, p) => n + p.frames, 0);
     const width = bones * 4;
@@ -167,6 +173,7 @@ export function bakeInstancedSkin(
             loop: p.role === 'walk' || p.role === 'idle' || p.role === 'fly',
             speed: p.speed,
             clip: p.clip,
+            fps: (p.frames - 1) / Math.max(p.clip.duration, 1e-6),
         };
         row += p.frames;
     }
@@ -549,11 +556,13 @@ function packClip(p: ClipPlay | null, skin: InstancedSkinData, out: number[]): v
         return;
     }
     const packed = clip.row * ROW_PACK + clip.frames;
+    // the shader counts frames at BAKE_FPS; a clip baked denser scales its phase and rate
+    const k = clip.fps / BAKE_FPS;
     // rounded like the Float32Array will store them, so unchanged state compares equal
     out[0] = clip.loop ? packed : -packed;
-    out[1] = Math.fround(p.phase0);
+    out[1] = Math.fround(p.phase0 * k);
     out[2] = Math.fround(p.anchor);
-    out[3] = Math.fround(p.rate);
+    out[3] = Math.fround(p.rate * k);
 }
 
 const _a = [0, 0, 0, 0];
@@ -600,7 +609,7 @@ const _mB = new Matrix4();
 function clipBone(skin: InstancedSkinData, play: ClipPlay, bone: number, t: number, out: Matrix4): Matrix4 {
     const clip = skin.clips[play.role];
     if (!clip) return out.identity();
-    let f = clipSeconds(play, t) * BAKE_FPS;
+    let f = clipSeconds(play, t) * clip.fps;
     f = clip.loop ? ((f % (clip.frames - 1)) + (clip.frames - 1)) % (clip.frames - 1) : Math.min(Math.max(f, 0), clip.frames - 1);
     const f0 = Math.floor(f);
     const f1 = Math.min(f0 + 1, clip.frames - 1);
