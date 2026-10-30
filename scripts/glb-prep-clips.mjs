@@ -11,11 +11,16 @@
 // plan: { "hips": "mixamorig:Hips", "clips": { "walk": { "from": "run", "loop": true }, "fire": { "from": "volleyball", "start": 1.3, "end": 2.8 }, … },
 //   "loop": the source already cycles (Tripo/Mixamo walks/runs) — wrap last key → first key.
 //   "loopFix": seconds to ease the tail into frame 0, only for clips that don't close.
+// clip "aim": { "joint": "mixamorig:RightHand", "prop": [0,1,0], "dir": [0,1,0.25] } — hold that
+//   joint at one fixed angle for the clip, turned so a prop that points along `prop` (world,
+//   bind pose) points along `dir` (world) at the clip's average parent orientation. A rigid
+//   wrist like "freeze", but a different carry per clip (axe upright in idle, forward when running).
 // plan.freeze: joint names whose keys are dropped in every clip, so they hold their rest
 //   pose relative to their parent — e.g. a wrist the exporter retargeted badly (the
 //   dwarf's axe hand bent 90° off the arm); the hand then rides the forearm rigidly.
 //         "idleLoop": { "from": "idle", "min": 3, "max": 6 } }   // optional: pick the best-matching loop end
 import { load, pose, duration, qmul, qrot } from './glb-sample.mjs';
+import { Quaternion, Vector3 } from 'three';
 
 const [inFile, outFile, planJson] = process.argv.slice(2);
 const plan = JSON.parse(planJson);
@@ -144,7 +149,41 @@ for (const [role, spec] of Object.entries(plan.clips)) {
     const input = doc.createAccessor().setType('SCALAR').setArray(times).setBuffer(buffer);
     let kept = 0;
     let dropped = 0;
+    // aimed joint: one fixed local rotation for this clip
+    let aimNode = null;
+    let aimRot = null;
+    if (spec.aim) {
+        aimNode = root.listNodes().find((n) => n.getName() === spec.aim.joint);
+        if (!aimNode) throw new Error(`aim: no joint ${spec.aim.joint}`);
+        const parentName = parentOf.get(aimNode).getName();
+        const bindRot = new Quaternion(...pose(doc, null, 0).rot.get(spec.aim.joint));
+        const propLocal = new Vector3(...spec.aim.prop).normalize().applyQuaternion(bindRot.clone().invert());
+        // average parent orientation over the clip (sign-aligned quaternion mean)
+        const acc = [0, 0, 0, 0];
+        let ref = null;
+        for (let f = 0; f < frames; f += 2) {
+            const q = pose(doc, src, start + times[f]).rot.get(parentName);
+            if (!ref) ref = q;
+            const sg = q[0] * ref[0] + q[1] * ref[1] + q[2] * ref[2] + q[3] * ref[3] < 0 ? -1 : 1;
+            for (let k = 0; k < 4; k++) acc[k] += sg * q[k];
+        }
+        const parentMean = new Quaternion(...acc).normalize();
+        const restLocal = new Quaternion(...aimNode.getRotation());
+        const want = new Vector3(...spec.aim.dir).normalize().applyQuaternion(parentMean.clone().multiply(restLocal).invert());
+        aimRot = restLocal.clone().multiply(new Quaternion().setFromUnitVectors(propLocal, want)).toArray();
+    }
     for (const ch of src.listChannels()) {
+        if (ch.getTargetNode() === aimNode) {
+            if (ch.getTargetPath() === 'rotation') {
+                const out = new Float32Array(frames * 4);
+                for (let f = 0; f < frames; f++) out.set(aimRot, f * 4);
+                const output = doc.createAccessor().setType('VEC4').setArray(out).setBuffer(buffer);
+                const sampler = doc.createAnimationSampler().setInput(input).setOutput(output).setInterpolation('LINEAR');
+                anim.addSampler(sampler).addChannel(doc.createAnimationChannel().setTargetNode(aimNode).setTargetPath('rotation').setSampler(sampler));
+                kept++;
+            } else dropped++;
+            continue;
+        }
         if (frozen.has(ch.getTargetNode().getName())) {
             dropped++;
             continue;

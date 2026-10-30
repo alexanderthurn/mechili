@@ -36,12 +36,15 @@ export function pose(doc, anim, t) {
     local.get(c.getTargetNode())[path[0]] = sampleTrack(s.getInput().getArray(), s.getOutput().getArray(), n, t);
   }
   const world = new Map();
+  /** world rotation per node name, alongside the positions */
+  world.rot = new Map();
   const visit = (node, pq, pt, ps) => {
     const l = local.get(node);
     const st = [l.t[0]*ps[0], l.t[1]*ps[1], l.t[2]*ps[2]];
     const wt = qrot(pq, st).map((v, k) => v + pt[k]);
     const wq = qmul(pq, l.r); const ws = [ps[0]*l.s[0], ps[1]*l.s[1], ps[2]*l.s[2]];
     world.set(node.getName(), wt);
+    world.rot.set(node.getName(), wq);
     for (const c of node.listChildren()) visit(c, wq, wt, ws);
   };
   for (const scene of root.listScenes()) for (const n of scene.listChildren()) visit(n, [0,0,0,1], [0,0,0], [1,1,1]);
