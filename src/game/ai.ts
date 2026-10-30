@@ -20,6 +20,7 @@ import type { SeatId } from './seats';
 import { itemSlotLimit } from './items';
 import { chooseRebuildCommander, NO_STANCE, YearBrain, type Stance } from './aiYear';
 import { CELL } from './map';
+import { isChaff } from './aiCounters';
 import { AI_WALL_ID, isSiegeType, orderedWallPlan, placeWallPlan, readEnemyWalls, sideFrontline, siegeWanted, wallInSlot, wallPlanCells, type PlanSlot } from './aiWalls';
 import type { LevelingSettings } from './settings';
 import { aiFeatures, DEFENDER_WALL_SHARE, type AiDifficulty, type AiFeatures, type AiStyle } from './aiProfile';
@@ -231,7 +232,9 @@ export class AiOpponent implements Opponent {
         // Easy and Medium build it first (a Defender there overbuilds); Hard buys its packs first
         const packsFirst = features.unitChoice === 'counter';
         if (!packsFirst) this.buildDefence(features, defence, towers, danger, weak, roundSupply);
-        if (features.antiWall) this.answerEnemyWalls(rng);
+        // every other pack is chaff (the 1st, the 3rd): a chaff type unlocked first, if there's none yet
+        this.unlockChaff();
+        const wantSiege = features.antiWall && this.answerEnemyWalls();
         // the army's helpers before it buys: tutor charges, and a third pack slot (the +1 buy) when supply fills it
         if (features.extras) this.useTutorCharges();
         if (features.extras) this.buyExtraPack();
@@ -246,6 +249,7 @@ export class AiOpponent implements Opponent {
             { ...(this.ctx.climb ? {} : { keepPull: 0 }), ...this.ctx.plannerOverrides },
             features.unitChoice,
             this.stance(towers, danger, weak),
+            wantSiege,
         );
         const slots = this.ctx.deployCap();
         brain.playRound({ keep: !this.ctx.climb, slots, finish: false });
@@ -652,27 +656,37 @@ export class AiOpponent implements Opponent {
         this.ctx.dispatch({ kind: 'sendSupply', team: this.team, seat: this.seat, toSeat: ally, amount });
     }
 
-    /** siege packs against the enemy's walls when they matter (Hard) — unlocking one if none is in the shop yet */
-    private answerEnemyWalls(rng: () => number): void {
+    /**
+     * Whether this round's free pack (the 2nd) should be siege against the
+     * enemy's walls (Hard): while it fields fewer than the walls want —
+     * unlocking a siege type if none is in the shop yet. One a round at most.
+     */
+    private answerEnemyWalls(): boolean {
         const { placement } = this.ctx;
         const have = placement
             .allUnits()
             .filter((u) => u.seat === this.seat && !u.destroyed && !u.type.structure && isSiegeType(u.type)).length;
-        for (let need = siegeWanted(readEnemyWalls(placement, this.team)) - have; need > 0; need--) {
-            if (this.affordableArmyTypes(isSiegeType).length === 0) this.unlockSiege();
-            if (!this.buyUnit(this.preferLesserOwned(this.affordableArmyTypes(isSiegeType), rng), rng)) break;
-        }
+        if (siegeWanted(readEnemyWalls(placement, this.team)) <= have) return false;
+        if (this.affordableArmyTypes(isSiegeType).length === 0) this.unlockCheapest(isSiegeType);
+        return true;
     }
 
-    /** this round's unlock on the cheapest siege type of the shop, if it's still free and affordable */
-    private unlockSiege(): void {
+    /** a chaff type in the shop: unlocks the cheapest one when none is unlocked yet */
+    private unlockChaff(): void {
+        const unlocked = this.ctx.unlockedUnits[this.seat]!;
+        if (unlocked.some((id) => { const t = this.ctx.types.byId(id); return !!t && isChaff(t); })) return;
+        this.unlockCheapest(isChaff);
+    }
+
+    /** this round's unlock on the cheapest `kind` of the shop, if it's still free and affordable */
+    private unlockCheapest(kind: (t: UnitType) => boolean): void {
         const { economy, unlockedUnits, unlockUsedThisRound, commander, types } = this.ctx;
         if (unlockUsedThisRound[this.seat]) return;
         const owner = types.commander(commander[this.seat] ?? '');
         let best: { id: string; cost: number } | null = null;
         for (const id of this.shop()) {
             const t = types.byId(id);
-            if (!t || !isSiegeType(t) || unlockedUnits[this.seat]!.includes(id)) continue;
+            if (!t || !kind(t) || unlockedUnits[this.seat]!.includes(id)) continue;
             const cost = unlockCostFor(id, owner, types);
             if (cost <= economy.balance(this.seat) && (!best || cost < best.cost)) best = { id, cost };
         }
@@ -696,55 +710,6 @@ export class AiOpponent implements Opponent {
                 economy.canAfford(this.seat, t) &&
                 (!pred || pred(t)),
         );
-    }
-
-    /** how many of this seat's army packs are of each type (for first-buy diversity) */
-    private ownedArmyCounts(): Map<string, number> {
-        const counts = new Map<string, number>();
-        for (const u of this.ctx.placement.allUnits()) {
-            if (u.seat !== this.seat || u.type.structure || u.type.extra) continue;
-            counts.set(u.type.id, (counts.get(u.type.id) ?? 0) + 1);
-        }
-        return counts;
-    }
-
-    /**
-     * Among candidates, prefer types this seat has fewer of (missing first,
-     * then the lesser count). Ties break randomly.
-     */
-    private preferLesserOwned(
-        candidates: readonly UnitType[],
-        rng: () => number = this.ctx.rng,
-    ): UnitType | null {
-        if (candidates.length === 0) return null;
-        const counts = this.ownedArmyCounts();
-        let best: UnitType[] = [];
-        let bestCount = Number.POSITIVE_INFINITY;
-        for (const t of candidates) {
-            const n = counts.get(t.id) ?? 0;
-            if (n < bestCount) {
-                bestCount = n;
-                best = [t];
-            } else if (n === bestCount) {
-                best.push(t);
-            }
-        }
-        return best[Math.floor(rng() * best.length)]!;
-    }
-
-    private buyUnit(type: UnitType | null, rng: () => number = this.ctx.rng): boolean {
-        if (!type) return false;
-        const { dispatch, placement } = this.ctx;
-        const spot = placement.findAiSpot(this.team, this.seat, type, rng);
-        if (!spot) return false;
-        return dispatch({
-            kind: 'buy',
-            team: this.team,
-            seat: this.seat,
-            typeId: type.id,
-            anchor: spot.anchor,
-            rotated: spot.rotated,
-        });
     }
 
     /**

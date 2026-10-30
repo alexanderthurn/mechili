@@ -29,10 +29,10 @@
  * the stream it is handed.
  */
 import type { Action } from './actions';
-import { counterTable, missingCounterShare, type CounterTable } from './aiCounters';
+import { counterTable, isChaff, missingCounterShare, type CounterTable } from './aiCounters';
 import { unlockCostFor, type StartCard } from './cards';
 import type { TypeRegistry } from './content/typeRegistry';
-import { sideFrontline } from './aiWalls';
+import { isSiegeType, sideFrontline } from './aiWalls';
 import { CELL } from './map';
 import type { PlacementController } from './placement';
 import type { SeatId } from './seats';
@@ -517,6 +517,8 @@ export class YearBrain {
         private readonly unitChoice: 'poor' | 'counter' = 'counter',
         /** where the personality wants the round's new packs (AI_PLAN.md, "Personalities") */
         private readonly stance: Stance = NO_STANCE,
+        /** the round's free pack goes to siege (the enemy's walls matter) */
+        private readonly wantSiege = false,
     ) {
         this.p = { ...PLANNER, ...overrides };
     }
@@ -690,9 +692,9 @@ export class YearBrain {
                 // the counter table: what the enemy fields that its army (and this plan) doesn't answer yet
                 const own = new Map(values.own);
                 for (const p of plan.packs) own.set(p.type.id, (own.get(p.type.id) ?? 0) + p.type.cost * this.recruitLevel(p.type));
-                for (const type of shop) {
+                const pool = this.forPack(shop.filter((t) => this.buyCost(t) <= left), this.bought + plan.packs.length);
+                for (const type of pool) {
                     const cost = this.buyCost(type);
-                    if (cost > left) continue;
                     const flying = effectiveFlying(type, this.seat, this.hasTech, types) > 0;
                     const stats = TechTree.statsWithOwned(type, ownedTechs.get(type.id) ?? new Set(), types);
                     const depth = preferredDepth(type, { range: stats.range, minRange: stats.minRange, flying, convert: !!type.convertRay || !!type.rampBeam });
@@ -774,6 +776,19 @@ export class YearBrain {
     }
 
     /**
+     * The types the round's pack number `index` (0 = its first) may be: every
+     * other pack — the 1st, the 3rd, … — is chaff, the ones between are the
+     * planner's free choice (siege first when the enemy's walls matter). When
+     * none of the wanted kind is among `types`, any of them.
+     */
+    private forPack(types: readonly UnitType[], index: number): readonly UnitType[] {
+        const want = index % 2 === 0 ? isChaff : index === 1 && this.wantSiege ? isSiegeType : null;
+        if (!want) return types;
+        const fit = types.filter(want);
+        return fit.length > 0 ? fit : types;
+    }
+
+    /**
      * Plan and play one build phase. `keep` = the side keeps its army (levels
      * it first); otherwise the army was just cleared.
      */
@@ -839,7 +854,7 @@ export class YearBrain {
         const { economy } = this.host;
         const lanes = this.enemyLanes();
         for (let guard = 0; guard < 40 && this.bought < slots; guard++) {
-            const affordable = this.buyableTypes().filter((t) => this.buyCost(t) <= economy.balance(this.seat));
+            const affordable = this.forPack(this.buyableTypes().filter((t) => this.buyCost(t) <= economy.balance(this.seat)), this.bought);
             if (affordable.length === 0) break;
             const type = affordable[Math.floor(this.rng() * affordable.length)]!;
             if (!this.placeOne(type, depthFor(type), lanes, [])) break;
@@ -868,7 +883,7 @@ export class YearBrain {
         const packs: Plan['packs'] = [];
         let left = economy.balance(this.seat);
         for (let i = 0; i < slots; i++) {
-            const affordable = this.buyableTypes().filter((t) => this.buyCost(t) <= left);
+            const affordable = this.forPack(this.buyableTypes().filter((t) => this.buyCost(t) <= left), this.bought + i);
             if (affordable.length === 0) break;
             const type = affordable[Math.floor(this.rng() * affordable.length)]!;
             left -= this.buyCost(type);
@@ -944,7 +959,7 @@ export class YearBrain {
         const { economy, dispatch } = this.host;
         for (let guard = 0; guard < 30; guard++) {
             const board = this.boardGroups();
-            const types = this.buyableTypes().filter((t) => this.buyCost(t) <= economy.balance(this.seat));
+            const types = this.forPack(this.buyableTypes().filter((t) => this.buyCost(t) <= economy.balance(this.seat)), this.bought);
             if (types.length === 0) break;
             if (this.bought >= slots) break;
             let best: UnitType | null = null;
@@ -1076,7 +1091,7 @@ export class YearBrain {
         const { placement, dispatch } = this.host;
         const movable = placement
             .allUnits()
-            .filter((u) => u.seat === this.seat && !u.destroyed && !u.summoned && !u.gridless && !u.type.structure && !u.type.extra && placement.canReposition(u))
+            .filter((u) => u.seat === this.seat && !u.destroyed && !u.summoned && !u.gridless && !u.type.structure && !u.type.extra && !isChaff(u.type) && placement.canReposition(u))
             .sort((a, b) => depthFor(a.type) - depthFor(b.type) || b.type.cost - a.type.cost || a.id - b.id);
         if (movable.length === 0) return;
         const lanes = this.enemyLanes();
@@ -1121,7 +1136,8 @@ export class YearBrain {
         /** stand here (a guard), whatever the lanes say */
         atX?: number,
     ): boolean {
-        const at = this.spotFor(type, depth, lanes, placed, atX, false);
+        // chaff stands anywhere: the enemy comes from many angles, so it screens best spread at random
+        const at = isChaff(type) && atX === undefined ? this.randomSpot(type) : this.spotFor(type, depth, lanes, placed, atX, false);
         if (!at) return false;
         const ok = this.host.dispatch({ kind: 'buy', team: this.team, seat: this.seat, typeId: type.id, anchor: at.spot, rotated: false });
         if (ok) {
@@ -1129,6 +1145,13 @@ export class YearBrain {
             this.bought++;
         }
         return ok;
+    }
+
+    /** any spot of the side's zone a new pack of `type` may stand on, at random */
+    private randomSpot(type: UnitType): { spot: { col: number; row: number }; x: number } | null {
+        const any = this.host.placement.findAiSpot(this.team, this.seat, type, this.rng, true);
+        if (!any || any.rotated) return null;
+        return { spot: any.anchor, x: (any.anchor.col + type.footprint.cols / 2) * CELL - this.host.placement.map.halfW };
     }
 
     /**

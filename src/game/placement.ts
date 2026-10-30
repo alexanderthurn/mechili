@@ -1509,7 +1509,7 @@ export class PlacementController {
     /**
      * A valid AI spot for any seat: random scan of that seat's zone (lane-
      * restricted in duo modes), melee toward the front, ranged toward the
-     * back, flanks avoided (the AI doesn't understand the spawn tax), and
+     * back (or, `random`, the first spot found), flanks avoided (the AI doesn't understand the spawn tax), and
      * off the tiles its wall plan keeps free.
      */
     findAiSpot(
@@ -1517,6 +1517,8 @@ export class PlacementController {
         seat: SeatId,
         type: UnitType,
         rng: () => number,
+        /** the first spot found, wherever it is (unturned) */
+        random = false,
     ): { anchor: Cell; rotated: boolean } | null {
         const preferFront = type.range < 10;
         // "front" (toward the middle) is a higher row for the near-edge side,
@@ -1524,8 +1526,8 @@ export class PlacementController {
         const frontIsHigherRow = (team === 'player') !== this.map.ownAtFar;
         let best: { anchor: Cell; rotated: boolean } | null = null;
         let found = 0;
-        for (let attempt = 0; attempt < 80 && found < 4; attempt++) {
-            const rotated = rng() < 0.5;
+        for (let attempt = 0; attempt < (random ? 400 : 80) && found < (random ? 1 : 4); attempt++) {
+            const rotated = !random && rng() < 0.5;
             const fp = this.footprintOf(type, rotated);
             const anchor = {
                 col: Math.floor(rng() * (this.map.cols - fp.cols + 1)),

@@ -72,6 +72,14 @@ function counterStrength(x: Traits, y: Traits): number {
     return 0;
 }
 
+/**
+ * Chaff: a swarm of cheap small models. Enemy big hits waste a whole shot on
+ * one of them, which keeps the own expensive single units alive.
+ */
+export function isChaff(t: UnitType): boolean {
+    return fighter(t) && t.formation.cols * t.formation.rows >= SWARM_FROM;
+}
+
 /** the units that fight in battle: no buildings, walls, extras or harmless units */
 function fighter(t: UnitType): boolean {
     return !t.structure && !t.extra && !t.wall && !t.fixture && t.target !== false && t.damage > 0;
