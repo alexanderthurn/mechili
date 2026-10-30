@@ -1570,12 +1570,6 @@ function openEditorMenu(): void {
     showMenuView('sp-editor');
     const stored = loadStoredDraft();
     spEditorContinueEl.hidden = stored === null;
-    if (stored) {
-        spEditorContinueEl.textContent = t('menu:editorContinueNamed', {
-            defaultValue: 'Continue “{{name}}”',
-            name: stored.def.name,
-        });
-    }
     spScenarioStatusEl.textContent = '';
     spEditorZipOutEl.hidden = !SCENARIO_ZIP_TESTING;
     spEditorZipOutEl.disabled = true;
