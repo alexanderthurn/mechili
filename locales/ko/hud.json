@@ -59,6 +59,8 @@
   "speed": "속도",
   "totalDmg": "총 피해",
   "kills": "처치",
+  "dmgTaken": "받은 피해",
+  "dmgTakenRaw": "받은 원시 피해",
   "stats": "스탯",
   "talents": "특성",
   "resetAll": "모두 초기화",

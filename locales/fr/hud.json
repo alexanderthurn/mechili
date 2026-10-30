@@ -59,6 +59,8 @@
   "speed": "Vitesse",
   "totalDmg": "dégâts totaux",
   "kills": "Tue",
+  "dmgTaken": "dégâts subis",
+  "dmgTakenRaw": "dégâts bruts subis",
   "stats": "Statistiques",
   "talents": "Talents",
   "resetAll": "Réinitialiser tout",

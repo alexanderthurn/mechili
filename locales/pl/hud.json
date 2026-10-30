@@ -59,6 +59,8 @@
   "speed": "Prędkość",
   "totalDmg": "Całkowite obrażenia",
   "kills": "Zabójstwa",
+  "dmgTaken": "Otrzymane obrażenia",
+  "dmgTakenRaw": "Surowe otrzymane obrażenia",
   "stats": "Statystyki",
   "talents": "Talenty",
   "resetAll": "Resetuj wszystko",

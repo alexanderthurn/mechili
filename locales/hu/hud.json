@@ -59,6 +59,8 @@
   "speed": "Sebesség",
   "totalDmg": "Teljes sebzés",
   "kills": "Ölések",
+  "dmgTaken": "Elszenvedett sebzés",
+  "dmgTakenRaw": "Nyers elszenvedett sebzés",
   "stats": "Statisztikák",
   "talents": "Tehetségek",
   "resetAll": "Összes visszaállítása",

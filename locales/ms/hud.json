@@ -59,6 +59,8 @@
   "speed": "Kelajuan",
   "totalDmg": "Jumlah dmg",
   "kills": "Membunuh",
+  "dmgTaken": "Dmg diterima",
+  "dmgTakenRaw": "Dmg mentah diterima",
   "stats": "Statistik",
   "talents": "Bakat",
   "resetAll": "Tetapkan semula semua",

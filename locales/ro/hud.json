@@ -59,6 +59,8 @@
   "speed": "Viteză",
   "totalDmg": "Daune totale",
   "kills": "Ucideri",
+  "dmgTaken": "Daune primite",
+  "dmgTakenRaw": "Daune brute primite",
   "stats": "Statistici",
   "talents": "Talente",
   "resetAll": "Resetează tot",

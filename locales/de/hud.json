@@ -59,6 +59,8 @@
   "speed": "Geschwindigkeit",
   "totalDmg": "Gesamtschaden",
   "kills": "Abschüsse",
+  "dmgTaken": "Erlittener Schaden",
+  "dmgTakenRaw": "Roher erlittener Schaden",
   "stats": "Statistiken",
   "talents": "Talente",
   "resetAll": "Alles zurücksetzen",

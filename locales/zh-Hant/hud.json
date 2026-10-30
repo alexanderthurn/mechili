@@ -59,6 +59,8 @@
   "speed": "速度",
   "totalDmg": "總傷害",
   "kills": "擊殺",
+  "dmgTaken": "承受傷害",
+  "dmgTakenRaw": "承受原始傷害",
   "stats": "屬性",
   "talents": "天賦",
   "resetAll": "全部重設",

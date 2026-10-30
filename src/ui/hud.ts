@@ -225,7 +225,7 @@ export interface SelectionInfo {
      *  combat stats a structure that cannot shoot has no use for */
     onDestroyed?: string;
     /** lifetime combat record (absent for structures/extras) */
-    record?: { damageDealt: number; kills: number };
+    record?: { damageDealt: number; kills: number; damageTaken: number; damageTakenRaw: number };
     /** veterancy of the pack; xpNext < 0 means max level */
     level: number;
     xp: number;
@@ -3272,7 +3272,7 @@ export class Hud {
         const key = JSON.stringify({
             ...info,
             hp: 0,
-            record: info.record ? { damageDealt: 0, kills: 0 } : undefined,
+            record: info.record ? { damageDealt: 0, kills: 0, damageTaken: 0, damageTakenRaw: 0 } : undefined,
         });
         if (key === this.lastPanelKey) {
             this.patchLiveStats(info); // structure unchanged: just refresh live numbers
@@ -3710,7 +3710,9 @@ export class Hud {
                   row(t('hud:speed'), String(info.speed))) +
             (info.record
                 ? liveRow(t('hud:totalDmg'), String(Math.round(info.record.damageDealt)), 'dmg') +
-                  liveRow(t('hud:kills'), String(info.record.kills), 'kills')
+                  liveRow(t('hud:kills'), String(info.record.kills), 'kills') +
+                  liveRow(t('hud:dmgTaken'), String(Math.round(info.record.damageTaken)), 'taken') +
+                  liveRow(t('hud:dmgTakenRaw'), String(Math.round(info.record.damageTakenRaw)), 'takenRaw')
                 : '') +
             (!combatless
                 ? `<div class="row"><span class="v">${escapeHtml(info.strengths ? `${info.hits}, ${info.strengths}` : info.hits)}</span></div>`
@@ -3734,6 +3736,8 @@ export class Hud {
         if (info.record) {
             set('dmg', String(Math.round(info.record.damageDealt)));
             set('kills', String(info.record.kills));
+            set('taken', String(Math.round(info.record.damageTaken)));
+            set('takenRaw', String(Math.round(info.record.damageTakenRaw)));
         }
     }
 

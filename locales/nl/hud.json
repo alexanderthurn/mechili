@@ -59,6 +59,8 @@
   "speed": "Snelheid",
   "totalDmg": "Totale schade",
   "kills": "Doodt",
+  "dmgTaken": "Ontvangen schade",
+  "dmgTakenRaw": "Ruwe ontvangen schade",
   "stats": "Statistieken",
   "talents": "Talenten",
   "resetAll": "Alles resetten",

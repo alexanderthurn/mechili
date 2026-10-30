@@ -59,6 +59,8 @@
   "speed": "Velocidade",
   "totalDmg": "Dano total",
   "kills": "Mata",
+  "dmgTaken": "Dano sofrido",
+  "dmgTakenRaw": "Dano bruto sofrido",
   "stats": "Estatísticas",
   "talents": "Talentos",
   "resetAll": "Redefinir tudo",

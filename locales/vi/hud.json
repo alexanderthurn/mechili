@@ -59,6 +59,8 @@
   "speed": "Tốc độ",
   "totalDmg": "Tổng thiệt hại",
   "kills": "Giết",
+  "dmgTaken": "Thiệt hại nhận",
+  "dmgTakenRaw": "Thiệt hại thô nhận",
   "stats": "Thống kê",
   "talents": "Tài năng",
   "resetAll": "Đặt lại tất cả",

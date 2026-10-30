@@ -61,6 +61,8 @@
   "speed": "Speed",
   "totalDmg": "Total dmg",
   "kills": "Kills",
+  "dmgTaken": "Dmg taken",
+  "dmgTakenRaw": "Raw dmg taken",
   "stats": "Stats",
   "talents": "Talents",
   "resetAll": "Reset all",

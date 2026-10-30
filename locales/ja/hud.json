@@ -59,6 +59,8 @@
   "speed": "速度",
   "totalDmg": "合計ダメージ",
   "kills": "キル",
+  "dmgTaken": "被ダメージ",
+  "dmgTakenRaw": "素の被ダメージ",
   "stats": "ステータス",
   "talents": "タレント",
   "resetAll": "すべてリセット",

@@ -59,6 +59,8 @@
   "speed": "Hastighet",
   "totalDmg": "Total skada",
   "kills": "Dödar",
+  "dmgTaken": "Skada tagen",
+  "dmgTakenRaw": "Rå skada tagen",
   "stats": "Statistik",
   "talents": "Talanger",
   "resetAll": "Återställ allt",

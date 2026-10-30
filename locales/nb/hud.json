@@ -59,6 +59,8 @@
   "speed": "Fart",
   "totalDmg": "Total skade",
   "kills": "Dreper",
+  "dmgTaken": "Skade tatt",
+  "dmgTakenRaw": "Rå skade tatt",
   "stats": "Statistikk",
   "talents": "Talenter",
   "resetAll": "Tilbakestill alt",

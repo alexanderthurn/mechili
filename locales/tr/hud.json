@@ -59,6 +59,8 @@
   "speed": "Hız",
   "totalDmg": "Toplam hasar",
   "kills": "Öldürme",
+  "dmgTaken": "Alınan hasar",
+  "dmgTakenRaw": "Alınan ham hasar",
   "stats": "İstatistikler",
   "talents": "Yetenekler",
   "resetAll": "Tümünü sıfırla",

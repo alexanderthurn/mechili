@@ -141,7 +141,7 @@ export class SelectionInfoBuilder {
             itemDropReady: !u.type.structure && this.host.canDropArmedItemOn(u),
             record: u.type.structure
                 ? undefined
-                : { damageDealt: u.damageDealt, kills: u.kills },
+                : { damageDealt: u.damageDealt, kills: u.kills, damageTaken: u.damageTaken, damageTakenRaw: u.damageTakenRaw },
             alive: 1,
             total: 1,
             level: lv.level,
@@ -192,7 +192,7 @@ export class SelectionInfoBuilder {
             itemSlotCount:
                 u.type.structure || u.type.extra ? 0 : itemSlotLimit(u.type),
             itemDropReady: !u.type.structure && this.host.canDropArmedItemOn(u),
-            record: u.type.structure ? undefined : { damageDealt: u.damageDealt, kills: u.kills },
+            record: u.type.structure ? undefined : { damageDealt: u.damageDealt, kills: u.kills, damageTaken: u.damageTaken, damageTakenRaw: u.damageTakenRaw },
             // base buildings level for supply alone, on a rising price ladder
             towerUpgrade: (() => {
                 if (!ownInteractive || !u.type.structure || (u.type.extra && !u.type.wall) || this.host.tutorial?.boostLessonOnly) return undefined;

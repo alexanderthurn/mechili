@@ -59,6 +59,8 @@
   "speed": "Kecepatan",
   "totalDmg": "Total kerusakan",
   "kills": "Membunuh",
+  "dmgTaken": "Kerusakan diterima",
+  "dmgTakenRaw": "Kerusakan mentah diterima",
   "stats": "Statistik",
   "talents": "Bakat",
   "resetAll": "Atur ulang semua",

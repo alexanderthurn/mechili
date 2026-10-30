@@ -59,6 +59,8 @@
   "speed": "Rychlost",
   "totalDmg": "Celkové poškození",
   "kills": "Zabíjí",
+  "dmgTaken": "Utržené poškození",
+  "dmgTakenRaw": "Hrubé utržené poškození",
   "stats": "Statistiky",
   "talents": "Talenty",
   "resetAll": "Obnovit vše",

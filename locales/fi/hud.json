@@ -59,6 +59,8 @@
   "speed": "Nopeus",
   "totalDmg": "Kokonaisvaurio",
   "kills": "Tappaa",
+  "dmgTaken": "Otettu vaurio",
+  "dmgTakenRaw": "Raaka otettu vaurio",
   "stats": "Tilastot",
   "talents": "Kykyjä",
   "resetAll": "Palauta kaikki",
