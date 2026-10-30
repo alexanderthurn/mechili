@@ -79,7 +79,8 @@ try {
     console.log(
         `ok   units.ts resolves ${units.BASE_TYPES.roster.length} roster types; ` +
             `unitModels.ts resolves ${Object.keys(models.MODEL_SPECS).length} model specs; ` +
-            `unitAnimated.ts rigs ${Object.keys(anim.ANIM_SPECS).sort().join(', ')}; ` +
+            `mixer rigs: ${Object.keys(anim.ANIM_SPECS).sort().join(', ') || 'none'}; ` +
+            `GPU-skinned: ${Object.keys(models.MODEL_SPECS).filter(models.usesInstancedSkinModel).sort().join(', ')}; ` +
             `wings flap on ${Object.keys(models.MODEL_SPECS).filter(models.usesWingFlapModel).sort().join(', ')}`,
     );
 
@@ -350,7 +351,7 @@ try {
 
     // ---- switching levels: caches told after the files switch, model data follows, bad data changes nothing
     const levels = await server.ssrLoadModule('/src/game/level.ts');
-    // the hammerer: a rigged model on the mixer path ("skinned"), so its clips live in ANIM_SPECS
+    // the hammerer: a rigged model ("instancedSkin" + "animation") — its clip data must follow the level
     const rigText = readFileSync('assets/data/models/hammerer.jsonc', 'utf8');
     const baseRigUrl = models.MODEL_SPECS.hammerer.url;
     let hookSaw = '';
@@ -369,23 +370,23 @@ try {
     const on = await levels.switchLevel(rigMod);
     sw = expect(on === levels.activeLevel() && on.overlay === rigMod, 'switchLevel does not report the active level') && sw;
     sw = expect(hookSaw !== '' && hookSaw !== baseRigUrl, 'reload hooks did not run with the level installed') && sw;
-    sw = expect(anim.ANIM_SPECS.hammerer?.animation.walk.speed === 0.75, "rigged model data does not follow the level") && sw;
+    sw = expect(models.MODEL_SPECS.hammerer?.animation?.walk.speed === 0.75, "rigged model data does not follow the level") && sw;
     sw = expect('ice-wall' in models.MODEL_SPECS, "level's added model missing from MODEL_SPECS") && sw;
     sw = expect(models.isStructureModel('ice-wall') && on.types.byId('ice-wall')?.structure === true, "level's building is not a structure model") && sw;
     const off = await levels.switchLevel(null);
     sw = expect(off.overlay === null && off.types === units.BASE_TYPES, 'switching back does not restore the base registry') && sw;
     sw = expect(models.MODEL_SPECS.hammerer.url === baseRigUrl && hookSaw === baseRigUrl, 'switching back does not restore base files') && sw;
-    sw = expect(anim.ANIM_SPECS.hammerer?.animation.walk.speed === 1.35, 'switching back does not restore rigged model data') && sw;
+    sw = expect(models.MODEL_SPECS.hammerer?.animation?.walk.speed === 1.35, 'switching back does not restore rigged model data') && sw;
     sw = expect(!('ice-wall' in models.MODEL_SPECS), "level's model stays after switching back") && sw;
     sw = expect(!models.isStructureModel('ice-wall'), "level's building stays a structure model after switching back") && sw;
     const broken = await resolver.buildAssetOverlay('broken', [
-        { path: 'data/models/hammerer.jsonc', bytes: enc(rigText.replace('"skinned": true,', '')) },
+        { path: 'data/models/hammerer.jsonc', bytes: enc(rigText.replace('"instancedSkin": true,', '')) },
     ]);
     let brokenError = '';
     await levels.switchLevel(broken).catch((e) => (brokenError = String(e.message)));
     sw = expect(brokenError.includes('"animation" needs "skinned": true'), `invalid level not rejected (${brokenError.split('\n')[0]})`) && sw;
     sw = expect(levels.activeLevel().overlay === null && resolver.activeAssetOverlay() === null, 'a rejected level changed the active files') && sw;
-    sw = expect(models.MODEL_SPECS.hammerer.skinned === true, 'a rejected level changed model data') && sw;
+    sw = expect(models.MODEL_SPECS.hammerer.instancedSkin === true, 'a rejected level changed model data') && sw;
     if (sw) console.log('ok   level switch: reload hooks after install, model + animation data and structure flags follow, base restored, invalid level rejected');
 
     // ---- scenario packages: zip → files → known level → the one a match names

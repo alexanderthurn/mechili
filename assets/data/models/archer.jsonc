@@ -1,10 +1,15 @@
-// Static bind-pose template for icons / fallback; battle plays the "animation" clips.
+// Rigged archer (Tripo biped, Z-up rig), GPU-skinned in the instance pools.
+// Clips from Tripo's NlaTrack.001 (walk) and NlaTrack (shot); idle built with
+// scripts/glb-make-idle.mjs (walk upper body, rest-pose legs, breathing).
+// No death clip: the procedural tip-over handles it. Crossbowman and the
+// stronghold archers draw with this model too.
 {
     "file": "models/units/archer.glb",
     "yawDeg": 90,
-    "skinned": true,
+    "instancedSkin": true,
     "animation": {
-        "walk": { "clip": "longest", "speed": 1.5 },
-        "fire": { "clip": "shortest" },
+        "walk": { "clip": "walk", "speed": 1.5 },
+        "idle": { "clip": "idle" },
+        "fire": { "clip": "fire" },
     },
 }

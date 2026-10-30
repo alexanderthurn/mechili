@@ -1,12 +1,15 @@
+// Rigged hammerer (Tripo biped, Z-up rig), GPU-skinned in the instance pools.
+// Clips from Tripo's preset:biped:walk / preset:biped:fire; idle built with
+// scripts/glb-make-idle.mjs. AttackNode rides R_Hand (measured in the fire pose).
+// No death clip: the procedural tip-over handles it.
 {
     "file": "models/units/hammerer.glb",
     "yawDeg": 90,
-    "skinned": true,
-    // named clips: preset:biped:walk / preset:biped:fire
+    "instancedSkin": true,
     "animation": {
         "walk": { "clip": "walk", "speed": 1.35 },
-        // authored 2s, sped up so the swing fits attackInterval 0.7; march-and-shoot
-        // and crowd nudges must not cancel the throw
-        "fire": { "clip": "fire", "speed": 2.85, "hold": true },
+        "idle": { "clip": "idle" },
+        // authored ~1.5 s, sped up so the swing fits attackInterval 0.7
+        "fire": { "clip": "fire", "speed": 2.85 },
     },
 }
