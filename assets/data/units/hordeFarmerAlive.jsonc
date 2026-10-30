@@ -10,7 +10,7 @@
     "unlockCost": 0,
     "buyable": false,
     "horde": true,
-    "modelId": "horde2",
+    "modelId": "farmer",
     "footprint": { "cols": 6, "rows": 2 },
     "formation": { "cols": 6, "rows": 2 }, // 12, like the Dead Farmer
     "formationSpread": 0.75,

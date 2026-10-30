@@ -1,5 +1,5 @@
 /**
- * Der Komtur himself — mounted knight on `horde3.glb`. Flying melee boss:
+ * Der Komtur himself — mounted knight on `komtur.glb`. Flying melee boss:
  * each swing slams a short disk and lights the lawn. `buyable: false`.
  */
 {
@@ -11,7 +11,7 @@
     "hpWithdraw": 800,
     "buyable": false,
     "horde": true,
-    "modelId": "horde3",
+    "modelId": "komtur",
     "footprint": { "cols": 4, "rows": 3 },
     "formation": { "cols": 1, "rows": 1 },
     "meshScale": 4.2, // half of prior 8.4

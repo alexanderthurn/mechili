@@ -1,5 +1,5 @@
 /**
- * The one Schwarze Spinne — `horde.glb` at large scale. Mother of spiders via
+ * The one Schwarze Spinne — `spider.glb` at large scale. Mother of spiders via
  * innate `spiderMother` produce tech + acid shots. `buyable: false`.
  */
 {
@@ -11,7 +11,7 @@
     "hpWithdraw": 70,
     "buyable": false,
     "horde": true,
-    "modelId": "horde",
+    "modelId": "spider",
     "footprint": { "cols": 4, "rows": 3 },
     "formation": { "cols": 1, "rows": 1 },
     "meshScale": 6.0, // 12× Brood — showcase boss presence

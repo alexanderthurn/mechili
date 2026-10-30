@@ -1,5 +1,5 @@
 /**
- * Der Komtur's forest levy — `horde2.glb` farmer. `buyable: false`.
+ * Der Komtur's forest levy — `farmer.glb` farmer. `buyable: false`.
  */
 {
     "id": "hordeFarmer",
@@ -10,7 +10,7 @@
     "hpWithdraw": 7,
     "buyable": false,
     "horde": true,
-    "modelId": "horde2",
+    "modelId": "farmer",
     "footprint": { "cols": 6, "rows": 2 }, // a normal pack plate
     "formation": { "cols": 6, "rows": 2 }, // 12 — fewer than Brut swarm
     "formationSpread": 0.75,

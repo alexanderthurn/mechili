@@ -10,7 +10,7 @@
     "hpWithdraw": 2,
     "buyable": false,
     "horde": true,
-    "modelId": "horde",
+    "modelId": "spider",
     "footprint": { "cols": 2, "rows": 2 },
     "formation": { "cols": 1, "rows": 1 },
     "meshScale": 0.5,

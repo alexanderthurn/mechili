@@ -10,7 +10,7 @@
     "hpWithdraw": 4,
     "buyable": false,
     "horde": true,
-    "modelId": "horde2",
+    "modelId": "farmer",
     "footprint": { "cols": 2, "rows": 2 },
     "formation": { "cols": 1, "rows": 1 },
     "meshScale": 0.85,
