@@ -1,5 +1,15 @@
+// Six-legged horde spider — rigged by script (scripts/glb-rig-spider.mjs: body, abdomen,
+// fangs, upper + lower bone per leg, weights by geodesic distance from each foot) and
+// GPU-skinned in the instance pools. Head along +X in the GLB.
 {
     "file": "models/units/spider.glb",
     "scale": 3,
     "offset": { "y": -0.04 },
+    "instancedSkin": true,
+    "animation": {
+        "walk": { "clip": "walk" }, // alternating tripod gait, 0.45 s
+        "idle": { "clip": "idle" }, // breathing, fangs working, front legs tap
+        "fire": { "clip": "fire", "hitAt": 0.5 }, // rears up, strikes down
+        "death": { "clip": "death" }, // rolls onto its back toward −Z, legs curl
+    },
 }

@@ -27,7 +27,7 @@
     "damage": 100,
     "range": 2,
     "attackInterval": 0.7,
-    "speed": 12,
+    "speed": 8,
     "turnRate": 4,
     "proceduralModel": "dwarf",
     // standard talents for The Komtur's side (Dark Harvest stays innate)

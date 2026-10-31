@@ -510,6 +510,11 @@ export interface UnitType {
     /** uniform scale applied to each mech mesh */
     meshScale: number;
     /**
+     * GPU-skinned walk playback × this (default 1) — units sharing a model at very
+     * different sizes need different leg tempos for the feet to keep pace.
+     */
+    walkAnimRate?: number;
+    /**
      * Soft sand pad stamped under a structure, as a multiple of its footprint
      * (default 1). Visual only.
      */
@@ -2180,7 +2185,7 @@ export class Unit {
                 if (this.type.flying) {
                     driveFlyerSkin(m.mesh, { dead, inDeployment: this.inDeployment, flightLift: this.flightLift, altitude, moving }, skin);
                 } else {
-                    driveGroundSkin(m.mesh, { dead, moving }, skin);
+                    driveGroundSkin(m.mesh, { dead, moving, rate: this.type.walkAnimRate }, skin);
                 }
             }
             return;

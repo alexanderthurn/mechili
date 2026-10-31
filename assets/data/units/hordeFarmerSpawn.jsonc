@@ -25,7 +25,7 @@
     "damage": 50,
     "range": 2,
     "attackInterval": 0.7,
-    "speed": 12,
+    "speed": 8,
     "turnRate": 5,
     "proceduralModel": "dwarf",
     "voice": {

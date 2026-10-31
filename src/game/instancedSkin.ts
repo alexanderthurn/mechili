@@ -492,7 +492,7 @@ export function resetInstancedSkin(proxy: Object3D): void {
  */
 export function driveGroundSkin(
     proxy: Object3D,
-    input: { dead?: boolean; moving: number; speedRatio?: number; airborne?: boolean },
+    input: { dead?: boolean; moving: number; speedRatio?: number; airborne?: boolean; rate?: number },
     skin: InstancedSkinData,
 ): void {
     if (!proxy.userData.instancedSkin || input.dead) return;
@@ -512,7 +512,7 @@ export function driveGroundSkin(
         if (s.stillSince < 0) s.stillSince = t;
         if (t - s.stillSince > STAND_AFTER_SECONDS) s.walking = false;
     }
-    const ratio = Math.min(2, Math.max(0.35, s.speed));
+    const ratio = Math.min(2, Math.max(0.35, s.speed)) * (input.rate ?? 1);
     // lifted into the air (Sky Lift) with a fly clip: run on air instead of walking
     if (s.walking) playInstancedSkinLoop(proxy, input.airborne && skin.clips.fly ? 'fly' : 'walk', ratio, skin);
     else playInstancedSkinLoop(proxy, 'idle', 1, skin);

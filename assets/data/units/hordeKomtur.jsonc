@@ -34,7 +34,7 @@
     "damage": 550,
     "range": 8,
     "attackInterval": 0.85,
-    "speed": 12,
+    "speed": 8,
     "turnRate": 2.2,
     "turnMove": "cruise",
     "proceduralModel": "dwarf",

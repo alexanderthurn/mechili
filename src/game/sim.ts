@@ -4788,7 +4788,7 @@ export class BattleSim {
                 );
             } else {
                 const speedRatio = nominal > 1e-6 ? stepDist / nominal : 0;
-                driveGroundSkin(a.mesh, { dead, moving, speedRatio, airborne: a.altitude > 0 }, skin);
+                driveGroundSkin(a.mesh, { dead, moving, speedRatio, airborne: a.altitude > 0, rate: a.unit.type.walkAnimRate }, skin);
             }
         }
         if (usesWingFlapModel(a.unit.type.modelId ?? a.unit.type.id) && a.mesh.userData.instanced) {
