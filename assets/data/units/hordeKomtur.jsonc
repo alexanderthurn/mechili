@@ -15,6 +15,7 @@
     "footprint": { "cols": 4, "rows": 3 },
     "formation": { "cols": 1, "rows": 1 },
     "meshScale": 5.6, // the biggest thing on the field
+    "walkAnimRate": 0.125, // walk playback at ground speed 1.0 — × the current speed (speed changes need no retune)
     "hoofprints": true, // huge: feet print the ground instead of a wear trail
     "burn": { "takenMult": 0.35 },
     "bloodColor": 9236248 /* 0x8cef18 */,

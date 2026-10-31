@@ -7,6 +7,7 @@
     "footprint": { "cols": 2, "rows": 2 },
     "formation": { "cols": 1, "rows": 1 },
     "meshScale": 2.4,
+    "walkAnimRate": 0.222, // walk playback at ground speed 1.0 — × the current speed (speed changes need no retune)
     "burn": { "takenMult": 0.85 },
     "targets": { "ground": true, "air": false }, // AA is a later tech (like Arclight)
     "collisionRadius": 1.1,

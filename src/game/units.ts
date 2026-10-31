@@ -472,6 +472,11 @@ export function talentModOf(type: UnitType, talentId: string): TalentMod | undef
     return type.talentMod?.[talentId];
 }
 
+/** Walk clip rate when moving at full `speed` (UnitType.walkAnimRate is per 1.0 of ground speed). */
+export function walkRateAtFullSpeed(type: UnitType): number {
+    return type.walkAnimRate !== undefined ? type.walkAnimRate * type.speed : 1;
+}
+
 export interface UnitType {
     id: string;
     name: string;
@@ -510,8 +515,9 @@ export interface UnitType {
     /** uniform scale applied to each mech mesh */
     meshScale: number;
     /**
-     * GPU-skinned walk playback × this (default 1) — units sharing a model at very
-     * different sizes need different leg tempos for the feet to keep pace.
+     * GPU-skinned walk playback at a ground speed of 1.0; the clip plays at this × the
+     * unit's current speed, so `speed` (and slows) never need a leg retune. Without it
+     * the walk plays at its authored rate at full `speed`.
      */
     walkAnimRate?: number;
     /**
@@ -2193,7 +2199,7 @@ export class Unit {
                 if (this.type.flying) {
                     driveFlyerSkin(m.mesh, { dead, inDeployment: this.inDeployment, flightLift: this.flightLift, altitude, moving }, skin);
                 } else {
-                    driveGroundSkin(m.mesh, { dead, moving, rate: this.type.walkAnimRate }, skin);
+                    driveGroundSkin(m.mesh, { dead, moving, rate: walkRateAtFullSpeed(this.type) }, skin);
                 }
             }
             return;

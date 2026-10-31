@@ -7,6 +7,7 @@
     "footprint": { "cols": 2, "rows": 2 },
     "formation": { "cols": 1, "rows": 1 },
     "meshScale": 3.48, // 1.2× base 2.9
+    "walkAnimRate": 0.118, // walk playback at ground speed 1.0 — × the current speed (speed changes need no retune)
     "burn": { "takenMult": 0.65 },
     "targets": { "ground": true, "air": false },
     "collisionRadius": 1.62,

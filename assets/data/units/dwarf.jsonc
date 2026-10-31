@@ -6,6 +6,7 @@
     "footprint": { "cols": 5, "rows": 2 },
     "formation": { "cols": 8, "rows": 3 }, // a pack of 24 fighters
     "meshScale": 1,
+    "walkAnimRate": 0.167, // walk playback at ground speed 1.0 — × the current speed (speed changes need no retune)
     "burn": { "takenMult": 0.5 }, // tough infantry — resists fire better
     "targets": { "ground": true, "air": false }, // can't reach the sky
     "collisionRadius": 0.6,

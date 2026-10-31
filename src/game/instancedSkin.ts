@@ -542,14 +542,17 @@ export function driveGroundSkin(
     s.lastDrive = t;
     const raw = Math.min(2, input.speedRatio ?? input.moving);
     s.speed += (raw - s.speed) * Math.min(1, (raw > s.speed ? 14 : 6) * dt);
-    if (raw > 0.1) {
+    // a tower-debuffed unit crawls at 10% — it still walks (slowly), not glides in idle
+    if (raw > 0.06) {
         s.walking = true;
         s.stillSince = -1;
-    } else if (s.walking && raw < 0.05) {
+    } else if (s.walking && raw < 0.03) {
         if (s.stillSince < 0) s.stillSince = t;
         if (t - s.stillSince > STAND_AFTER_SECONDS) s.walking = false;
     }
-    const ratio = Math.min(2, Math.max(0.35, s.speed)) * (input.rate ?? 1);
+    // legs follow the real speed all the way down (slows, debuffs); the floor only keeps a
+    // near-stopped shuffle from freezing mid-stride
+    const ratio = Math.min(2, Math.max(0.05, s.speed)) * (input.rate ?? 1);
     // lifted into the air (Sky Lift) with a fly clip: run on air instead of walking
     if (s.walking) playInstancedSkinLoop(proxy, input.airborne && skin.clips.fly ? 'fly' : 'walk', ratio, skin);
     else playInstancedSkinLoop(proxy, 'idle', 1, skin);

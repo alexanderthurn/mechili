@@ -44,7 +44,7 @@
         },
         "walkAnimRate": {
           "type": "number",
-          "description": "GPU-skinned walk playback × this (default 1) — units sharing a model at very different sizes need different leg tempos for the feet to keep pace."
+          "description": "GPU-skinned walk playback at a ground speed of 1.0; the clip plays at this × the unit's current speed, so `speed` (and slows) never need a leg retune. Without it the walk plays at its authored rate at full `speed`."
         },
         "hoofprints": {
           "type": "boolean",

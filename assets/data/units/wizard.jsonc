@@ -6,6 +6,7 @@
     "footprint": { "cols": 2, "rows": 2 },
     "formation": { "cols": 1, "rows": 1 },
     "meshScale": 2.2,
+    "walkAnimRate": 0.312, // walk playback at ground speed 1.0 — × the current speed (speed changes need no retune)
     "burn": { "takenMult": 1.15 },
     // convert ray is the only attack — ground by default; Sky Bind unlocks air.
     // Buildings / golden aura / wards take HP damage from the same ray.

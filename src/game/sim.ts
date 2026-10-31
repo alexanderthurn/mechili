@@ -65,6 +65,7 @@ import {
     type UnitType,
     type WallCover,
     levelBasisOf,
+    walkRateAtFullSpeed,
 } from './units';
 import { getUnitInstanceRenderer } from './unitInstances';
 import type { TypeRegistry } from './content/typeRegistry';
@@ -4805,7 +4806,7 @@ export class BattleSim {
                 );
             } else {
                 const speedRatio = nominal > 1e-6 ? stepDist / nominal : 0;
-                driveGroundSkin(a.mesh, { dead, moving, speedRatio, airborne: a.altitude > 0, rate: a.unit.type.walkAnimRate }, skin);
+                driveGroundSkin(a.mesh, { dead, moving, speedRatio, airborne: a.altitude > 0, rate: walkRateAtFullSpeed(a.unit.type) }, skin);
             }
         }
         if (usesWingFlapModel(a.unit.type.modelId ?? a.unit.type.id) && a.mesh.userData.instanced) {
