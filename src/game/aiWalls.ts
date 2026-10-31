@@ -29,8 +29,8 @@ const FRONT_DEPTH = 4;
 const FRONT_PIECES = 4;
 /** turned pieces running back from the hole's edges: the corridor into the base */
 const CORRIDOR_PIECES = 1;
-/** turned pieces running back from the front wall's outer ends (a wall's length in from the map's flanks) */
-const FLANK_PIECES = 4;
+/** turned pieces running back from the front wall's outer ends (a wall's length in from the map's flanks) — down to the zone's back row */
+const FLANK_PIECES = 5;
 /** the other side's walls matter once they cover this share of the front (or carry archers) */
 const RELEVANT_COVER = 0.2;
 
@@ -95,9 +95,9 @@ export interface WallSlot {
 }
 
 export interface PlanSlot extends WallSlot {
-    /** 0 front, 1 corridor, 2 flank — the build order */
+    /** 0 front, 1 corridor, 2 flank, 3 back — the build order */
     phase: number;
-    /** the half of the front it stands in (-1 left, +1 right; 0 the corridor's back piece) */
+    /** the half of the front it stands in (-1 left, +1 right; 0 the corridor's back piece and the back's middle) */
     half: number;
     /** column of its middle */
     col: number;
@@ -118,12 +118,15 @@ export interface PlanSlot extends WallSlot {
  *  ······●··············································●······   flanks (FLANK_PIECES)
  *  ······┃·····················SSSSS····················┃······   stronghold (S)
  *  ······●··············································●······
- *                         (open at the back)
+ *  ······┃··············································┃······
+ *  ······●━━━━●━━━━●━━━━●━━━━●━━━━●━━━━●━━━━●━━━━●━━━━●······   back, on the zone's last row
  * ```
  *
  * FRONT_PIECES joined walls each side of a hole two tiles shorter than a wall, centred in
  * the side's columns; turned pieces down from the hole's edges and from the
- * front's outer ends; one straight piece across the corridor's back, joined to
+ * front's outer ends down to the zone's back row, closed there by straight
+ * pieces corner to corner (they fit: the front's width is a whole number of
+ * steps); one straight piece across the corridor's back, joined to
  * both corridor walls (the hole is a wall less its two end tiles). Joined walls
  * share their end tile (●). Turned pieces face out: the flanks outward, the
  * corridor into the hole. Laid out from the
@@ -175,6 +178,20 @@ function wallPlan(placement: PlacementController, team: Team, len: number): Plan
         const row = turnedRow(FRONT_DEPTH + k * step);
         slots.push({ anchor: { col: outerLeft, row }, rotated: true, flipped: flippedFor(-1), phase: 2, half: -1, col: outerLeft, step: k });
         slots.push({ anchor: { col: outerRight, row }, rotated: true, flipped: flippedFor(1), phase: 2, half: 1, col: outerRight, step: k });
+    }
+    // the back, where the flanks end — only when that is still inside the zone
+    const backDepth = FRONT_DEPTH + FLANK_PIECES * step;
+    if (backDepth <= map.size.zoneRows - 1) {
+        const row = zoneFront - forward * backDepth;
+        const pieces = (outerRight - outerLeft) / step;
+        const mid = (outerLeft + outerRight) / 2;
+        for (let i = 0; i < pieces; i++) {
+            const left = outerLeft + i * step;
+            const col = left + step / 2;
+            // faces out, away from the front; built from the corners in
+            const fromCorner = Math.min(i, pieces - 1 - i);
+            slots.push({ anchor: { col: left, row }, rotated: false, flipped: true, phase: 3, half: Math.sign(col - mid), col, step: fromCorner });
+        }
     }
     return slots;
 }

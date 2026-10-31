@@ -205,6 +205,7 @@ In its fortress (`makeGates` in `ai.ts`), every personality and difficulty, as s
 
 - the piece across the corridor's back (between the two corridor walls) becomes a gate — it closes the corridor;
 - the second front piece out from the hole (one wall out from it) becomes a gate;
+- the second-last flank piece on each side becomes a gate — with the back walled, the way out at the sides;
 - the front-most flank piece becomes a gate only while its own packs stand outside that flank wall, so they can move freely.
 
 It turns them into gates before posting archers (a wall turned into a gate loses its archers). Gates still take their levels like the other pieces.
