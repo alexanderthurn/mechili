@@ -201,9 +201,10 @@ Wall segments come from the fixed plan in `aiWalls.ts`. Only the segments the AI
 
 ### Gates
 
-Per half of the front (`makeGates` in `ai.ts`), every personality and difficulty, as soon as the piece stands and supply covers the 50:
+In its fortress (`makeGates` in `ai.ts`), every personality and difficulty, as soon as the piece stands and supply covers the 50:
 
-- the inner front piece, next to the hole, becomes a gate;
+- the piece across the corridor's back (between the two corridor walls) becomes a gate — it closes the corridor;
+- the second front piece out from the hole (one wall out from it) becomes a gate;
 - the front-most flank piece becomes a gate only while its own packs stand outside that flank wall, so they can move freely.
 
 It turns them into gates before posting archers (a wall turned into a gate loses its archers). Gates still take their levels like the other pieces.

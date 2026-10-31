@@ -27,8 +27,6 @@ export const AI_WALL_ID = 'wall';
 const FRONT_DEPTH = 4;
 /** joined walls in each half of the front wall */
 const FRONT_PIECES = 4;
-/** open tiles in the middle of the front wall — one wall's length */
-const CENTRE_HOLE = 6;
 /** turned pieces running back from the hole's edges: the corridor into the base */
 const CORRIDOR_PIECES = 1;
 /** turned pieces running back from the front wall's outer ends (a wall's length in from the map's flanks) */
@@ -99,7 +97,7 @@ export interface WallSlot {
 export interface PlanSlot extends WallSlot {
     /** 0 front, 1 corridor, 2 flank — the build order */
     phase: number;
-    /** the half of the front it stands in (-1 left, +1 right) */
+    /** the half of the front it stands in (-1 left, +1 right; 0 the corridor's back piece) */
     half: number;
     /** column of its middle */
     col: number;
@@ -113,9 +111,9 @@ export interface PlanSlot extends WallSlot {
  *
  * ```
  *  ------------------------------------------------------------   own zone's front edge
- *  ······●━━━━●━━━━●━━━━●━━━━●······●━━━━●━━━━●━━━━●━━━━●······   front, FRONT_DEPTH rows back
- *  ······┃···················║······║···················┃······
- *  ······●···················●······●···················●······   corridor (CORRIDOR_PIECES)
+ *  ······●━━━━●━━━━●━━━━●━━━━●····●━━━━●━━━━●━━━━●━━━━●······   front, FRONT_DEPTH rows back
+ *  ······┃···················║····║···················┃······
+ *  ······●···················●════●···················●······   corridor (CORRIDOR_PIECES), closed at its back
  *  ······┃·······RRR···························CCC······┃······   towers (R, C) inside
  *  ······●··············································●······   flanks (FLANK_PIECES)
  *  ······┃·····················SSSSS····················┃······   stronghold (S)
@@ -123,10 +121,12 @@ export interface PlanSlot extends WallSlot {
  *                         (open at the back)
  * ```
  *
- * FRONT_PIECES joined walls each side of a CENTRE_HOLE-tile hole, centred in
+ * FRONT_PIECES joined walls each side of a hole two tiles shorter than a wall, centred in
  * the side's columns; turned pieces down from the hole's edges and from the
- * front's outer ends. Joined walls share their end tile (●). Turned pieces
- * face out: the flanks outward, the corridor into the hole. Laid out from the
+ * front's outer ends; one straight piece across the corridor's back, joined to
+ * both corridor walls (the hole is a wall less its two end tiles). Joined walls
+ * share their end tile (●). Turned pieces face out: the flanks outward, the
+ * corridor into the hole. Laid out from the
  * side's own zone, so an unlocked neutral strip doesn't move it. In duo lanes
  * each seat gets the slots inside its own lane (the rest fail placement and
  * are skipped).
@@ -138,11 +138,14 @@ function wallPlan(placement: PlacementController, team: Team, len: number): Plan
     const zoneFront = forward > 0 ? rim + map.size.zoneRows - 1 : map.rows - rim - map.size.zoneRows;
     const step = len - 1; // joined walls advance one tile less than their length
     const half = FRONT_PIECES * step + 1; // tiles one half of the front covers
-    const inset = Math.floor((colMax - colMin + 1 - 2 * half - CENTRE_HOLE) / 2);
+    // open tiles in the middle of the front: a wall less its end tiles, so the piece across
+    // the corridor's back shares an end tile with each corridor wall
+    const hole = len - 2;
+    const inset = Math.floor((colMax - colMin + 1 - 2 * half - hole) / 2);
     if (inset < 0) return [];
     const outerLeft = colMin + inset;
     const innerLeft = outerLeft + FRONT_PIECES * step;
-    const innerRight = innerLeft + CENTRE_HOLE + 1;
+    const innerRight = innerLeft + hole + 1;
     const outerRight = innerRight + FRONT_PIECES * step;
     const frontRowAt = zoneFront - forward * FRONT_DEPTH;
     // a turned piece covering depths t…t+step behind the zone's front edge: its top-left row
@@ -161,6 +164,12 @@ function wallPlan(placement: PlacementController, team: Team, len: number): Plan
         const row = turnedRow(FRONT_DEPTH + k * step);
         slots.push({ anchor: { col: innerLeft, row }, rotated: true, flipped: flippedFor(1), phase: 1, half: -1, col: innerLeft, step: k });
         slots.push({ anchor: { col: innerRight, row }, rotated: true, flipped: flippedFor(-1), phase: 1, half: 1, col: innerRight, step: k });
+    }
+    if (CORRIDOR_PIECES > 0) {
+        // across the corridor's back, joined to both its walls (half 0: the middle)
+        const row = zoneFront - forward * (FRONT_DEPTH + CORRIDOR_PIECES * step);
+        const col = innerLeft;
+        slots.push({ anchor: { col, row }, rotated: false, flipped: false, phase: 1, half: 0, col: col + step / 2, step: CORRIDOR_PIECES });
     }
     for (let k = 0; k < FLANK_PIECES; k++) {
         const row = turnedRow(FRONT_DEPTH + k * step);

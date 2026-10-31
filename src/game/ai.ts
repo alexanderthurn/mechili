@@ -494,10 +494,11 @@ export class AiOpponent implements Opponent {
     }
 
     /**
-     * Gates in its fortress (AI_PLAN.md, "Gates"), per half of the front: the
-     * inner front piece next to the hole once it stands, and the front-most
-     * flank piece once its own packs stand outside that flank wall, so they
-     * move freely. Paid from what it holds, not the defence share.
+     * Gates in its fortress (AI_PLAN.md, "Gates"): the piece across the corridor's
+     * back once it stands; per half of the front, the second piece out from the
+     * hole once it stands, and the front-most flank piece once its own packs
+     * stand outside that flank wall, so they move freely. Paid from what it
+     * holds, not the defence share.
      */
     private makeGates(wall: UnitType): void {
         const { placement, economy, dispatch } = this.ctx;
@@ -508,10 +509,12 @@ export class AiOpponent implements Opponent {
         const mid = (colMin + colMax + 1) / 2;
         // packs that walk: not the archers posted on its walls and keep
         const packs = this.ownPacks().filter((u) => u.hostUnitId === null);
+        const want: PlanSlot[] = plan.filter((s) => s.phase === 1 && s.half === 0); // closes the corridor
         for (const half of [-1, 1]) {
-            const front = plan.filter((s) => s.phase === 0 && s.half === half).sort((a, b) => Math.abs(a.col - mid) - Math.abs(b.col - mid))[0];
+            // one wall out from the hole (the piece at the hole would only duplicate it)
+            const front = plan.filter((s) => s.phase === 0 && s.half === half).sort((a, b) => Math.abs(a.col - mid) - Math.abs(b.col - mid))[1];
             const flank = plan.filter((s) => s.phase === 2 && s.half === half);
-            const want: PlanSlot[] = front ? [front] : [];
+            if (front) want.push(front);
             const corner = [...flank].sort((a, b) => a.step - b.step)[0];
             if (corner) {
                 // the rows the flank wall runs over, and its column: own packs beyond it want a way through
@@ -526,11 +529,11 @@ export class AiOpponent implements Opponent {
                 });
                 if (outside) want.push(corner);
             }
-            for (const slot of want) {
-                const piece = wallInSlot(placement, this.seat, wall, slot);
-                if (!piece || piece.type.id !== wall.id || economy.balance(this.seat) < make.cost) continue;
-                dispatch({ kind: 'makeGate', team: this.team, seat: this.seat, unitId: piece.id });
-            }
+        }
+        for (const slot of want) {
+            const piece = wallInSlot(placement, this.seat, wall, slot);
+            if (!piece || piece.type.id !== wall.id || economy.balance(this.seat) < make.cost) continue;
+            dispatch({ kind: 'makeGate', team: this.team, seat: this.seat, unitId: piece.id });
         }
     }
 
