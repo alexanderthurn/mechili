@@ -1,5 +1,17 @@
+// Rigged farmer (Tripo, Mixamo skeleton), GPU-skinned in the instance pools.
+// Faces +Z in the GLB, hence yawDeg 90. Clips were cut from Tripo's
+// run / front_kick_02 / fall / scratch and renamed to the engine roles.
 {
     "file": "models/units/farmer.glb",
+    "yawDeg": 90,
     "scale": 3,
     "offset": { "y": -0.04 },
+    "instancedSkin": true,
+    "animation": {
+        "walk": { "clip": "walk" }, // Tripo run (cycle wraps last key → first)
+        "idle": { "clip": "idle" }, // Tripo's full 13.8 s scratch — a closed loop
+        "fire": { "clip": "fire", "hitAt": 0.8 }, // front kick, the foot peaks 0.8 s in
+        // fall 0.8–2.4 s: tips over to his left
+        "death": { "clip": "death", "fallLocal": { "x": -1, "z": 0 } },
+    },
 }

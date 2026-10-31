@@ -13,13 +13,14 @@
     "modelId": "farmer",
     "footprint": { "cols": 2, "rows": 2 },
     "formation": { "cols": 1, "rows": 1 },
-    "meshScale": 0.85,
+    "meshScale": 0.567, // 2/3 of the old size with the rigged model
+    "walkAnimRate": 0.387, // walk playback at ground speed 1.0 — first guess from the goblin's run, scaled by size
     "burn": { "takenMult": 0.5 },
     "bloodColor": 9236248 /* 0x8cef18 */,
     "targets": { "ground": true, "air": false },
-    "collisionRadius": 0.45,
+    "collisionRadius": 0.3,
     "soundSize": "small",
-    "colliders": [{ "y": 0.28, "r": 0.48 }],
+    "colliders": [{ "y": 0.19, "r": 0.32 }],
     "sandWeight": 0.125,
     "hp": 100,
     "damage": 50,

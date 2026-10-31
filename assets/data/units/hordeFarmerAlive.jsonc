@@ -14,12 +14,13 @@
     "footprint": { "cols": 6, "rows": 2 },
     "formation": { "cols": 6, "rows": 2 }, // 12, like the Dead Farmer
     "formationSpread": 0.75,
-    "meshScale": 1.6,
+    "meshScale": 1.067, // 2/3 of the old size with the rigged model
+    "walkAnimRate": 0.206, // walk playback at ground speed 1.0 — first guess from the goblin's run, scaled by size
     "burn": { "takenMult": 1.0 }, // still alive — fire hurts
     "targets": { "ground": true, "air": false },
-    "collisionRadius": 0.9,
+    "collisionRadius": 0.6,
     "soundSize": "small",
-    "colliders": [{ "y": 0.55, "r": 0.95 }],
+    "colliders": [{ "y": 0.37, "r": 0.63 }],
     "hp": 110, // the Dead Farmer has 200
     "damage": 50, // the Dead Farmer has 100
     "range": 2,

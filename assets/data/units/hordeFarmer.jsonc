@@ -14,13 +14,14 @@
     "footprint": { "cols": 6, "rows": 2 }, // a normal pack plate
     "formation": { "cols": 6, "rows": 2 }, // 12 — fewer than Brut swarm
     "formationSpread": 0.75,
-    "meshScale": 1.7, // 2× prior 0.85
+    "meshScale": 1.133, // 2/3 of the old size with the rigged model
+    "walkAnimRate": 0.194, // walk playback at ground speed 1.0 — first guess from the goblin's run, scaled by size
     "burn": { "takenMult": 0.5 },
     "bloodColor": 9236248 /* 0x8cef18 */,
     "targets": { "ground": true, "air": false },
-    "collisionRadius": 0.9,
+    "collisionRadius": 0.6,
     "soundSize": "small",
-    "colliders": [{ "y": 0.55, "r": 0.95 }],
+    "colliders": [{ "y": 0.37, "r": 0.63 }],
     "sandWeight": 0.25,
     "innateTechs": ["darkHarvest"],
     "hp": 200,
