@@ -3864,6 +3864,7 @@ export class Game {
         for (const team of ['player', 'enemy'] as const) {
             for (const type of this.types.roster) {
                 if (type.id === 'shield' || type.id === 'rocket') continue; // extras clutter the test field
+                if (type.wall) continue; // no walls or gates either
                 if (!opts.includeHorde && !isPlayerBuyable(type)) continue; // horde roster only on Ctrl+Shift+U
                 const copies = type.id === 'dwarf' ? 3 : 1;
                 for (let i = 0; i < copies; i++) {
@@ -3907,8 +3908,8 @@ export class Game {
 
         // AI already locked in at phase start — re-run buys/moves/items/spells/upgrades
         // behind fog (existing packs stay at phase-start pose)
-        this.opponent.rerunBuildActions?.();
-        for (const e of this.extraAis) e.ai.rerunBuildActions?.();
+        this.opponent.rerunBuildActions?.({ walls: false });
+        for (const e of this.extraAis) e.ai.rerunBuildActions?.({ walls: false });
         console.info(
             `[cheat] Shift+U${opts.scrambleLevels ? ' (Ctrl: horde + levels + techs)' : ''}: supply/items/spawns`,
         );

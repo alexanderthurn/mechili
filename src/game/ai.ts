@@ -76,7 +76,7 @@ export interface Opponent {
      * Re-run deploy actions without locking in again (cheat mid-phase top-up):
      * buys, reposition, items, spells, upgrades.
      */
-    rerunBuildActions?(): void;
+    rerunBuildActions?(opts?: { walls?: boolean }): void;
     /** what it read before its last build, for the debug overlay (`name` = the seat's) */
     debugLines?(name: string): string[];
 }
@@ -234,9 +234,9 @@ export class AiOpponent implements Opponent {
         this.ctx.dispatch({ kind: 'endDeployment', team: this.team, seat: this.seat });
     }
 
-    /** cheat mid-deploy: the same round again, without another lock-in */
-    rerunBuildActions(): void {
-        this.build(this.ctx.rng);
+    /** cheat mid-deploy: the same round again, without another lock-in (`walls: false` — no walls or gates) */
+    rerunBuildActions(opts: { walls?: boolean } = {}): void {
+        this.build(this.ctx.rng, opts.walls !== false);
     }
 
     /**
@@ -246,7 +246,7 @@ export class AiOpponent implements Opponent {
      * roles), then runes, spells and building levels.
      * Every difficulty plays this for now (AI_PLAN.md, "Difficulty").
      */
-    private build(rng: () => number): void {
+    private build(rng: () => number, walls = true): void {
         const { economy } = this.ctx;
         // read the enemy first: where its army stands, which posture that is
         this.threat = readThreat(this.ctx.placement, this.team, this.seat);
@@ -275,7 +275,7 @@ export class AiOpponent implements Opponent {
         );
         brain.playRound({ slots: this.ctx.deployCap(), finish: false, pick: this.rolePick(rng), extraSlot: this.extraPackSlot });
         // 2) the defence, out of what the packs left
-        this.buildDefence(defence, towers, roundSupply);
+        this.buildDefence(defence, towers, roundSupply, walls);
         // 3) the rest of the army: talents (and packs, should a slot be left)
         brain.finish(brain.packsBought + this.ctx.deployCap());
         // 4) what the bag holds (cards) onto packs
@@ -440,9 +440,12 @@ export class AiOpponent implements Opponent {
         defence: Defence,
         towers: readonly Unit[],
         roundSupply: number,
+        /** false: no walls or gates this pass (the Shift+U cheat) — tower levels still */
+        buildWalls = true,
     ): void {
         const { placement, economy, dispatch } = this.ctx;
-        const { wall, slots } = defence;
+        const { slots } = defence;
+        const wall = buildWalls ? defence.wall : null;
         const style = this.ctx.style;
         const start = economy.balance(this.seat);
         const budget = Math.min(start, roundSupply * Math.max(defence.share, STALL_SHARE));
