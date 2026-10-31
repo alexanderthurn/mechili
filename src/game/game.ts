@@ -994,6 +994,8 @@ export class Game {
     private readonly sandLastPos = new WeakMap<object, { x: number; z: number }>();
     /** hoofprint feet per actor: is each foot down (stamped) right now */
     private readonly feetDown = new WeakMap<object, boolean[]>();
+    /** wheel tracks per actor: where each wheel last printed */
+    private readonly wheelLast = new WeakMap<object, { x: number; z: number }[]>();
     /** restamp once when the async sand mask finishes loading */
     private sandBootstrapped = false;
     /** wall-clock timestamp (performance.now()) of the last tick — used to
@@ -11843,13 +11845,33 @@ export class Game {
         const skin = prints ? instancedSkinOf(modelId) : null;
         if (!prints || !skin?.feet?.length) return false;
         const r = prints.size * a.unit.type.meshScale;
+        if (prints.track) {
+            // wheels never lift: a print under each hub every `spacing` rolled — a line per wheel
+            const step = r * (prints.spacing ?? 1.2);
+            let last = this.wheelLast.get(a);
+            if (!last) this.wheelLast.set(a, (last = skin.feet.map(() => ({ x: NaN, z: NaN }))));
+            for (let i = 0; i < skin.feet.length; i++) {
+                if (instancedSkinFoot(a.mesh, skin, i, _hoof) === null) continue;
+                const l = last[i]!;
+                if (Number.isNaN(l.x)) {
+                    l.x = _hoof.x;
+                    l.z = _hoof.z;
+                    continue;
+                }
+                if (Math.hypot(_hoof.x - l.x, _hoof.z - l.z) < step) continue;
+                l.x = _hoof.x;
+                l.z = _hoof.z;
+                this.map.stampSand(_hoof.x, _hoof.z, r, prints.strength ?? 0.45);
+            }
+            return true;
+        }
         let down = this.feetDown.get(a);
         if (!down) this.feetDown.set(a, (down = skin.feet.map(() => true)));
         for (let i = 0; i < skin.feet.length; i++) {
             const h = instancedSkinFoot(a.mesh, skin, i, _hoof);
             if (h === null) continue;
-            if (down[i] && h > prints.lift) down[i] = false;
-            else if (!down[i] && h < prints.down) {
+            if (down[i] && h > (prints.lift ?? 0)) down[i] = false;
+            else if (!down[i] && h < (prints.down ?? 0)) {
                 down[i] = true;
                 // the wear mask is ~0.4 world units per texel: a print needs a few texels and a hard press
                 this.map.stampSand(_hoof.x, _hoof.z, r, prints.strength ?? 0.45);

@@ -8,6 +8,8 @@
     "instancedSkin": true,
     // sits on the slope: wheelbase (axles at x 0.33 / −0.075) and track (wheels at z ±0.3), GLB units
     "groundConform": { "length": 0.41, "width": 0.6 },
+    // wheel tracks: a print under each hub as it rolls — a line per wheel instead of one blob (units opt in: hoofprints)
+    "hoofprints": { "bones": ["Wheel_FL", "Wheel_FR", "Wheel_BL", "Wheel_BR"], "size": 0.14, "strength": 0.3, "track": true },
     "animation": {
         // the wheels roll one turn per loop: stride = 2π × wheel radius (0.174), so they
         // turn exactly with the ground at any speed and size

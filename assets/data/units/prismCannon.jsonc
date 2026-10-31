@@ -10,6 +10,7 @@
     "formation": { "cols": 1, "rows": 1 },
     "meshScale": 5.0,
     "wheeled": true, // rolls downhill on steep ground
+    "hoofprints": true, // wheel tracks instead of a body-wide wear trail
     "targets": { "ground": true, "air": true },
     "collisionRadius": 2.6,
     "soundSize": "large",

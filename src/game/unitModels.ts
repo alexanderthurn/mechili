@@ -89,6 +89,8 @@ export interface ModelSpec {
      * body-wide wear trail. `size` is the print radius in world units per 1 meshScale,
      * `strength` the sand per print (default 0.45). A foot counts as lifted above `lift`
      * and down again below `down` — heights of its sole in GLB units, read off the walk.
+     * `track: true` is for wheels: they never lift, so each prints under its hub every
+     * `spacing` (× the print radius, default 1.2) it rolls — a line per wheel.
      */
     hoofprints?: HoofprintSpec;
     /**
@@ -156,13 +158,17 @@ export function wingFlapOf(modelId: string): WingFlapData | null {
     return MODEL_SPECS[modelId]?.wingFlap ?? null;
 }
 
-/** Is this model drawn by the instance pools with GPU-skinned clips? */
 export interface HoofprintSpec {
     bones: string[];
     size: number;
     strength?: number;
-    lift: number;
-    down: number;
+    /** feet: lifted above this sole height (GLB units) … */
+    lift?: number;
+    /** … and down again below it — a print */
+    down?: number;
+    /** wheels: always down — a print under each bone's centre every `spacing` × the print radius rolled */
+    track?: boolean;
+    spacing?: number;
 }
 
 /** Ground-conform spacing of a GPU-skinned model, or null (see ModelSpec.groundConform). */
@@ -175,6 +181,7 @@ export function hoofprintsOf(modelId: string): HoofprintSpec | null {
     return MODEL_SPECS[modelId]?.instancedSkin ? (MODEL_SPECS[modelId]?.hoofprints ?? null) : null;
 }
 
+/** Is this model drawn by the instance pools with GPU-skinned clips? */
 export function usesInstancedSkinModel(modelId: string): boolean {
     return MODEL_SPECS[modelId]?.instancedSkin === true;
 }
@@ -955,7 +962,7 @@ async function loadUnitModelsNow(
             if (!spec.skinned) {
                 const skinned =
                     spec.instancedSkin && spec.animation
-                        ? bakeInstancedSkin(root, gltf.animations ?? [], spec.animation, spec.hoofprints?.bones)
+                        ? bakeInstancedSkin(root, gltf.animations ?? [], spec.animation, spec.hoofprints)
                         : null;
                 const baked: InstanceAsset = skinned ? { parts: [skinned] } : bakeInstanceAsset(root);
                 if (isStructureModel(id)) {

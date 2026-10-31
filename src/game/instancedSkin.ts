@@ -114,7 +114,7 @@ export function bakeInstancedSkin(
     root: Group,
     clips: readonly AnimationClip[],
     anim: ModelAnimation,
-    feetBones: readonly string[] = [],
+    feetSpec?: { bones: readonly string[]; track?: boolean },
 ): { geometry: BufferGeometry; material: MeshStandardMaterial; skin: InstancedSkinData } | null {
     let sm: SkinnedMesh | undefined;
     root.traverse((o) => {
@@ -205,14 +205,21 @@ export function bakeInstancedSkin(
         const point = attackNode.getWorldPosition(new Vector3()).applyMatrix4(mesh.matrixWorld.clone().invert());
         out.attack = { bone: attackBone, point };
     }
-    // feet: the sole of each named bone's own geometry — the lowest vertices it moves
+    // feet: the sole of each named bone's own geometry — the lowest vertices it moves;
+    // wheels (track): the bone's own centre, the one point a spin doesn't move
+    const feetBones = feetSpec?.bones ?? [];
     if (feetBones.length) {
         const pos = mesh.geometry.getAttribute('position');
         const idx = mesh.geometry.getAttribute('skinIndex');
         const wts = mesh.geometry.getAttribute('skinWeight');
+        const meshInv = mesh.matrixWorld.clone().invert();
         out.feet = [];
         for (const name of feetBones) {
             const b = mesh.skeleton.bones.findIndex((bone) => bone.name === name);
+            if (b >= 0 && feetSpec?.track) {
+                out.feet.push({ bone: b, point: mesh.skeleton.bones[b]!.getWorldPosition(new Vector3()).applyMatrix4(meshInv) });
+                continue;
+            }
             const own: Vector3[] = [];
             if (b >= 0 && pos && idx && wts) {
                 for (let i = 0; i < pos.count; i++) {
