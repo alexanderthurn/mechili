@@ -43,7 +43,6 @@
   "cardsEvery": "รูนเท่านั้น (ทุกรอบ) — รูนฐานทุกรอบตั้งแต่รอบ 2",
   "cardsFull": "เต็ม — รอบ 2–4 รูน, 5–7 แพ็กยูนิต, 8–10 คาถา",
   "sheet": {
-    "commanderHpOption": "{{label}} HP {{commander}} (ทั้งสองทีม)",
     "commanderHpFixedOption": "ฝั่งละ {{hp}} HP",
     "timersTitle": "ตัวจับเวลาและ HP",
     "deploymentPhase": "เฟสเตรียม",
@@ -140,11 +139,9 @@
     "moneyFactor": "ตัวคูณเสบียง",
     "moneyFactorNote": "ปรับรายได้ทุกรอบของทั้งสองทีม",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "รายได้เสบียง {{label}} (ทั้งสองทีม)",
     "startMoney": "เสบียงเริ่มต้น",
     "startMoneyValue": "+{{amount}}",
-    "startMoneyNote": "เสบียงครั้งเดียวตอนเริ่มแมตช์สำหรับทั้งสองทีม",
-    "startMoneyOption": "เสบียงเริ่มต้น {{label}} (ทั้งสองทีม)"
+    "startMoneyNote": "เสบียงครั้งเดียวตอนเริ่มแมตช์สำหรับทั้งสองทีม"
   },
   "mpHintSteam": "ล็อบบี้ Steam เท่านั้น ต้องเปิด Steam ตอนเปิดเกม",
   "mpHintMatchmaking": "ห้องออนไลน์ผ่าน PeerJS + รายการเซิร์ฟเวอร์ ต้องมีอินเทอร์เน็ต",

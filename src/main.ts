@@ -153,8 +153,6 @@ import {
     formatCommanderHpFactorOption,
     formatCustomGamePaceOption,
     customGamePaceName,
-    formatMoneyFactorOption,
-    formatStartMoneyOption,
     hordeAlgorithmById,
     moneyFactorOption,
     startMoneyOption,
@@ -1887,8 +1885,9 @@ function fillLobbySettingOptions(): void {
     fill(cgHordeEl, HORDE_ALGORITHMS.map((a) => [a.id, ...fromBlurb(a.describe())]));
     fill(cgRoundCardsEl, ROUND_CARD_ALGORITHMS.map((a) => [a.id, ...fromBlurb(a.describe())]));
     fill(cgCommanderHpEl, COMMANDER_HP_FACTOR_OPTIONS.map((o) => [o.id, o.label, formatCommanderHpFactorOption(o)]));
-    fill(cgMoneyEl, MONEY_FACTOR_OPTIONS.map((o) => [String(o.factor), o.label, formatMoneyFactorOption(o)]));
-    fill(cgStartMoneyEl, START_MONEY_OPTIONS.map((o) => [String(o.amount), o.label, formatStartMoneyOption(o)]));
+    fill(cgMoneyEl, MONEY_FACTOR_OPTIONS.map((o) => [String(o.factor), o.label, o.label]));
+    // the amount alone says it: the row's own label names the setting
+    fill(cgStartMoneyEl, START_MONEY_OPTIONS.map((o) => [String(o.amount), o.label, o.label]));
     fill(cgStrongholdEl, STRONGHOLD_MODE_OPTIONS.map((o) => [o.mode, strongholdModeName(o), formatStrongholdModeOption(o)]));
 }
 fillLobbySettingOptions();

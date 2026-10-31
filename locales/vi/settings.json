@@ -43,7 +43,6 @@
   "cardsEvery": "Chỉ dùng Runes (Mỗi vòng) — runes cơ bản mỗi vòng từ vòng 2 trở đi.",
   "cardsFull": "Đầy đủ — vòng 2–4 rune, 5–7 Pack đơn vị, 8–10 phép thuật",
   "sheet": {
-    "commanderHpOption": "{{label}} {{commander}} HP (cả hai đội)",
     "commanderHpFixedOption": "{{hp}} HP mỗi bên",
     "timersTitle": "Bộ hẹn giờ & HP",
     "deploymentPhase": "Giai đoạn triển khai",
@@ -140,11 +139,9 @@
     "moneyFactor": "Hệ số tiếp tế",
     "moneyFactorNote": "điều chỉnh thu nhập mỗi vòng cho cả hai đội",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "Thu nhập tiếp tế {{label}} (cả hai đội)",
     "startMoney": "Tiếp tế ban đầu",
     "startMoneyValue": "+{{amount}}",
-    "startMoneyNote": "tiếp tế một lần khi trận đấu bắt đầu cho cả hai đội",
-    "startMoneyOption": "Tiếp tế ban đầu {{label}} (cả hai đội)"
+    "startMoneyNote": "tiếp tế một lần khi trận đấu bắt đầu cho cả hai đội"
   },
   "mpHintSteam": "Chỉ có thể sử dụng sảnh chờ Steam. Cần Steam đang chạy khi khởi động.",
   "mpHintMatchmaking": "Phòng chat trực tuyến qua PeerJS + danh sách máy chủ. Cần có kết nối internet.",

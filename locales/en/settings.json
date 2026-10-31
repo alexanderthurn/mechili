@@ -43,10 +43,7 @@
   "cardsEvery": "Runes Only (Every Round) — advanced runes every round from round 2",
   "cardsFull": "Full — rounds 2–4 advanced runes, 5–7 unit packs, 8–10 spells",
   "sheet": {
-    "commanderHpOption": "{{label}} {{commander}} HP (both teams)",
     "commanderHpFixedOption": "{{hp}} HP each side",
-    "moneyOption": "{{label}} supply income (both teams)",
-    "startMoneyOption": "{{label}} start money (both teams)",
     "timersTitle": "Timers & HP",
     "deploymentPhase": "Deployment phase",
     "battlePhase": "Battle phase",

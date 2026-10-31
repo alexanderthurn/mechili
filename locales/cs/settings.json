@@ -43,7 +43,6 @@
   "cardsEvery": "Pouze runy (každé kolo) — základní runy každé kolo od 2. kola",
   "cardsFull": "Plná — kola 2–4 runy, 5–7 Packů jednotek, 8–10 kouzel",
   "sheet": {
-    "commanderHpOption": "{{label}} {{commander}} HP (oba týmy)",
     "commanderHpFixedOption": "{{hp}} HP pro každou stranu",
     "timersTitle": "Časovače a HP",
     "deploymentPhase": "Fáze nasazení",
@@ -140,11 +139,9 @@
     "moneyFactor": "Násobek zásob",
     "moneyFactorNote": "upravuje příjem každého kola pro oba týmy",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} příjem zásob (oba týmy)",
     "startMoney": "Počáteční zásoby",
     "startMoneyValue": "+{{amount}}",
-    "startMoneyNote": "jednorázové zásoby na začátku zápasu pro oba týmy",
-    "startMoneyOption": "Počáteční zásoby {{label}} (oba týmy)"
+    "startMoneyNote": "jednorázové zásoby na začátku zápasu pro oba týmy"
   },
   "mpHintSteam": "Pouze ve Steam lobby. Vyžaduje spuštění Steamu při spuštění.",
   "mpHintMatchmaking": "Online místnosti přes PeerJS + seznam serverů. Vyžaduje internet.",

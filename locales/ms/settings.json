@@ -43,7 +43,6 @@
   "cardsEvery": "Runes Sahaja (Setiap Pusingan) — runes asas setiap pusingan dari pusingan 2",
   "cardsFull": "Penuh — pusingan 2–4 rune, 5–7 Pack unit, 8–10 jampi",
   "sheet": {
-    "commanderHpOption": "{{label}} {{commander}} HP (kedua-dua pasukan)",
     "commanderHpFixedOption": "{{hp}} HP setiap pihak",
     "timersTitle": "Pemasa & HP",
     "deploymentPhase": "Fasa pelaksanaan",
@@ -140,11 +139,9 @@
     "moneyFactor": "Faktor bekalan",
     "moneyFactorNote": "melaraskan pendapatan setiap pusingan untuk kedua-dua pasukan",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "Pendapatan bekalan {{label}} (kedua-dua pasukan)",
     "startMoney": "Bekalan permulaan",
     "startMoneyValue": "+{{amount}}",
-    "startMoneyNote": "bekalan sekali sahaja pada permulaan perlawanan untuk kedua-dua pasukan",
-    "startMoneyOption": "Bekalan permulaan {{label}} (kedua-dua pasukan)"
+    "startMoneyNote": "bekalan sekali sahaja pada permulaan perlawanan untuk kedua-dua pasukan"
   },
   "mpHintSteam": "Lobi Steam sahaja. Memerlukan Steam berjalan semasa pelancaran.",
   "mpHintMatchmaking": "Bilik dalam talian melalui senarai pelayan PeerJS +. Memerlukan internet.",

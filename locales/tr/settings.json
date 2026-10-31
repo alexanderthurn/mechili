@@ -43,7 +43,6 @@
   "cardsEvery": "Sadece Rünler (Her Turda) — 2. turdan itibaren her turda temel rünler.",
   "cardsFull": "Tamamı — 2-4. tur rünleri, 5-7. tur birim Packleri, 8-10. tur büyüleri",
   "sheet": {
-    "commanderHpOption": "{{label}} {{commander}} HP (her iki takım)",
     "commanderHpFixedOption": "Taraf başına {{hp}} HP",
     "timersTitle": "Zamanlayıcılar ve HP",
     "deploymentPhase": "Dağıtım aşaması",
@@ -140,11 +139,9 @@
     "moneyFactor": "Tedarik çarpanı",
     "moneyFactorNote": "her turun gelirini iki takım için ölçekler",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} tedarik geliri (iki takım)",
     "startMoney": "Başlangıç tedariki",
     "startMoneyValue": "+{{amount}}",
-    "startMoneyNote": "maç başında iki takıma da bir kerelik tedarik",
-    "startMoneyOption": "{{label}} başlangıç tedariki (iki takım)"
+    "startMoneyNote": "maç başında iki takıma da bir kerelik tedarik"
   },
   "mpHintSteam": "Sadece Steam lobilerinde kullanılabilir. Oyun başlatıldığında Steam'in çalışır durumda olması gerekir.",
   "mpHintMatchmaking": "PeerJS + sunucu listesi üzerinden çevrimiçi odalar. İnternet bağlantısı gereklidir.",

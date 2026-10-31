@@ -43,7 +43,6 @@
   "cardsEvery": "Kun runer (hver runde) — basisruner hver runde fra runde 2",
   "cardsFull": "Full — runder 2–4 runer, 5–7 enhetspakker, 8–10 trollformler",
   "sheet": {
-    "commanderHpOption": "{{label}} {{commander}} HP (begge lag)",
     "commanderHpFixedOption": "{{hp}} HP per side",
     "timersTitle": "Timere og HP",
     "deploymentPhase": "Oppstillingsfase",
@@ -140,11 +139,9 @@
     "moneyFactor": "Forsyningsfaktor",
     "moneyFactorNote": "skalerer inntekten hver runde for begge lag",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} forsyningsinntekt (begge lag)",
     "startMoney": "Startforsyninger",
     "startMoneyValue": "+{{amount}}",
-    "startMoneyNote": "engangsforsyninger ved kampstart for begge lag",
-    "startMoneyOption": "{{label}} startforsyninger (begge lag)"
+    "startMoneyNote": "engangsforsyninger ved kampstart for begge lag"
   },
   "mpHintSteam": "Kun Steam-lobbyer. Krever at Steam kjører ved oppstart.",
   "mpHintMatchmaking": "Online rom via PeerJS + serverliste. Trenger internett.",

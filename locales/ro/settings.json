@@ -43,7 +43,6 @@
   "cardsEvery": "Numai rune (în fiecare rundă) — rune de bază în fiecare rundă începând cu runda 2",
   "cardsFull": "Complet — runde 2–4 rune, 5–7 Pack-uri de unități, 8–10 vrăji",
   "sheet": {
-    "commanderHpOption": "{{label}} {{commander}} HP (ambele echipe)",
     "commanderHpFixedOption": "{{hp}} HP pe fiecare parte",
     "timersTitle": "Cronometre și CP",
     "deploymentPhase": "Faza de desfășurare",
@@ -140,11 +139,9 @@
     "moneyFactor": "Factor de provizii",
     "moneyFactorNote": "scalează venitul fiecărei runde pentru ambele echipe",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "Venit din provizii {{label}} (ambele echipe)",
     "startMoney": "Provizii inițiale",
     "startMoneyValue": "+{{amount}}",
-    "startMoneyNote": "provizii unice la începutul meciului pentru ambele echipe",
-    "startMoneyOption": "Provizii inițiale {{label}} (ambele echipe)"
+    "startMoneyNote": "provizii unice la începutul meciului pentru ambele echipe"
   },
   "mpHintSteam": "Doar pentru lobby-urile Steam. Necesită ca Steam să ruleze la lansare.",
   "mpHintMatchmaking": "Camere online prin PeerJS + listă de servere. Necesită internet.",

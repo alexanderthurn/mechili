@@ -43,7 +43,6 @@
   "cardsEvery": "Тільки руни (щораунд) — базові руни щораунду, починаючи з 2-го раунду",
   "cardsFull": "Повний — раунди 2–4 руни, 5–7 пачок юнітів, 8–10 заклинань",
   "sheet": {
-    "commanderHpOption": "{{label}} {{commander}} HP (обидві команди)",
     "commanderHpFixedOption": "{{hp}} HP на сторону",
     "timersTitle": "Таймери та HP",
     "deploymentPhase": "Фаза розгортання",
@@ -140,11 +139,9 @@
     "moneyFactor": "Множник припасів",
     "moneyFactorNote": "змінює дохід кожного раунду для обох команд",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} дохід припасів (обидві команди)",
     "startMoney": "Стартові припаси",
     "startMoneyValue": "+{{amount}}",
-    "startMoneyNote": "одноразові припаси на початку матчу для обох команд",
-    "startMoneyOption": "Стартові припаси {{label}} (обидві команди)"
+    "startMoneyNote": "одноразові припаси на початку матчу для обох команд"
   },
   "mpHintSteam": "Тільки лобі Steam. Steam має бути запущений під час запуску.",
   "mpHintMatchmaking": "Онлайн-кімнати через PeerJS + список серверів. Потрібен інтернет.",

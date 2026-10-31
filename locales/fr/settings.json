@@ -43,7 +43,6 @@
   "cardsEvery": "Runes uniquement (à chaque tour) — runes de base à chaque tour à partir du tour 2",
   "cardsFull": "Complet — tours 2 à 4 runes, 5 à 7 packs d'unités, 8 à 10 sorts",
   "sheet": {
-    "commanderHpOption": "{{label}} {{commander}} HP (les deux équipes)",
     "commanderHpFixedOption": "{{hp}} HP par camp",
     "timersTitle": "Minuteurs et HP",
     "deploymentPhase": "Phase de déploiement",
@@ -140,11 +139,9 @@
     "moneyFactor": "Facteur de ravitaillement",
     "moneyFactorNote": "modifie le revenu de chaque manche pour les deux équipes",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "Revenu de ravitaillement {{label}} (les deux équipes)",
     "startMoney": "Ravitaillement de départ",
     "startMoneyValue": "+{{amount}}",
-    "startMoneyNote": "ravitaillement unique au début du match pour les deux équipes",
-    "startMoneyOption": "Ravitaillement de départ {{label}} (les deux équipes)"
+    "startMoneyNote": "ravitaillement unique au début du match pour les deux équipes"
   },
   "mpHintSteam": "Accès uniquement aux salons Steam. Steam doit être lancé au démarrage.",
   "mpHintMatchmaking": "Salles en ligne via PeerJS + liste de serveurs. Connexion internet requise.",

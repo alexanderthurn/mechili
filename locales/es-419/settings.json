@@ -43,7 +43,6 @@
   "cardsEvery": "Solo runas (en cada ronda) — runas base en cada ronda a partir de la ronda 2",
   "cardsFull": "Completo — rondas 2-4 runas, 5-7 Packs de unidades, 8-10 hechizos",
   "sheet": {
-    "commanderHpOption": "{{label}} {{commander}} HP (ambos equipos)",
     "commanderHpFixedOption": "{{hp}} HP por bando",
     "timersTitle": "Temporizadores y HP",
     "deploymentPhase": "Fase de despliegue",
@@ -140,11 +139,9 @@
     "moneyFactor": "Factor de suministros",
     "moneyFactorNote": "escala los ingresos de cada ronda para ambos equipos",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "Ingresos de suministros {{label}} (ambos equipos)",
     "startMoney": "Suministros iniciales",
     "startMoneyValue": "+{{amount}}",
-    "startMoneyNote": "suministros únicos al empezar la partida para ambos equipos",
-    "startMoneyOption": "Suministros iniciales {{label}} (ambos equipos)"
+    "startMoneyNote": "suministros únicos al empezar la partida para ambos equipos"
   },
   "mpHintSteam": "Solo para salas de Steam. Requiere que Steam esté en ejecución al iniciar.",
   "mpHintMatchmaking": "Salas online mediante PeerJS + lista de servidores. Requiere conexión a internet.",

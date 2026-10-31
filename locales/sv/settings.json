@@ -43,7 +43,6 @@
   "cardsEvery": "Endast runor (varje runda) — basrunor varje runda från runda 2",
   "cardsFull": "Full — rundor 2–4 runor, 5–7 enhetspaket, 8–10 trollformler",
   "sheet": {
-    "commanderHpOption": "{{label}} {{commander}} HP (båda lagen)",
     "commanderHpFixedOption": "{{hp}} HP per sida",
     "timersTitle": "Timers och HP",
     "deploymentPhase": "Uppställningsfas",
@@ -140,11 +139,9 @@
     "moneyFactor": "Förrådsfaktor",
     "moneyFactorNote": "skalar varje rundas inkomst för båda lagen",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} förrådsinkomst (båda lagen)",
     "startMoney": "Startförråd",
     "startMoneyValue": "+{{amount}}",
-    "startMoneyNote": "engångsförråd vid matchstart för båda lagen",
-    "startMoneyOption": "{{label}} startförråd (båda lagen)"
+    "startMoneyNote": "engångsförråd vid matchstart för båda lagen"
   },
   "mpHintSteam": "Endast Steam-lobbyer. Kräver att Steam körs vid lansering.",
   "mpHintMatchmaking": "Onlinerum via PeerJS + serverlista. Kräver internet.",

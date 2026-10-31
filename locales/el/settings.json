@@ -43,7 +43,6 @@
   "cardsEvery": "Μόνο ρούνες (Κάθε γύρο) — βασικές ρούνες κάθε γύρο από τον 2",
   "cardsFull": "Πλήρες — γύροι 2–4 ρούνες, 5–7 πακέτα μονάδων, 8–10 ξόρκια",
   "sheet": {
-    "commanderHpOption": "{{label}} HP {{commander}} (και οι δύο ομάδες)",
     "commanderHpFixedOption": "{{hp}} HP ανά πλευρά",
     "timersTitle": "Χρονόμετρα & HP",
     "deploymentPhase": "Φάση ανάπτυξης",
@@ -140,11 +139,9 @@
     "moneyFactor": "Συντελεστής εφοδίων",
     "moneyFactorNote": "κλιμακώνει το εισόδημα κάθε γύρου και για τις δύο ομάδες",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} εισόδημα εφοδίων (και οι δύο ομάδες)",
     "startMoney": "Αρχικά εφόδια",
     "startMoneyValue": "+{{amount}}",
-    "startMoneyNote": "εφάπαξ εφόδια στην αρχή του αγώνα και για τις δύο ομάδες",
-    "startMoneyOption": "Αρχικά εφόδια {{label}} (και οι δύο ομάδες)"
+    "startMoneyNote": "εφάπαξ εφόδια στην αρχή του αγώνα και για τις δύο ομάδες"
   },
   "mpHintSteam": "Μόνο Steam lobbies. Χρειάζεται το Steam ανοιχτό στην εκκίνηση.",
   "mpHintMatchmaking": "Online δωμάτια μέσω PeerJS + λίστας διακομιστών. Χρειάζεται ίντερνετ.",

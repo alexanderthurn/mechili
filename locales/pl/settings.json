@@ -43,7 +43,6 @@
   "cardsEvery": "Tylko runy (co rundę) — runy podstawowe w każdej rundzie od rundy 2",
   "cardsFull": "Pełna — rundy 2–4 runy, 5–7 Packów jednostek, 8–10 zaklęć",
   "sheet": {
-    "commanderHpOption": "{{label}} {{commander}} HP (obie drużyny)",
     "commanderHpFixedOption": "{{hp}} HP na stronę",
     "timersTitle": "Timery i HP",
     "deploymentPhase": "Faza wdrażania",
@@ -140,11 +139,9 @@
     "moneyFactor": "Mnożnik zapasów",
     "moneyFactorNote": "skaluje dochód z każdej rundy dla obu drużyn",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "Dochód z zapasów {{label}} (obie drużyny)",
     "startMoney": "Zapasy początkowe",
     "startMoneyValue": "+{{amount}}",
-    "startMoneyNote": "jednorazowe zapasy na starcie meczu dla obu drużyn",
-    "startMoneyOption": "Zapasy początkowe {{label}} (obie drużyny)"
+    "startMoneyNote": "jednorazowe zapasy na starcie meczu dla obu drużyn"
   },
   "mpHintSteam": "Tylko w lobby Steam. Wymaga uruchomienia Steama w momencie premiery.",
   "mpHintMatchmaking": "Pokoje online przez PeerJS + lista serwerów. Wymagany internet.",

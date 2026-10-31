@@ -43,7 +43,6 @@
   "cardsEvery": "Само руни (всеки рунд) — базови руни всеки рунд от рунд 2",
   "cardsFull": "Пълен — рундове 2–4 руни, 5–7 отряда с единици, 8–10 магии",
   "sheet": {
-    "commanderHpOption": "{{label}} {{commander}} HP (и двата отбора)",
     "commanderHpFixedOption": "{{hp}} HP за всяка страна",
     "timersTitle": "Таймери и HP",
     "deploymentPhase": "Фаза на внедряване",
@@ -140,11 +139,9 @@
     "moneyFactor": "Множител на провизиите",
     "moneyFactorNote": "променя дохода от всеки рунд за двата отбора",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} доход от провизии (двата отбора)",
     "startMoney": "Начални провизии",
     "startMoneyValue": "+{{amount}}",
-    "startMoneyNote": "еднократни провизии в началото на мача за двата отбора",
-    "startMoneyOption": "Начални провизии {{label}} (двата отбора)"
+    "startMoneyNote": "еднократни провизии в началото на мача за двата отбора"
   },
   "mpHintSteam": "Само лобита в Steam. Изисква Steam да е стартиран при стартиране.",
   "mpHintMatchmaking": "Онлайн стаи чрез PeerJS + списък със сървъри. Необходим е интернет.",

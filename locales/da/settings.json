@@ -43,7 +43,6 @@
   "cardsEvery": "Kun runer (hver runde) — basisruner hver runde fra runde 2",
   "cardsFull": "Fuld — runder 2–4 runer, 5–7 enhedspakker, 8–10 trylleformularer",
   "sheet": {
-    "commanderHpOption": "{{label}} {{commander}} HP (begge hold)",
     "commanderHpFixedOption": "{{hp}} HP til hver side",
     "timersTitle": "Timere og HP",
     "deploymentPhase": "Opstillingsfase",
@@ -140,11 +139,9 @@
     "moneyFactor": "Forsyningsfaktor",
     "moneyFactorNote": "skalerer hver rundes indkomst for begge hold",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} forsyningsindkomst (begge hold)",
     "startMoney": "Startforsyninger",
     "startMoneyValue": "+{{amount}}",
-    "startMoneyNote": "engangsforsyninger ved kampstart for begge hold",
-    "startMoneyOption": "{{label}} startforsyninger (begge hold)"
+    "startMoneyNote": "engangsforsyninger ved kampstart for begge hold"
   },
   "mpHintSteam": "Kun Steam-lobbyer. Kræver, at Steam kører ved opstart.",
   "mpHintMatchmaking": "Online rum via PeerJS + serverliste. Kræver internet.",

@@ -43,7 +43,6 @@
   "cardsEvery": "Solo rune (ogni round) — rune base ogni round dal round 2",
   "cardsFull": "Completo — round 2–4 rune, 5–7 Packs di unità, 8–10 incantesimi",
   "sheet": {
-    "commanderHpOption": "{{label}} {{commander}} HP (entrambe le squadre)",
     "commanderHpFixedOption": "{{hp}} HP per lato",
     "timersTitle": "Timer e HP",
     "deploymentPhase": "Fase di dispiegamento",
@@ -140,11 +139,9 @@
     "moneyFactor": "Fattore scorte",
     "moneyFactorNote": "scala le entrate di ogni round per entrambe le squadre",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "Entrate di scorte {{label}} (entrambe le squadre)",
     "startMoney": "Scorte iniziali",
     "startMoneyValue": "+{{amount}}",
-    "startMoneyNote": "scorte una tantum a inizio partita per entrambe le squadre",
-    "startMoneyOption": "Scorte iniziali {{label}} (entrambe le squadre)"
+    "startMoneyNote": "scorte una tantum a inizio partita per entrambe le squadre"
   },
   "mpHintSteam": "Accesso consentito solo alle lobby di Steam. È necessario che Steam sia in esecuzione all'avvio.",
   "mpHintMatchmaking": "Stanze online tramite PeerJS + elenco server. Richiede connessione a Internet.",

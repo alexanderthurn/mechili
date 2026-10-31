@@ -659,11 +659,8 @@ export function formatCommanderHpFactorOption(o: CommanderHpFactorOption): strin
             defaultValue: `${o.label} HP each side`,
         });
     }
-    return t('settings:sheet.commanderHpOption', {
-        label: o.label,
-        commander: DISPLAY.commander,
-        defaultValue: `${o.label} ${DISPLAY.commander} HP (both teams)`,
-    });
+    // a multiplier says it alone: the row's own label names the setting
+    return o.label;
 }
 
 /** Custom Game supply multiplier options — both teams share one factor. */
@@ -698,12 +695,6 @@ export function resolveMoneyFactor(raw: unknown): number {
     return DEFAULT_MONEY_FACTOR;
 }
 
-export function formatMoneyFactorOption(o: MoneyFactorOption): string {
-    return t('settings:sheet.moneyOption', {
-        label: o.label,
-        defaultValue: `${o.label} supply income (both teams)`,
-    });
-}
 
 /** Custom Game one-time start-money options — both teams share one bonus. */
 export interface StartMoneyOption {
@@ -733,13 +724,6 @@ export function resolveStartMoney(raw: unknown): number {
     const n = typeof raw === 'number' ? raw : Number(raw);
     if (Number.isFinite(n) && n >= 0) return n;
     return DEFAULT_START_MONEY;
-}
-
-export function formatStartMoneyOption(o: StartMoneyOption): string {
-    return t('settings:sheet.startMoneyOption', {
-        label: o.label,
-        defaultValue: `${o.label} start money (both teams)`,
-    });
 }
 
 export const DEFAULT_SETTINGS: GameSettings = {

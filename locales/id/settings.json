@@ -43,7 +43,6 @@
   "cardsEvery": "Hanya Rune (Setiap Ronde) — rune dasar setiap ronde mulai ronde 2",
   "cardsFull": "Lengkap — ronde 2–4 rune, 5–7 Pack unit, 8–10 mantra",
   "sheet": {
-    "commanderHpOption": "{{label}} {{commander}} HP (kedua tim)",
     "commanderHpFixedOption": "{{hp}} HP tiap sisi",
     "timersTitle": "Pengatur Waktu & HP",
     "deploymentPhase": "Fase penyebaran",
@@ -140,11 +139,9 @@
     "moneyFactor": "Faktor persediaan",
     "moneyFactorNote": "mengatur pendapatan setiap ronde untuk kedua tim",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "Pendapatan persediaan {{label}} (kedua tim)",
     "startMoney": "Persediaan awal",
     "startMoneyValue": "+{{amount}}",
-    "startMoneyNote": "persediaan sekali di awal pertandingan untuk kedua tim",
-    "startMoneyOption": "Persediaan awal {{label}} (kedua tim)"
+    "startMoneyNote": "persediaan sekali di awal pertandingan untuk kedua tim"
   },
   "mpHintSteam": "Hanya lobi Steam. Membutuhkan Steam yang berjalan saat peluncuran.",
   "mpHintMatchmaking": "Ruang obrolan online melalui PeerJS + daftar server. Membutuhkan koneksi internet.",

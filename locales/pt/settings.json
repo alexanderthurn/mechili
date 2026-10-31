@@ -43,7 +43,6 @@
   "cardsEvery": "Apenas Runas (A cada rodada) — runas básicas a cada rodada a partir da rodada 2",
   "cardsFull": "Completo — rodadas 2–4 runas, 5–7 Packs de unidades, 8–10 feitiços",
   "sheet": {
-    "commanderHpOption": "{{label}} {{commander}} HP (ambas as equipes)",
     "commanderHpFixedOption": "{{hp}} HP por lado",
     "timersTitle": "Temporizadores e HP",
     "deploymentPhase": "Fase de mobilização",
@@ -140,11 +139,9 @@
     "moneyFactor": "Fator de provisões",
     "moneyFactorNote": "ajusta o rendimento de cada ronda para ambas as equipas",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "Rendimento de provisões {{label}} (ambas as equipas)",
     "startMoney": "Provisões iniciais",
     "startMoneyValue": "+{{amount}}",
-    "startMoneyNote": "provisões únicas no início da partida para ambas as equipas",
-    "startMoneyOption": "Provisões iniciais {{label}} (ambas as equipas)"
+    "startMoneyNote": "provisões únicas no início da partida para ambas as equipas"
   },
   "mpHintSteam": "Apenas salas de espera do Steam. Requer que o Steam esteja aberto no momento da inicialização.",
   "mpHintMatchmaking": "Salas online via PeerJS + lista de servidores. Requer internet.",

@@ -723,20 +723,23 @@ export class YearBrain {
     /**
      * Its packs that may still move this round (a starting army, packs of an
      * earlier pass): to where the round's plan wants them — the
-     * personality's stance, the role's depth — before the new packs join.
+     * personality's stance, the role's depth; chaff spread at random like a
+     * new chaff pack — before the new packs join.
      */
     private repositionMovable(): void {
         const { placement, dispatch } = this.host;
         const movable = placement
             .allUnits()
-            .filter((u) => u.seat === this.seat && !u.destroyed && !u.summoned && !u.gridless && !u.type.structure && !u.type.extra && !isChaff(u.type) && placement.canReposition(u))
+            .filter((u) => u.seat === this.seat && !u.destroyed && !u.summoned && !u.gridless && !u.type.structure && !u.type.extra && placement.canReposition(u))
             .sort((a, b) => depthFor(a.type) - depthFor(b.type) || b.type.cost - a.type.cost || a.id - b.id);
         if (movable.length === 0) return;
         const lanes = this.enemyLanes();
         this.setFocus(lanes);
         const placed: { x: number; type: UnitType }[] = [];
         for (const u of movable) {
-            const at = this.spotFor(u.type, depthFor(u.type), lanes, placed, undefined, u.rotated);
+            // a starting army's swarms would otherwise stay huddled where the card dropped them
+            const chaff = isChaff(u.type) && !u.rotated;
+            const at = chaff ? this.randomSpot(u.type) : this.spotFor(u.type, depthFor(u.type), lanes, placed, undefined, u.rotated);
             if (!at) continue;
             placed.push({ x: at.x, type: u.type });
             if (at.spot.col === u.cell.col && at.spot.row === u.cell.row) continue;

@@ -43,7 +43,6 @@
   "cardsEvery": "رونات فقط (كل جولة) — رونات أساسية كل جولة من الجولة 2",
   "cardsFull": "كامل — الجولات 2–4 رونات، 5–7 حزم وحدات، 8–10 تعويذات",
   "sheet": {
-    "commanderHpOption": "صحة {{commander}} {{label}} (كلا الفريقين)",
     "commanderHpFixedOption": "{{hp}} نقطة صحة لكل جانب",
     "timersTitle": "المؤقتات والصحة",
     "deploymentPhase": "مرحلة الانتشار",
@@ -140,11 +139,9 @@
     "moneyFactor": "معامل الإمداد",
     "moneyFactorNote": "يضبط دخل كل جولة للفريقين",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "دخل إمداد {{label}} (الفريقان)",
     "startMoney": "إمداد البداية",
     "startMoneyValue": "+{{amount}}",
-    "startMoneyNote": "إمداد لمرة واحدة عند بدء المباراة للفريقين",
-    "startMoneyOption": "إمداد البداية {{label}} (الفريقان)"
+    "startMoneyNote": "إمداد لمرة واحدة عند بدء المباراة للفريقين"
   },
   "mpHintSteam": "لوبيات Steam فقط. يحتاج تشغيل Steam عند الإطلاق.",
   "mpHintMatchmaking": "غرف عبر الإنترنت عبر PeerJS + قائمة خوادم. تحتاج إنترنت.",

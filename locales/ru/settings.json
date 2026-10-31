@@ -43,7 +43,6 @@
   "cardsEvery": "Только руны (каждый раунд) — с раунда 2",
   "cardsFull": "Полный — 2–4 руны, 5–7 отряды, 8–10 заклинания",
   "sheet": {
-    "commanderHpOption": "{{label}} ОЗ {{commander}} (обе команды)",
     "commanderHpFixedOption": "{{hp}} ОЗ на сторону",
     "timersTitle": "Таймеры и ОЗ",
     "deploymentPhase": "Фаза развёртки",
@@ -140,11 +139,9 @@
     "moneyFactor": "Множитель припасов",
     "moneyFactorNote": "меняет доход каждого раунда для обеих команд",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} доход припасов (обе команды)",
     "startMoney": "Стартовые припасы",
     "startMoneyValue": "+{{amount}}",
-    "startMoneyNote": "разовые припасы в начале матча для обеих команд",
-    "startMoneyOption": "Стартовые припасы {{label}} (обе команды)"
+    "startMoneyNote": "разовые припасы в начале матча для обеих команд"
   },
   "mpHintSteam": "Только лобби Steam. При запуске Steam должен быть включён.",
   "mpHintMatchmaking": "Онлайн-комнаты через PeerJS и список серверов. Нужен интернет.",

@@ -43,7 +43,6 @@
   "cardsEvery": "Vain riimut (jokainen kierros) — perusriimut joka kierros alkaen 2. kierroksesta",
   "cardsFull": "Täysi — kierroksia 2–4 riimua, 5–7 yksikköpakkaa, 8–10 loitsua",
   "sheet": {
-    "commanderHpOption": "{{label}} {{commander}} HP (molemmat joukkueet)",
     "commanderHpFixedOption": "{{hp}} HP kummallekin puolelle",
     "timersTitle": "Ajastimet ja HP",
     "deploymentPhase": "Käyttöönottovaihe",
@@ -140,11 +139,9 @@
     "moneyFactor": "Tarvikekerroin",
     "moneyFactorNote": "skaalaa jokaisen kierroksen tulot molemmille joukkueille",
     "moneyFactorValue": "×{{factor}}",
-    "moneyOption": "{{label}} tarviketulot (molemmat joukkueet)",
     "startMoney": "Aloitustarvikkeet",
     "startMoneyValue": "+{{amount}}",
-    "startMoneyNote": "kertaluonteiset tarvikkeet ottelun alussa molemmille joukkueille",
-    "startMoneyOption": "{{label}} aloitustarvikkeet (molemmat joukkueet)"
+    "startMoneyNote": "kertaluonteiset tarvikkeet ottelun alussa molemmille joukkueille"
   },
   "mpHintSteam": "Vain Steam-aulat. Vaatii Steamin käynnissä käynnistyksen yhteydessä.",
   "mpHintMatchmaking": "Online-huoneet PeerJS:n + palvelinlistan kautta. Vaatii internetyhteyden.",
