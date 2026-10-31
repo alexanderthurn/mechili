@@ -6,6 +6,8 @@
     "scale": 3,
     "offset": { "y": -0.04 },
     "instancedSkin": true,
+    // feet print the ground where they come down (only the Black Spider opts in); sole heights in GLB units
+    "hoofprints": { "bones": ["L1_Lower", "L2_Lower", "L3_Lower", "R1_Lower", "R2_Lower", "R3_Lower"], "size": 0.15, "strength": 0.45, "lift": 0.15, "down": 0.1 },
     "animation": {
         "walk": { "clip": "walk" }, // alternating tripod gait, 0.45 s
         "idle": { "clip": "idle" }, // breathing, fangs working, front legs tap

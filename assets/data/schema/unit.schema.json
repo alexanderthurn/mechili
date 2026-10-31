@@ -46,6 +46,10 @@
           "type": "number",
           "description": "GPU-skinned walk playback × this (default 1) — units sharing a model at very different sizes need different leg tempos for the feet to keep pace."
         },
+        "hoofprints": {
+          "type": "boolean",
+          "description": "Feet print the ground where they touch down (the model's `hoofprints` feet) instead of the body-wide wear trail — for huge walkers; any side, horde included."
+        },
         "sandPadScale": {
           "type": "number",
           "description": "Soft sand pad stamped under a structure, as a multiple of its footprint (default 1). Visual only."

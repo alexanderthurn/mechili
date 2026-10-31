@@ -15,6 +15,7 @@
     "footprint": { "cols": 4, "rows": 3 },
     "formation": { "cols": 1, "rows": 1 },
     "meshScale": 6.0, // 12× Brood — showcase boss presence
+    "hoofprints": true, // huge: feet print the ground instead of a wear trail
     "walkAnimRate": 0.667, // 8/12: the gait fit at speed 12, keep the feet in step at 8
     "burn": { "takenMult": 0.4 },
     "bloodColor": 9236248 /* 0x8cef18 */,

@@ -195,7 +195,7 @@ import { BattleOverlays, type BattleOverlaysHost } from './battleOverlays';
 import { HudViews, type EnemyIntelSnapshot, type HudViewsHost } from './hudViews';
 import { SelectionInfoBuilder, type BuildingIntelSeat, type BuildingIntelSnapshot, type SelectionInfoHost } from './selectionInfo';
 import { getUnitVisualHeight, hoofprintsOf, instancedSkinOf, modelGeometryFingerprint, modelGeometrySnapshot, usesWingFlapModel } from './unitModels';
-import { holdInstancedSkinBeam, instancedSkinBoneAt, instancedSkinFootWorld, playInstancedSkinLoop, updateInstancedSkins } from './instancedSkin';
+import { holdInstancedSkinBeam, instancedSkinBoneAt, instancedSkinFoot, playInstancedSkinLoop, updateInstancedSkins } from './instancedSkin';
 import { BirdFlocks } from './birdFlocks';
 import { WallJoins } from './wallJoins';
 import { GateDoors } from './gateDoors';
@@ -11831,31 +11831,27 @@ export class Game {
     }
 
     /**
-     * A model with hoofprint feet stamps a print where each foot touches down after being
-     * lifted (render-only, from the live skinned pose). True when the actor prints this
-     * way, so the caller skips the body-wide wear trail.
+     * A unit with hoofprints stamps a print where each of its model's feet touches down
+     * after being lifted (render-only, from the live skinned pose). True when the actor
+     * prints this way, so the caller skips the body-wide wear trail.
      */
     private stampHoofprints(a: Actor): boolean {
+        if (!a.unit.type.hoofprints) return false;
         const modelId = a.unit.type.modelId ?? a.unit.type.id;
         const prints = hoofprintsOf(modelId);
         const skin = prints ? instancedSkinOf(modelId) : null;
         if (!prints || !skin?.feet?.length) return false;
-        const ms = a.unit.type.meshScale;
-        const r = prints.size * ms;
-        // touch-down / lift heights scale with the body, not the print (a hind hoof only clears ~0.12 × meshScale)
-        const downAt = 0.05 * ms;
-        const liftAt = 0.08 * ms;
+        const r = prints.size * a.unit.type.meshScale;
         let down = this.feetDown.get(a);
         if (!down) this.feetDown.set(a, (down = skin.feet.map(() => true)));
         for (let i = 0; i < skin.feet.length; i++) {
-            const p = instancedSkinFootWorld(a.mesh, skin, i, _hoof);
-            if (!p) continue;
-            const h = p.y - a.mesh.position.y;
-            if (down[i] && h > liftAt) down[i] = false;
-            else if (!down[i] && h < downAt) {
+            const h = instancedSkinFoot(a.mesh, skin, i, _hoof);
+            if (h === null) continue;
+            if (down[i] && h > prints.lift) down[i] = false;
+            else if (!down[i] && h < prints.down) {
                 down[i] = true;
                 // the wear mask is ~0.4 world units per texel: a print needs a few texels and a hard press
-                this.map.stampSand(p.x, p.z, r, prints.strength ?? 0.45);
+                this.map.stampSand(_hoof.x, _hoof.z, r, prints.strength ?? 0.45);
             }
         }
         return true;

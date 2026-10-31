@@ -83,11 +83,13 @@ export interface ModelSpec {
      */
     instancedSkin?: boolean;
     /**
-     * GPU-skinned feet that print the ground: each named bone stamps a print where it
-     * touches down, instead of the body-wide wear trail. `size` is the print radius in
-     * world units per 1 meshScale; `strength` the sand per print (default 0.45).
+     * GPU-skinned feet that can print the ground (units opt in with UnitType.hoofprints):
+     * each named bone's sole stamps a print where it touches down, instead of the
+     * body-wide wear trail. `size` is the print radius in world units per 1 meshScale,
+     * `strength` the sand per print (default 0.45). A foot counts as lifted above `lift`
+     * and down again below `down` — heights of its sole in GLB units, read off the walk.
      */
-    hoofprints?: { bones: string[]; size: number; strength?: number };
+    hoofprints?: HoofprintSpec;
     /** Wing-flap shader stroke for a winged model (crow rider, bat, …), defined per model. */
     wingFlap?: WingFlapData;
 }
@@ -148,8 +150,16 @@ export function wingFlapOf(modelId: string): WingFlapData | null {
 }
 
 /** Is this model drawn by the instance pools with GPU-skinned clips? */
+export interface HoofprintSpec {
+    bones: string[];
+    size: number;
+    strength?: number;
+    lift: number;
+    down: number;
+}
+
 /** Hoofprint feet of a GPU-skinned model, or null (see ModelSpec.hoofprints). */
-export function hoofprintsOf(modelId: string): { bones: string[]; size: number; strength?: number } | null {
+export function hoofprintsOf(modelId: string): HoofprintSpec | null {
     return MODEL_SPECS[modelId]?.instancedSkin ? (MODEL_SPECS[modelId]?.hoofprints ?? null) : null;
 }
 

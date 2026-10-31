@@ -515,6 +515,11 @@ export interface UnitType {
      */
     walkAnimRate?: number;
     /**
+     * Feet print the ground where they touch down (the model's `hoofprints` feet) instead
+     * of the body-wide wear trail — for huge walkers; any side, horde included.
+     */
+    hoofprints?: boolean;
+    /**
      * Soft sand pad stamped under a structure, as a multiple of its footprint
      * (default 1). Visual only.
      */

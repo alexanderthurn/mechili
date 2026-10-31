@@ -79,6 +79,8 @@ export interface InstancedSkinData {
     attack?: { bone: number; point: Vector3 };
     /** hoofprint feet: the sole of each named bone's geometry, in bind space (ModelSpec.hoofprints) */
     feet?: { bone: number; point: Vector3 }[];
+    /** normalized root units per GLB (bind) unit — converts a foot's height back to GLB units */
+    rootPerModel?: number;
 }
 
 /** One shared clock for every skinned pool — advanced with sim-scaled dt. */
@@ -184,6 +186,11 @@ export function bakeInstancedSkin(
     mixer.uncacheRoot(root);
     mesh.skeleton.pose();
     root.updateMatrixWorld(true);
+    // the full rest-pose skin transform (bind vertex → root): the normalize scale can sit in
+    // the bind matrix or in the bones, so measure the whole chain
+    pre.multiplyMatrices(rootInv, mesh.matrixWorld).multiply(mesh.bindMatrixInverse);
+    m.multiplyMatrices(pre, mesh.skeleton.bones[0]!.matrixWorld).multiply(mesh.skeleton.boneInverses[0]!).multiply(mesh.bindMatrix);
+    out.rootPerModel = new Vector3().setFromMatrixColumn(m, 1).length();
 
     // an AttackNode under a bone moves with it — keep it for live (render-only) muzzles
     const attackNode = root.getObjectByName('AttackNode');
@@ -744,13 +751,20 @@ export function instancedSkinAttackWorld(proxy: Object3D, skin: InstancedSkinDat
     return out.copy(skin.attack.point).applyMatrix4(_attack).applyMatrix4(proxy.matrixWorld);
 }
 
-/** World position of foot `i` (see InstancedSkinData.feet) in its live pose. Render-only. */
-export function instancedSkinFootWorld(proxy: Object3D, skin: InstancedSkinData, i: number, out: Vector3): Vector3 | null {
+/**
+ * Foot `i` (see InstancedSkinData.feet) in its live pose: world position into `out`,
+ * returns its height above the model's base in GLB units (so thresholds don't depend on
+ * how big the unit is drawn). Null when not GPU-skinned. Render-only.
+ */
+export function instancedSkinFoot(proxy: Object3D, skin: InstancedSkinData, i: number, out: Vector3): number | null {
     const foot = skin.feet?.[i];
     if (!foot || !proxy.userData.instancedSkin) return null;
     boneNow(skin, stateOf(proxy), foot.bone, _attack);
+    out.copy(foot.point).applyMatrix4(_attack);
+    const h = out.y / (skin.rootPerModel || 1);
     proxy.updateWorldMatrix(true, false);
-    return out.copy(foot.point).applyMatrix4(_attack).applyMatrix4(proxy.matrixWorld);
+    out.applyMatrix4(proxy.matrixWorld);
+    return h;
 }
 
 /** Pose every bone follower for this frame (after the skin clock advanced). */

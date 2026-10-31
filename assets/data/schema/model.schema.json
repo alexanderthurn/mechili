@@ -80,27 +80,8 @@
           "description": "Rigged GLB drawn by the instance pools with GPU skinning: every `animation` clip is baked into a bone texture at load (bakeInstancedSkin). Leave `skinned` off — that is the one-mixer-per-mech path."
         },
         "hoofprints": {
-          "type": "object",
-          "properties": {
-            "bones": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "size": {
-              "type": "number"
-            },
-            "strength": {
-              "type": "number"
-            }
-          },
-          "required": [
-            "bones",
-            "size"
-          ],
-          "additionalProperties": false,
-          "description": "GPU-skinned feet that print the ground: each named bone stamps a print where it touches down, instead of the body-wide wear trail. `size` is the print radius in world units per 1 meshScale; `strength` the sand per print (default 0.45)."
+          "$ref": "#/definitions/HoofprintSpec",
+          "description": "GPU-skinned feet that can print the ground (units opt in with UnitType.hoofprints): each named bone's sole stamps a print where it touches down, instead of the body-wide wear trail. `size` is the print radius in world units per 1 meshScale, `strength` the sand per print (default 0.45). A foot counts as lifted above `lift` and down again below `down` — heights of its sole in GLB units, read off the walk."
         },
         "wingFlap": {
           "$ref": "#/definitions/WingFlapData",
@@ -270,6 +251,37 @@
       ],
       "additionalProperties": false,
       "description": "One clip role of a rigged model."
+    },
+    "HoofprintSpec": {
+      "type": "object",
+      "properties": {
+        "bones": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "size": {
+          "type": "number"
+        },
+        "strength": {
+          "type": "number"
+        },
+        "lift": {
+          "type": "number"
+        },
+        "down": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "bones",
+        "size",
+        "lift",
+        "down"
+      ],
+      "additionalProperties": false,
+      "description": "Is this model drawn by the instance pools with GPU-skinned clips?"
     },
     "WingFlapData": {
       "type": "object",
