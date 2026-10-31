@@ -634,7 +634,7 @@
         },
         "cleaveShake": {
           "type": "number",
-          "description": "Camera shake when a flyer cleave slams the ground (0–1+; see explosion.shake)."
+          "description": "Heavy cleave slam (0–1+): camera shake on every hit (see explosion.shake); a ground unit also shows the blow at its target with a dust shockwave out to the cleave radius."
         },
         "burn": {
           "$ref": "#/definitions/BurnAffinity",

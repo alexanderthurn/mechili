@@ -82,6 +82,12 @@ export interface ModelSpec {
      * Leave `skinned` off — that is the one-mixer-per-mech path.
      */
     instancedSkin?: boolean;
+    /**
+     * GPU-skinned feet that print the ground: each named bone stamps a print where it
+     * touches down, instead of the body-wide wear trail. `size` is the print radius in
+     * world units per 1 meshScale; `strength` the sand per print (default 0.45).
+     */
+    hoofprints?: { bones: string[]; size: number; strength?: number };
     /** Wing-flap shader stroke for a winged model (crow rider, bat, …), defined per model. */
     wingFlap?: WingFlapData;
 }
@@ -142,6 +148,11 @@ export function wingFlapOf(modelId: string): WingFlapData | null {
 }
 
 /** Is this model drawn by the instance pools with GPU-skinned clips? */
+/** Hoofprint feet of a GPU-skinned model, or null (see ModelSpec.hoofprints). */
+export function hoofprintsOf(modelId: string): { bones: string[]; size: number; strength?: number } | null {
+    return MODEL_SPECS[modelId]?.instancedSkin ? (MODEL_SPECS[modelId]?.hoofprints ?? null) : null;
+}
+
 export function usesInstancedSkinModel(modelId: string): boolean {
     return MODEL_SPECS[modelId]?.instancedSkin === true;
 }
@@ -922,7 +933,7 @@ async function loadUnitModelsNow(
             if (!spec.skinned) {
                 const skinned =
                     spec.instancedSkin && spec.animation
-                        ? bakeInstancedSkin(root, gltf.animations ?? [], spec.animation)
+                        ? bakeInstancedSkin(root, gltf.animations ?? [], spec.animation, spec.hoofprints?.bones)
                         : null;
                 const baked: InstanceAsset = skinned ? { parts: [skinned] } : bakeInstanceAsset(root);
                 if (isStructureModel(id)) {

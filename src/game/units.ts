@@ -936,7 +936,10 @@ export interface UnitType {
      * both small.
      */
     impactCrater?: { depth: number; radius: number };
-    /** Camera shake when a flyer cleave slams the ground (0–1+; see explosion.shake). */
+    /**
+     * Heavy cleave slam (0–1+): camera shake on every hit (see explosion.shake); a ground
+     * unit also shows the blow at its target with a dust shockwave out to the cleave radius.
+     */
     cleaveShake?: number;
     /** how hard burn DoT hits this type (omit = 1; 0 = immune). Air is skipped regardless. */
     burn?: BurnAffinity;

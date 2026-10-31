@@ -79,6 +79,29 @@
           "type": "boolean",
           "description": "Rigged GLB drawn by the instance pools with GPU skinning: every `animation` clip is baked into a bone texture at load (bakeInstancedSkin). Leave `skinned` off — that is the one-mixer-per-mech path."
         },
+        "hoofprints": {
+          "type": "object",
+          "properties": {
+            "bones": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "size": {
+              "type": "number"
+            },
+            "strength": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "bones",
+            "size"
+          ],
+          "additionalProperties": false,
+          "description": "GPU-skinned feet that print the ground: each named bone stamps a print where it touches down, instead of the body-wide wear trail. `size` is the print radius in world units per 1 meshScale; `strength` the sand per print (default 0.45)."
+        },
         "wingFlap": {
           "$ref": "#/definitions/WingFlapData",
           "description": "Wing-flap shader stroke for a winged model (crow rider, bat, …), defined per model."

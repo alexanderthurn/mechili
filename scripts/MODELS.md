@@ -24,7 +24,8 @@ with `"instancedSkin": true` and an `animation` block in `assets/data/models/<id
 A rig nobody can animate by hand can be keyframed by script —
 `glb-animate-crow.mjs` is how the crow rider's clips were made. A static model with no
 rig at all gets skeleton, weights and clips from a script too: `glb-rig-bat.mjs`,
-`glb-rig-spider.mjs` (legs weighted by geodesic distance from each foot). A biped with no
+`glb-rig-spider.mjs` (legs weighted by geodesic distance from each foot),
+`glb-rig-horse.mjs` (merges a multi-part model, poses legs by absolute angles). A biped with no
 idle gets one from `glb-make-idle.mjs` (a calm upper-body frame of another clip,
 rest-pose legs, slow breathing) — that's the ogre's idle.
 

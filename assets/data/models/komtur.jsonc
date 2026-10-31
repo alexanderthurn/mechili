@@ -1,5 +1,18 @@
+// Armoured horse + rider — rigged by script (scripts/glb-rig-horse.mjs: the 51 Tripo parts
+// merged into one mesh, body / neck / head / tail, three bones per leg, rider, cape, lance;
+// the folded front-right leg rebuilt as a mirror of the front-left) and GPU-skinned in
+// the instance pools. Head along +X in the GLB.
 {
     "file": "models/units/komtur.glb",
     "scale": 3,
     "offset": { "y": -0.04 },
+    "instancedSkin": true,
+    // hooves print the ground where they come down (instead of a body-wide wear trail)
+    "hoofprints": { "bones": ["HL_Hoof", "HR_Hoof", "FL_Hoof", "FR_Hoof"], "size": 0.2, "strength": 0.45 },
+    "animation": {
+        "walk": { "clip": "walk" }, // heavy four-beat walk, 0.85 s — stride matched to speed 8 at meshScale 5.6
+        "idle": { "clip": "idle" }, // breathing, head dips, tail swishes, cocks a hind hoof
+        "fire": { "clip": "fire", "hitAt": 0.56 }, // rears, then both front hooves slam down with a lance thrust
+        "death": { "clip": "death" }, // forelegs buckle, rolls onto its side toward −Z
+    },
 }

@@ -1,6 +1,6 @@
 /**
- * Der Komtur himself — mounted knight on `komtur.glb`. Flying melee boss:
- * each swing slams a short disk and lights the lawn. `buyable: false`.
+ * Der Komtur himself — mounted knight on `komtur.glb`. Ground melee boss: each lance
+ * thrust splashes (cleave) and reaches flyers that come close. `buyable: false`.
  */
 {
     "id": "hordeKomtur",
@@ -14,22 +14,18 @@
     "modelId": "komtur",
     "footprint": { "cols": 4, "rows": 3 },
     "formation": { "cols": 1, "rows": 1 },
-    "meshScale": 4.2, // half of prior 8.4
-    "flying": 22,
+    "meshScale": 5.6, // the biggest thing on the field
     "burn": { "takenMult": 0.35 },
     "bloodColor": 9236248 /* 0x8cef18 */,
     "targets": { "ground": true, "air": true },
-    "collisionRadius": 1.1,
+    "collisionRadius": 1.47,
     "soundSize": "medium",
     "colliders": [
-        { "y": 0.8, "r": 2.0 },
-        { "y": 2.4, "r": 1.5 },
+        { "y": 1.07, "r": 2.67 },
+        { "y": 3.2, "r": 2.0 },
     ],
-    "cleave": { "radius": 8 },
+    "cleave": { "radius": 8 }, // the lance thrust hits everything around the target
     "cleaveShake": 1,
-    "fire": {
-        "ground": { "radius": 8, "duration": 8, "intensity": 21 },
-    },
     "hp": 48000, // 10× prior boss weight
     "damage": 550,
     "range": 8,

@@ -77,6 +77,8 @@ export interface InstancedSkinData {
     geometry: BufferGeometry;
     /** AttackNode riding a bone: which bone, and the point in bind (geometry) space — live beam starts */
     attack?: { bone: number; point: Vector3 };
+    /** hoofprint feet: the sole of each named bone's geometry, in bind space (ModelSpec.hoofprints) */
+    feet?: { bone: number; point: Vector3 }[];
 }
 
 /** One shared clock for every skinned pool — advanced with sim-scaled dt. */
@@ -106,6 +108,7 @@ export function bakeInstancedSkin(
     root: Group,
     clips: readonly AnimationClip[],
     anim: ModelAnimation,
+    feetBones: readonly string[] = [],
 ): { geometry: BufferGeometry; material: MeshStandardMaterial; skin: InstancedSkinData } | null {
     let sm: SkinnedMesh | undefined;
     root.traverse((o) => {
@@ -188,6 +191,33 @@ export function bakeInstancedSkin(
     if (attackNode && attackBone >= 0) {
         const point = attackNode.getWorldPosition(new Vector3()).applyMatrix4(mesh.matrixWorld.clone().invert());
         out.attack = { bone: attackBone, point };
+    }
+    // feet: the sole of each named bone's own geometry — the lowest vertices it moves
+    if (feetBones.length) {
+        const pos = mesh.geometry.getAttribute('position');
+        const idx = mesh.geometry.getAttribute('skinIndex');
+        const wts = mesh.geometry.getAttribute('skinWeight');
+        out.feet = [];
+        for (const name of feetBones) {
+            const b = mesh.skeleton.bones.findIndex((bone) => bone.name === name);
+            const own: Vector3[] = [];
+            if (b >= 0 && pos && idx && wts) {
+                for (let i = 0; i < pos.count; i++) {
+                    let top = 0;
+                    for (let k = 1; k < 4; k++) if (wts.getComponent(i, k) > wts.getComponent(i, top)) top = k;
+                    if (idx.getComponent(i, top) === b) own.push(new Vector3().fromBufferAttribute(pos, i));
+                }
+            }
+            if (!own.length) {
+                console.warn(`[instancedSkin] hoofprint bone '${name}' moves no vertices`);
+                continue;
+            }
+            // centre of the bottom fifth of the hoof
+            own.sort((p, q) => p.y - q.y);
+            const sole = own.slice(0, Math.max(1, Math.ceil(own.length / 5)));
+            const point = sole.reduce((c, v) => c.add(v), new Vector3()).divideScalar(sole.length);
+            out.feet.push({ bone: b, point });
+        }
     }
 
     const texture = new DataTexture(data, width, Math.max(rows, 1), RGBAFormat, FloatType);
@@ -712,6 +742,15 @@ export function instancedSkinAttackWorld(proxy: Object3D, skin: InstancedSkinDat
     boneNow(skin, stateOf(proxy), skin.attack.bone, _attack);
     proxy.updateWorldMatrix(true, false);
     return out.copy(skin.attack.point).applyMatrix4(_attack).applyMatrix4(proxy.matrixWorld);
+}
+
+/** World position of foot `i` (see InstancedSkinData.feet) in its live pose. Render-only. */
+export function instancedSkinFootWorld(proxy: Object3D, skin: InstancedSkinData, i: number, out: Vector3): Vector3 | null {
+    const foot = skin.feet?.[i];
+    if (!foot || !proxy.userData.instancedSkin) return null;
+    boneNow(skin, stateOf(proxy), foot.bone, _attack);
+    proxy.updateWorldMatrix(true, false);
+    return out.copy(foot.point).applyMatrix4(_attack).applyMatrix4(proxy.matrixWorld);
 }
 
 /** Pose every bone follower for this frame (after the skin clock advanced). */

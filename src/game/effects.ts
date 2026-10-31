@@ -819,6 +819,7 @@ export class Particles {
             up?: number;
             blood?: boolean;
             dir?: { x: number; y: number; z: number };
+            spread?: number;
         },
     ): void {
         if (!opts.blood) {
@@ -841,6 +842,25 @@ export class Particles {
             up: (opts.up ?? 2) * energy,
             spread: energy,
         });
+    }
+
+    /** Heavy slam: dust thrown outward from a tight circle so a ring races to `radius`. */
+    private spawnShockRing(x: number, y: number, z: number, radius: number): void {
+        const n = Math.round(Math.min(64, 14 + radius * 4));
+        for (let i = 0; i < n; i++) {
+            const a = (i / n) * Math.PI * 2 + Math.random() * 0.15;
+            const dx = Math.cos(a);
+            const dz = Math.sin(a);
+            this.burst(x + dx * 0.8, y + 0.15, z + dz * 0.8, {
+                count: 3,
+                color: i % 2 ? 0xb8a888 : 0x8a7d68,
+                speed: radius * 3, // ≈ 0.35 × speed travelled under the pool drag → reaches `radius`
+                life: 0.55 + Math.random() * 0.15,
+                up: 1.2,
+                dir: { x: dx, y: 0.08, z: dz },
+                spread: 0.4,
+            });
+        }
     }
 
     update(dt: number): void {
@@ -1013,6 +1033,7 @@ export class Particles {
                             up: 14,
                         });
                     }
+                    if (e.shockRing) this.spawnShockRing(e.x, e.y, e.z, e.radius);
                     if (e.shake) {
                         // heavier + longer than a unit hit, but well under the
                         // post-battle HP-draw kicks (see tickHpDraw)

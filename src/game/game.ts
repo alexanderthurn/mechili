@@ -12,6 +12,7 @@ import {
     PMREMGenerator,
     Scene,
     SRGBColorSpace,
+    Vector3,
     WebGLRenderer,
     type Mesh,
     type Object3D,
@@ -193,8 +194,8 @@ import { reachToward } from './terrainCombat';
 import { BattleOverlays, type BattleOverlaysHost } from './battleOverlays';
 import { HudViews, type EnemyIntelSnapshot, type HudViewsHost } from './hudViews';
 import { SelectionInfoBuilder, type BuildingIntelSeat, type BuildingIntelSnapshot, type SelectionInfoHost } from './selectionInfo';
-import { getUnitVisualHeight, instancedSkinOf, modelGeometryFingerprint, modelGeometrySnapshot, usesWingFlapModel } from './unitModels';
-import { holdInstancedSkinBeam, instancedSkinBoneAt, playInstancedSkinLoop, updateInstancedSkins } from './instancedSkin';
+import { getUnitVisualHeight, hoofprintsOf, instancedSkinOf, modelGeometryFingerprint, modelGeometrySnapshot, usesWingFlapModel } from './unitModels';
+import { holdInstancedSkinBeam, instancedSkinBoneAt, instancedSkinFootWorld, playInstancedSkinLoop, updateInstancedSkins } from './instancedSkin';
 import { BirdFlocks } from './birdFlocks';
 import { WallJoins } from './wallJoins';
 import { GateDoors } from './gateDoors';
@@ -324,6 +325,9 @@ import type { ScenarioDef } from './scenario/scenarioDef';
 import { applyScenario, type AppliedScene, type ScenarioHost } from './scenario/applyScenario';
 import type { TestBattleSummary } from '../ui/scenarioEditor';
 import { getUnitInstanceRenderer } from './unitInstances';
+
+/** scratch for hoofprint foot positions */
+const _hoof = new Vector3();
 
 /** menu→match camera fly-in (fresh starts only) */
 const MATCH_INTRO_SEC = 1.0;
@@ -988,6 +992,8 @@ export class Game {
     private persistTimer = 0;
     /** last stamped battle positions for wear trails (visual only) */
     private readonly sandLastPos = new WeakMap<object, { x: number; z: number }>();
+    /** hoofprint feet per actor: is each foot down (stamped) right now */
+    private readonly feetDown = new WeakMap<object, boolean[]>();
     /** restamp once when the async sand mask finishes loading */
     private sandBootstrapped = false;
     /** wall-clock timestamp (performance.now()) of the last tick — used to
@@ -11798,6 +11804,8 @@ export class Game {
             for (const a of this.sim.actors) {
                 if (!a.alive || a.altitude > 0) continue;
                 const t = a.unit.type;
+                // big hoofed bodies print only where a hoof comes down — any side, a few prints
+                if (this.stampHoofprints(a)) continue;
                 // horde packs are numerous enough that even normal per-unit
                 // wear stamping (same rate as a player's army) turns the
                 // whole board sandy within a match, with a hard rectangular
@@ -11820,6 +11828,37 @@ export class Game {
             }
         }
         this.map.flushSandMask();
+    }
+
+    /**
+     * A model with hoofprint feet stamps a print where each foot touches down after being
+     * lifted (render-only, from the live skinned pose). True when the actor prints this
+     * way, so the caller skips the body-wide wear trail.
+     */
+    private stampHoofprints(a: Actor): boolean {
+        const modelId = a.unit.type.modelId ?? a.unit.type.id;
+        const prints = hoofprintsOf(modelId);
+        const skin = prints ? instancedSkinOf(modelId) : null;
+        if (!prints || !skin?.feet?.length) return false;
+        const ms = a.unit.type.meshScale;
+        const r = prints.size * ms;
+        // touch-down / lift heights scale with the body, not the print (a hind hoof only clears ~0.12 × meshScale)
+        const downAt = 0.05 * ms;
+        const liftAt = 0.08 * ms;
+        let down = this.feetDown.get(a);
+        if (!down) this.feetDown.set(a, (down = skin.feet.map(() => true)));
+        for (let i = 0; i < skin.feet.length; i++) {
+            const p = instancedSkinFootWorld(a.mesh, skin, i, _hoof);
+            if (!p) continue;
+            const h = p.y - a.mesh.position.y;
+            if (down[i] && h > liftAt) down[i] = false;
+            else if (!down[i] && h < downAt) {
+                down[i] = true;
+                // the wear mask is ~0.4 world units per texel: a print needs a few texels and a hard press
+                this.map.stampSand(p.x, p.z, r, prints.strength ?? 0.45);
+            }
+        }
+        return true;
     }
 
     /** Blood under hits/kills, scorch under blasts — same wear mask as sand. */

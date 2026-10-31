@@ -739,6 +739,8 @@ export type SimEvent =
           rocket?: boolean;
           /** camera kick strength; omitted/0 = no shake (most explosions) */
           shake?: number;
+          /** dust shockwave racing out to `radius` along the ground (heavy ground slams) */
+          shockRing?: boolean;
           /**
            * Oriented rectangle ground scar (Hammer of the Gods). When set,
            * wear stamps this footprint instead of a circle of `radius`.
@@ -2886,14 +2888,29 @@ export class BattleSim {
             });
             return;
         }
+        // A heavy slammer (cleaveShake) shows the blow where it lands — on the focus, at
+        // most the disk's reach away — not under its own body; the disk itself stays centred
+        // on the attacker. Visual only.
+        const slam = a.unit.type.cleaveShake ?? 0;
+        let bx = a.x;
+        let bz = a.z;
+        if (slam > 0 && a.altitude === 0 && focus.alive) {
+            const fx = focus.x - a.x;
+            const fz = focus.z - a.z;
+            const fd = hypot(fx, fz);
+            const k = fd > 1e-6 ? Math.min(fd, radius + a.radius) / fd : 0;
+            bx += fx * k;
+            bz += fz * k;
+        }
         this.events.push({
             kind: 'explosion',
-            x: a.x,
-            y: simGroundHeightAt(a.x, a.z),
-            z: a.z,
+            x: bx,
+            y: simGroundHeightAt(bx, bz),
+            z: bz,
             radius,
             heavy: true,
-            shake: a.altitude > 0 ? (a.unit.type.cleaveShake ?? 0) : 0,
+            shake: slam,
+            shockRing: slam > 0 && a.altitude === 0,
             scar: a.unit.type.cleaveScar !== false,
             unitTypeId: a.unit.type.id,
         });
