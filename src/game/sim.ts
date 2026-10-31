@@ -8039,9 +8039,6 @@ export class BattleSim {
 
             if (caster.convertCooldown > 0) {
                 caster.convertCooldown = Math.max(0, caster.convertCooldown - dt);
-                for (const t of caster.convertTargets) {
-                    t.convertProgress = 0;
-                }
                 caster.convertTargets.length = 0;
                 caster.convertTarget = null;
                 continue;
@@ -8056,10 +8053,7 @@ export class BattleSim {
             {
                 const kept: Actor[] = [];
                 for (const target of caster.convertTargets) {
-                    if (!this.beamHolds(caster, target, native, stats)) {
-                        target.convertProgress = 0;
-                        continue;
-                    }
+                    if (!this.beamHolds(caster, target, native, stats)) continue;
                     kept.push(target);
                 }
                 caster.convertTargets = kept;
@@ -8069,7 +8063,6 @@ export class BattleSim {
             while (caster.convertTargets.length < tuning.maxTargets) {
                 const next = this.closestBeamTarget(caster, native, stats, caster.convertTargets);
                 if (!next) break;
-                next.convertProgress = 0;
                 caster.convertTargets.push(next);
             }
 
@@ -8098,7 +8091,6 @@ export class BattleSim {
 
                 anyActive = true;
                 if (block) {
-                    if (target.convertProgress > 0) target.convertProgress = 0;
                     if (!tipSet) {
                         caster.convertRayTipX = block.x;
                         caster.convertRayTipY = block.y;
@@ -8152,6 +8144,13 @@ export class BattleSim {
                 const p = this.beamAim(caster, t);
                 caster.beamAims.push(p.x, p.y, p.z);
             }
+        }
+
+        // Progress is the target's, shared by every ray on it: it only lapses in a step no
+        // live ray converted it (all casters dead, out of reach, blocked or on cooldown) —
+        // one of several wizards dying or retargeting keeps what was converted so far.
+        for (const a of this.actors) {
+            if (a.convertProgress > 0 && !a.convertBy) a.convertProgress = 0;
         }
     }
 

@@ -2409,7 +2409,8 @@ export class ProjectileRenderer {
     private readonly arrowScale = new Vector3(ARROW_SCALE, ARROW_SCALE, ARROW_SCALE);
     private readonly largeArrowScale = new Vector3(LARGE_ARROW_SCALE, LARGE_ARROW_SCALE, LARGE_ARROW_SCALE);
     private readonly scratchScale = new Vector3();
-    private readonly t0 = performance.now();
+    /** game seconds the projectile shaders run on — stands still with game speed 0 */
+    private clock = 0;
     /** Shared bolt.glb geo — dispose once even if used by two pools. */
     private readonly sharedBoltGeo: BufferGeometry | null;
     private readonly sharedBoltMat: MeshStandardMaterial | null;
@@ -2540,7 +2541,8 @@ export class ProjectileRenderer {
 
     /** `alpha` interpolates between the last two sim steps for smooth flight */
     update(projectiles: readonly Projectile[], alpha = 1, dt = 0): void {
-        this.orbMaterial.uniforms.uTime!.value = (performance.now() - this.t0) * 0.001;
+        this.clock += dt;
+        this.orbMaterial.uniforms.uTime!.value = this.clock;
         const counts: Record<ProjectileStyle, number> = {
             bolt: 0,
             arrow: 0,
@@ -2608,7 +2610,7 @@ export class ProjectileRenderer {
                 if (asDisc) {
                     sampleStoneDiscTint(
                         this.discTint,
-                        (performance.now() - this.t0) * 0.001,
+                        this.clock,
                     );
                     this.stoneTint.setXYZW(
                         slot,
@@ -2622,7 +2624,7 @@ export class ProjectileRenderer {
                     // its flight: a lobbed shot keeps its horizontal speed)
                     sampleStoneEmberTint(
                         this.discTint,
-                        (performance.now() - this.t0) * 0.001 + Math.abs(p.vx) * 0.03,
+                        this.clock + Math.abs(p.vx) * 0.03,
                     );
                     this.stoneTint.setXYZW(
                         slot,
