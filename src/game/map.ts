@@ -1,3 +1,4 @@
+import { BLOOD_CRUSH, crushBlood } from './bloodTone';
 import {
     CanvasTexture,
     Color,
@@ -1104,8 +1105,8 @@ export class BattleMap {
         radius: number,
         strength: number,
         color: number,
-        /** 0.14 = the dark wet-stain value gore uses; 1 = the colour as given */
-        crush = 0.14,
+        /** BLOOD_CRUSH = the dark wet-stain value gore uses; 1 = the colour as given */
+        crush = BLOOD_CRUSH,
     ): void {
         const ctx = this.bloodTintCtx;
         if (!ctx || !this.bloodTintMask) return;
@@ -1114,10 +1115,10 @@ export class BattleMap {
         const r = Math.max(0.5, radius) * (this.sandW / this.width);
         const a = Math.min(1, Math.max(0.02, strength));
         // crush to a wet-stain value while keeping the unit's gore hue
-        const k = crush;
-        const rr = Math.round(((color >> 16) & 255) * k);
-        const gg = Math.round(((color >> 8) & 255) * k);
-        const bb = Math.round((color & 255) * k);
+        const c = crushBlood(color, crush);
+        const rr = (c >> 16) & 255;
+        const gg = (c >> 8) & 255;
+        const bb = c & 255;
         const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
         grad.addColorStop(0, `rgba(${rr},${gg},${bb},${a})`);
         grad.addColorStop(1, `rgba(${rr},${gg},${bb},0)`);

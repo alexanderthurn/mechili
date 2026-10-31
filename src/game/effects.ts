@@ -1,3 +1,4 @@
+import { BLOOD_CRUSH_AIR, crushBlood } from './bloodTone';
 import { screenShake } from './screenShake';
 import {
     AdditiveBlending,
@@ -832,8 +833,8 @@ export class Particles {
         const count = Math.max(1, Math.round(opts.count * scale));
         // lower tiers keep blood low, slow and tight; high/ultra fountain
         const energy = bloodIntensityScale();
-        // deep, dark gore — the raw hit colors read too bright/pink airborne
-        this.darkBlood.setHex(opts.color).multiplyScalar(0.3);
+        // the puddles' dark wet-stain hue, a little lighter in the air (crushed in sRGB, like the stain)
+        this.darkBlood.setHex(crushBlood(opts.color, BLOOD_CRUSH_AIR));
         this.blood.burst(x, y, z, {
             ...opts,
             count,
