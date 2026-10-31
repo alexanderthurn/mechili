@@ -54,6 +54,12 @@ export interface ModelAnimation {
     walk: AnimClip & {
         /** Keep only this time window of the clip (seconds). */
         range?: ClipTimeRange;
+        /**
+         * Ground one loop covers, in GLB units (a wheel: 2π × its radius). Instanced-skin
+         * units then roll exactly with the ground at any speed and size — UnitType.walkAnimRate
+         * is not used.
+         */
+        stride?: number;
     };
     /** Standing / hovering loop — instanced-skin models only so far. */
     idle?: AnimClip;
@@ -84,6 +90,8 @@ export interface ModelAnimation {
          * (ogre `fall`: head travels toward −X, the character's left).
          */
         fallLocal?: { x: number; z: number };
+        /** false: die facing where it stood — no turn toward the blow (a machine's collapse) */
+        turn?: boolean;
     };
 }
 

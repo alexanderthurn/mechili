@@ -1,3 +1,4 @@
+import { conformToGround } from './groundConform';
 import {
     Box3,
     BoxGeometry,
@@ -40,10 +41,11 @@ import {
     loadUnitModels,
     proceduralModelHeights,
     setProceduralModelHeights,
+    groundConformOf,
     instancedSkinOf,
     usesWingFlapModel,
 } from './unitModels';
-import { driveFlyerSkin, driveGroundSkin, resetInstancedSkin } from './instancedSkin';
+import { driveFlyerSkin, driveGroundSkin, resetInstancedSkin, skinWalkRate } from './instancedSkin';
 import {
     computeCrowWingRate,
     setCrowWingRateOnProxy,
@@ -520,6 +522,8 @@ export interface UnitType {
      * the walk plays at its authored rate at full `speed`.
      */
     walkAnimRate?: number;
+    /** on wheels: rolls downhill on steep ground instead of contouring along it (BattleSim.stepWheelSlip) */
+    wheeled?: boolean;
     /**
      * Feet print the ground where they touch down (the model's `hoofprints` feet) instead
      * of the body-wide wear trail — for huge walkers; any side, horde included.
@@ -2178,10 +2182,15 @@ export class Unit {
         const amplitude = 0.04;
         const ox = this.view.position.x;
         const oz = this.view.position.z;
+        const modelId = this.type.modelId ?? this.type.id;
+        const conform = groundConformOf(modelId);
+        const skin = conform ? instancedSkinOf(modelId) : null;
         for (const m of this.members) {
             if (m.mesh.userData.dead) continue;
-            const ground = worldHeightAt(ox + m.home.x, oz + m.home.z);
-            m.mesh.position.y = ground + base + Math.sin(timeSeconds * 2 + m.phase) * amplitude;
+            const bob = Math.sin(timeSeconds * 2 + m.phase) * amplitude;
+            // a wheeled body sits on the slope under it (no bob: wheels don't float)
+            if (conform && skin) conformToGround(m.mesh, conform, skin, ox + m.home.x, oz + m.home.z, base);
+            else m.mesh.position.y = worldHeightAt(ox + m.home.x, oz + m.home.z) + base + bob;
         }
         this.updateCrowWingRates(
             Math.min(1, Math.hypot(ox - this.wingLastOx, oz - this.wingLastOz) / 0.1),
@@ -2199,7 +2208,7 @@ export class Unit {
                 if (this.type.flying) {
                     driveFlyerSkin(m.mesh, { dead, inDeployment: this.inDeployment, flightLift: this.flightLift, altitude, moving }, skin);
                 } else {
-                    driveGroundSkin(m.mesh, { dead, moving, rate: walkRateAtFullSpeed(this.type) }, skin);
+                    driveGroundSkin(m.mesh, { dead, moving, rate: skinWalkRate(skin, this.type.speed, m.mesh.scale.x, walkRateAtFullSpeed(this.type)) }, skin);
                 }
             }
             return;

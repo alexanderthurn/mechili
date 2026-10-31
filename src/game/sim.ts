@@ -1,3 +1,4 @@
+import { conformToGround } from './groundConform';
 import type { Group } from 'three';
 import {
     ACID_DPS_PERCENT,
@@ -71,8 +72,8 @@ import { getUnitInstanceRenderer } from './unitInstances';
 import type { TypeRegistry } from './content/typeRegistry';
 import { computeCrowWingRate, crowWingDeathSplay, setCrowWingDeathSplay, setCrowWingRateOnProxy, setCrowWingRestOnProxy } from './crowWingFlap';
 import { hasUnitDeathAnim, playUnitDeathAnim, playUnitFireAnim, unitDeathFallLocal } from './unitAnimated';
-import { attackNodeWorld, getUnitAttackNodeLocal, getUnitVisualHalfWidth, getUnitVisualHeight, instancedSkinOf, usesWingFlapModel } from './unitModels';
-import { driveFlyerSkin, driveGroundSkin, holdInstancedSkinBeam, playInstancedSkinFire, playInstancedSkinOnce } from './instancedSkin';
+import { attackNodeWorld, getUnitAttackNodeLocal, getUnitVisualHalfWidth, getUnitVisualHeight, groundConformOf, instancedSkinOf, usesWingFlapModel } from './unitModels';
+import { driveFlyerSkin, driveGroundSkin, holdInstancedSkinBeam, playInstancedSkinFire, playInstancedSkinOnce, skinWalkRate } from './instancedSkin';
 import {
     beginDeathClip,
     beginDeathFall,
@@ -117,6 +118,12 @@ export const GOLDEN_DAMAGE_TAKEN_MULT = 0.7;
 export const GOLDEN_AURA_APPLY_AT = 0.1;
 /** storm bolt: personal hex duration (refreshed on each hit) */
 export const STORM_HEX_SEC = 5;
+/** wheeled units start rolling downhill past this grade (rise per run; walkers are only stopped at SLOPE_BLOCK_GRADE) */
+const WHEEL_SLIP_GRADE = 0.45;
+/** downhill roll speed per unit of grade past WHEEL_SLIP_GRADE (world units / s) */
+const WHEEL_SLIP_SPEED = 6;
+/** the downhill roll never gets faster than this (world units / s) */
+const WHEEL_SLIP_MAX_SPEED = 2;
 /** move-speed multiplier while storm-hexed (same as Hexing talent) */
 export const STORM_HEX_SPEED_MULT = 0.6;
 /** units stand still for this long at battle start before moving or firing */
@@ -4688,7 +4695,9 @@ export class BattleSim {
                 // slight lean — walkLean can push dwarves harder; base stays small
                 a.mesh.rotation.x = -0.06 * lean * moving;
             } else {
-                a.mesh.position.y = groundY;
+                const conform = skin ? groundConformOf(a.unit.type.modelId ?? a.unit.type.id) : null;
+                if (conform && skin && a.alive) conformToGround(a.mesh, conform, skin, a.rx, a.rz, GROUND_UNIT_Y);
+                else a.mesh.position.y = groundY;
             }
         } else {
             // climb from deployment hover (ground + DEPLOY_AIR_Y) to the combat
@@ -4806,7 +4815,7 @@ export class BattleSim {
                 );
             } else {
                 const speedRatio = nominal > 1e-6 ? stepDist / nominal : 0;
-                driveGroundSkin(a.mesh, { dead, moving, speedRatio, airborne: a.altitude > 0, rate: walkRateAtFullSpeed(a.unit.type) }, skin);
+                driveGroundSkin(a.mesh, { dead, moving, speedRatio, airborne: a.altitude > 0, rate: skinWalkRate(skin, a.unit.type.speed, a.mesh.scale.x, walkRateAtFullSpeed(a.unit.type)) }, skin);
             }
         }
         if (usesWingFlapModel(a.unit.type.modelId ?? a.unit.type.id) && a.mesh.userData.instanced) {
@@ -5076,13 +5085,9 @@ export class BattleSim {
                 // GPU-skinned fall clip: same seating + knock-aligned yaw as the mixer path below
                 const skin = instancedSkinOf(t.modelId ?? t.id)!;
                 const death = skin.clips.death!;
-                const endYaw = deathYawFromKnock(
-                    knockDir?.x ?? 0,
-                    knockDir?.z ?? 0,
-                    skin.deathFallLocal.x,
-                    skin.deathFallLocal.z,
-                    target.facing,
-                );
+                const endYaw = skin.deathTurn
+                    ? deathYawFromKnock(knockDir?.x ?? 0, knockDir?.z ?? 0, skin.deathFallLocal.x, skin.deathFallLocal.z, target.facing)
+                    : target.facing;
                 playInstancedSkinOnce(target.mesh, 'death', skin);
                 beginDeathClip(target.mesh, groundY, death.duration / Math.max(1e-4, death.speed), -1, endYaw, 0.4);
             } else if (target.mesh.userData.animated && hasUnitDeathAnim(target.mesh)) {
@@ -5415,6 +5420,8 @@ export class BattleSim {
         this.stepConversionRays(dt);
         this.stepRampBeams(dt);
         add('convert');
+
+        this.stepWheelSlip(dt);
 
         mark();
         this.resolveOverlaps();
@@ -6692,6 +6699,23 @@ export class BattleSim {
             this.projectiles[write++] = p;
         }
         this.projectiles.length = write;
+    }
+
+    /**
+     * Wheeled bodies can't hold a steep face: past WHEEL_SLIP_GRADE they roll downhill,
+     * faster the steeper — a carriage doesn't contour along a cliff the way walkers do
+     * (resolveSlopeMove). Runs before the overlap pass, so walls and buildings still stop it.
+     */
+    private stepWheelSlip(dt: number): void {
+        for (const a of this.actors) {
+            if (!a.alive || a.altitude !== 0 || !a.unit.type.wheeled || a.unit.pinnedY != null || a.unit.marchIn) continue;
+            const { gx, gz } = this.groundGradient(a.x, a.z);
+            const grade = hypot(gx, gz);
+            if (grade <= WHEEL_SLIP_GRADE) continue;
+            const slip = Math.min(WHEEL_SLIP_MAX_SPEED, (grade - WHEEL_SLIP_GRADE) * WHEEL_SLIP_SPEED) * dt;
+            a.x -= (gx / grade) * slip;
+            a.z -= (gz / grade) * slip;
+        }
     }
 
     /** the board's slope at a point (rise per run along x and z) */

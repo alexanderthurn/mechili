@@ -83,6 +83,10 @@
           "$ref": "#/definitions/HoofprintSpec",
           "description": "GPU-skinned feet that can print the ground (units opt in with UnitType.hoofprints): each named bone's sole stamps a print where it touches down, instead of the body-wide wear trail. `size` is the print radius in world units per 1 meshScale, `strength` the sand per print (default 0.45). A foot counts as lifted above `lift` and down again below `down` — heights of its sole in GLB units, read off the walk."
         },
+        "groundConform": {
+          "$ref": "#/definitions/GroundConformSpec",
+          "description": "Sit on the slope under it — pitched along `length`, rolled across `width` (the contact spacing in GLB units, e.g. wheelbase and track) — instead of level at its centre's height. GPU-skinned models only; see groundConform.ts."
+        },
         "wingFlap": {
           "$ref": "#/definitions/WingFlapData",
           "description": "Wing-flap shader stroke for a winged model (crow rider, bat, …), defined per model."
@@ -103,6 +107,10 @@
             "range": {
               "$ref": "#/definitions/ClipTimeRange",
               "description": "Keep only this time window of the clip (seconds)."
+            },
+            "stride": {
+              "type": "number",
+              "description": "Ground one loop covers, in GLB units (a wheel: 2π × its radius). Instanced-skin units then roll exactly with the ground at any speed and size — UnitType.walkAnimRate is not used."
             },
             "clip": {
               "$ref": "#/definitions/ClipPick",
@@ -176,6 +184,10 @@
               ],
               "additionalProperties": false,
               "description": "Where the clip lays the body in model XZ (rest forward −Z). Used to turn the body so the fall lines up with the killing blow (ogre `fall`: head travels toward −X, the character's left)."
+            },
+            "turn": {
+              "type": "boolean",
+              "description": "false: die facing where it stood — no turn toward the blow (a machine's collapse)"
             },
             "clip": {
               "$ref": "#/definitions/ClipPick",
@@ -282,6 +294,25 @@
       ],
       "additionalProperties": false,
       "description": "Is this model drawn by the instance pools with GPU-skinned clips?"
+    },
+    "GroundConformSpec": {
+      "type": "object",
+      "properties": {
+        "length": {
+          "type": "number",
+          "description": "front-to-back contact distance (wheelbase), GLB units"
+        },
+        "width": {
+          "type": "number",
+          "description": "left-to-right contact distance (track), GLB units"
+        }
+      },
+      "required": [
+        "length",
+        "width"
+      ],
+      "additionalProperties": false,
+      "description": "A long, rigid body (a wheeled carriage) sits on the slope under it instead of level at its centre's height: pitched along its wheelbase, rolled across its track, at the mean height of its four contacts. Render-only — the sim walks the flat plane — so it cannot touch determinism."
     },
     "WingFlapData": {
       "type": "object",

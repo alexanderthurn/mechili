@@ -69,6 +69,8 @@ export interface InstancedSkinData {
     clips: Partial<Record<SkinRole, BakedClip>>;
     /** where the death clip lays the body, holder XZ (rest forward −Z) — see ModelAnimation.death */
     deathFallLocal: { x: number; z: number };
+    /** turn the body so the fall follows the killing blow (ModelAnimation.death.turn, default true) */
+    deathTurn: boolean;
     /** game seconds from the fire clip's start to its blow (hitAt / speed); 0 = start on the shot */
     fireLead: number;
     /** bone count (texture width / 4) */
@@ -81,6 +83,8 @@ export interface InstancedSkinData {
     feet?: { bone: number; point: Vector3 }[];
     /** normalized root units per GLB (bind) unit — converts a foot's height back to GLB units */
     rootPerModel?: number;
+    /** ground one walk loop covers, in normalized root units (ModelAnimation.walk.stride) */
+    walkStride?: number;
 }
 
 /** One shared clock for every skinned pool — advanced with sim-scaled dt. */
@@ -148,6 +152,7 @@ export function bakeInstancedSkin(
         texture: null!,
         clips: {},
         deathFallLocal: anim.death?.fallLocal ?? { x: 0, z: -1 },
+        deathTurn: anim.death?.turn !== false,
         fireLead: anim.fire?.hitAt ? anim.fire.hitAt / (anim.fire.speed ?? 1) : 0,
         bones,
         geometry: mesh.geometry,
@@ -191,6 +196,7 @@ export function bakeInstancedSkin(
     pre.multiplyMatrices(rootInv, mesh.matrixWorld).multiply(mesh.bindMatrixInverse);
     m.multiplyMatrices(pre, mesh.skeleton.bones[0]!.matrixWorld).multiply(mesh.skeleton.boneInverses[0]!).multiply(mesh.bindMatrix);
     out.rootPerModel = new Vector3().setFromMatrixColumn(m, 1).length();
+    if (anim.walk?.stride) out.walkStride = anim.walk.stride * out.rootPerModel;
 
     // an AttackNode under a bone moves with it — keep it for live (render-only) muzzles
     const attackNode = root.getObjectByName('AttackNode');
@@ -519,6 +525,17 @@ export function resetInstancedSkin(proxy: Object3D): void {
     s.a = idlePlay(s.seed);
     s.b = null;
     s.fadeStart = -1e9;
+}
+
+/**
+ * Walk clip rate at full `speed`: a model with a `stride` rolls/steps exactly with the
+ * ground (speed × loop seconds / world stride; `scale` = the proxy's — meshScale and its
+ * level growth); otherwise the unit's tuned rate (see walkRateAtFullSpeed).
+ */
+export function skinWalkRate(skin: InstancedSkinData, speed: number, scale: number, tuned: number): number {
+    const clip = skin.clips.walk;
+    if (!skin.walkStride || !clip) return tuned;
+    return (speed * clip.duration) / (skin.walkStride * scale * clip.speed);
 }
 
 /**

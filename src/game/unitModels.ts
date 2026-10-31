@@ -1,3 +1,4 @@
+import type { GroundConformSpec } from './groundConform';
 import {
     AnimationMixer,
     Box3,
@@ -90,6 +91,12 @@ export interface ModelSpec {
      * and down again below `down` — heights of its sole in GLB units, read off the walk.
      */
     hoofprints?: HoofprintSpec;
+    /**
+     * Sit on the slope under it — pitched along `length`, rolled across `width` (the
+     * contact spacing in GLB units, e.g. wheelbase and track) — instead of level at
+     * its centre's height. GPU-skinned models only; see groundConform.ts.
+     */
+    groundConform?: GroundConformSpec;
     /** Wing-flap shader stroke for a winged model (crow rider, bat, …), defined per model. */
     wingFlap?: WingFlapData;
 }
@@ -156,6 +163,11 @@ export interface HoofprintSpec {
     strength?: number;
     lift: number;
     down: number;
+}
+
+/** Ground-conform spacing of a GPU-skinned model, or null (see ModelSpec.groundConform). */
+export function groundConformOf(modelId: string): GroundConformSpec | null {
+    return MODEL_SPECS[modelId]?.instancedSkin ? (MODEL_SPECS[modelId]?.groundConform ?? null) : null;
 }
 
 /** Hoofprint feet of a GPU-skinned model, or null (see ModelSpec.hoofprints). */

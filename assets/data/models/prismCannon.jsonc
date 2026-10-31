@@ -1,4 +1,20 @@
-// Arcane Prism Cannon — static Tripo siege mesh (barrel toward facing / −Z)
+// Arcane Prism Cannon — Tripo siege mesh rigged by script (scripts/glb-rig-prism.mjs:
+// every mesh island on one rigid bone — the four wheels, the barrel, the carriage) and
+// GPU-skinned in the instance pools. Barrel along +X in the GLB; the AttackNode rides
+// the barrel bone.
 {
     "file": "models/units/prismcannon.glb",
+    "offset": { "y": -0.04 }, // seat the thin rims into the lawn, like the other rigged models
+    "instancedSkin": true,
+    // sits on the slope: wheelbase (axles at x 0.33 / −0.075) and track (wheels at z ±0.3), GLB units
+    "groundConform": { "length": 0.41, "width": 0.6 },
+    "animation": {
+        // the wheels roll one turn per loop: stride = 2π × wheel radius (0.174), so they
+        // turn exactly with the ground at any speed and size
+        "walk": { "clip": "walk", "stride": 1.093 },
+        "idle": { "clip": "idle" }, // parked
+        "fire": { "clip": "fire", "hitAt": 0.08 }, // the beam's kick — held while it fires
+        // a wreck where it stands: wheels buckle outward, carriage flat — no turn toward the blow
+        "death": { "clip": "death", "turn": false },
+    },
 }

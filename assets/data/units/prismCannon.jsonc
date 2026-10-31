@@ -9,6 +9,7 @@
     "footprint": { "cols": 4, "rows": 4 },
     "formation": { "cols": 1, "rows": 1 },
     "meshScale": 5.0,
+    "wheeled": true, // rolls downhill on steep ground
     "targets": { "ground": true, "air": true },
     "collisionRadius": 2.6,
     "soundSize": "large",
