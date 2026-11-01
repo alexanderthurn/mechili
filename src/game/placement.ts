@@ -2476,9 +2476,9 @@ export class PlacementController {
             return;
         }
 
-        // "live" here means "not fogged" — real players' own side, or (while
-        // spectating) any seat with an active live-vision grant
-        const liveIds = new Set(this.units.filter((u) => !this.isFogged(u)).map((u) => u.id));
+        // a ghost stands in only for a SOLD pack — one still on the board (fogged or
+        // not) draws itself, else it shows twice (an animated pack beside a frozen copy)
+        const onBoard = new Set(this.units.map((u) => u.id));
 
         for (const u of this.units) {
             if (!this.isFogged(u)) {
@@ -2498,13 +2498,13 @@ export class PlacementController {
         }
 
         for (const [id, snap] of this.intelSnapshot) {
-            if (!this.isFoggedSnapshot(snap) || liveIds.has(id)) continue;
+            if (!this.isFoggedSnapshot(snap) || onBoard.has(id)) continue;
             const ghost = this.ensureSoldGhost(snap);
             this.setPackVisible(ghost, true);
             this.applySnapshotPose(ghost, snap);
         }
         for (const [id, ghost] of this.intelGhosts) {
-            if (!liveIds.has(id) && this.intelSnapshot.has(id)) continue;
+            if (!onBoard.has(id) && this.intelSnapshot.has(id)) continue;
             this.setPackVisible(ghost, false);
         }
     }
