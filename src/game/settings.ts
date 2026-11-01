@@ -13,11 +13,10 @@ import {
 import {
     DEFAULT_HORDE_PRESET_ID,
     HORDE_ALGORITHMS,
-    HORDE_FINAL_ROUND,
     hordeAlgorithmById,
 } from './hordeAlgorithms';
 
-export { HORDE_FINAL_ROUND, HORDE_CYCLE_LEN, DEFAULT_HORDE_PRESET_ID, HORDE_ALGORITHMS, hordeAlgorithmById } from './hordeAlgorithms';
+export { DEFAULT_HORDE_PRESET_ID, HORDE_ALGORITHMS, hordeAlgorithmById } from './hordeAlgorithms';
 export type { HordeContext, HordeAlgorithm } from './hordeAlgorithms';
 import type { UnitType } from './units';
 import type { SeatDef, SeatId } from './seats';
@@ -338,17 +337,9 @@ export function isHordeRoundActive(settings: GameSettings, round: number): boole
     return hordeAlgorithmById(settings.hordePreset).shouldSpawn(round);
 }
 
-/**
- * @deprecated Wave composition uses authored counts ({@link hordeWavePlan}),
- * not a budget. Always 0.
- */
-export function hordeBudgetForRound(settings: GameSettings, round: number): number {
-    return hordeAlgorithmById(settings.hordePreset).budget(round);
-}
-
-/** Pack-count multiplier for the active preset (Ultra = 2). */
-export function hordeCountMult(settings: GameSettings): number {
-    return hordeAlgorithmById(settings.hordePreset).countMult();
+/** The horde's income step for the active preset: round N pays this × N (0 = off). */
+export function hordeIncome(settings: GameSettings): number {
+    return hordeAlgorithmById(settings.hordePreset).income();
 }
 
 export interface LevelingSettings {
@@ -1055,16 +1046,11 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
             value: t('settings:sheet.off', { defaultValue: 'Off' }),
         });
     } else {
-        const activeRounds: number[] = [];
-        for (let r = 1; r <= HORDE_FINAL_ROUND; r++) {
-            if (isHordeRoundActive(settings, r)) activeRounds.push(r);
-        }
         hordeRows.push({
             label: t('settings:sheet.preset', { defaultValue: 'Preset' }),
             value: hordeAlgorithmById(settings.hordePreset).describe(),
-            note: t('settings:sheet.wavesOnRounds', {
-                rounds: activeRounds.join(', '),
-                defaultValue: `waves on round ${activeRounds.join(', ')}`,
+            note: t('settings:sheet.hordeGrows', {
+                defaultValue: 'a wave every round — what the horde buys stays, so it keeps growing',
             }),
         });
     }

@@ -1882,7 +1882,11 @@ function fillLobbySettingOptions(): void {
     };
     const fromBlurb = (full: string): [string, string] => [shortSelectLabel(full), full];
     fill(cgPaceEl, CUSTOM_GAME_PACE_PRESETS.map((p) => [p.id, customGamePaceName(p), formatCustomGamePaceOption(p)]));
-    fill(cgHordeEl, HORDE_ALGORITHMS.map((a) => [a.id, ...fromBlurb(a.describe())]));
+    // the Komtur's strength by name alone — the income behind it stays out of the list
+    fill(cgHordeEl, HORDE_ALGORITHMS.map((a) => {
+        const name = shortSelectLabel(a.describe());
+        return [a.id, name, name];
+    }));
     fill(cgRoundCardsEl, ROUND_CARD_ALGORITHMS.map((a) => [a.id, ...fromBlurb(a.describe())]));
     fill(cgCommanderHpEl, COMMANDER_HP_FACTOR_OPTIONS.map((o) => [o.id, o.label, formatCommanderHpFactorOption(o)]));
     fill(cgMoneyEl, MONEY_FACTOR_OPTIONS.map((o) => [String(o.factor), o.label, o.label]));

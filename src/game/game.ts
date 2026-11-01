@@ -223,7 +223,7 @@ import {
     DEFAULT_SETTINGS,
     describeGameSettings,
     Economy,
-    hordeCountMult,
+    hordeIncome,
     climbAttackerTeam,
     yearBoardExtraAllowed,
     boardExtrasFor,
@@ -4254,7 +4254,7 @@ export class Game {
     }
 
     /**
-     * SP cheat (Shift+H): spawn this round's authored horde plan into the forest
+     * SP cheat (Shift+H): spawn this round's horde army into the forest
      * as two camps (same split as a real wave). Build-phase only.
      */
     private cheatSpawnHordePacks(): void {
@@ -4265,7 +4265,7 @@ export class Game {
         // Reuse the real wave spawner path by temporarily ensuring the round
         // plan runs even if the preset would skip — spawnHordeWave gates on
         // isHordeRoundActive, so duplicate the camp logic here lightly.
-        const plan = hordeWavePlan(Math.max(1, this.round), hordeCountMult(this.settings), this.types);
+        const plan = hordeWavePlan(Math.max(1, this.round), hordeIncome(this.settings), this.types, this.settings.leveling);
         if (plan.length === 0) return;
         const rng = mulberry32(seedFrom(this.seed, `horde-cheat:${this.round}:${Date.now()}`));
         const standing = this.hordeStanding();
@@ -10240,14 +10240,14 @@ export class Game {
 
     /**
      * Horde mode (`hordePreset`): on active rounds (see `isHordeRoundActive`),
-     * materializes this round's authored pack list as **two forest camps** of
+     * materializes the horde's army so far (see {@link hordeWavePlan}) as **two forest camps** of
      * equal size (see {@link hordeCampSpots} — the angle between them is what
      * hunts the side that stands better). Packs scatter around their camp and
      * march in (`Unit.marchIn`).
      */
     private spawnHordeWave(): void {
         if (!isHordeRoundActive(this.settings, this.round)) return;
-        const plan = hordeWavePlan(this.round, hordeCountMult(this.settings), this.types);
+        const plan = hordeWavePlan(this.round, hordeIncome(this.settings), this.types, this.settings.leveling);
         if (plan.length === 0) return;
         const rng = mulberry32(seedFrom(this.seed, `horde:${this.round}`));
         const standing = this.hordeStanding();

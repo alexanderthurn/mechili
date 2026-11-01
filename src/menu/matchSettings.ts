@@ -45,7 +45,7 @@ import { mapValue } from './mapChoice';
 // own dimensions apply (see the rim widen in map.ts/scenery.ts for horde
 // mode specifically). `?hordePreset=` / `?hordeFactor=` selects an algorithm id.
 export function applyHordeMode(settings: GameSettings): void {
-    // Normal single-player / forced-horde modes: Low (mid + Mother night).
+    // Normal single-player / forced-horde modes: Low (the slowest-growing income).
     // `?hordePreset=` / `?hordeFactor=` still overrides.
     settings.hordePreset = 'low';
     const params = new URLSearchParams(location.search);

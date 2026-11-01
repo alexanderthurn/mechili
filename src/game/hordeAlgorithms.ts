@@ -1,19 +1,10 @@
 /**
  * Horde mode presets: match config stores only an id; each algorithm owns
- * spawn schedule, pack-count multiplier, leader bias, and the select-box blurb.
+ * spawn schedule, income step, and the select-box blurb.
  * Wave *composition* lives in {@link hordeWavePlan} (hordeRoster.ts).
  */
 
 import { t } from '../i18n';
-
-/**
- * Length of one forest circle (Mother on the last slot): two seasons of the
- * Year — the Black Spider at its half (6), Hans with her at its end (12).
- */
-export const HORDE_CYCLE_LEN = 6;
-
-/** Last slot of each circle — Mother night (rounds 6, 12, 18, …). */
-export const HORDE_FINAL_ROUND = HORDE_CYCLE_LEN;
 
 /**
  * Optional runtime context for future conditional algorithms
@@ -23,11 +14,6 @@ export interface HordeContext {
     round: number;
     playerHp?: number;
     enemyHp?: number;
-}
-
-/** Slot 1–{@link HORDE_CYCLE_LEN} inside the current circle. */
-function slotOf(round: number): number {
-    return (((Math.max(1, round) - 1) % HORDE_CYCLE_LEN) + 1);
 }
 
 export abstract class HordeAlgorithm {
@@ -40,18 +26,10 @@ export abstract class HordeAlgorithm {
     abstract shouldSpawn(round: number, ctx?: HordeContext): boolean;
 
     /**
-     * Pack-count multiplier for {@link hordeWavePlan}. Ultra doubles;
-     * others are 1. Budget shopping is gone — this is the only intensity knob.
+     * The horde's income step: round N pays `income × N` into its purse, which
+     * {@link hordeWavePlan} spends on packs that stay for good. The only intensity knob.
      */
-    countMult(): number {
-        return 1;
-    }
-
-    /**
-     * @deprecated Composition no longer spends a budget. Kept so old callers
-     * compile; always 0.
-     */
-    budget(_round: number): number {
+    income(): number {
         return 0;
     }
 
@@ -70,47 +48,17 @@ class OffHorde extends HordeAlgorithm {
     }
 }
 
-/** Mid check + Mother night. */
-class LowHorde extends HordeAlgorithm {
-    readonly id = 'low';
+/** A wave every round; the presets differ only in how fast the horde's income grows. */
+class GrowingHorde extends HordeAlgorithm {
+    constructor(
+        readonly id: string,
+        private readonly step: number,
+        private readonly label: () => string,
+    ) {
+        super();
+    }
     describe(): string {
-        return t('settings:hordeLow', {
-            final: HORDE_FINAL_ROUND,
-            defaultValue: `Low — waves on 3 and Mother night (${HORDE_FINAL_ROUND})`,
-        });
-    }
-    enabled(): boolean {
-        return true;
-    }
-    shouldSpawn(round: number): boolean {
-        const s = slotOf(round);
-        return s === 3 || s === HORDE_FINAL_ROUND;
-    }
-}
-
-/** Brood → weaver → farmer → Mother night. */
-class MediumHorde extends HordeAlgorithm {
-    readonly id = 'medium';
-    describe(): string {
-        return t('settings:hordeMedium', {
-            defaultValue:
-                'Medium — brood on 2, weavers on 4, farmers on 5, Mother night (6 / 12+ Hans)',
-        });
-    }
-    enabled(): boolean {
-        return true;
-    }
-    shouldSpawn(round: number): boolean {
-        const s = slotOf(round);
-        return s === 2 || s === 4 || s === 5 || s === HORDE_FINAL_ROUND;
-    }
-}
-
-/** Full ramp every round. */
-class HighHorde extends HordeAlgorithm {
-    readonly id = 'high';
-    describe(): string {
-        return t('settings:hordeHigh', { defaultValue: 'High — a wave every round' });
+        return this.label();
     }
     enabled(): boolean {
         return true;
@@ -118,24 +66,8 @@ class HighHorde extends HordeAlgorithm {
     shouldSpawn(_round: number): boolean {
         return true;
     }
-}
-
-/** Full ramp, double pack counts. */
-class UltraHorde extends HordeAlgorithm {
-    readonly id = 'ultra';
-    describe(): string {
-        return t('settings:hordeUltra', {
-            defaultValue: 'Ultra — every round, double pack counts',
-        });
-    }
-    enabled(): boolean {
-        return true;
-    }
-    shouldSpawn(_round: number): boolean {
-        return true;
-    }
-    countMult(): number {
-        return 2;
+    income(): number {
+        return this.step;
     }
 }
 
@@ -143,10 +75,10 @@ export const DEFAULT_HORDE_PRESET_ID = 'off';
 
 export const HORDE_ALGORITHMS: readonly HordeAlgorithm[] = [
     new OffHorde(),
-    new LowHorde(),
-    new MediumHorde(),
-    new HighHorde(),
-    new UltraHorde(),
+    new GrowingHorde('low', 100, () => t('settings:hordeLow', { income: 100, defaultValue: 'Low — income +100 every round' })),
+    new GrowingHorde('medium', 200, () => t('settings:hordeMedium', { income: 200, defaultValue: 'Medium — income +200 every round' })),
+    new GrowingHorde('high', 300, () => t('settings:hordeHigh', { income: 300, defaultValue: 'High — income +300 every round' })),
+    new GrowingHorde('ultra', 400, () => t('settings:hordeUltra', { income: 400, defaultValue: 'Ultra — income +400 every round' })),
 ];
 
 export function hordeAlgorithmById(id: string | undefined | null): HordeAlgorithm {
