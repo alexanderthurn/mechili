@@ -6,7 +6,7 @@
     "unlock": "ballista",
     "units": ["goblin", "goblin", "goblin", "hammerer", "hammerer"],
     "unitsLabel": "3× Goblins · 2× Hammerers",
-    "startingHp": 6400,
+    "startingHp": 4270,
     "forgeSpells": ["spawnDwarves", "bigMeteor", "hammerOfGods"],
     "effects": { "unlockDiscount": { "from": 200, "amount": 200 } },
     "description": "Shop unlocks of 200+ cost 200 less.",

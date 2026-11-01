@@ -6,7 +6,7 @@
     "unlock": "dwarf",
     "units": ["dwarf", "dwarf", "dwarf", "hammerer", "hammerer"],
     "unitsLabel": "3× Dwarves · 2× Hammerers",
-    "startingHp": 5800,
+    "startingHp": 3870,
     "forgeSpells": ["spawnDwarves", "poisonCloud", "meteorShower"],
     "effects": { "flankSpawnMult": 0.5 },
     "description": "First-time flank spawns take half the time.",

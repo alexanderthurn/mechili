@@ -6,7 +6,7 @@
     "unlock": "wizard",
     "units": ["goblin", "goblin", "goblin", "mortar"],
     "unitsLabel": "3× Goblins · 1× Mortars",
-    "startingHp": 5200,
+    "startingHp": 3470,
     "tactics": ["bigMeteor", "bigMeteor"],
     "forgeSpells": ["fireSpill", "bigMeteor", "meteorShower"],
     "description": "Gets 2 Meteor charges in round 2.",

@@ -6,7 +6,7 @@
     "unlock": "crowRider",
     "units": ["dwarf", "dwarf", "dwarf", "ogre"],
     "unitsLabel": "3× Dwarves · 1× Ogre",
-    "startingHp": 5800,
+    "startingHp": 3870,
     "forgeSpells": ["oilSpill", "spawnCrows", "dragonAttack"],
     "effects": { "speedBonus": 3 },
     "description": "All units move +3 faster.",

@@ -6,7 +6,7 @@
     "unlock": "wizard",
     "units": ["goblin", "goblin", "goblin", "archer", "archer"],
     "unitsLabel": "3× Goblins · 2× Archers",
-    "startingHp": 6000,
+    "startingHp": 4000,
     "tactics": ["tutor"],
     "tacticsRound": 1,
     "forgeSpells": ["fireSpill", "storm", "meteorShower"],

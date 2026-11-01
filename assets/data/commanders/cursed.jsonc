@@ -8,7 +8,7 @@
     "speciality": "cursed",
     "units": ["hordeZombie", "hordeZombie", "hordeZombie", "bat", "bat"],
     "unitsLabel": "3× Black Brood · 2× Bats",
-    "startingHp": 5800,
+    "startingHp": 3870,
     // her shop: the forest roster only (spawn-only children come from their parents)
     "shop": ["hordeZombie", "bat", "hordeWebweaver", "hordeFarmer", "hordeSpinne", "hordeKomtur"],
     "forgeSpells": ["spawnDwarves", "poisonCloud", "hammerOfGods"],
