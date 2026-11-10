@@ -124,6 +124,8 @@ const WHEEL_SLIP_GRADE = 0.45;
 const WHEEL_SLIP_SPEED = 6;
 /** the downhill roll never gets faster than this (world units / s) */
 const WHEEL_SLIP_MAX_SPEED = 2;
+/** ballista bolts stick in units at least this wide (an ogre, Hans, the Black Spider); smaller ones it pins to the lawn */
+const BALLISTA_STICK_MIN_RADIUS = 1.4;
 /** move-speed multiplier while storm-hexed (same as Hexing talent) */
 export const STORM_HEX_SPEED_MULT = 0.6;
 /** units stand still for this long at battle start before moving or firing */
@@ -3159,7 +3161,9 @@ export class BattleSim {
 
     /**
      * Stuck bolt for an impact.
-     * Ballista: stakes masonry (structures, like ground) or the lawn — never rides a mobile unit.
+     * Ballista: stakes masonry (structures, like ground), rides a big body
+     * ({@link BALLISTA_STICK_MIN_RADIUS} — the renderer seats it in the torso, never a
+     * leg), else the lawn: a giant bolt in a goblin would look wrong.
      * Archer: sticks to whatever was hit.
      */
     private emitStuckAtImpact(
@@ -3174,7 +3178,7 @@ export class BattleSim {
         scale?: Projectile['scale'],
     ): void {
         if (style === 'largeArrow') {
-            if (hit?.unit.type.structure) {
+            if (hit?.unit.type.structure || (hit && hit.unit.type.collisionRadius >= BALLISTA_STICK_MIN_RADIUS)) {
                 this.emitStuckBolt(style, x, y, z, sx, sy, sz, hit, scale);
                 return;
             }

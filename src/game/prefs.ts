@@ -320,9 +320,9 @@ export function detectGraphicsPreset(p: Prefs = prefs()): GraphicsPreset | null 
 export function stuckProjectileCap(
     quality: StuckProjectilesQuality = prefs().stuckProjectiles,
 ): number {
-    if (quality === 'ultra') return 2048;
-    if (quality === 'high') return 256;
-    if (quality === 'medium') return 128;
+    if (quality === 'ultra') return 16384;
+    if (quality === 'high') return 1024;
+    if (quality === 'medium') return 512;
     if (quality === 'low') return 32;
     return 0;
 }

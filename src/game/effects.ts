@@ -1545,7 +1545,13 @@ class ParticlePool extends SoftParticlePool {
     }
 }
 
-const MAX_STUCK_BOLTS = 2048;
+const MAX_STUCK_BOLTS = 16384;
+/** scratch: the body point a ballista bolt is moved to (see StuckAttachRef.boneAt) */
+const _coreSeat = new Vector3();
+/** a unit whose shafts haven't moved for this many syncs counts as settled (a corpse at rest) */
+const STUCK_SETTLE_SYNCS = 30;
+/** a settled unit is looked at again only every this many syncs (a blast may still slide it) */
+const STUCK_SETTLED_POLL = 10;
 /** How far before the hitbox contact we start the visual-seat ray. */
 const STUCK_SEAT_BACK = 10;
 /** Max travel past the backtracked origin when hunting for mesh. */
@@ -1557,6 +1563,8 @@ type StuckSlot = {
     attach: Object3D | null;
     /** the unit's root above {@link attach} (attach itself, or the bone's model root) */
     root: Object3D | null;
+    /** {@link attach}'s world matrix when the shaft was last placed — unchanged means nothing to do */
+    last: Matrix4 | null;
 };
 
 export type StuckAttachRef = {
@@ -1565,8 +1573,11 @@ export type StuckAttachRef = {
     modelId: string;
     /** Buildings: seat on facade (no torso pull). Units: prefer body over wings. */
     structure?: boolean;
-    /** Animated units: the bone under a world point, so the shaft rides the skeleton (death clips) */
-    boneAt?: (world: Vector3) => Object3D | null;
+    /**
+     * Animated units: the bone under a world point, so the shaft rides the skeleton (death
+     * clips). With `coreSeat` only the body counts, and the body point is written there.
+     */
+    boneAt?: (world: Vector3, coreSeat?: Vector3) => Object3D | null;
     /**
      * Seat the shaft where the sim says it hit, not on the model's box (a wall:
      * its box spans tower to tower, so a miss fell back to its middle, high up)
@@ -2252,6 +2263,10 @@ export class StuckBoltRenderer {
     private write = 0;
     private filled = 0;
     private syncStamp = 0;
+    /** shafts were placed since the last sync — the instance buffer needs its upload */
+    private spawned = false;
+    /** the units looked at in this sync (scratch) */
+    private readonly syncRoots: Object3D[] = [];
 
     constructor(scene: Scene) {
         const bolt = boltAsset;
@@ -2266,7 +2281,7 @@ export class StuckBoltRenderer {
         this.mesh.count = 0;
         scene.add(this.mesh);
         for (let i = 0; i < MAX_STUCK_BOLTS; i++) {
-            this.slots.push({ local: new Matrix4(), attach: null, root: null });
+            this.slots.push({ local: new Matrix4(), attach: null, root: null, last: null });
         }
     }
 
@@ -2311,33 +2326,58 @@ export class StuckBoltRenderer {
             );
             this.pos.copy(_seatOrigin);
 
+            const slot = this.slots[this.write]!;
+            const root = ref?.mesh ?? null;
+            // the bone under the seat when the unit is skinned, else the model root; a
+            // ballista bolt only in the body (never a leg tip), sat where the body is
+            let attach: Object3D | null = null;
+            if (root) {
+                if (e.style === 'largeArrow' && ref?.boneAt) {
+                    _coreSeat.set(NaN, NaN, NaN);
+                    attach = ref.boneAt(this.pos, _coreSeat);
+                    // the shaft's middle on the body's skin: half of it in, the fletched half out
+                    if (!Number.isNaN(_coreSeat.x)) this.pos.copy(_coreSeat);
+                } else {
+                    attach = ref?.boneAt?.(this.pos) ?? null;
+                }
+                attach ??= root;
+            }
+
             this.quat.setFromUnitVectors(this.fwd, this.dir);
             const base = e.style === 'largeArrow' ? this.largeScale : this.arrowScale;
             applyProjectileScale(this.scratchScale, base, e.scale);
             this.matrix.compose(this.pos, this.quat, this.scratchScale);
 
-            const slot = this.slots[this.write]!;
-            const root = ref?.mesh ?? null;
-            if (root) {
-                // the bone under the seat when the unit is skinned, else the model root
-                const attach = ref?.boneAt?.(this.pos) ?? root;
+            if (root && attach) {
                 root.updateMatrixWorld(true);
                 this.inv.copy(attach.matrixWorld).invert();
                 slot.local.multiplyMatrices(this.inv, this.matrix);
                 slot.attach = attach;
                 slot.root = root;
+                (slot.last ??= new Matrix4()).copy(attach.matrixWorld);
+                // a fresh shaft wakes its unit up, settled or not
+                root.userData.stuckStill = 0;
             } else {
                 slot.local.copy(this.matrix);
                 slot.attach = null;
                 slot.root = null;
+                slot.last = null;
             }
+            // instance i is slot i: placed now, touched again only when its unit moves
+            this.mesh.setMatrixAt(this.write, this.matrix);
             this.write = (this.write + 1) % cap;
             if (this.filled < cap) this.filled++;
+            this.spawned = true;
         }
         this.sync();
     }
 
-    /** Recompute instance matrices so attached shafts follow tip / fall / walk. */
+    /**
+     * Move the shafts riding units along with them (tip / fall / walk). A shaft in the
+     * ground never moves; one whose bone hasn't moved is left as it is; and a unit
+     * none of whose shafts moved for {@link STUCK_SETTLE_SYNCS} syncs (a corpse at
+     * rest) is only looked at every {@link STUCK_SETTLED_POLL} syncs.
+     */
     sync(): void {
         const cap = Math.min(MAX_STUCK_BOLTS, stuckProjectileCap());
         if (cap <= 0 || this.filled <= 0) {
@@ -2345,24 +2385,42 @@ export class StuckBoltRenderer {
             return;
         }
         const n = Math.min(this.filled, cap);
-        const start = this.filled < cap ? 0 : this.write;
         // each unit's subtree (bones included) once per sync, however many shafts it carries
         const stamp = ++this.syncStamp;
+        const roots = this.syncRoots;
+        roots.length = 0;
+        let dirty = this.mesh.count !== n || this.spawned;
+        this.spawned = false;
         for (let i = 0; i < n; i++) {
-            const slot = this.slots[(start + i) % cap]!;
-            if (slot.attach && slot.root) {
-                if (slot.root.userData.stuckSyncStamp !== stamp) {
-                    slot.root.updateMatrixWorld(true);
-                    slot.root.userData.stuckSyncStamp = stamp;
+            const slot = this.slots[i]!;
+            const root = slot.root;
+            if (!slot.attach || !root) continue;
+            const ud = root.userData;
+            if (ud.stuckSyncStamp !== stamp) {
+                ud.stuckSyncStamp = stamp;
+                ud.stuckPhase ??= roots.length % STUCK_SETTLED_POLL;
+                const settled = (ud.stuckStill ?? 0) >= STUCK_SETTLE_SYNCS;
+                ud.stuckSkip = settled && (stamp + ud.stuckPhase) % STUCK_SETTLED_POLL !== 0;
+                if (!ud.stuckSkip) {
+                    root.updateMatrixWorld(true);
+                    ud.stuckMoved = false;
+                    roots.push(root);
                 }
-                this.matrix.multiplyMatrices(slot.attach.matrixWorld, slot.local);
-                this.mesh.setMatrixAt(i, this.matrix);
-            } else {
-                this.mesh.setMatrixAt(i, slot.local);
             }
+            if (ud.stuckSkip) continue;
+            const world = slot.attach.matrixWorld;
+            if (slot.last?.equals(world)) continue;
+            (slot.last ??= new Matrix4()).copy(world);
+            this.matrix.multiplyMatrices(world, slot.local);
+            this.mesh.setMatrixAt(i, this.matrix);
+            ud.stuckMoved = true;
+            dirty = true;
+        }
+        for (const root of roots) {
+            root.userData.stuckStill = root.userData.stuckMoved ? 0 : (root.userData.stuckStill ?? 0) + 1;
         }
         this.mesh.count = n;
-        this.mesh.instanceMatrix.needsUpdate = true;
+        if (dirty) this.mesh.instanceMatrix.needsUpdate = true;
     }
 
     clear(): void {
@@ -2372,6 +2430,7 @@ export class StuckBoltRenderer {
         for (const slot of this.slots) {
             slot.attach = null;
             slot.root = null;
+            slot.last = null;
         }
     }
 

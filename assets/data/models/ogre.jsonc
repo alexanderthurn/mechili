@@ -6,6 +6,9 @@
     "file": "models/units/ogre.glb",
     "yawDeg": 90,
     "instancedSkin": true,
+    // ballista bolts: torso and shoulders only — measured by thickness, his thighs and
+    // club arm would count too (a stocky biped)
+    "stickBones": ["Waist", "Spine01", "Spine02", "L_Clavicle", "R_Clavicle"],
     "animation": {
         "walk": { "clip": "walk", "speed": 0.55 }, // Tripo run
         "idle": { "clip": "idle" },

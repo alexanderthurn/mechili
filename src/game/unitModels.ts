@@ -94,6 +94,12 @@ export interface ModelSpec {
      */
     hoofprints?: HoofprintSpec;
     /**
+     * GPU-skinned: the bones a ballista bolt may stick in — the body, not the limbs.
+     * Absent = picked by thickness (a leg is thin, a torso thick); set it where that
+     * picks wrong, e.g. a stocky biped whose thighs are as thick as its chest.
+     */
+    stickBones?: string[];
+    /**
      * Sit on the slope under it — pitched along `length`, rolled across `width` (the
      * contact spacing in GLB units, e.g. wheelbase and track) — instead of level at
      * its centre's height. GPU-skinned models only; see groundConform.ts.
@@ -962,7 +968,7 @@ async function loadUnitModelsNow(
             if (!spec.skinned) {
                 const skinned =
                     spec.instancedSkin && spec.animation
-                        ? bakeInstancedSkin(root, gltf.animations ?? [], spec.animation, spec.hoofprints)
+                        ? bakeInstancedSkin(root, gltf.animations ?? [], spec.animation, spec.hoofprints, spec.stickBones)
                         : null;
                 const baked: InstanceAsset = skinned ? { parts: [skinned] } : bakeInstanceAsset(root);
                 if (isStructureModel(id)) {

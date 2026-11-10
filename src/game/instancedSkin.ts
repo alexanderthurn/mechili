@@ -85,6 +85,12 @@ export interface InstancedSkinData {
     rootPerModel?: number;
     /** ground one walk loop covers, in normalized root units (ModelAnimation.walk.stride) */
     walkStride?: number;
+    /**
+     * Per vertex: 1 where it belongs to a core (thick) bone — torso, abdomen, a horse's
+     * barrel — 0 on legs, arms and tips. Ballista bolts only stick there (see
+     * {@link measureCoreVertices}). Absent when the mesh gives no clear body.
+     */
+    coreVertex?: Uint8Array;
 }
 
 /** One shared clock for every skinned pool — advanced with sim-scaled dt. */
@@ -97,6 +103,154 @@ const skinTime = { value: 0 };
 export function updateInstancedSkins(dtSeconds: number): void {
     if (dtSeconds > 0) skinTime.value += dtSeconds;
     updateInstancedSkinBones();
+}
+
+/** a core bone is at least this thick, as a share of the thickest bone */
+const CORE_THICKNESS = 0.4;
+/** bones covering less than this share of the surface don't count (eyes, a claw tip) */
+const CORE_MIN_AREA = 0.02;
+
+/**
+ * Which vertices make the body — the thick parts the big bolts stick in. Each
+ * triangle goes to its vertices' dominant bone, weighted by its area (so a densely
+ * modelled face counts no more than a smooth back). Per bone, the spread of that
+ * surface along its principal axes gives its shape: a leg is long and thin, a torso
+ * thick across. A bone is core when its cross-section (the middle axis) is at least
+ * {@link CORE_THICKNESS} of the thickest one's. Bind pose, once at load.
+ */
+function measureCoreVertices(geometry: BufferGeometry): Uint8Array | undefined {
+    const pos = geometry.getAttribute('position');
+    const idx = geometry.getAttribute('skinIndex');
+    const wts = geometry.getAttribute('skinWeight');
+    if (!pos || !idx || !wts) return undefined;
+    const top = (i: number): number => {
+        let k = 0;
+        for (let j = 1; j < 4; j++) if (wts.getComponent(i, j) > wts.getComponent(i, k)) k = j;
+        return idx.getComponent(i, k);
+    };
+    const index = geometry.getIndex();
+    const tris = index ? index.count / 3 : pos.count / 3;
+    const vert = (t: number, c: number) => (index ? index.getX(t * 3 + c) : t * 3 + c);
+    // per bone: area, area-weighted sum and second moments of its triangles' centroids
+    type Acc = { w: number; s: number[]; m: number[] };
+    const acc = new Map<number, Acc>();
+    const a = new Vector3();
+    const b = new Vector3();
+    const c = new Vector3();
+    let total = 0;
+    for (let t = 0; t < tris; t++) {
+        const i0 = vert(t, 0);
+        const i1 = vert(t, 1);
+        const i2 = vert(t, 2);
+        a.fromBufferAttribute(pos, i0);
+        b.fromBufferAttribute(pos, i1);
+        c.fromBufferAttribute(pos, i2);
+        const area = b.clone().sub(a).cross(c.clone().sub(a)).length() / 2;
+        if (!(area > 0)) continue;
+        // the triangle's bone: its vertices' dominant bones, by vote (first one on a tie)
+        const t0 = top(i0);
+        const t1 = top(i1);
+        const t2 = top(i2);
+        const bone = t1 === t2 ? t1 : t0;
+        const x = (a.x + b.x + c.x) / 3;
+        const y = (a.y + b.y + c.y) / 3;
+        const z = (a.z + b.z + c.z) / 3;
+        let e = acc.get(bone);
+        if (!e) acc.set(bone, (e = { w: 0, s: [0, 0, 0], m: [0, 0, 0, 0, 0, 0] }));
+        e.w += area;
+        e.s[0]! += x * area;
+        e.s[1]! += y * area;
+        e.s[2]! += z * area;
+        e.m[0]! += x * x * area;
+        e.m[1]! += y * y * area;
+        e.m[2]! += z * z * area;
+        e.m[3]! += x * y * area;
+        e.m[4]! += x * z * area;
+        e.m[5]! += y * z * area;
+        total += area;
+    }
+    if (total <= 0) return undefined;
+    const thickness = new Map<number, number>();
+    for (const [bone, e] of acc) {
+        if (e.w < total * CORE_MIN_AREA) continue;
+        const mx = e.s[0]! / e.w;
+        const my = e.s[1]! / e.w;
+        const mz = e.s[2]! / e.w;
+        const cov = [
+            e.m[0]! / e.w - mx * mx,
+            e.m[3]! / e.w - mx * my,
+            e.m[4]! / e.w - mx * mz,
+            e.m[1]! / e.w - my * my,
+            e.m[5]! / e.w - my * mz,
+            e.m[2]! / e.w - mz * mz,
+        ];
+        const eig = symmetricEigenvalues3(cov).sort((p, q) => q - p);
+        thickness.set(bone, Math.sqrt(Math.max(0, eig[1]!)));
+    }
+    let thickest = 0;
+    for (const v of thickness.values()) thickest = Math.max(thickest, v);
+    if (thickest <= 0) return undefined;
+    const core = new Set<number>();
+    for (const [bone, v] of thickness) if (v >= thickest * CORE_THICKNESS) core.add(bone);
+    const out = new Uint8Array(pos.count);
+    for (let i = 0; i < pos.count; i++) out[i] = core.has(top(i)) ? 1 : 0;
+    return out;
+}
+
+/** the body vertices when the model names its body bones (ModelSpec.stickBones) */
+function namedCoreVertices(geometry: BufferGeometry, bones: readonly number[]): Uint8Array | undefined {
+    const pos = geometry.getAttribute('position');
+    const idx = geometry.getAttribute('skinIndex');
+    const wts = geometry.getAttribute('skinWeight');
+    const core = new Set(bones.filter((b) => b >= 0));
+    if (!pos || !idx || !wts || core.size === 0) return undefined;
+    const out = new Uint8Array(pos.count);
+    for (let i = 0; i < pos.count; i++) {
+        let k = 0;
+        for (let j = 1; j < 4; j++) if (wts.getComponent(i, j) > wts.getComponent(i, k)) k = j;
+        out[i] = core.has(idx.getComponent(i, k)) ? 1 : 0;
+    }
+    return out;
+}
+
+/**
+ * Eigenvalues of a symmetric 3×3 matrix given as [xx, xy, xz, yy, yz, zz]
+ * (cyclic Jacobi rotations — a handful of sweeps settle it).
+ */
+function symmetricEigenvalues3(m: readonly number[]): number[] {
+    const A = [
+        [m[0]!, m[1]!, m[2]!],
+        [m[1]!, m[3]!, m[4]!],
+        [m[2]!, m[4]!, m[5]!],
+    ];
+    for (let sweep = 0; sweep < 12; sweep++) {
+        let off = 0;
+        for (let p = 0; p < 2; p++) for (let q = p + 1; q < 3; q++) off += A[p]![q]! * A[p]![q]!;
+        if (off < 1e-18) break;
+        for (let p = 0; p < 2; p++) {
+            for (let q = p + 1; q < 3; q++) {
+                const apq = A[p]![q]!;
+                if (Math.abs(apq) < 1e-20) continue;
+                const theta = (A[q]![q]! - A[p]![p]!) / (2 * apq);
+                const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
+                const cs = 1 / Math.sqrt(t * t + 1);
+                const sn = t * cs;
+                for (let k = 0; k < 3; k++) {
+                    const akp = A[k]![p]!;
+                    const akq = A[k]![q]!;
+                    A[k]![p] = cs * akp - sn * akq;
+                    A[k]![q] = sn * akp + cs * akq;
+                }
+                for (let k = 0; k < 3; k++) {
+                    const apk = A[p]![k]!;
+                    const aqk = A[q]![k]!;
+                    A[p]![k] = cs * apk - sn * aqk;
+                    A[q]![k] = sn * apk + cs * aqk;
+                }
+            }
+        }
+    }
+    return [A[0]![0]!, A[1]![1]!, A[2]![2]!];
 }
 
 function pickClip(clips: readonly AnimationClip[], name: string | number): AnimationClip | null {
@@ -115,6 +269,8 @@ export function bakeInstancedSkin(
     clips: readonly AnimationClip[],
     anim: ModelAnimation,
     feetSpec?: { bones: readonly string[]; track?: boolean },
+    /** the body bones by name (ModelSpec.stickBones); absent = measured */
+    stickBones?: readonly string[],
 ): { geometry: BufferGeometry; material: MeshStandardMaterial; skin: InstancedSkinData } | null {
     let sm: SkinnedMesh | undefined;
     root.traverse((o) => {
@@ -239,6 +395,10 @@ export function bakeInstancedSkin(
             out.feet.push({ bone: b, point });
         }
     }
+
+    out.coreVertex = stickBones?.length
+        ? namedCoreVertices(mesh.geometry, stickBones.map((name) => mesh.skeleton.bones.findIndex((b) => b.name === name)))
+        : measureCoreVertices(mesh.geometry);
 
     const texture = new DataTexture(data, width, Math.max(rows, 1), RGBAFormat, FloatType);
     texture.minFilter = NearestFilter;
@@ -712,7 +872,14 @@ const PICK_SAMPLES = 1500;
  * bone every frame — so shafts fall with a death clip instead of hanging where
  * the unit stood. Null when the proxy isn't GPU-skinned.
  */
-export function instancedSkinBoneAt(proxy: Object3D, worldPoint: Vector3, skin: InstancedSkinData): Object3D | null {
+/**
+ * The bone under a world point on a GPU-skinned mech, as a follower object the
+ * shaft can ride. With `coreSeat`, only the body counts ({@link InstancedSkinData.coreVertex}):
+ * the nearest body vertex is picked and its world position written to `coreSeat`,
+ * so a big bolt that struck a leg sits in the body instead. Without core data
+ * `coreSeat` is left untouched.
+ */
+export function instancedSkinBoneAt(proxy: Object3D, worldPoint: Vector3, skin: InstancedSkinData, coreSeat?: Vector3): Object3D | null {
     if (!proxy.userData.instancedSkin) return null;
     const s = stateOf(proxy);
     const pos = skin.geometry.getAttribute('position');
@@ -720,10 +887,12 @@ export function instancedSkinBoneAt(proxy: Object3D, worldPoint: Vector3, skin: 
     const wts = skin.geometry.getAttribute('skinWeight');
     if (!pos || !idx || !wts) return null;
     proxy.updateMatrixWorld(true);
+    const core = coreSeat ? skin.coreVertex : undefined;
     const step = Math.max(1, Math.floor(pos.count / PICK_SAMPLES));
     let bestD = Infinity;
     let bestI = -1;
     for (let i = 0; i < pos.count; i += step) {
+        if (core && !core[i]) continue;
         _best.set(0, 0, 0);
         for (let k = 0; k < 4; k++) {
             const w = wts.getComponent(i, k);
@@ -736,9 +905,10 @@ export function instancedSkinBoneAt(proxy: Object3D, worldPoint: Vector3, skin: 
         if (d < bestD) {
             bestD = d;
             bestI = i;
+            if (core) coreSeat!.copy(_best);
         }
     }
-    if (bestI < 0) return null;
+    if (bestI < 0) return core ? instancedSkinBoneAt(proxy, worldPoint, skin) : null;
     let bone = 0;
     let top = -1;
     for (let k = 0; k < 4; k++) {

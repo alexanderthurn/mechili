@@ -11385,9 +11385,10 @@ export class Game {
                         structure: !!a.unit.type.structure,
                         exactSeat: !!a.unit.type.wall,
                         // skinned units: ride the bone under the hit (death clips carry it)
-                        boneAt: (world) => {
+                        // (a ballista bolt asks for the body only — GPU-skinned models know theirs)
+                        boneAt: (world, coreSeat) => {
                             const skin = a.mesh.userData.instancedSkin ? instancedSkinOf(a.unit.type.modelId ?? a.unit.type.id) : null;
-                            return skin ? instancedSkinBoneAt(a.mesh, world, skin) : stuckBoltBoneAt(stuckBoltAttachOf(a.mesh), world);
+                            return skin ? instancedSkinBoneAt(a.mesh, world, skin, coreSeat) : stuckBoltBoneAt(stuckBoltAttachOf(a.mesh), world);
                         },
                     };
                 });

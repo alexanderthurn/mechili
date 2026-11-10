@@ -83,6 +83,13 @@
           "$ref": "#/definitions/HoofprintSpec",
           "description": "GPU-skinned feet that can print the ground (units opt in with UnitType.hoofprints): each named bone's sole stamps a print where it touches down, instead of the body-wide wear trail. `size` is the print radius in world units per 1 meshScale, `strength` the sand per print (default 0.45). A foot counts as lifted above `lift` and down again below `down` — heights of its sole in GLB units, read off the walk. `track: true` is for wheels: they never lift, so each prints under its hub every `spacing` (× the print radius, default 1.2) it rolls — a line per wheel."
         },
+        "stickBones": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "GPU-skinned: the bones a ballista bolt may stick in — the body, not the limbs. Absent = picked by thickness (a leg is thin, a torso thick); set it where that picks wrong, e.g. a stocky biped whose thighs are as thick as its chest."
+        },
         "groundConform": {
           "$ref": "#/definitions/GroundConformSpec",
           "description": "Sit on the slope under it — pitched along `length`, rolled across `width` (the contact spacing in GLB units, e.g. wheelbase and track) — instead of level at its centre's height. GPU-skinned models only; see groundConform.ts."
