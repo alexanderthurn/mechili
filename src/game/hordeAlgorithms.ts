@@ -75,10 +75,10 @@ export const DEFAULT_HORDE_PRESET_ID = 'off';
 
 export const HORDE_ALGORITHMS: readonly HordeAlgorithm[] = [
     new OffHorde(),
-    new GrowingHorde('low', 100, () => t('settings:hordeLow', { income: 100, defaultValue: 'Low — income +100 every round' })),
-    new GrowingHorde('medium', 200, () => t('settings:hordeMedium', { income: 200, defaultValue: 'Medium — income +200 every round' })),
-    new GrowingHorde('high', 300, () => t('settings:hordeHigh', { income: 300, defaultValue: 'High — income +300 every round' })),
-    new GrowingHorde('ultra', 400, () => t('settings:hordeUltra', { income: 400, defaultValue: 'Ultra — income +400 every round' })),
+    new GrowingHorde('low', 50, () => t('settings:hordeLow', { income: 50, defaultValue: 'Low — income +50 every round' })),
+    new GrowingHorde('medium', 100, () => t('settings:hordeMedium', { income: 100, defaultValue: 'Medium — income +100 every round' })),
+    new GrowingHorde('high', 150, () => t('settings:hordeHigh', { income: 150, defaultValue: 'High — income +150 every round' })),
+    new GrowingHorde('ultra', 200, () => t('settings:hordeUltra', { income: 200, defaultValue: 'Ultra — income +200 every round' })),
 ];
 
 export function hordeAlgorithmById(id: string | undefined | null): HordeAlgorithm {

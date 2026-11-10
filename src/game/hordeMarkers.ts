@@ -46,6 +46,19 @@ const SNAP_MARGIN = 8;
 
 const ICON_TEX_SIZE = 128;
 
+/** an edge pip lying over a HUD element fades to this, so the panel under it stays readable */
+const PIP_OVER_UI_OPACITY = 0.3;
+/** how often the pips look for UI under them (ms) — layout is too slow to read every frame */
+const PIP_UI_CHECK_MS = 100;
+/** probe points around a pip's centre (px): the middle and its four inner corners */
+const PIP_PROBES: readonly [number, number][] = [
+    [0, 0],
+    [-13, -13],
+    [13, -13],
+    [-13, 13],
+    [13, 13],
+];
+
 export type HordeMarkerSpot = {
     x: number;
     z: number;
@@ -68,6 +81,7 @@ export class HordeMarkers {
     private readonly iconCanvas: HTMLCanvasElement;
     private readonly tmp = new Vector3();
     private used = 0;
+    private lastUiCheck = -Infinity;
 
     constructor(private readonly scene: Scene) {
         this.edgeView.className = 'mechili-horde-pips';
@@ -238,6 +252,37 @@ export class HordeMarkers {
         }
         for (let i = used; i < this.pipPool.length; i++) {
             this.pipPool[i]!.style.display = 'none';
+        }
+        const now = performance.now();
+        if (used > 0 && now - this.lastUiCheck >= PIP_UI_CHECK_MS) {
+            this.lastUiCheck = now;
+            this.fadeOverUi(pts.slice(0, used), box);
+        }
+    }
+
+    /**
+     * Fade the pips that lie over a HUD element. Hit-testing skips anything
+     * pointer-transparent (the pips themselves, full-screen overlay layers), and
+     * what is left only counts when it is not the canvas or a screen-sized
+     * wrapper — a real panel, button or label.
+     */
+    private fadeOverUi(
+        pts: readonly { x: number; y: number }[],
+        box?: { left: number; right: number; top: number; bottom: number },
+    ): void {
+        const layer = this.edgeView.getBoundingClientRect();
+        const big = layer.width * layer.height * 0.8;
+        const isUi = (el: Element): boolean => {
+            if (el.tagName === 'CANVAS' || el === document.body || el === document.documentElement) return false;
+            const r = el.getBoundingClientRect();
+            return r.width * r.height < big;
+        };
+        for (let i = 0; i < pts.length; i++) {
+            const p = pts[i]!;
+            const x = layer.left + (box ? Math.min(Math.max(p.x, box.left), box.right) : p.x);
+            const y = layer.top + (box ? Math.min(Math.max(p.y, box.top), box.bottom) : p.y);
+            const over = PIP_PROBES.some(([dx, dy]) => document.elementsFromPoint(x + dx, y + dy).some(isUi));
+            this.pipPool[i]!.style.opacity = over ? String(PIP_OVER_UI_OPACITY) : '';
         }
     }
 

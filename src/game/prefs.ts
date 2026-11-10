@@ -998,6 +998,19 @@ export function debugEnabled(): boolean {
 }
 
 /**
+ * Dev/test: every horde wave is the full army — every type at its cap, every
+ * level bought — from its first wave on, to see how it stands at its biggest.
+ * Opt-in via `?hordeFull` only. Local only: a peer without it fields another wave.
+ */
+export function hordeFullTest(): boolean {
+    try {
+        return new URLSearchParams(location.search).has('hordeFull');
+    } catch {
+        return false;
+    }
+}
+
+/**
  * Dev/test: offer every playable commander at the starter pick instead of four.
  * Opt-in via `?allCommanders` only (not debug overlay / `?debug`).
  */

@@ -159,6 +159,7 @@ import {
     type SceneryQuality,
     type ShadowQuality,
     hardwareProbe,
+    hordeFullTest,
 } from './prefs';
 import { PostFx } from './postFx';
 import { Particles, ProjectileRenderer, StuckBoltRenderer, StoneChipRenderer } from './effects';
@@ -445,6 +446,9 @@ const LANDING = {
     /** its dust goes higher and lasts longer (× dustUp / dustLife) */
     riseDust: 1.8,
 } as const;
+/** ?hordeFull buys as if this far in: past where every preset has every cap and level (Low: round 51) */
+const HORDE_FULL_TEST_ROUND = 60;
+
 export class Game {
     private readonly map: BattleMap;
     private readonly economy: Economy;
@@ -4265,7 +4269,7 @@ export class Game {
         // Reuse the real wave spawner path by temporarily ensuring the round
         // plan runs even if the preset would skip — spawnHordeWave gates on
         // isHordeRoundActive, so duplicate the camp logic here lightly.
-        const plan = hordeWavePlan(Math.max(1, this.round), hordeIncome(this.settings), this.types, this.settings.leveling);
+        const plan = hordeWavePlan(this.hordeBuyRound(), hordeIncome(this.settings), this.types, this.settings.leveling);
         if (plan.length === 0) return;
         const rng = mulberry32(seedFrom(this.seed, `horde-cheat:${this.round}:${Date.now()}`));
         const standing = this.hordeStanding();
@@ -10247,7 +10251,7 @@ export class Game {
      */
     private spawnHordeWave(): void {
         if (!isHordeRoundActive(this.settings, this.round)) return;
-        const plan = hordeWavePlan(this.round, hordeIncome(this.settings), this.types, this.settings.leveling);
+        const plan = hordeWavePlan(this.hordeBuyRound(), hordeIncome(this.settings), this.types, this.settings.leveling);
         if (plan.length === 0) return;
         const rng = mulberry32(seedFrom(this.seed, `horde:${this.round}`));
         const standing = this.hordeStanding();
@@ -10278,6 +10282,12 @@ export class Game {
             unit.level = entry.level;
             unit.applyLevelLook(entry.level);
         }
+    }
+
+    /** the round the horde shops up to — far past every cap and level with ?hordeFull (a local test) */
+    private hordeBuyRound(): number {
+        const round = Math.max(1, this.round);
+        return hordeFullTest() ? Math.max(round, HORDE_FULL_TEST_ROUND) : round;
     }
 
     /**
