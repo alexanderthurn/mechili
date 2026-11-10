@@ -641,6 +641,8 @@ function normalizeRecord(array $data): array {
     ];
 
     if ($channel !== '') $out['channel'] = $channel;
+    // the player gave up or left mid-match (the result is then their defeat)
+    if (!empty($data['quit'])) $out['quit'] = true;
     if ($techs !== []) $out['techs'] = $techs;
     if ($damage !== []) $out['damage'] = $damage;
     if ($packs !== []) $out['packs'] = $packs;

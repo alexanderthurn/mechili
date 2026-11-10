@@ -11152,9 +11152,9 @@ export class Game {
     private reportMatchTelemetry(result: 'victory' | 'defeat' | 'draw'): void {
         try {
             const full = this.exportReplay();
-            // Default: seed+settings stub only (empty actions) so matchKey still
-            // groups both sides without storing the action log. Opt in with
-            // ?telemetryReplay=1 or localStorage mechili-telemetry-replay=1.
+            // The whole action log by default; opted out (?telemetryReplay=0 or
+            // localStorage mechili-telemetry-replay=0) a seed+settings stub only,
+            // so matchKey still groups both sides.
             const replay = telemetryIncludeReplay()
                 ? full
                 : { version: full.version, seed: full.seed, settings: full.settings, actions: [] };
@@ -11170,6 +11170,7 @@ export class Game {
                 side: this.side,
                 source: this.replayVerify ? 'verify' : 'player',
                 result,
+                ...(this.endedByOwnChoice ? { quit: true } : {}),
                 rounds: this.round,
                 playerHp: this.playerHp,
                 enemyHp: this.enemyHp,

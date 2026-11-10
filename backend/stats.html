@@ -176,7 +176,7 @@
     dual submissions with the same <code>matchKey</code> into one match (preferring
     <code>source: player</code> over verify). Win rate is from each included side’s
     perspective. Damage and talent columns need schema-2 records. Full replays
-    are opt-in on the client (<code>?telemetryReplay=1</code>); bulk uses
+    are sent by default (opt out on the client: <code>?telemetryReplay=0</code>); bulk uses
     <code>fields=summary</code>. Complex balance questions belong in richer
     clients — this page is a smoke-check dashboard.
   </p>

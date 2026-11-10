@@ -130,11 +130,13 @@ collected matches survive releases.
 - `techs`: final talent loadout per unit type (union across seats on a side).
 - `damage`: match-total combat damage dealt per unit type (summed from each
   battle's `sim.damageByType`).
-- Optional full replay: by default the client sends seed+settings with
-  **empty** `actions` (keeps `matchKey` grouping without the action-log
-  bulk). Opt in with `?telemetryReplay=1` or
-  `localStorage.mechili-telemetry-replay=1`. Watch/verify only work when
+- Full replay: by default the client sends the whole action log (a few KB
+  to ~50 KB a match). Opt out with `?telemetryReplay=0` or
+  `localStorage.mechili-telemetry-replay=0` — then `actions` is empty (seed +
+  settings only, `matchKey` grouping still works). Watch/verify only work when
   `actions` is non-empty (`hasReplay` in `?action=grouped`).
+- `quit: true`: the player gave up or left mid-match (Give up, quit to menu,
+  closing the window) — the result is their defeat.
 
 Admin can reclaim disk later:
 `stats.php?action=stripReplay&key=<ADMIN_KEY>&before=<unix>&dryRun=1`

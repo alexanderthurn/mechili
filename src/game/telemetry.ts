@@ -2,10 +2,10 @@
  * Fire-and-forget match telemetry. Never throws, never blocks gameplay.
  * Complex analysis lives in clients (backend/stats.html or offline tools).
  *
- * Schema 2 adds channel / techs / damage. Full action-log replays are opt-in
- * (`?telemetryReplay=1` or localStorage `mechili-telemetry-replay=1`); the
- * default submit keeps a seed+settings stub with empty actions so matchKey
- * grouping still works without the bulk.
+ * Schema 2 adds channel / techs / damage. The full action log (the replay) is
+ * sent by default — a few KB to ~50 KB a match; opt out with
+ * `?telemetryReplay=0` or localStorage `mechili-telemetry-replay=0`, which
+ * sends a seed+settings stub with empty actions (matchKey grouping still works).
  */
 
 import { BUILD_CHANNEL, type BuildChannel } from './channel';
@@ -106,29 +106,38 @@ export interface MatchTelemetry {
      * client opted into full replay storage — see {@link telemetryIncludeReplay}.
      */
     replay: MatchReplayPayload;
+    /** the local player ended it by giving up or leaving mid-match (result: defeat) */
+    quit?: boolean;
 }
 
 const SUBMIT_TIMEOUT_MS = 8_000;
 const REPLAY_PREF_KEY = 'mechili-telemetry-replay';
 
 /**
- * Whether to embed the full action log. Default off (balance summary only).
- * Enable with `?telemetryReplay=1` or localStorage `mechili-telemetry-replay=1`.
+ * Whether to embed the full action log. Default on; off with
+ * `?telemetryReplay=0` or localStorage `mechili-telemetry-replay=0`.
  */
 export function telemetryIncludeReplay(): boolean {
     try {
         if (typeof location !== 'undefined') {
             const q = new URLSearchParams(location.search);
-            if (q.get('telemetryReplay') === '1') return true;
+            if (q.get('telemetryReplay') === '0') return false;
         }
-        if (typeof localStorage !== 'undefined' && localStorage.getItem(REPLAY_PREF_KEY) === '1') {
-            return true;
+        if (typeof localStorage !== 'undefined' && localStorage.getItem(REPLAY_PREF_KEY) === '0') {
+            return false;
         }
     } catch {
         /* ignore */
     }
-    return false;
+    return true;
 }
+
+/**
+ * Chromium refuses a `keepalive` request whose body is over 64 KiB — a long
+ * match's replay can be. Below this the upload survives the page closing (a
+ * quit by closing the window); above it, it goes as a normal request.
+ */
+const KEEPALIVE_MAX_BYTES = 60_000;
 
 /** summarize final board packs (skips structures) */
 export function summarizeUnits(units: readonly Unit[]): Record<Team, Record<string, UnitPresence>> {
@@ -260,7 +269,7 @@ export function submitMatchTelemetry(record: MatchTelemetry): void {
             headers: { 'Content-Type': 'application/json' },
             body,
             signal: ctrl.signal,
-            keepalive: true,
+            keepalive: body.length <= KEEPALIVE_MAX_BYTES,
         })
             .catch(() => undefined)
             .finally(() => window.clearTimeout(timer));
