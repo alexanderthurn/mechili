@@ -30,44 +30,95 @@ export class ChatFloat {
 
     /** a person's message: name chip + emote icon or text */
     addMessage(name: string, item: ChatItem, tone: ChatTone = 'neutral'): void {
-        const icon = item.kind === 'emote' ? (emoteById(item.id)?.icon ?? null) : null;
-        // an emote with no icon still has to say something
-        const text = item.kind === 'text' ? item.text : (emoteById(item.id)?.label ?? '');
-
-        const line = document.createElement('div');
-        line.className = `cf-msg ${tone}`;
-        const who = document.createElement('span');
-        who.className = 'cf-name';
-        who.textContent = name;
-        const what = document.createElement('span');
-        what.className = 'cf-body';
-        if (icon) {
-            // icon only — the emote speaks for itself. Markup is ours (an atlas
-            // id from EMOTES), never player-supplied.
-            what.innerHTML = ` ${iconHtml(icon, 'chat-emote-ico')}`;
-        } else {
-            // textContent, never innerHTML: this is text another player typed
-            what.textContent = ` ${text}`;
-        }
-        line.append(who, what);
-        this.push(line);
+        this.push(messageLine(name, item, tone));
     }
 
     /** a neutral announcement with no sender ("X joined.") */
     addSystem(text: string): void {
-        const line = document.createElement('div');
-        line.className = 'cf-msg system';
-        const what = document.createElement('span');
-        what.className = 'cf-body';
-        what.textContent = text;
-        line.append(what);
-        this.push(line);
+        this.push(systemLine(text));
     }
 
     private push(line: HTMLDivElement): void {
         this.el.appendChild(line);
         while (this.el.children.length > MAX_LINES) this.el.firstChild?.remove();
         setTimeout(() => line.remove(), LINE_LIFETIME_MS);
+    }
+
+    clear(): void {
+        this.el.replaceChildren();
+    }
+}
+
+/** a person's message as a line: name chip + emote icon or text */
+function messageLine(name: string, item: ChatItem, tone: ChatTone): HTMLDivElement {
+    const icon = item.kind === 'emote' ? (emoteById(item.id)?.icon ?? null) : null;
+    // an emote with no icon still has to say something
+    const text = item.kind === 'text' ? item.text : (emoteById(item.id)?.label ?? '');
+
+    const line = document.createElement('div');
+    line.className = `cf-msg ${tone}`;
+    const who = document.createElement('span');
+    who.className = 'cf-name';
+    who.textContent = name;
+    const what = document.createElement('span');
+    what.className = 'cf-body';
+    if (icon) {
+        // icon only — the emote speaks for itself. Markup is ours (an atlas
+        // id from EMOTES), never player-supplied.
+        what.innerHTML = ` ${iconHtml(icon, 'chat-emote-ico')}`;
+    } else {
+        // textContent, never innerHTML: this is text another player typed
+        what.textContent = ` ${text}`;
+    }
+    line.append(who, what);
+    return line;
+}
+
+/** a neutral announcement as a line */
+function systemLine(text: string): HTMLDivElement {
+    const line = document.createElement('div');
+    line.className = 'cf-msg system';
+    const what = document.createElement('span');
+    what.className = 'cf-body';
+    what.textContent = text;
+    line.append(what);
+    return line;
+}
+
+/** lines kept in the scrollback */
+const LOG_LINES = 100;
+
+/**
+ * Everything said this match, oldest at the top — the scrollback at the top
+ * of the open chat panel (ChatBar's `leading` slot), so a line the floating
+ * chat already let fade can still be read. Stays at the newest line unless
+ * the player has scrolled up to read.
+ */
+export class ChatLog {
+    readonly el = document.createElement('div');
+
+    constructor() {
+        this.el.className = 'mechili-chat-log';
+    }
+
+    addMessage(name: string, item: ChatItem, tone: ChatTone = 'neutral'): void {
+        this.push(messageLine(name, item, tone));
+    }
+
+    addSystem(text: string): void {
+        this.push(systemLine(text));
+    }
+
+    /** to the newest line (the panel just opened) */
+    scrollToEnd(): void {
+        this.el.scrollTop = this.el.scrollHeight;
+    }
+
+    private push(line: HTMLDivElement): void {
+        const atEnd = this.el.scrollHeight - this.el.scrollTop - this.el.clientHeight < 8;
+        this.el.appendChild(line);
+        while (this.el.children.length > LOG_LINES) this.el.firstChild?.remove();
+        if (atEnd) this.scrollToEnd();
     }
 
     clear(): void {

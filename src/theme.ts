@@ -1290,6 +1290,27 @@ export function chatFloatStyles(u: typeof THEME.ui, pc: string, ec: string): str
    instead of floating at a fixed height over the board */
 .mechili-chat-float.inline { position: static; transform: none; margin-bottom: 6px; }
 .mechili-chat-float .cf-msg.neutral .cf-name { color: ${u.brassLight}; }
+/* the scrollback at the top of the open chat panel: every line of the match */
+.mechili-chat-log {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 168px;
+    overflow-y: auto;
+    padding: 2px 4px;
+    font-size: 13px;
+    text-align: left;
+    user-select: text;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+}
+.mechili-chat-log:empty { display: none; }
+.mechili-chat-log .cf-msg { padding: 1px 0; overflow-wrap: anywhere; }
+.mechili-chat-log .cf-name { font-weight: bold; color: ${u.brassLight}; }
+.mechili-chat-log .cf-msg.enemy .cf-name { color: ${ec}; }
+.mechili-chat-log .cf-msg.player .cf-name { color: ${pc}; }
+.mechili-chat-log .cf-msg.system { font-style: italic; color: ${u.textMuted}; }
+.mechili-chat-log .chat-emote-ico { width: 18px; height: 18px; vertical-align: middle; }
 `;
 }
 

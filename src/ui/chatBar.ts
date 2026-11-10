@@ -26,6 +26,8 @@ export interface ChatBarOptions {
     leading?: HTMLElement;
     /** lay out in normal document flow instead of floating bottom-center */
     inline?: boolean;
+    /** the panel just opened (a scrollback in `leading` goes to its newest line) */
+    onOpen?: () => void;
 }
 
 export class ChatBar {
@@ -108,6 +110,7 @@ export class ChatBar {
         this.el.classList.remove('unread');
         if (this.isOpen) return;
         this.el.classList.add('open');
+        this.opts.onOpen?.();
         if (focus) this.input.focus();
     }
 

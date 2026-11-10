@@ -30,8 +30,8 @@ import type { AiDifficulty, AiStyle } from './aiProfile';
 
 /** it thinks at least this long, even when every human is ready sooner (s) */
 export const THINK_MIN_SECONDS = 5;
-/** past the minimum, it says how far it got this often in the chat (s) */
-export const THINK_NOTE_SECONDS = 5;
+/** while it thinks, it says how far it got this often in the chat (s) */
+export const THINK_NOTE_SECONDS = 10;
 /** it is done this long before the deploy clock runs out (s) */
 export const THINK_DEADLINE_MARGIN = 3;
 /** no more plans than this per round (a clock that never runs out) */
@@ -379,7 +379,7 @@ export class AiThinkSession {
     private readonly tag: string;
     private readonly wallStart = performance.now();
     /** when it next says how far it got */
-    private nextNote = THINK_MIN_SECONDS;
+    private nextNote = THINK_NOTE_SECONDS;
     /** the rough look still to draft */
     private readonly explore: { label: string; make: () => PlanDraft | null }[] = [];
     private readonly seen = new Set<string>();

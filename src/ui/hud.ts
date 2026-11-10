@@ -28,7 +28,7 @@ import {
 import { closeSettings, openSettings } from './settings';
 import { removeWithDialogFade, withDialogFade } from './dialogFade';
 import { ChatBar } from './chatBar';
-import { ChatFloat } from './chatFloat';
+import { ChatFloat, ChatLog } from './chatFloat';
 import { iconHtml, applyIcon, cssUrl, iconCss, iconMaskCss, moneyHtml, moneyIconHtml } from './iconAtlas';
 import { CardSpellTips, encodeTipRows, spellInfoFrameHtml, startCardFaceHtml } from './cardSpellTip';
 import { registerHoverTipClearer } from './hoverTips';
@@ -1690,13 +1690,15 @@ export class Hud {
     // --- in-match chat -----------------------------------------------------
 
     private readonly chatFloat = new ChatFloat();
+    /** the match's scrollback, at the top of the open chat panel */
+    private readonly chatLog = new ChatLog();
     private chatBarWidget!: ChatBar;
 
     private buildChatBar(): void {
         this.mount(this.chatFloat.el);
 
         // the composer itself is shared with the lobby's chat — see ChatBar
-        const bar = new ChatBar({ onSend: (item) => this.onSendChat?.(item) });
+        const bar = new ChatBar({ onSend: (item) => this.onSendChat?.(item), leading: this.chatLog.el, onOpen: () => this.chatLog.scrollToEnd() });
         this.chatBarWidget = bar;
         this.mount(bar.el);
 
@@ -1742,6 +1744,8 @@ export class Hud {
         const chip =
             this.commanderChips.find((c) => c.name === name) ??
             this.commanderChips.find((c) => c.team === (from === 'local' ? 'player' : 'enemy'));
+        // the scrollback keeps every line, chip or not
+        this.chatLog.addMessage(name, item, chip?.team ?? 'neutral');
         if (!chip) return;
         const fighter = chip.cardEl;
         fighter.querySelector('.chat-bubble')?.remove();
@@ -1767,6 +1771,7 @@ export class Hud {
     addSystemMessage(text: string): void {
         if (!prefs().combatChat) return;
         this.chatFloat.addSystem(text);
+        this.chatLog.addSystem(text);
     }
 
     /** one combined team card per side — built once at match start.
