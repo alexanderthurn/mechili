@@ -203,7 +203,8 @@
   "aiDifficulty": {
     "easy": "Dễ",
     "medium": "Trung bình",
-    "hard": "Khó"
+    "hard": "Khó",
+    "learner": "Học hỏi"
   },
   "aiPersonality": {
     "random": "Ngẫu nhiên",

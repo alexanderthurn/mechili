@@ -248,5 +248,7 @@
   "forgeReadyNext": "Připraveno k dalšímu nasazení",
   "forgeFireToStart": "Zapněte kovárnu, abyste ji spustili – připraveni k dalšímu nasazení.",
   "techHexed": "Očarovaný — tento talent je vypnutý, dokud kletba neskončí.",
-  "techHexedShort": "✕ Očarovaný — neaktivní"
+  "techHexedShort": "✕ Očarovaný — neaktivní",
+  "aiThinkProgress": "Testuji plány… ({{count}})",
+  "aiThinkDone": "Otestované plány: {{count}}. Připraven!"
 }

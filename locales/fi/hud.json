@@ -248,5 +248,7 @@
   "forgeReadyNext": "Valmis seuraavaan käyttöönottoon",
   "forgeFireToStart": "Käynnistä ahjo käynnistääksesi sen – valmiina seuraavaan käyttöönottoon.",
   "techHexed": "Kirottu — tämä kyky on pois päältä, kunnes kirous päättyy.",
-  "techHexedShort": "✕ Kirottu — ei käytössä"
+  "techHexedShort": "✕ Kirottu — ei käytössä",
+  "aiThinkProgress": "Testaan suunnitelmia… ({{count}})",
+  "aiThinkDone": "Testatut suunnitelmat: {{count}}. Valmis!"
 }

@@ -248,5 +248,7 @@
   "forgeReadyNext": "次の配備で準備完了",
   "forgeFireToStart": "鍛造を起動して開始 — 次の配備で準備完了。",
   "techHexed": "呪い — 呪いが解けるまでこの才能は無効です。",
-  "techHexedShort": "✕ 呪い — 無効"
+  "techHexedShort": "✕ 呪い — 無効",
+  "aiThinkProgress": "作戦をテスト中…（{{count}}）",
+  "aiThinkDone": "テストした作戦: {{count}}。準備完了！"
 }

@@ -248,5 +248,7 @@
   "forgeReadyNext": "Gotowy do następnego wdrożenia",
   "forgeFireToStart": "Uruchom kuźnię, aby była gotowa do następnego użycia.",
   "techHexed": "Przeklęty — ten talent jest wyłączony, dopóki klątwa nie minie.",
-  "techHexedShort": "✕ Przeklęty — nieaktywny"
+  "techHexedShort": "✕ Przeklęty — nieaktywny",
+  "aiThinkProgress": "Testuję plany… ({{count}})",
+  "aiThinkDone": "Przetestowane plany: {{count}}. Gotowe!"
 }

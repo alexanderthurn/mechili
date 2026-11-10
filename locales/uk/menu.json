@@ -203,7 +203,8 @@
   "aiDifficulty": {
     "easy": "Легкий",
     "medium": "Середній",
-    "hard": "Складний"
+    "hard": "Складний",
+    "learner": "Навчається"
   },
   "aiPersonality": {
     "random": "Випадковий",

@@ -203,7 +203,8 @@
   "aiDifficulty": {
     "easy": "Könnyű",
     "medium": "Közepes",
-    "hard": "Nehéz"
+    "hard": "Nehéz",
+    "learner": "Tanuló"
   },
   "aiPersonality": {
     "random": "Véletlen",

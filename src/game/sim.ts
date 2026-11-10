@@ -7034,9 +7034,12 @@ export class BattleSim {
         // soft mech-vs-mech is staggered across steps — one pass per involved mech
         for (const a of this.actors) {
             if (!a.alive || a.unit.type.structure || a.unit.marchIn) continue;
-            if (this.softCrowdActive(a)) {
+            // an archer posted on a wall or keep stands at a flyer's height but is fixed to its
+            // post: the crowd (crow riders overhead, the next archer on the walkway) must not
+            // shove it off into the field
+            if (a.unit.pinnedY == null && this.softCrowdActive(a)) {
                 for (const b of this.nearby(a)) {
-                    if (b.index <= a.index || !b.alive || b.unit.type.structure) continue;
+                    if (b.index <= a.index || !b.alive || b.unit.type.structure || b.unit.pinnedY != null) continue;
                     if (a.unit.type.freeFlight || b.unit.type.freeFlight) continue; // ghost pierce
                     if ((b.altitude > 0) !== (a.altitude > 0)) continue; // air passes over ground
                     this.pushApart(a, b);

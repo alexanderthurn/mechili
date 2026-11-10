@@ -418,9 +418,10 @@
       "enum": [
         "easy",
         "medium",
-        "hard"
+        "hard",
+        "learner"
       ],
-      "description": "An AI seat's two lobby settings (AI_PLAN.md): how well it plays (difficulty) and how (personality). One AI; for now every difficulty plays Hard — parts come out of it for the easier ones once it plays well."
+      "description": "`learner`: plays Hard's purse, and simulates plans while the humans deploy (aiThink)"
     },
     "AiPersonality": {
       "type": "string",

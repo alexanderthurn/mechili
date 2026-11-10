@@ -248,5 +248,7 @@
   "forgeReadyNext": "Sedia untuk pelaksanaan seterusnya",
   "forgeFireToStart": "Tembak bengkel untuk memulakannya — sedia untuk penggunaan seterusnya.",
   "techHexed": "Disumpah — bakat ini dimatikan sehingga sumpahan tamat.",
-  "techHexedShort": "✕ Disumpah — tidak aktif"
+  "techHexedShort": "✕ Disumpah — tidak aktif",
+  "aiThinkProgress": "Menguji rancangan… ({{count}})",
+  "aiThinkDone": "Rancangan diuji: {{count}}. Sedia!"
 }

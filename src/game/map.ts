@@ -126,6 +126,11 @@ export function groundHeightAt(x: number, z: number): number {
     return groundHeightFn(x, z);
 }
 
+/** a board-less sim (the AI's plan worker): the ground height its TerrainGrid gives */
+export function registerSimGroundHeight(fn: (x: number, z: number) => number): void {
+    groundHeightFn = fn;
+}
+
 let groundSurfaceFn: (x: number, z: number) => number = () => 0;
 
 /**

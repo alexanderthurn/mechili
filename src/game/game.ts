@@ -41,6 +41,8 @@ import {
     type ForgeSlot,
 } from './forgeRecipes';
 import { AiOpponent, type Opponent } from './ai';
+import type { AiThinkHost } from './aiThink';
+import { AiThinkMatch } from './aiThinkMatch';
 import { DEFAULT_AI_DIFFICULTY, DEFAULT_AI_PERSONALITY, resolvePersonality, type AiDifficulty, type AiStyle } from './aiProfile';
 import { recordBattle, type BattleRecord } from './aiThreat';
 import type { BoostSettings } from './settings';
@@ -2428,7 +2430,8 @@ export class Game {
                 round: this.round,
                 t: Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining),
             }),
-            debugLog: (category, data) => this.debugLog.log(category, data),
+            // the Learner's plan dry runs (aiThinkMatch) are undone at once — no log of them
+            debugLog: (category, data) => (this.placement.dryRun ? undefined : this.debugLog.log(category, data)),
             onEndDeployment: (team) => {
                 if (this.phase !== 'build' || this.matchOver) return;
                 // watching: 'player' here just means "the host's endDeployment
@@ -4736,6 +4739,53 @@ export class Game {
         return ais.flatMap(({ ai, seat }) => ai.debugLines?.(this.seats[seat]?.name ?? `seat ${seat}`) ?? []);
     }
 
+    /** the Learner's plan simulation (aiThinkMatch): made when a seat plays it, only in a base-game match whose AIs run here */
+    private aiThinkMatch: AiThinkMatch | null = null;
+
+    private aiThinkHost(seat: SeatId, difficulty: AiDifficulty): AiThinkHost | undefined {
+        if (difficulty !== 'learner' || activeLevelRef() || this.editorMode || this.watching || this.star?.role === 'guest') return undefined;
+        this.aiThinkMatch ??= new AiThinkMatch({
+            placement: this.placement,
+            dispatcher: this.dispatcher,
+            types: this.types,
+            techTree: this.techTree,
+            economy: this.economy,
+            map: this.map,
+            settings: this.settings,
+            seats: () => this.seats,
+            seatReady: () => this.seatReady,
+            flankSpawnMult: () => this.flankSpawnMult,
+            tacticIds: [this.spellStampIds, this.rallyRouteIds, this.oilStampIds],
+            round: () => this.round,
+            building: () => this.phase === 'build' && !this.matchOver && !this.disposed,
+            deployLeft: () => (this.awaitingCards || this.editorMode === 'author' ? Infinity : this.phaseRemaining),
+            localAiSeats: () => {
+                const seats = new Set<SeatId>(this.extraAis.map((e) => e.seat));
+                if (this.opponent instanceof AiOpponent) seats.add(primarySeatOf(this.seats, 'enemy'));
+                return seats;
+            },
+            refreshFlightAlts: () => this.refreshFlightAlts(),
+            resolvedStats: (u) => this.resolvedStats(u),
+            loadoutOf: (s) => this.loadoutOf(s),
+            seatRank: (s) => this.seatRank(s),
+            battleSeconds: () => this.battleSeconds(),
+            chat: (from, text) => {
+                const name = this.seats[from]?.name ?? 'AI';
+                const item = { kind: 'text' as const, text };
+                this.hud.addChat(name, item, 'remote');
+                this.broadcast({ type: 'chat', item, from: { name, role: 'player' } });
+            },
+        });
+        return this.aiThinkMatch.hostFor(seat);
+    }
+
+    /** one frame of every local AI's thinking (aiThink) */
+    private tickAiThinking(dt: number): void {
+        if (this.hydrating || !this.aiThinkMatch) return;
+        if (this.opponent instanceof AiOpponent) this.opponent.thinkTick(dt);
+        for (const e of this.extraAis) e.ai.thinkTick(dt);
+    }
+
     /**
      * Shared AiOpponent context builder — used both at construction (every
      * seat that started AI-controlled) and by `takeOverSeatWithAi` (a seat
@@ -4780,8 +4830,11 @@ export class Game {
         difficulty: AiDifficulty;
         style: AiStyle;
         rushSide: 0 | 1;
+        think?: AiThinkHost;
     } {
+        const difficulty = this.seats[seat]?.aiDifficulty ?? this.rules.aiDifficulty ?? DEFAULT_AI_DIFFICULTY;
         return {
+            think: this.aiThinkHost(seat, difficulty),
             types: this.types,
             dispatch: (action: Action) => {
                 const ok = this.dispatcher.dispatch(action);
@@ -4835,7 +4888,7 @@ export class Game {
                 const up = buildingUpgradeFor(building, seat, this.settings.towers);
                 return up && !up.maxed ? up.cost : null;
             },
-            difficulty: this.seats[seat]?.aiDifficulty ?? this.rules.aiDifficulty ?? DEFAULT_AI_DIFFICULTY,
+            difficulty,
             // Random picks once, from the match seed: a resumed match (or a new host) plays the same
             ...resolvePersonality(
                 this.seats[seat]?.aiPersonality ?? this.rules.aiPersonality ?? DEFAULT_AI_PERSONALITY,
@@ -11353,7 +11406,8 @@ export class Game {
             }
             if (this.phase === 'build') {
                 if (this.watching) this.tickReplayPlayback();
-                if (this.phaseRemaining <= 0 && !waitingForDeployPeer) this.onDeployTimerExpired();
+                this.tickAiThinking(gameDt);
+                if (this.phase === 'build' && this.phaseRemaining <= 0 && !waitingForDeployPeer) this.onDeployTimerExpired();
             } else if (this.phase === 'hpDraw') {
                 // solo pause freezes the drain too — otherwise the souls keep
                 // flying behind the menu and proceedAfterHpDraw starts the next

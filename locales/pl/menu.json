@@ -203,7 +203,8 @@
   "aiDifficulty": {
     "easy": "Łatwy",
     "medium": "Średni",
-    "hard": "Trudny"
+    "hard": "Trudny",
+    "learner": "Uczący się"
   },
   "aiPersonality": {
     "random": "Losowy",

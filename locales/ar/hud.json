@@ -248,5 +248,7 @@
   "forgeReadyNext": "جاهز في الانتشار التالي",
   "forgeFireToStart": "أشعل المسبك لبدءه — جاهز في الانتشار التالي.",
   "techHexed": "ملعون — هذه الموهبة معطّلة حتى تنتهي اللعنة.",
-  "techHexedShort": "✕ ملعون — غير نشط"
+  "techHexedShort": "✕ ملعون — غير نشط",
+  "aiThinkProgress": "أختبر الخطط… ({{count}})",
+  "aiThinkDone": "الخطط المختبرة: {{count}}. جاهز!"
 }

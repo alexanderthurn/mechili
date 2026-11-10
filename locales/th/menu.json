@@ -203,7 +203,8 @@
   "aiDifficulty": {
     "easy": "ง่าย",
     "medium": "ปานกลาง",
-    "hard": "ยาก"
+    "hard": "ยาก",
+    "learner": "ผู้เรียนรู้"
   },
   "aiPersonality": {
     "random": "สุ่ม",

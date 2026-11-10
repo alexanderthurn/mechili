@@ -203,7 +203,8 @@
   "aiDifficulty": {
     "easy": "쉬움",
     "medium": "보통",
-    "hard": "어려움"
+    "hard": "어려움",
+    "learner": "학습형"
   },
   "aiPersonality": {
     "random": "무작위",

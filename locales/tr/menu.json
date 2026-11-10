@@ -203,7 +203,8 @@
   "aiDifficulty": {
     "easy": "Kolay",
     "medium": "Orta",
-    "hard": "Zor"
+    "hard": "Zor",
+    "learner": "Öğrenen"
   },
   "aiPersonality": {
     "random": "Rastgele",

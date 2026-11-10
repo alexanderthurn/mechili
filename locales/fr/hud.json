@@ -248,5 +248,7 @@
   "forgeReadyNext": "Prêt pour le prochain déploiement",
   "forgeFireToStart": "Mettez la forge en marche pour la démarrer — prête pour le prochain déploiement.",
   "techHexed": "Maudit — ce talent est désactivé jusqu’à la fin du maléfice.",
-  "techHexedShort": "✕ Maudit — inactif"
+  "techHexedShort": "✕ Maudit — inactif",
+  "aiThinkProgress": "Je teste des plans… ({{count}})",
+  "aiThinkDone": "Plans testés : {{count}}. Prêt !"
 }

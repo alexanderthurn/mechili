@@ -248,5 +248,7 @@
   "forgeReadyNext": "下次部署就緒",
   "forgeFireToStart": "點燃熔爐以開始——下次部署就緒。",
   "techHexed": "受詛咒 — 詛咒結束前該天賦無效。",
-  "techHexedShort": "✕ 受詛咒 — 無效"
+  "techHexedShort": "✕ 受詛咒 — 無效",
+  "aiThinkProgress": "正在測試方案…（{{count}}）",
+  "aiThinkDone": "已測試方案：{{count}}。準備好了！"
 }

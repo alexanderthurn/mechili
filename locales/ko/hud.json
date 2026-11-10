@@ -248,5 +248,7 @@
   "forgeReadyNext": "다음 배치에 준비됨",
   "forgeFireToStart": "대장간을 가동해 시작하세요 — 다음 배치에 준비됩니다.",
   "techHexed": "저주 — 저주가 끝날 때까지 이 특성은 꺼집니다.",
-  "techHexedShort": "✕ 저주 — 비활성"
+  "techHexedShort": "✕ 저주 — 비활성",
+  "aiThinkProgress": "작전 테스트 중… ({{count}})",
+  "aiThinkDone": "테스트한 작전: {{count}}. 준비 완료!"
 }

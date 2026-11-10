@@ -203,7 +203,8 @@
   "aiDifficulty": {
     "easy": "Ușor",
     "medium": "Mediu",
-    "hard": "Greu"
+    "hard": "Greu",
+    "learner": "Învățăcel"
   },
   "aiPersonality": {
     "random": "Aleatoriu",

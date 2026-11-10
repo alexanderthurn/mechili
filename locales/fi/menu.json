@@ -203,7 +203,8 @@
   "aiDifficulty": {
     "easy": "Helppo",
     "medium": "Keskitaso",
-    "hard": "Vaikea"
+    "hard": "Vaikea",
+    "learner": "Oppiva"
   },
   "aiPersonality": {
     "random": "Satunnainen",

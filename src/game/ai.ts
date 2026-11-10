@@ -24,7 +24,11 @@ import { CELL } from './map';
 import { isChaff } from './aiCounters';
 import { AI_WALL_ID, orderedWallPlan, placeWallPlan, sideFrontline, wallInSlot, wallPlanCells, type PlanSlot } from './aiWalls';
 import type { LevelingSettings } from './settings';
-import { AI_SUPPLY_SHARE, DEFENDER_WALL_SHARE, type AiDifficulty, type AiStyle } from './aiProfile';
+import { AI_SUPPLY_SHARE, DEFENDER_WALL_SHARE, personalitiesFor, type AiDifficulty, type AiStyle } from './aiProfile';
+import { AiThinkSession, type AiThinkHost, type PlanDraft, type ThinkingAi } from './aiThink';
+import { newUnitIds, planFromRecording, playPlan, type MutationContext, type Plan, type RecordedStep } from './aiPlan';
+import { techsForUnit } from './techCatalog';
+import { ARCHETYPES, learnedArchetypes, weightedPick, type Archetype } from './aiArchetypes';
 
 /** what a round's defence wants: wall slots, the share of the round's supply it may use, and whether to man the walls */
 interface Defence {
@@ -79,6 +83,8 @@ export interface Opponent {
     rerunBuildActions?(opts?: { walls?: boolean }): void;
     /** what it read before its last build, for the debug overlay (`name` = the seat's) */
     debugLines?(name: string): string[];
+    /** the plan simulation (aiThink): one frame of thinking, `dt` game seconds */
+    thinkTick?(dt: number): void;
 }
 
 /** actions that cost supply — refused once the brake's set-aside part is all that's left (AI_SUPPLY_SHARE) */
@@ -101,7 +107,7 @@ const SPENDS: ReadonlySet<Action['kind']> = new Set<Action['kind']>([
     'roundCard',
 ]);
 
-export class AiOpponent implements Opponent {
+export class AiOpponent implements Opponent, ThinkingAi {
     constructor(
         private readonly team: Team,
         /** the seat this brain commands — its purse, its lane, its packs */
@@ -165,6 +171,8 @@ export class AiOpponent implements Opponent {
             /** the style it plays (Random has picked one) and a Rusher's side (0 = its lower-column tower) */
             style: AiStyle;
             rushSide: 0 | 1;
+            /** the plan simulation (`?aiThink`): set when it is on and this seat may think */
+            think?: AiThinkHost;
         },
     ) {
         // the easier levels' brake (AI_SUPPLY_SHARE): every purse read sees the balance less what is set aside,
@@ -176,8 +184,228 @@ export class AiOpponent implements Opponent {
         this.ctx = {
             ...ctx,
             economy,
-            dispatch: (action) => (SPENDS.has(action.kind) && economy.balance(seat) <= 0 ? false : dispatch(action)),
+            dispatch: (action) => {
+                if (SPENDS.has(action.kind) && economy.balance(seat) <= 0) return false;
+                // a plan's dry run: applied locally only, and recorded
+                if (this.recording && ctx.think) {
+                    const before = new Set(this.unitIds());
+                    const ok = ctx.think.dispatchDry(action);
+                    if (ok) this.recording.push({ action, created: newUnitIds(before, this.unitIds()) });
+                    return ok;
+                }
+                return dispatch(action);
+            },
         };
+    }
+
+    // --- the plan simulation (aiThink) ---------------------------------------
+
+    /** a dry run's recorded actions and the units each made (null: acting for real) */
+    private recording: RecordedStep[] | null = null;
+
+    /** the ids on the board, in board order */
+    private unitIds(): number[] {
+        return this.ctx.placement.allUnits().map((u) => u.id);
+    }
+    /** this build phase's thinking */
+    private thinking: AiThinkSession | null = null;
+
+    get seatId(): SeatId {
+        return this.seat;
+    }
+    get teamId(): Team {
+        return this.team;
+    }
+    get difficultyLevel(): AiDifficulty {
+        return this.ctx.difficulty;
+    }
+    get ownStyle(): { style: AiStyle; rushSide: 0 | 1 } {
+        return this.homeStyle ?? { style: this.ctx.style, rushSide: this.ctx.rushSide };
+    }
+    get styleOptions(): readonly AiStyle[] {
+        return personalitiesFor(this.ctx.yearRole ?? null).filter((p): p is AiStyle => p !== 'random');
+    }
+    /** the style it was given (a plan's style is worn only for its dry run) */
+    private homeStyle: { style: AiStyle; rushSide: 0 | 1 } | null = null;
+
+    rng(): number {
+        return this.ctx.rng();
+    }
+
+    thinkTick(dt: number): void {
+        this.thinking?.tick(dt);
+    }
+
+    planDry(rng: () => number, style: { style: AiStyle; rushSide: 0 | 1 }): PlanDraft | null {
+        const home = this.ownStyle;
+        const roster = this.roster ? { chaff: this.roster.chaff, strong: [...this.roster.strong] } : null;
+        this.homeStyle = home;
+        this.ctx.style = style.style;
+        this.ctx.rushSide = style.rushSide;
+        try {
+            const t0 = performance.now();
+            const run = this.dryRecord(() => this.build(rng));
+            if (!run) return null;
+            const memo: Roster | null = this.roster ? { chaff: this.roster.chaff, strong: [...this.roster.strong] } : null;
+            return this.draftOf(run, memo, style, t0);
+        } finally {
+            this.ctx.style = home.style;
+            this.ctx.rushSide = home.rushSide;
+            this.homeStyle = null;
+            this.roster = roster;
+        }
+    }
+
+    planReplay(plan: Plan, memo: unknown, style: { style: AiStyle; rushSide: 0 | 1 }): PlanDraft | null {
+        const t0 = performance.now();
+        const run = this.dryRecord(() => playPlan(plan, (a) => this.dispatchSnapped(a), () => this.unitIds()));
+        return run ? this.draftOf(run, memo, style, t0) : null;
+    }
+
+    /** a buy refused where it stands goes to the nearest free spot instead (an edited plan's packs) */
+    private dispatchSnapped(action: Action): boolean {
+        if (this.ctx.dispatch(action)) return true;
+        if (action.kind !== 'buy') return false;
+        const type = this.ctx.types.byId(action.typeId);
+        if (!type) return false;
+        const anchor =
+            this.ctx.placement.aiSpotNear(this.team, this.seat, type, action.anchor, action.rotated, 8) ??
+            this.ctx.placement.aiSpotNear(this.team, this.seat, type, action.anchor, !action.rotated, 8);
+        if (!anchor) return false;
+        return this.ctx.dispatch({ ...action, anchor, rotated: this.ctx.placement.aiSpotOk(this.team, this.seat, type, anchor, action.rotated) ? action.rotated : !action.rotated });
+    }
+
+    /** the army types its plans may buy: its shop's fighting packs */
+    private planTypes(): UnitType[] {
+        const shop = this.shop();
+        return this.ctx.types.roster.filter((t) => shop.includes(t.id) && !t.extra && !t.structure && !t.wall && t.damage > 0 && t.target !== false);
+    }
+
+    mutationContext(): MutationContext {
+        const unlocked = this.ctx.unlockedUnits[this.seat]!;
+        const loadout = this.ctx.loadoutOf(this.seat);
+        return {
+            options: this.planTypes().map((t) => ({
+                id: t.id,
+                cost: this.ctx.economy.costOf(t),
+                cols: t.footprint.cols,
+                rows: t.footprint.rows,
+                unlocked: unlocked.includes(t.id),
+                range: t.range,
+                techs: techsForUnit(t, this.ctx.types, loadout).map((tech) => tech.id),
+            })),
+            zone: this.ctx.placement.aiZone(this.team, this.seat),
+            ownPacks: this.ownPacks().map((u) => u.id),
+            actor: { team: this.team, seat: this.seat },
+        };
+    }
+
+    /** the archetypes, and the lab's mixes for what it holds now */
+    private allArchetypes(): Archetype[] {
+        return [...ARCHETYPES, ...learnedArchetypes(this.ctx.economy.balance(this.seat), this.ctx.types)];
+    }
+
+    get archetypes(): readonly string[] {
+        return this.allArchetypes().map((a) => a.name);
+    }
+
+    planArchetype(name: string, rng: () => number): PlanDraft | null {
+        const arch = this.allArchetypes().find((a) => a.name === name);
+        if (!arch) return null;
+        const t0 = performance.now();
+        const memo: Roster | null = this.roster ? { chaff: this.roster.chaff, strong: [...this.roster.strong] } : null;
+        const run = this.dryRecord(() => this.buildArchetype(arch, rng));
+        return run ? this.draftOf(run, memo, this.ownStyle, t0) : null;
+    }
+
+    /**
+     * An army the rules wouldn't buy: every slot from the archetype's pool (a
+     * locked one unlocked when the round's unlock is free), aimed where it
+     * says — then levels on its old packs, and runes, as the rules do.
+     */
+    private buildArchetype(arch: Archetype, rng: () => number): void {
+        const { placement, economy, dispatch, unlockedUnits, unlockUsedThisRound } = this.ctx;
+        const pool = this.planTypes().filter(arch.pool);
+        if (pool.length === 0) return;
+        const zone = placement.aiZone(this.team, this.seat);
+        const cost = (t: UnitType) => economy.costOf(t);
+        if (arch.recruit) dispatch({ kind: 'recruitLevel', team: this.team, seat: this.seat });
+        for (let guard = 0; guard < 12 && this.ctx.deployCap() > 0; guard++) {
+            let options = pool.filter((t) => unlockedUnits[this.seat]!.includes(t.id) && cost(t) <= economy.balance(this.seat));
+            if (options.length === 0 && !unlockUsedThisRound[this.seat]) {
+                const locked = pool.filter((t) => !unlockedUnits[this.seat]!.includes(t.id));
+                const pick = locked[Math.floor(rng() * locked.length)];
+                if (pick && dispatch({ kind: 'unlockUnit', team: this.team, seat: this.seat, typeId: pick.id })) options = [pick].filter((t) => cost(t) <= economy.balance(this.seat));
+            }
+            const type = arch.weight ? weightedPick(options, arch.weight, rng) : options[Math.floor(rng() * options.length)];
+            if (!type) break;
+            const { side, depth } = arch.aim?.(type, guard) ?? arch;
+            const width = zone.colMax - zone.colMin;
+            const col =
+                side === 0
+                    ? zone.colMin + width * (0.5 + (rng() - 0.5) * arch.spread)
+                    : side < 0
+                      ? zone.colMin + width * (0.15 + rng() * 0.2 * arch.spread)
+                      : zone.colMax - width * (0.15 + rng() * 0.2 * arch.spread);
+            const row = zone.backRow + (zone.frontRow - zone.backRow) * Math.min(1, Math.max(0, depth + (rng() - 0.5) * 0.3));
+            const rotated = rng() < 0.5;
+            const near = { col, row };
+            const anchor = placement.aiSpotNear(this.team, this.seat, type, near, rotated, 16);
+            if (!anchor || !dispatch({ kind: 'buy', team: this.team, seat: this.seat, typeId: type.id, anchor, rotated })) break;
+        }
+        // its old packs' levels, as far as XP and supply go
+        for (const u of this.ownPacks().sort((a, b) => b.type.cost - a.type.cost)) {
+            for (let n = 0; n < 3 && dispatch({ kind: 'buyLevel', team: this.team, seat: this.seat, unitId: u.id }); n++);
+        }
+        this.buyRunesForFreeSlots(rng);
+    }
+
+    /** runs `fn` as a dry run (aiThink): what it dispatched, and the board it left */
+    private dryRecord(fn: () => void): { steps: RecordedStep[]; board: PlanDraft['board'] } | null {
+        const host = this.ctx.think;
+        if (!host) return null;
+        const steps: RecordedStep[] = [];
+        let board: PlanDraft['board'] | null = null;
+        const ok = host.dryRun(this.seat, this.team, () => {
+            this.recording = steps;
+            try {
+                fn();
+                board = host.board();
+            } finally {
+                this.recording = null;
+            }
+        });
+        return ok && board ? { steps, board } : null;
+    }
+
+    private draftOf(
+        run: { steps: RecordedStep[]; board: PlanDraft['board'] },
+        memo: unknown,
+        style: { style: AiStyle; rushSide: 0 | 1 },
+        t0: number,
+    ): PlanDraft {
+        // what actually applied, as a plan: refused steps are gone, own new packs named virtually
+        const plan = planFromRecording(run.steps);
+        const bought = plan.steps.flatMap((a) => (a.kind === 'buy' ? [a.typeId] : []));
+        return { plan, board: run.board, memo, style, bought, dryMs: performance.now() - t0 };
+    }
+
+    executePlan(draft: PlanDraft): number {
+        const memo = draft.memo as Roster | null;
+        if (memo) this.roster = { chaff: memo.chaff, strong: [...memo.strong] };
+        // what it read is the plan's (the debug overlay shows it)
+        this.threat = readThreat(this.ctx.placement, this.team, this.seat);
+        const result = playPlan(draft.plan, (a) => this.ctx.dispatch(a), () => this.unitIds());
+        if (result.refused + result.skipped > 0) console.warn(`[aiThink] seat ${this.seat}: on execute ${result.refused} refused, ${result.skipped} skipped`);
+        return result.refused + result.skipped;
+    }
+
+    buildNormally(): void {
+        this.build(this.ctx.rng);
+    }
+
+    lockIn(): void {
+        this.ctx.dispatch({ kind: 'endDeployment', team: this.team, seat: this.seat });
     }
 
     /** the supply its difficulty sets aside for good: the unspendable share of every round's income so far */
@@ -227,6 +455,12 @@ export class AiOpponent implements Opponent {
 
     onBuildPhase(round: number): void {
         this.round = round;
+        // the plan simulation: it thinks while the humans deploy, and locks in when done (aiThink)
+        if (this.ctx.think && this.ctx.opponents !== 'lockInOnly') {
+            if (this.thinking && this.thinking.round === round && !this.thinking.finished) return;
+            this.thinking = new AiThinkSession(this, this.ctx.think, round);
+            return;
+        }
         // a scenario's authored army fights as placed — lock in, nothing else
         if (this.ctx.opponents !== 'lockInOnly') {
             this.build(this.ctx.rng);

@@ -248,5 +248,7 @@
   "forgeReadyNext": "Preparar para a próxima mobilização",
   "forgeFireToStart": "Acenda a forja para iniciá-la — pronta para a próxima mobilização.",
   "techHexed": "Amaldiçoado — este talento fica desligado até a maldição acabar.",
-  "techHexedShort": "✕ Amaldiçoado — inativo"
+  "techHexedShort": "✕ Amaldiçoado — inativo",
+  "aiThinkProgress": "Testando planos… ({{count}})",
+  "aiThinkDone": "Planos testados: {{count}}. Pronto!"
 }

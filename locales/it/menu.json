@@ -203,7 +203,8 @@
   "aiDifficulty": {
     "easy": "Facile",
     "medium": "Medio",
-    "hard": "Difficile"
+    "hard": "Difficile",
+    "learner": "Apprendista"
   },
   "aiPersonality": {
     "random": "Casuale",

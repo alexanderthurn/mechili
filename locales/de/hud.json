@@ -260,5 +260,7 @@
   "wallPostsFull": "Alle Posten auf diesem Wehrgang sind besetzt.",
   "targetMark": "Ziel",
   "targetMarkDesc": "Diese Mauer als Ziel markieren: deine Einheiten greifen sie an, das nächste Ziel zuerst. Kostenlos.",
-  "targetMarkOn": "Markiert: deine Einheiten greifen diese Mauer an, das nächste Ziel zuerst. Klicken hebt die Markierung auf."
+  "targetMarkOn": "Markiert: deine Einheiten greifen diese Mauer an, das nächste Ziel zuerst. Klicken hebt die Markierung auf.",
+  "aiThinkProgress": "Teste Pläne… ({{count}})",
+  "aiThinkDone": "Pläne getestet: {{count}}. Bereit!"
 }

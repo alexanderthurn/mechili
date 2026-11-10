@@ -248,5 +248,7 @@
   "forgeReadyNext": "Klar til næste udrulning",
   "forgeFireToStart": "Tænd smedjen for at starte den — klar til næste indsættelse.",
   "techHexed": "Forhekset — dette talent er slået fra, indtil forbandelsen ophører.",
-  "techHexedShort": "✕ Forhekset — inaktiv"
+  "techHexedShort": "✕ Forhekset — inaktiv",
+  "aiThinkProgress": "Tester planer… ({{count}})",
+  "aiThinkDone": "Testede planer: {{count}}. Klar!"
 }

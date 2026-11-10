@@ -203,7 +203,8 @@
   "aiDifficulty": {
     "easy": "Εύκολο",
     "medium": "Μέτριο",
-    "hard": "Δύσκολο"
+    "hard": "Δύσκολο",
+    "learner": "Μαθητευόμενος"
   },
   "aiPersonality": {
     "random": "Τυχαίο",

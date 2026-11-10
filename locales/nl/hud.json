@@ -248,5 +248,7 @@
   "forgeReadyNext": "Klaar voor de volgende opstelling",
   "forgeFireToStart": "Steek de smederij aan om hem te starten — klaar voor de volgende inzet.",
   "techHexed": "Behekst — dit talent staat uit tot de vloek voorbij is.",
-  "techHexedShort": "✕ Behekst — inactief"
+  "techHexedShort": "✕ Behekst — inactief",
+  "aiThinkProgress": "Plannen testen… ({{count}})",
+  "aiThinkDone": "Plannen getest: {{count}}. Klaar!"
 }

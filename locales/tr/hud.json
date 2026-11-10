@@ -248,5 +248,7 @@
   "forgeReadyNext": "Sonraki dağıtıma hazır",
   "forgeFireToStart": "Ocağı ateşleyerek çalıştırın; bir sonraki görevlendirmeye hazır.",
   "techHexed": "Lanetli — lanet bitene kadar bu yetenek kapalı.",
-  "techHexedShort": "✕ Lanetli — etkin değil"
+  "techHexedShort": "✕ Lanetli — etkin değil",
+  "aiThinkProgress": "Planlar test ediliyor… ({{count}})",
+  "aiThinkDone": "Test edilen plan: {{count}}. Hazır!"
 }

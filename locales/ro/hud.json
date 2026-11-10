@@ -248,5 +248,7 @@
   "forgeReadyNext": "Gata pentru următoarea desfășurare",
   "forgeFireToStart": "Pornește forja — gata pentru următoarea desfășurare.",
   "techHexed": "Blestemat — acest talent este oprit până se termină blestemul.",
-  "techHexedShort": "✕ Blestemat — inactiv"
+  "techHexedShort": "✕ Blestemat — inactiv",
+  "aiThinkProgress": "Testez planuri… ({{count}})",
+  "aiThinkDone": "Planuri testate: {{count}}. Gata!"
 }

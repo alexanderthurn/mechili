@@ -747,6 +747,11 @@ export class ActionDispatcher {
 
     constructor(private readonly ctx: ActionContext) {}
 
+    /** entries in the log (the AI's plan dry run undoes back to a mark) */
+    get length(): number {
+        return this.log.length;
+    }
+
     /** applies and logs the action; false = rejected, nothing changed */
     dispatch(action: Action): boolean {
         const entry: LogEntry = { ...this.ctx.clock(), action };

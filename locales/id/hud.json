@@ -248,5 +248,7 @@
   "forgeReadyNext": "Siap untuk penyebaran selanjutnya",
   "forgeFireToStart": "Nyalakan tungku untuk memulainya — siap untuk penempatan berikutnya.",
   "techHexed": "Terkutuk — talenta ini mati sampai kutukan berakhir.",
-  "techHexedShort": "✕ Terkutuk — tidak aktif"
+  "techHexedShort": "✕ Terkutuk — tidak aktif",
+  "aiThinkProgress": "Menguji rencana… ({{count}})",
+  "aiThinkDone": "Rencana diuji: {{count}}. Siap!"
 }

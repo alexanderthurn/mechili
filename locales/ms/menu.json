@@ -203,7 +203,8 @@
   "aiDifficulty": {
     "easy": "Mudah",
     "medium": "Sederhana",
-    "hard": "Sukar"
+    "hard": "Sukar",
+    "learner": "Pelajar"
   },
   "aiPersonality": {
     "random": "Rawak",

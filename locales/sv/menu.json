@@ -203,7 +203,8 @@
   "aiDifficulty": {
     "easy": "Lätt",
     "medium": "Medel",
-    "hard": "Svår"
+    "hard": "Svår",
+    "learner": "Lärande"
   },
   "aiPersonality": {
     "random": "Slumpad",

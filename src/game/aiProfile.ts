@@ -4,10 +4,11 @@
  * plays Hard — parts come out of it for the easier ones once it plays well.
  */
 
-export type AiDifficulty = 'easy' | 'medium' | 'hard';
+/** `learner`: plays Hard's purse, and simulates plans while the humans deploy (aiThink) */
+export type AiDifficulty = 'easy' | 'medium' | 'hard' | 'learner';
 export type AiPersonality = 'random' | 'rusher' | 'wide' | 'defender';
 
-export const AI_DIFFICULTIES: readonly AiDifficulty[] = ['easy', 'medium', 'hard'];
+export const AI_DIFFICULTIES: readonly AiDifficulty[] = ['easy', 'medium', 'hard', 'learner'];
 export const AI_PERSONALITIES: readonly AiPersonality[] = ['random', 'rusher', 'wide', 'defender'];
 
 /** what a seat plays until someone picks otherwise (also a seat an AI takes over) */
@@ -57,7 +58,7 @@ export function resolvePersonality(
  * spend — the rest is set aside for good (AiOpponent), so the same brain
  * fields a smaller army. Hard spends all of it.
  */
-export const AI_SUPPLY_SHARE: Readonly<Record<AiDifficulty, number>> = { easy: 0.5, medium: 0.75, hard: 1 };
+export const AI_SUPPLY_SHARE: Readonly<Record<AiDifficulty, number>> = { easy: 0.5, medium: 0.75, hard: 1, learner: 1 };
 
 /** how much of its supply a Defender may put into walls, posts and their levels in a round */
 export const DEFENDER_WALL_SHARE = 0.25;

@@ -248,5 +248,7 @@
   "forgeReadyNext": "Sẵn sàng cho lần triển khai tiếp theo",
   "forgeFireToStart": "Khởi động lò rèn — sẵn sàng cho lần triển khai tiếp theo.",
   "techHexed": "Bị nguyền — tài năng này tắt cho đến khi lời nguyền hết.",
-  "techHexedShort": "✕ Bị nguyền — không hoạt động"
+  "techHexedShort": "✕ Bị nguyền — không hoạt động",
+  "aiThinkProgress": "Đang thử kế hoạch… ({{count}})",
+  "aiThinkDone": "Đã thử kế hoạch: {{count}}. Sẵn sàng!"
 }

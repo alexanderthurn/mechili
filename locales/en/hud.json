@@ -260,5 +260,7 @@
   "wallPostsFull": "Every post on this walkway is manned.",
   "targetMark": "Target",
   "targetMarkDesc": "Mark this wall as a target: your units attack it, nearest target first. Free.",
-  "targetMarkOn": "Marked: your units attack this wall, nearest target first. Click to lift the mark."
+  "targetMarkOn": "Marked: your units attack this wall, nearest target first. Click to lift the mark.",
+  "aiThinkProgress": "Testing plans… ({{count}})",
+  "aiThinkDone": "Plans tested: {{count}}. Ready!"
 }

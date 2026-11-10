@@ -850,6 +850,43 @@ export class PlacementController {
         return this.units;
     }
 
+    /** the AI's plan dry run (aiThink) is on: buys leave the ground's sand alone */
+    dryRun = false;
+    /** the last withHiddenUnits run did not leave the list as it found it */
+    dryRunLeaked = false;
+
+    /** the per-seat id counters, for a dry run to put back (ids must not drift) */
+    idCounters(): number[] {
+        return [...this.nextUnitId];
+    }
+
+    restoreIdCounters(saved: readonly number[]): void {
+        this.nextUnitId.length = 0;
+        this.nextUnitId.push(...saved);
+    }
+
+    /**
+     * Runs `fn` with the units matching `hide` taken off the list allUnits()
+     * returns (their tiles stay taken), then puts the list back as it was.
+     * The AI's plan dry run reads the board without the packs the other side
+     * placed this round — what it could not have seen at the phase's start.
+     */
+    withHiddenUnits<T>(hide: (u: Unit) => boolean, fn: () => T): T {
+        const saved = this.units.slice();
+        const kept = saved.filter((u) => !hide(u));
+        this.units.length = 0;
+        this.units.push(...kept);
+        try {
+            return fn();
+        } finally {
+            const leaked = this.units.length !== kept.length || this.units.some((u, i) => u !== kept[i]);
+            this.dryRunLeaked = leaked;
+            if (leaked) console.warn('[aiThink] dry run left the board changed', { before: kept.length, after: this.units.length });
+            this.units.length = 0;
+            this.units.push(...saved);
+        }
+    }
+
     /**
      * A unit is being positioned: a bought ghost on the cursor, a carried pack or
      * a formation move — not merely selected. The deployment grid's cell lines
@@ -1467,7 +1504,7 @@ export class PlacementController {
     /** Soft rounded pad under base buildings (matches footprint; packs leave none). */
     private stampSandUnder(unit: Unit): void {
         const t = unit.type;
-        if (!t.structure || t.extra || t.flying) return;
+        if (!t.structure || t.extra || t.flying || this.dryRun) return;
         const fp = this.footprintOf(t, unit.rotated);
         const w = this.map.sandStampWeight(t);
         const scale = t.sandPadScale ?? 1;
@@ -1533,13 +1570,9 @@ export class PlacementController {
                 col: Math.floor(rng() * (this.map.cols - fp.cols + 1)),
                 row: Math.floor(rng() * (this.map.rows - fp.rows + 1)),
             };
-            const cells = this.coveredCells(fp, anchor);
-            if (!cells) continue;
-            if (!cells.every((c) => this.deployCellOk(team, c, type, seat) && this.cellFree(type, c, null))) continue;
-            if (!this.wallOverlapOk(type, cells, null)) continue;
-            // the AI doesn't understand the flank-spawn tax yet — keep it off
-            // the flanks so its units don't arrive at 1 hp unaware
-            if (cells.some((c) => this.map.isFlankDeployCell(c, team))) continue;
+            // its zone, free — and off the flanks: the AI doesn't understand the
+            // flank-spawn tax yet, its units would arrive at 1 hp unaware
+            if (!this.aiSpotOk(team, seat, type, anchor, rotated)) continue;
             if (this.aiAvoidsAt(seat, type, anchor, rotated)) continue;
             found++;
             const frontward = (a: Cell, b: Cell) =>
@@ -1552,6 +1585,58 @@ export class PlacementController {
             }
         }
         return best;
+    }
+
+    /**
+     * A spot the AI may buy `type` on: its zone and lane, free, off the flank
+     * strips (findAiSpot's rules). The Learner's plan search checks with it.
+     */
+    aiSpotOk(team: Team, seat: SeatId, type: UnitType, anchor: Cell, rotated: boolean): boolean {
+        const cells = this.coveredCells(this.footprintOf(type, rotated), anchor);
+        if (!cells) return false;
+        if (!cells.every((c) => this.deployCellOk(team, c, type, seat) && this.cellFree(type, c, null))) return false;
+        if (!this.wallOverlapOk(type, cells, null)) return false;
+        return !cells.some((c) => this.map.isFlankDeployCell(c, team));
+    }
+
+    /** the allowed spot nearest `near`, ring by ring out to `radius` tiles, or null */
+    aiSpotNear(team: Team, seat: SeatId, type: UnitType, near: Cell, rotated: boolean, radius = 12): Cell | null {
+        const c0 = Math.round(near.col);
+        const r0 = Math.round(near.row);
+        for (let r = 0; r <= radius; r++) {
+            for (let dc = -r; dc <= r; dc++) {
+                for (let dr = -r; dr <= r; dr++) {
+                    if (Math.max(Math.abs(dc), Math.abs(dr)) !== r) continue;
+                    const anchor = { col: c0 + dc, row: r0 + dr };
+                    if (this.aiSpotOk(team, seat, type, anchor, rotated)) return anchor;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The tiles a seat deploys on (its lane of its side's zone, flank strips
+     * left out), as bounds, and which row edge faces the enemy.
+     */
+    aiZone(team: Team, seat: SeatId): { colMin: number; colMax: number; rowMin: number; rowMax: number; frontRow: number; backRow: number } {
+        let colMin = Infinity;
+        let colMax = -Infinity;
+        let rowMin = Infinity;
+        let rowMax = -Infinity;
+        for (let col = 0; col < this.map.cols; col++) {
+            for (let row = 0; row < this.map.rows; row++) {
+                const c = { col, row };
+                if (!this.zoneCell(team, c) || !this.laneOk(seat, c) || this.map.isFlankDeployCell(c, team)) continue;
+                colMin = Math.min(colMin, col);
+                colMax = Math.max(colMax, col);
+                rowMin = Math.min(rowMin, row);
+                rowMax = Math.max(rowMax, row);
+            }
+        }
+        // as findAiSpot: "front" (toward the middle) is a higher row for the near-edge side
+        const frontIsHigherRow = (team === 'player') !== this.map.ownAtFar;
+        return { colMin, colMax, rowMin, rowMax, frontRow: frontIsHigherRow ? rowMax : rowMin, backRow: frontIsHigherRow ? rowMin : rowMax };
     }
 
     /** Puts a removed pack back on its committed spot (sell-action undo). */

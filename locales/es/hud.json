@@ -248,5 +248,7 @@
   "forgeReadyNext": "Listo para el próximo despliegue.",
   "forgeFireToStart": "Enciende la fragua para ponerla en marcha; estará lista para el próximo despliegue.",
   "techHexed": "Maldito — este talento está desactivado hasta que acabe el maleficio.",
-  "techHexedShort": "✕ Maldito — inactivo"
+  "techHexedShort": "✕ Maldito — inactivo",
+  "aiThinkProgress": "Probando planes… ({{count}})",
+  "aiThinkDone": "Planes probados: {{count}}. ¡Listo!"
 }

@@ -1227,6 +1227,7 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-menu .m-roster-ai.is-easy { border-color: #6fa35a; color: #a9d197; }
 .mechili-menu .m-roster-ai.is-medium { border-color: #c9a24a; color: #e6c98a; }
 .mechili-menu .m-roster-ai.is-hard { border-color: #c4553f; color: #ec9a88; }
+.mechili-menu .m-roster-ai.is-learner { border-color: #8a6fc4; color: #c3b0ec; }
 .mechili-menu .m-roster-ai.is-editable { cursor: pointer; }
 .mechili-menu .m-roster-ai.is-editable:hover { border-color: ${u.brassLight}; color: ${u.brassLight}; }
 .mechili-menu .m-lobby-role-row {
