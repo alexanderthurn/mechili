@@ -1722,7 +1722,44 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     color: ${u.text};
 }
 .mechili-film-preview .fp-title { font-size: 14px; font-weight: 600; }
-.mechili-film-preview .fp-video { width: 100%; max-height: 70vh; background: #000; border-radius: 2px; }
+.mechili-film-preview .fp-head-row { display: flex; align-items: center; gap: 10px; }
+.mechili-film-preview .fp-head-row .fp-title { flex: 1; }
+.mechili-film-preview .fp-format { display: flex; gap: 4px; }
+.mechili-film-preview .fp-format button {
+    padding: 4px 12px;
+    border: 1.5px solid ${u.border};
+    border-radius: 4px;
+    background: ${u.panelBg};
+    color: ${u.textMuted};
+    cursor: pointer;
+}
+.mechili-film-preview .fp-format button.is-on { color: ${u.brassLight}; border-color: ${u.brassLight}; }
+.mechili-film-preview .fp-frame { display: flex; justify-content: center; background: #000; border-radius: 2px; }
+/* the box is the picture (no bars): the Short frame's percentages land on the image */
+.mechili-film-preview .fp-video { display: block; width: auto; height: auto; max-width: min(932px, calc(92vw - 28px)); max-height: 70vh; }
+.mechili-film-preview .fp-stage { position: relative; display: inline-block; max-width: 100%; }
+/* a short: the frame on the wide preview marks the area filmed; outside it dims */
+.mechili-film-preview .fp-area {
+    position: absolute;
+    border: 2px solid ${u.brassLight};
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+    cursor: move;
+    touch-action: none;
+}
+.mechili-film-preview .fp-area[hidden] { display: none; }
+.mechili-film-preview .fp-stage { overflow: hidden; }
+.mechili-film-preview .fp-area-size {
+    position: absolute;
+    right: -7px;
+    bottom: -7px;
+    width: 14px;
+    height: 14px;
+    background: ${u.brassLight};
+    border-radius: 2px;
+    cursor: nwse-resize;
+}
+.mechili-film-preview .fp-area-hint { font-size: 12px; color: ${u.textMuted}; }
+.mechili-film-preview .fp-area-hint[hidden] { display: none; }
 .mechili-film-preview .fp-actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
 .mechili-film-preview .fp-gap { flex: 1; }
 .mechili-film-preview .fp-bar {

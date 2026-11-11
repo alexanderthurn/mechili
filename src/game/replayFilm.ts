@@ -25,6 +25,7 @@ export interface FilmGame {
     beginFilm(): boolean;
     filmFrame(dt: number, draw?: boolean): void;
     setFilmSize(size: { width: number; height: number } | null): void;
+    setFilmView(view: { aspect: number; x: number; y: number; w: number; h: number } | null): void;
     endFilm(): void;
     readonly filmState: { phase: Phase; matchOver: boolean; ready: boolean };
     skipReplayDeployment(): void;
@@ -33,13 +34,21 @@ export interface FilmGame {
 /** a film is downloaded (`file`); a preview is handed back to be played on the spot (`video`) */
 export type FilmResult = { ok: true; file: string | null; video: Blob | null; seconds: number } | { ok: false; reason: string };
 
-export type FilmKind = 'film' | 'preview';
+/** wide: the window's shape; short: 9:16 upright (YouTube Shorts) */
+export type FilmKind = 'film' | 'short' | 'preview';
 
-/** each kind's size, rate and graphics */
-/** `preset` null: the player's own graphics, no rebuild before the take */
-export const FILM_SPECS: Record<FilmKind, { height: number; fps: number; preset: GraphicsPreset | null }> = {
-    film: { height: 2160, fps: 60, preset: 'ultra' },
-    preview: { height: 540, fps: 15, preset: null },
+/** a short is the window's view narrowed to this shape (the camera keeps its vertical view, so it is the middle strip) */
+export const SHORT_ASPECT = 9 / 16;
+
+/**
+ * Each kind's size, rate and graphics. `aspect` null: the window's shape.
+ * `fallbackHeight`: tried when the browser can't encode the full size.
+ * `preset` null: the player's own graphics, no rebuild before the take.
+ */
+export const FILM_SPECS: Record<FilmKind, { height: number; fallbackHeight?: number; aspect: number | null; fps: number; preset: GraphicsPreset | null }> = {
+    film: { height: 2160, aspect: null, fps: 60, preset: 'ultra' },
+    short: { height: 3840, fallbackHeight: 1920, aspect: SHORT_ASPECT, fps: 60, preset: 'ultra' },
+    preview: { height: 540, aspect: null, fps: 15, preset: null },
 };
 
 /** about 0.1 bits per pixel per frame — crisp for a busy battlefield (4K60: ~50 Mbit/s) */
@@ -56,7 +65,7 @@ function filenameFor(round: number, kind: FilmKind): string {
     const d = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
     const when = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}`;
-    return `${when}_replay_round${round}${kind === 'preview' ? '_preview' : ''}.mp4`;
+    return `${when}_replay_round${round}${kind === 'film' ? '' : `_${kind}`}.mp4`;
 }
 
 function download(data: ArrayBuffer, filename: string): void {
@@ -90,25 +99,60 @@ export interface FilmRange {
     to: number;
 }
 
+/**
+ * A Short's area of the wide view, 9:16 upright: its middle (0…1 of the
+ * view's width / height) and its height as a part of the view's (1: the
+ * full height; smaller: closer, drawn at full resolution all the same).
+ */
+export interface ShortArea {
+    cx: number;
+    cy: number;
+    h: number;
+}
+
+/** the smallest area, as a part of the view's height */
+const MIN_SHORT_H = 0.2;
+
+/** the area's rectangle in the view (0…1, from the top left), kept inside it */
+function shortRect(area: ShortArea, viewAspect: number): { x: number; y: number; w: number; h: number } {
+    const h = Math.max(MIN_SHORT_H, Math.min(1, area.h));
+    const w = Math.min(1, (h * SHORT_ASPECT) / viewAspect);
+    const x = Math.max(0, Math.min(1 - w, area.cx - w / 2));
+    const y = Math.max(0, Math.min(1 - h, area.cy - h / 2));
+    return { x, y, w, h };
+}
+
 /** the shortest stretch the handles allow, seconds */
 const MIN_RANGE = 0.5;
 
 const fmt = (t: number) => `${t.toFixed(1)} s`;
 
 /**
- * A preview played on the spot, over the game. Under the video a bar with
- * two handles picks the part to keep (left: start, right: end); the video
- * loops just that part. "Film in 4K" takes the real film of that part only,
- * from the same shot.
+ * A preview played on the spot, over the game. Wide | Short switches the
+ * format: a short shows the preview's middle 9:16 strip, which is exactly
+ * what the upright film will hold. Under the video a bar with two handles
+ * picks the part to keep (left: start, right: end); the video loops just
+ * that part. The film button takes the real film of that part only, in the
+ * chosen format, from the same shot.
  */
-export function showPreviewPlayer(parent: HTMLElement, video: Blob, round: number, seconds: number, onFilm: (range: FilmRange) => void): void {
+export function showPreviewPlayer(
+    parent: HTMLElement,
+    video: Blob,
+    round: number,
+    seconds: number,
+    onFilm: (range: FilmRange, kind: 'film' | 'short', area: ShortArea | null) => void,
+): void {
     const url = URL.createObjectURL(video);
     const overlay = document.createElement('div');
     overlay.className = 'mechili-film-preview';
     overlay.innerHTML =
         `<div class="fp-box">` +
-        `<div class="fp-title">Preview of round ${round}</div>` +
-        `<video class="fp-video" autoplay playsinline></video>` +
+        `<div class="fp-head-row"><div class="fp-title">Preview of round ${round}</div>` +
+        `<div class="fp-format"><button type="button" data-format="film" class="is-on">Wide</button>` +
+        `<button type="button" data-format="short">Short</button></div></div>` +
+        `<div class="fp-frame"><div class="fp-stage"><video class="fp-video" autoplay playsinline></video>` +
+        `<div class="fp-area" hidden><div class="fp-area-size" title="Drag: bigger / smaller"></div></div></div></div>` +
+        `<div class="fp-area-hint" hidden>Short: drag the frame to move it, its corner (or the mouse wheel) to size it — a smaller frame is filmed closer, as sharp.</div>` +
         `<div class="fp-bar"><div class="fp-sel"></div><div class="fp-head"></div>` +
         `<div class="fp-handle from" title="Start"></div><div class="fp-handle to" title="End"></div></div>` +
         `<div class="fp-info"></div>` +
@@ -128,7 +172,63 @@ export function showPreviewPlayer(parent: HTMLElement, video: Blob, round: numbe
     const info = overlay.querySelector<HTMLDivElement>('.fp-info')!;
     const playBtn = overlay.querySelector<HTMLButtonElement>('[data-act="play"]')!;
     const filmBtn = overlay.querySelector<HTMLButtonElement>('[data-act="film"]')!;
+    const frame = overlay.querySelector<HTMLDivElement>('.fp-frame')!;
+    const stage = overlay.querySelector<HTMLDivElement>('.fp-stage')!;
+    const areaEl = overlay.querySelector<HTMLDivElement>('.fp-area')!;
+    const areaHint = overlay.querySelector<HTMLDivElement>('.fp-area-hint')!;
     videoEl.src = url;
+    let format: 'film' | 'short' = 'film';
+    const area: ShortArea = { cx: 0.5, cy: 0.5, h: 1 };
+    const videoAspect = () => (videoEl.videoWidth > 0 ? videoEl.videoWidth / videoEl.videoHeight : 16 / 9);
+    const paintArea = () => {
+        const short = format === 'short';
+        areaEl.hidden = !short;
+        areaHint.hidden = !short;
+        if (!short) return;
+        const r = shortRect(area, videoAspect());
+        // keep the stored middle where the rectangle really is (it was kept inside the view)
+        area.cx = r.x + r.w / 2;
+        area.cy = r.y + r.h / 2;
+        areaEl.style.left = `${r.x * 100}%`;
+        areaEl.style.top = `${r.y * 100}%`;
+        areaEl.style.width = `${r.w * 100}%`;
+        areaEl.style.height = `${r.h * 100}%`;
+    };
+    // moving the frame (drag inside) or sizing it (drag its corner, or the wheel)
+    let areaDrag: { mode: 'move' | 'size'; x: number; y: number; start: ShortArea } | null = null;
+    areaEl.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const mode = (e.target as HTMLElement).classList.contains('fp-area-size') ? 'size' : 'move';
+        areaDrag = { mode, x: e.clientX, y: e.clientY, start: { ...area } };
+    });
+    const onAreaMove = (e: PointerEvent) => {
+        if (!areaDrag) return;
+        const box = stage.getBoundingClientRect();
+        const dx = (e.clientX - areaDrag.x) / Math.max(1, box.width);
+        const dy = (e.clientY - areaDrag.y) / Math.max(1, box.height);
+        if (areaDrag.mode === 'move') {
+            area.cx = areaDrag.start.cx + dx;
+            area.cy = areaDrag.start.cy + dy;
+        } else {
+            // the corner pulled down/right grows the frame (from its middle)
+            area.h = Math.max(MIN_SHORT_H, Math.min(1, areaDrag.start.h + Math.max(dy, (dx * videoAspect()) / SHORT_ASPECT) * 2));
+        }
+        paintArea();
+    };
+    const onAreaUp = () => (areaDrag = null);
+    stage.addEventListener(
+        'wheel',
+        (e) => {
+            if (format !== 'short') return;
+            e.preventDefault();
+            area.h = Math.max(MIN_SHORT_H, Math.min(1, area.h * (e.deltaY > 0 ? 1.08 : 1 / 1.08)));
+            paintArea();
+        },
+        { passive: false },
+    );
+    window.addEventListener('pointermove', onAreaMove);
+    window.addEventListener('pointerup', onAreaUp);
 
     let total = Math.max(MIN_RANGE, seconds);
     const range: FilmRange = { from: 0, to: total };
@@ -141,7 +241,11 @@ export function showPreviewPlayer(parent: HTMLElement, video: Blob, round: numbe
         head.style.left = pct(videoEl.currentTime);
         const whole = range.from <= 0.01 && range.to >= total - 0.01;
         info.textContent = whole ? `The whole battle: ${fmt(total)}` : `From ${fmt(range.from)} to ${fmt(range.to)} — ${fmt(range.to - range.from)}`;
-        filmBtn.textContent = whole ? '🎬 Film in 4K' : `🎬 Film ${fmt(range.to - range.from)} in 4K`;
+        const what = format === 'short' ? 'as Short' : 'in 4K';
+        filmBtn.textContent = whole ? `🎬 Film ${what}` : `🎬 Film ${fmt(range.to - range.from)} ${what}`;
+        frame.classList.toggle('short', format === 'short');
+        paintArea();
+        overlay.querySelectorAll<HTMLButtonElement>('[data-format]').forEach((b) => b.classList.toggle('is-on', b.dataset.format === format));
         playBtn.textContent = videoEl.paused ? 'Play' : 'Pause';
     };
     videoEl.addEventListener('loadedmetadata', () => {
@@ -206,6 +310,8 @@ export function showPreviewPlayer(parent: HTMLElement, video: Blob, round: numbe
         window.removeEventListener('keydown', onKey, true);
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointermove', onAreaMove);
+        window.removeEventListener('pointerup', onAreaUp);
         videoEl.pause();
         overlay.remove();
         URL.revokeObjectURL(url);
@@ -223,7 +329,9 @@ export function showPreviewPlayer(parent: HTMLElement, video: Blob, round: numbe
     window.addEventListener('keydown', onKey, true);
     overlay.addEventListener('click', (e) => {
         if (e.target === overlay) return close();
-        const act = (e.target as HTMLElement).closest<HTMLButtonElement>('button')?.dataset.act;
+        const button = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
+        if (button?.dataset.format) format = button.dataset.format === 'short' ? 'short' : 'film';
+        const act = button?.dataset.act;
         if (act === 'close') close();
         if (act === 'play') {
             if (videoEl.paused) void videoEl.play();
@@ -235,8 +343,9 @@ export function showPreviewPlayer(parent: HTMLElement, video: Blob, round: numbe
         }
         if (act === 'film') {
             const chosen = { ...range };
+            const chosenArea = format === 'short' ? { ...area } : null;
             close();
-            onFilm(chosen);
+            onFilm(chosen, format, chosenArea);
         }
     });
     parent.appendChild(overlay);
@@ -271,14 +380,25 @@ export async function filmBattle(
     kind: FilmKind,
     /** only this stretch of the battle (seconds from its start); null: all of it */
     range: FilmRange | null = null,
+    /** a Short: the part of the view it holds (null: the middle strip, full height) */
+    area: ShortArea | null = null,
 ): Promise<FilmResult> {
     if (typeof VideoEncoder === 'undefined') return { ok: false, reason: 'This browser cannot encode video (no WebCodecs).' };
-    const { height, fps } = FILM_SPECS[kind];
-    // the window's shape at the spec's lines (even sides, as H.264 wants)
-    const aspect = Math.max(0.5, Math.min(4, canvas.clientWidth / Math.max(1, canvas.clientHeight)));
-    const width = Math.round((height * aspect) / 2) * 2;
-    const bitrate = Math.max(1_500_000, Math.round(width * height * fps * BITS_PER_PIXEL_FRAME));
-    if (!(await canEncodeVideo('avc', { width, height, bitrate }))) {
+    const spec = FILM_SPECS[kind];
+    const { fps } = spec;
+    // the spec's shape (else the window's) at its lines, even sides as H.264 wants; the fallback
+    // size when the full one can't be encoded here
+    const viewAspect = Math.max(0.5, Math.min(4, canvas.clientWidth / Math.max(1, canvas.clientHeight)));
+    const aspect = spec.aspect ?? viewAspect;
+    const sizeAt = (h: number) => {
+        const height = h - (h % 2);
+        const width = Math.round((height * aspect) / 2) * 2;
+        return { width, height, bitrate: Math.max(1_500_000, Math.round(width * height * fps * BITS_PER_PIXEL_FRAME)) };
+    };
+    let size = sizeAt(spec.height);
+    if (!(await canEncodeVideo('avc', size)) && spec.fallbackHeight) size = sizeAt(spec.fallbackHeight);
+    const { width, height, bitrate } = size;
+    if (!(await canEncodeVideo('avc', size))) {
         return { ok: false, reason: `This browser cannot encode H.264 at ${width}×${height}.` };
     }
     const target = new BufferTarget();
@@ -301,6 +421,8 @@ export async function filmBattle(
     let finished = false;
     try {
         game.setFilmSize({ width, height });
+        // a Short draws its area of the window's view (sharp at full size), not a squeezed view
+        if (kind === 'short') game.setFilmView({ aspect: viewAspect, ...shortRect(area ?? { cx: 0.5, cy: 0.5, h: 1 }, viewAspect) });
         await output.start();
         // the rest of the deployment at once; frames run (unfilmed) until the battle is on
         game.skipReplayDeployment();
@@ -330,7 +452,7 @@ export async function filmBattle(
             frames++;
             if (frames % 10 === 0) {
                 const of = range ? ` of ${((to - from) * dt).toFixed(1)} s` : ' of battle';
-                progress.set(`${kind === 'preview' ? 'Preview of' : 'Filming'} round ${round}… ${(frames * dt).toFixed(1)} s${of}`);
+                progress.set(`${kind === 'preview' ? 'Preview of' : kind === 'short' ? 'Short of' : 'Filming'} round ${round}… ${(frames * dt).toFixed(1)} s${of}`);
                 await breathe();
             }
         }

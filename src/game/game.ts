@@ -7813,10 +7813,30 @@ export class Game {
         }
     }
 
+    /**
+     * Films only a part of the view (a Short's chosen area): the camera keeps
+     * the window's shape (`aspect`) and draws just the rectangle x, y, w, h
+     * of it (0…1, from the top left) — at the film's full size, so a small
+     * area comes out sharp, not enlarged. Call after setFilmSize; null: the
+     * whole view again.
+     */
+    setFilmView(view: { aspect: number; x: number; y: number; w: number; h: number } | null): void {
+        const camera = this.rig.camera;
+        if (!view) {
+            camera.clearViewOffset();
+            return;
+        }
+        const fullH = 10_000;
+        const fullW = fullH * view.aspect;
+        camera.aspect = view.aspect;
+        camera.setViewOffset(fullW, fullH, view.x * fullW, view.y * fullH, view.w * fullW, view.h * fullH);
+    }
+
     /** the film is over: the window's size and the ticker again */
     endFilm(): void {
         if (this.filmDt === null) return;
         this.filmDt = null;
+        this.setFilmView(null);
         this.lastSimRealTimeMs = null;
         if (this.disposed) return;
         this.setFilmSize(null);

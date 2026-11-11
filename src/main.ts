@@ -4107,7 +4107,6 @@ async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
         },
         onSkipDeployment: () => activeGame?.skipReplayDeployment(),
         onTryRound: () => void withReplayLoader(roundLoadingText(replayRound), () => startPracticeRound()),
-        onFilm: () => void openReplayFilm('film'),
         onPreview: () => void openReplayFilm('preview'),
         onSaveScenario: () => saveReplayScenario(),
     });
@@ -4255,14 +4254,18 @@ function rebuildReplay(target: number | 'end'): void {
 }
 
 /**
- * "Film Round N" / "Preview": the round's battle rendered into an .mp4,
+ * "Preview Round N", and from its player the film (wide or a Short): the round's battle rendered into an .mp4,
  * frame by frame (replayFilm.ts — loaded only here, with its encoder
  * library). The film is taken in a rebuild at Ultra (in effect for the take
  * only, never saved); the preview right away, with the player's own
  * graphics. Afterwards the replay is rebuilt at that round again, ready for
  * another take, from the same shot.
  */
-async function openReplayFilm(kind: 'film' | 'preview', range: { from: number; to: number } | null = null): Promise<void> {
+async function openReplayFilm(
+    kind: 'film' | 'short' | 'preview',
+    range: { from: number; to: number } | null = null,
+    area: { cx: number; cy: number; h: number } | null = null,
+): Promise<void> {
     if (!activeGame || !currentReplayRecord || replayLoaderEl) return;
     const film = await import('./game/replayFilm');
     const round = replayRound;
@@ -4285,7 +4288,7 @@ async function openReplayFilm(kind: 'film' | 'preview', range: { from: number; t
         }
         replayControlsPanel?.setPracticing(true);
         const game = activeGame as Game | null;
-        result = game ? await film.filmBattle(game, threeCanvas, wrapper, round, kind, range) : { ok: false, reason: 'no replay' };
+        result = game ? await film.filmBattle(game, threeCanvas, wrapper, round, kind, range, area) : { ok: false, reason: 'no replay' };
     } finally {
         restorePrefs();
     }
@@ -4295,7 +4298,7 @@ async function openReplayFilm(kind: 'film' | 'preview', range: { from: number; t
     });
     if (result.ok && result.video) {
         // the preview plays on the spot; "Film in 4K" takes the real one from the same shot
-        film.showPreviewPlayer(wrapper, result.video, round, result.seconds, (chosen) => void openReplayFilm('film', chosen));
+        film.showPreviewPlayer(wrapper, result.video, round, result.seconds, (chosen, format, chosenArea) => void openReplayFilm(format, chosen, chosenArea));
         return;
     }
     film.showFilmNote(

@@ -1355,9 +1355,12 @@ export class SoftParticlePool {
         points.frustumCulled = false;
         points.renderOrder = renderOrder;
         const bufSize = new Vector2();
-        points.onBeforeRender = (renderer) => {
+        points.onBeforeRender = (renderer, _scene, camera) => {
             renderer.getDrawingBufferSize(bufSize);
-            material.uniforms.uScale!.value = bufSize.y * 0.5;
+            // a camera drawing only part of its view (a replay film's Short area) magnifies — so do the points
+            const view = (camera as { view?: { enabled: boolean; fullHeight: number; height: number } | null }).view;
+            const zoom = view?.enabled && view.height > 0 ? view.fullHeight / view.height : 1;
+            material.uniforms.uScale!.value = bufSize.y * 0.5 * zoom;
         };
         this.points = points;
         scene.add(points);

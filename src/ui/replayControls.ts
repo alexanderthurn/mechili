@@ -23,9 +23,7 @@ export interface ReplayControlsCallbacks {
     onSkipDeployment(): void;
     /** play this round's deployment yourself, as the watched seat */
     onTryRound(): void;
-    /** film this round's battle into an .mp4 (replayFilm.ts): 4K, 60 fps, Ultra */
-    onFilm(): void;
-    /** the same, quick: 540p, 15 fps, the player's own graphics */
+    /** a quick film of this round's battle (replayFilm.ts), played on the spot: the real film (wide or a Short) is taken from there */
     onPreview(): void;
     /** save the board as it stands as a scenario; resolves to a short status line */
     onSaveScenario(): Promise<string>;
@@ -54,8 +52,7 @@ export class ReplayControls {
             `<label>${t('hud:replayRound', { defaultValue: 'Round' })} <select class="rc-round">${roundOptions}</select></label>` +
             `<button type="button" class="rc-skip-deploy">${t('hud:replaySkipDeploy', { defaultValue: 'Skip Deployment' })}</button>` +
             `<button type="button" class="rc-try">${t('hud:replayTryRound', { defaultValue: 'Try this round' })}</button>` +
-            `<button type="button" class="rc-film" title="Render this round's battle into an .mp4 (4K, 60 fps, Ultra graphics), frame by frame">🎬 Film Round 1</button>` +
-            `<button type="button" class="rc-preview" title="A quick look first: 540p, 15 fps, your own graphics settings">Preview</button>` +
+            `<button type="button" class="rc-preview" title="A quick film of this round's battle to look at — from there, the real one in 4K (wide or a Short)">🎬 Preview Round 1</button>` +
             `</div>` +
             // hidden for now: saving a replay's board as a scenario
             `<div class="rc-row" hidden>` +
@@ -72,7 +69,6 @@ export class ReplayControls {
         });
         this.root.querySelector('.rc-skip-deploy')!.addEventListener('click', () => cb.onSkipDeployment());
         this.root.querySelector('.rc-try')!.addEventListener('click', () => cb.onTryRound());
-        this.root.querySelector('.rc-film')!.addEventListener('click', () => cb.onFilm());
         this.root.querySelector('.rc-preview')!.addEventListener('click', () => cb.onPreview());
         const seatSelect = this.root.querySelector<HTMLSelectElement>('.rc-seat')!;
         seatSelect.addEventListener('change', () => cb.onSeat(Number(seatSelect.value)));
@@ -116,7 +112,7 @@ export class ReplayControls {
     /** re-synced after a jump and at every round's start, so the dropdown shows where you are */
     setCurrentRound(round: number): void {
         this.roundSelect.value = String(round);
-        this.root.querySelector('.rc-film')!.textContent = `🎬 Film Round ${round}`;
+        this.root.querySelector('.rc-preview')!.textContent = `🎬 Preview Round ${round}`;
     }
 
     remove(): void {
