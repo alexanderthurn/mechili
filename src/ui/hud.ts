@@ -3900,6 +3900,8 @@ export class Hud {
         // round/phase like anyone else watching. Only suppress the round
         // label for a genuine player-side wait.
         watching = false,
+        /** a replay: the seat's shop, money and items show, but nothing takes a click */
+        replayView = false,
     ): void {
         this.roundEl.textContent =
             waitingForPeer && !watching
@@ -3913,6 +3915,9 @@ export class Hud {
         this.topBar.classList.toggle('battle', phase === 'battle' || phase === 'hpDraw');
         // a replay: the speed button stays for the deployments too
         this.topBar.classList.toggle('watching', watching);
+        this.topBar.classList.toggle('replay-view', replayView);
+        this.shopColumn.classList.toggle('replay-view', replayView);
+        this.inventoryEl.classList.toggle('replay-view', replayView);
         // last 5s of deployment — pulse so the player knows to hurry
         this.timerEl.classList.toggle(
             'urgent',

@@ -1,4 +1,4 @@
-import { setDiagnosticsMode } from './game/diagnostics';
+import { isBenignBrowserError, setDiagnosticsMode } from './game/diagnostics';
 import { Application, Assets, Container, Sprite, Text } from 'pixi.js';
 import { retryFailedUnitModels } from './game/unitModels';
 import type { LoggedAction } from './game/actions';
@@ -228,6 +228,7 @@ function showFatal(title: string, detail: string): void {
     el.textContent = `${title}\n${detail}\n\n${t('menu:tapToDismiss')}`;
 }
 window.addEventListener('error', (e) => {
+    if (isBenignBrowserError(e.message)) return;
     showFatal(`Error: ${e.message}`, `${e.filename ?? ''}:${e.lineno ?? ''}\n${e.error?.stack ?? ''}`);
 });
 window.addEventListener('unhandledrejection', (e) => {
@@ -435,13 +436,18 @@ matchUiRoot.style.cssText =
     'position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:10;';
 wrapper.appendChild(matchUiRoot);
 
-function replaceThreeCanvas(): void {
+/**
+ * A fresh 3D canvas (and so a fresh GL context) for the next Game. `prewarm`
+ * off when that Game is built right away: the warm-up makes its own renderer
+ * on the canvas a frame later, which would then draw over the Game's.
+ */
+function replaceThreeCanvas(prewarm = true): void {
     discardPrewarmedRenderer();
     threeCanvas.remove();
     threeCanvas = createThreeCanvas();
     wrapper.insertBefore(threeCanvas, app.canvas);
     // next match would otherwise pay a cold renderer + shader-compile hitch
-    void prewarmGpu(threeCanvas);
+    if (prewarm) void prewarmGpu(threeCanvas);
 }
 
 document.body.appendChild(wrapper);
@@ -3514,6 +3520,10 @@ function constructGame(
         verify?: boolean;
         mode?: MatchMode;
         expected?: { result: MatchResult; rounds: number; playerHp: number; enemyHp: number };
+        /** whose eyes (Game's replay.seat) */
+        seat?: number;
+        /** "Try this round" (Game's replay.practice) */
+        practice?: boolean;
     } | null,
     spectate: {
         session: SpectatorLink;
@@ -3619,6 +3629,10 @@ function startGame(
         verify?: boolean;
         mode?: MatchMode;
         expected?: { result: MatchResult; rounds: number; playerHp: number; enemyHp: number };
+        /** whose eyes (Game's replay.seat) */
+        seat?: number;
+        /** "Try this round" (Game's replay.practice) */
+        practice?: boolean;
     } | null = null,
     /** spectate mode: a read-only live view of someone else's running match —
      *  mutually exclusive with everything above; never persists/resumes/reports
@@ -4077,20 +4091,20 @@ async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
     setStatus('');
     setReplayUrl({ id, side });
     currentReplayRecord = record;
-    const settings = record.replay.settings;
-    settings.seed = record.replay.seed;
-    startGame(
-        settings,
-        record.side,
-        { local: record.names.local, opponent: record.names.opponent },
-        null,
-        null,
-        { actions: record.replay.actions, mode: record.mode },
-    );
-    const maxRound = Math.max(1, ...record.replay.actions.map((a) => a.round));
-    replayControlsPanel = new ReplayControls(wrapper, maxRound, {
+    replaySeat = recordingSeat(record);
+    replayRound = 1;
+    buildReplayGame({ round: 1 });
+    const seats = record.replay.settings.seats ?? [];
+    replayControlsPanel = new ReplayControls(wrapper, replayLastRound(record), {
+        seats: seats.map((s, seat) => ({ seat, label: replaySeatLabel(s) })),
+        seat: replaySeat,
         onJump: (round) => void rebuildReplayAt(round),
+        onSeat: (seat) => {
+            replaySeat = seat;
+            rebuildReplay(replayRound);
+        },
         onSkipDeployment: () => activeGame?.skipReplayDeployment(),
+        onTryRound: () => startPracticeRound(),
         onSaveScenario: () => saveReplayScenario(),
     });
     const mismatch = replayBuildMismatch(record);
@@ -4105,53 +4119,114 @@ async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
     followReplayRound();
 }
 
+/** the seat a replay is watched from (Game's replay.seat) — starts as the one that recorded it */
+let replaySeat = 0;
+/** the replay's round being watched (or tried) */
+let replayRound = 1;
+
+function replayLastRound(record: MatchTelemetry): number {
+    return Math.max(1, ...record.replay.actions.map((a) => a.round));
+}
+
+/** the recording player's seat: their name on their own side, else that side's first seat */
+function recordingSeat(record: MatchTelemetry): number {
+    const seats = record.replay.settings.seats ?? [];
+    const mySide = record.side === 'a' ? 0 : 1;
+    const named = seats.findIndex((s) => s.side === mySide && s.name === record.names.local);
+    if (named >= 0) return named;
+    const first = seats.findIndex((s) => s.side === mySide);
+    return first >= 0 ? first : mySide;
+}
+
+function replaySeatLabel(s: { name: string; controller: 'human' | 'ai'; aiDifficulty?: string }): string {
+    if (s.controller !== 'ai' && !s.aiDifficulty) return s.name;
+    const difficulty = t(`menu:aiDifficulty.${s.aiDifficulty ?? 'hard'}`, { defaultValue: s.aiDifficulty ?? 'AI' });
+    return `${s.name} (${difficulty})`;
+}
+
+/**
+ * The current replay as a new Game: watched from `replaySeat`, fast-forwarded
+ * to `round`'s deployment — or that round tried live (`practice`).
+ */
+function buildReplayGame(opts: { round: number | 'end'; practice?: boolean }): void {
+    const record = currentReplayRecord;
+    if (!record) return;
+    const rebuilding = activeGame !== null;
+    activeGame?.destroy();
+    activeGame = null;
+    started = false;
+    // a new GL context too: a renderer made on the old one inherits its state, and the
+    // shop's 3D thumbnails (drawn first) came out white
+    if (rebuilding) replaceThreeCanvas(false);
+    const settings = record.replay.settings;
+    settings.seed = record.replay.seed;
+    const seat = settings.seats?.[replaySeat];
+    const side: 'a' | 'b' = seat ? (seat.side === 0 ? 'a' : 'b') : record.side;
+    const names =
+        seat && seat.name !== record.names.local
+            ? { local: seat.name, opponent: record.names.local }
+            : { local: record.names.local, opponent: record.names.opponent };
+    startGame(settings, side, names, null, null, {
+        actions: record.replay.actions,
+        jumpToRound: opts.round === 'end' ? Infinity : opts.round,
+        mode: record.mode,
+        seat: settings.seats ? replaySeat : undefined,
+        practice: opts.practice,
+    });
+}
+
 /**
  * The replay controls follow the playback: the round dropdown (it can't jump
- * to the round it wrongly shows), the speed (the battle's own speed button
- * changes it too), and out of the way while a battle runs.
+ * to the round it wrongly shows), and out of the way while a battle runs or
+ * in cinema mode.
  */
 function followReplayRound(): void {
     const game = activeGame as Game | null;
     if (!game) return;
-    game.onReplayRound = (round) => replayControlsPanel?.setCurrentRound(round);
+    game.onReplayRound = (round) => {
+        replayRound = round;
+        replayControlsPanel?.setCurrentRound(round);
+    };
     game.onReplayPhase = (phase, cinema) => replayControlsPanel?.setHidden(cinema || phase === 'battle' || phase === 'hpDraw');
 }
 
-/** round-jump / skip-to-end: tear down the current replay Game and
- *  reconstruct fresh, fast-forwarded to the target — state is always fully
- *  reconstructible from {seed, settings, actions}, so this is simpler and
- *  safer than trying to rewind a live instance in place. */
+/** a round jump: forward runs on in place (instant), anything else rebuilds */
 async function rebuildReplayAt(target: number | 'end'): Promise<void> {
     if (!currentReplayRecord) return;
-    const lastRound = Math.max(1, ...currentReplayRecord.replay.actions.map((a) => a.round));
-    // forward: run on from where it is, no rebuild — instant
+    const landed = target === 'end' ? replayLastRound(currentReplayRecord) : target;
     if (activeGame?.jumpReplayForward(target === 'end' ? Infinity : target)) {
-        replayControlsPanel?.setCurrentRound(target === 'end' ? lastRound : target);
+        replayRound = landed;
+        replayControlsPanel?.setCurrentRound(landed);
         return;
     }
-    activeGame?.destroy();
-    activeGame = null;
-    started = false;
-    const settings = currentReplayRecord.replay.settings;
-    settings.seed = currentReplayRecord.replay.seed;
-    startGame(
-        settings,
-        currentReplayRecord.side,
-        { local: currentReplayRecord.names.local, opponent: currentReplayRecord.names.opponent },
-        null,
-        null,
-        {
-            actions: currentReplayRecord.replay.actions,
-            jumpToRound: target === 'end' ? Infinity : target,
-            mode: currentReplayRecord.mode,
-        },
-    );
-    if (replayControlsPanel) {
-        const landedRound =
-            target === 'end' ? Math.max(1, ...currentReplayRecord.replay.actions.map((a) => a.round)) : target;
-        replayControlsPanel.setCurrentRound(landedRound);
-    }
+    rebuildReplay(target);
+}
+
+/** the replay rebuilt from the start, standing at `target`'s deployment */
+function rebuildReplay(target: number | 'end'): void {
+    if (!currentReplayRecord) return;
+    buildReplayGame({ round: target });
+    replayRound = target === 'end' ? replayLastRound(currentReplayRecord) : target;
+    replayControlsPanel?.setPracticing(false);
+    replayControlsPanel?.setCurrentRound(replayRound);
     followReplayRound();
+}
+
+/**
+ * "Try this round": the watched seat plays the current round live, the
+ * others deploy what they did. Nothing is saved or reported; afterwards
+ * the result, then again or back to the replay.
+ */
+function startPracticeRound(): void {
+    if (!currentReplayRecord) return;
+    const round = replayRound;
+    buildReplayGame({ round, practice: true });
+    replayControlsPanel?.setPracticing(true);
+    const game = activeGame as Game | null;
+    if (!game) return;
+    // over (or left): straight back to the replay, at the tried round — after the
+    // frame that ended it (the Game is mid-update when it says so)
+    game.onPracticeDone = () => setTimeout(() => rebuildReplay(round), 0);
 }
 
 /**

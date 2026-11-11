@@ -1673,7 +1673,8 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-replay-controls .rc-row { display: flex; align-items: center; gap: 8px; }
 .mechili-replay-controls .rc-row[hidden] { display: none; }
 /* a battle is on (only the battle's own centered speed button, the HUD's) or cinema mode */
-.mechili-replay-controls.is-hidden { display: none; }
+.mechili-replay-controls.is-hidden,
+.mechili-replay-controls.is-practicing { display: none; }
 .mechili-replay-controls .rc-warning { color: #e0a060; max-width: 34em; line-height: 1.35; }
 .mechili-replay-controls label { display: flex; align-items: center; gap: 4px; }
 .mechili-replay-controls input, .mechili-replay-controls select {

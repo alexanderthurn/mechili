@@ -152,6 +152,7 @@ function installErrorHooks(): void {
     const send = (message: string, stack: string | undefined) =>
         reportDiagnostic('error', message.slice(0, 200), {}, { message, stack: stack?.slice(0, 8000) });
     window.addEventListener('error', (e) => {
+        if (isBenignBrowserError(e.message)) return;
         const err = e.error as Error | undefined;
         send(err?.message ?? e.message ?? 'error', err?.stack ?? `${e.filename}:${e.lineno}:${e.colno}`);
     });
@@ -159,4 +160,14 @@ function installErrorHooks(): void {
         const r = e.reason as Error | string | undefined;
         send(typeof r === 'string' ? r : (r?.message ?? 'unhandled rejection'), typeof r === 'string' ? undefined : r?.stack);
     });
+}
+
+/**
+ * Browser notices that arrive as window errors but break nothing — not worth a
+ * red overlay or a report. "ResizeObserver loop …": a resize callback changed
+ * the layout again, so the rest is delivered next frame (a fresh canvas going
+ * in, as a replay rebuild does, sets it off).
+ */
+export function isBenignBrowserError(message: string | undefined): boolean {
+    return !!message && message.startsWith('ResizeObserver loop');
 }

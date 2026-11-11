@@ -3971,6 +3971,12 @@ ${hpTubeVal('.mechili-fightbar .hp-val', '13px')}
 }
 .mechili-topbar.battle .end-deploy { display: none; }
 .mechili-topbar.waiting .end-deploy { display: none; }
+/* a replay shows its seat's shop and items read-only: seen, never clicked */
+.mechili-topbar.replay-view .end-deploy { display: none; }
+.mechili-shop-col.replay-view,
+.mechili-shop-col.replay-view *,
+.mechili-sidebar.replay-view,
+.mechili-sidebar.replay-view * { pointer-events: none !important; }
 /* a card overlay is up (specialist pick, reveal, round card) — can't end yet */
 .mechili-topbar.overlay-open .end-deploy { display: none; }
 .mechili-topbar .speed {

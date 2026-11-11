@@ -891,6 +891,17 @@ export class Game {
      *  no input, no AI, no persistence/telemetry re-submission */
     private watching = false;
     private replayLog: LoggedAction[] | null = null;
+    /**
+     * "Try this round" from a replay: the round being tried, played live by
+     * the replay's seat against the others' recorded moves — not a match
+     * (no AI, nothing saved or reported); ends after that round's battle
+     * (onPracticeDone). Null otherwise.
+     */
+    private practiceRound: number | null = null;
+    /** the tried round is under way (set once the others' moves are in) */
+    private practiceLive = false;
+    /** the tried round is over, or the player left it */
+    onPracticeDone: (() => void) | null = null;
     /** index into replayLog of the next not-yet-dispatched entry */
     private replayCursor = 0;
     /** a replay's round → when its deployment ended (its last move's time on the deploy clock) */
@@ -1583,6 +1594,10 @@ export class Game {
             verify?: boolean;
             mode?: MatchMode;
             expected?: { result: MatchResult; rounds: number; playerHp: number; enemyHp: number };
+            /** whose eyes: the seat played back as "you" (its shop, its money); unset = side a/b's first */
+            seat?: number;
+            /** "Try this round": `jumpToRound`'s round is played live by `seat` (see practiceRound) */
+            practice?: boolean;
         } | null = null,
         /** spectate mode: a read-only live view of someone else's running
          *  match, joined via `joinAsSpectator` (see net.ts). Mutually
@@ -1616,7 +1631,8 @@ export class Game {
             const wanted = settingsInput.level ? `scenario "${settingsInput.level.id}"` : 'the base game';
             throw new Error(`[game] this match plays ${wanted}, but another level is active — call prepareLevel first`);
         }
-        this.watching = replay !== null || spectate !== null;
+        this.watching = (replay !== null && !replay.practice) || spectate !== null;
+        this.practiceRound = replay?.practice ? Math.max(1, replay.jumpToRound ?? 1) : null;
         this.watcherName = spectate?.watcherName ?? null;
         this.replayVerify = replay?.verify === true;
         this.replayOriginalMode = replay?.mode ?? null;
@@ -1733,8 +1749,11 @@ export class Game {
         // relabels it to THIS client's own "player = mine" view, same as
         // star mode. Solo/AI play (`side` defaults to 'a') gets the exact
         // same seat 0/1 split as before, just also side-tagged.
-        const humanSeat = star?.mySeat ?? (side === 'a' ? 0 : 1);
+        const humanSeat = star?.mySeat ?? replay?.seat ?? (side === 'a' ? 0 : 1);
+        // a replay from another seat's eyes: its side becomes "player"
+        const perspective = replay?.seat !== undefined && settings.seats ? settings.seats[replay.seat] : undefined;
         const baseSeats =
+            (perspective && settings.seats!.map((s) => ({ ...s, team: s.side === perspective.side ? ('player' as const) : ('enemy' as const) }))) ??
             settings.seats ??
             localizeRoster(
                 canonicalClassicSeats(
@@ -2050,7 +2069,7 @@ export class Game {
         // per lesson round, so the runtime has to exist by the time it runs.
         this.tutorial = isTutorial(settings) ? new TutorialRuntime(this.tutorialHost()) : null;
         this.dispatcher = new ActionDispatcher(this.actionContext(settings));
-        if (this.watching) {
+        if (this.watching || this.practiceRound !== null) {
             // every seat's actions come from the replay log — no AI, no
             // human input, on any seat (same no-op used for a star guest,
             // which already never runs local AI or accepts local input)
@@ -2282,7 +2301,11 @@ export class Game {
             this.restoreSpeedMultiplier(resume.speedMultiplier);
             if (!this.watching) void this.ensureRosterMmrs();
         } else if (replay) {
-            this.replayLog = replay.actions;
+            // `team` is the recording seat's own label: re-derived from the seat, for whoever's eyes these are
+            this.replayLog = replay.actions.map((e) => {
+                const team = this.seats[e.action.seat!]?.team;
+                return team && team !== e.action.team ? { ...e, action: { ...e.action, team } } : e;
+            });
             // round 0 (starter pick) dispatches immediately, same as
             // hydrate() does — a natural pace doesn't matter for a one-time
             // card pick, and this gets straight to round 1's build phase,
@@ -2299,6 +2322,7 @@ export class Game {
             if (replay.jumpToRound !== undefined && replay.jumpToRound > 1) {
                 this.fastForwardReplayThroughRound(replay.jumpToRound);
             }
+            if (this.practiceRound !== null) this.beginPractice();
         } else if (spectate) {
             // same catch-up machinery as a reconnecting player — no
             // perspective swap, we render the match exactly as recorded
@@ -3446,6 +3470,7 @@ export class Game {
         this.onStateCheckpoint = null;
         this.onReplayPhase = null;
         this.onReplayRound = null;
+        this.onPracticeDone = null;
         this.onReturnToMenu = null;
         this.onRetryLastRound = null;
         this.onStartTutorial = null;
@@ -6772,6 +6797,11 @@ export class Game {
     }
 
     voluntaryQuit(): void {
+        // a tried round is no match either: leaving goes back to the replay
+        if (this.practiceRound !== null && !this.disposed) {
+            this.onPracticeDone?.();
+            return;
+        }
         // the editor and its test battles are not matches anyone loses
         if (this.editorMode && !this.disposed) {
             this.quitToMenu();
@@ -7311,6 +7341,23 @@ export class Game {
             this.replayDeployEnd.set(this.round, end);
         }
         return Math.max(0, end - (this.phaseBudgetSeconds() - this.phaseRemaining));
+    }
+
+    /**
+     * "Try this round" begins: the replay stands at the tried round's
+     * deployment. Every other seat's recorded moves of it go in at once,
+     * and the player's own round-card pick (only the deployment is tried);
+     * the rest is the player's, live.
+     */
+    private beginPractice(): void {
+        const log = this.replayLog ?? [];
+        this.replayLog = null;
+        for (const e of log) {
+            if (e.round !== this.round) continue;
+            if (e.action.seat === this.humanSeat && e.action.kind !== 'roundCard') continue;
+            this.dispatcher.dispatch(e.action);
+        }
+        this.practiceLive = true;
     }
 
     private fastForwardReplayThroughRound(target: number): void {
@@ -8266,7 +8313,7 @@ export class Game {
         // still drawn so every client consumes this seat's stream equally)
         const enemyPrimary = primarySeatOf(this.seats, 'enemy');
         const enemyOffer = draw(this.rngRoundCards[enemyPrimary]!);
-        if (this.hydrating || this.watching) {
+        if (this.hydrating || this.watching || this.practiceRound !== null) {
             // no UI, no opponent hook — hydrating: the recorded actions
             // carry the picks and this is re-shown once rebuilt (see
             // hydrate()); watching: the replay log drives the pick
@@ -10737,6 +10784,13 @@ export class Game {
     private proceedAfterHpDraw(): void {
         this.flushHpDrawDisplay();
         this.hpDrawSettleRemaining = 0;
+        // "Try this round": the tried round is over — no next round, no match end
+        if (this.practiceLive) {
+            this.practiceLive = false;
+            this.placement.enabled = false;
+            this.onPracticeDone?.();
+            return;
+        }
         let yearRoundDone = false;
         let tutorialRoundWon = false;
         if (roundsVictory(this.settings) && this.pendingYearRound) {
@@ -11020,7 +11074,7 @@ export class Game {
         // player's real, unrelated saved game/resume marker. A tutorial is
         // never persisted either (see constructGame), so ending one must not
         // wipe the Campaign run waiting in that same slot.
-        if (!this.watching && !isTutorial(this.settings)) {
+        if (!this.watching && this.practiceRound === null && !isTutorial(this.settings)) {
             clearStarResumeMarker();
             clearSinglePlayer();
         }
@@ -11049,7 +11103,7 @@ export class Game {
         // Rating never applies here either way — it's not a new result.
         // A scripted lesson is not a match result — it would land in the 'ai'
         // bucket next to real games and bump this player's AI record.
-        if (!this.watching && !isTutorial(this.settings)) {
+        if (!this.watching && this.practiceRound === null && !isTutorial(this.settings)) {
             this.reportMatchTelemetry(result);
             this.reportOpenRating(result);
         } else if (this.replayVerify) {
@@ -11748,11 +11802,12 @@ export class Game {
             // this, solo showed a clickable End Deployment that no-op'd while
             // waiting on the bot (or after a resume that never re-ran the AI)
             (this.phase === 'build' && !this.matchOver && !!this.seatReady[this.humanSeat]) ||
-            // watching: nothing here is ever "mine" to act on — reuse the
+            // spectating: nothing here is ever "mine" to act on — reuse the
             // same full-hide treatment for the whole build UI, not just the
             // few individual gates (playerCanAct, canUndo, round-card
-            // offers) patched above
-            this.watching;
+            // offers) patched above. A replay shows its seat's shop and
+            // money instead, read-only (Hud's replay view).
+            (this.watching && !this.replayLog);
         // team modes: a teammate on my own side may have locked in deployment
         // already while I haven't clicked yet — deployReady.player only
         // flips once EVERY seat on my side has, so this needs its own check
@@ -11769,6 +11824,7 @@ export class Game {
             waitingForPeer,
             allyLockedIn,
             this.watching,
+            this.watching && !!this.replayLog,
         );
         if (this.watching) this.onReplayPhase?.(this.phase, this.hud.isUiHidden);
         // live countdown on the "Waiting…" seat-drop notice — re-render
