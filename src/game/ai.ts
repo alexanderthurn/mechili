@@ -265,6 +265,13 @@ export class AiOpponent implements Opponent, ThinkingAi {
     /** a buy refused where it stands goes to the nearest free spot instead (an edited plan's packs) */
     private dispatchSnapped(action: Action): boolean {
         if (this.ctx.dispatch(action)) return true;
+        if (action.kind === 'move') {
+            // a pack the plan moves: the nearest free spot instead, keeping its turn
+            const unit = this.ctx.placement.unitById(action.unitId);
+            if (!unit) return false;
+            const anchor = this.ctx.placement.aiSpotNear(this.team, this.seat, unit.type, action.anchor, unit.rotated, 8);
+            return !!anchor && this.ctx.dispatch({ ...action, anchor });
+        }
         if (action.kind !== 'buy') return false;
         const type = this.ctx.types.byId(action.typeId);
         if (!type) return false;
@@ -294,10 +301,31 @@ export class AiOpponent implements Opponent, ThinkingAi {
                 range: t.range,
                 techs: techsForUnit(t, this.ctx.types, loadout).map((tech) => tech.id),
             })),
+            movable: this.movablePacks().map((u) => ({
+                id: u.id,
+                typeId: u.type.id,
+                cols: u.type.footprint.cols,
+                rows: u.type.footprint.rows,
+                rotated: u.rotated,
+                range: u.type.range,
+                anchor: { ...u.cell },
+            })),
             zone: this.ctx.placement.aiZone(this.team, this.seat),
             ownPacks: this.ownPacks().map((u) => u.id),
             actor: { team: this.team, seat: this.seat },
         };
+    }
+
+    /**
+     * Its packs on the board that may still move this round: a starting
+     * army in round 1, a Gale Gate pack every round, any free redeploy —
+     * the same the normal AI rearranges (YearBrain.repositionMovable).
+     */
+    private movablePacks(): Unit[] {
+        const { placement } = this.ctx;
+        return this.ownPacks()
+            .filter((u) => !u.gridless && placement.canReposition(u))
+            .sort((a, b) => a.id - b.id);
     }
 
     /** the archetypes, and the lab's mixes for what it holds now */
@@ -329,6 +357,26 @@ export class AiOpponent implements Opponent, ThinkingAi {
         if (pool.length === 0) return;
         const zone = placement.aiZone(this.team, this.seat);
         const cost = (t: UnitType) => economy.costOf(t);
+        /** where the archetype wants a pack of `type` (its `nth` placed) */
+        const aimFor = (type: UnitType, nth: number) => {
+            const { side, depth } = arch.aim?.(type, nth) ?? arch;
+            const width = zone.colMax - zone.colMin;
+            const col =
+                side === 0
+                    ? zone.colMin + width * (0.5 + (rng() - 0.5) * arch.spread)
+                    : side < 0
+                      ? zone.colMin + width * (0.15 + rng() * 0.2 * arch.spread)
+                      : zone.colMax - width * (0.15 + rng() * 0.2 * arch.spread);
+            const row = zone.backRow + (zone.frontRow - zone.backRow) * Math.min(1, Math.max(0, depth + (rng() - 0.5) * 0.3));
+            return { col, row };
+        };
+        // what may still move goes where the archetype wants it first (round 1: the starting army)
+        this.movablePacks().forEach((u, nth) => {
+            const anchor = placement.aiSpotNear(this.team, this.seat, u.type, aimFor(u.type, nth), u.rotated, 16);
+            if (anchor && (anchor.col !== u.cell.col || anchor.row !== u.cell.row)) {
+                dispatch({ kind: 'move', team: this.team, seat: this.seat, unitId: u.id, anchor });
+            }
+        });
         if (arch.recruit) dispatch({ kind: 'recruitLevel', team: this.team, seat: this.seat });
         for (let guard = 0; guard < 12 && this.ctx.deployCap() > 0; guard++) {
             let options = pool.filter((t) => unlockedUnits[this.seat]!.includes(t.id) && cost(t) <= economy.balance(this.seat));
@@ -339,17 +387,8 @@ export class AiOpponent implements Opponent, ThinkingAi {
             }
             const type = arch.weight ? weightedPick(options, arch.weight, rng) : options[Math.floor(rng() * options.length)];
             if (!type) break;
-            const { side, depth } = arch.aim?.(type, guard) ?? arch;
-            const width = zone.colMax - zone.colMin;
-            const col =
-                side === 0
-                    ? zone.colMin + width * (0.5 + (rng() - 0.5) * arch.spread)
-                    : side < 0
-                      ? zone.colMin + width * (0.15 + rng() * 0.2 * arch.spread)
-                      : zone.colMax - width * (0.15 + rng() * 0.2 * arch.spread);
-            const row = zone.backRow + (zone.frontRow - zone.backRow) * Math.min(1, Math.max(0, depth + (rng() - 0.5) * 0.3));
+            const near = aimFor(type, guard);
             const rotated = rng() < 0.5;
-            const near = { col, row };
             const anchor = placement.aiSpotNear(this.team, this.seat, type, near, rotated, 16);
             if (!anchor || !dispatch({ kind: 'buy', team: this.team, seat: this.seat, typeId: type.id, anchor, rotated })) break;
         }

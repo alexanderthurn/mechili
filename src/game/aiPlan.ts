@@ -134,9 +134,28 @@ export interface PlanUnitOption {
     techs: readonly string[];
 }
 
+/**
+ * A pack already on the board that may still move this round (a starting
+ * army, a Gale Gate pack, any free redeploy): the search places it like a
+ * pack it buys, with a `move` step.
+ */
+export interface MovablePack {
+    id: number;
+    typeId: string;
+    /** footprint, unturned, and whether it stands turned (a move keeps the turn) */
+    cols: number;
+    rows: number;
+    rotated: boolean;
+    range: number;
+    /** where it stands when the plan begins */
+    anchor: { col: number; row: number };
+}
+
 /** what a plan change needs to know of the seat */
 export interface MutationContext {
     options: readonly PlanUnitOption[];
+    /** its packs that may still move this round */
+    movable: readonly MovablePack[];
     zone: { colMin: number; colMax: number; rowMin: number; rowMax: number; frontRow: number; backRow: number };
     /** its packs that stood before the plan (real ids) — the only ones a level can go to: a level needs banked XP */
     ownPacks: readonly number[];
@@ -154,6 +173,13 @@ interface Work {
 }
 
 type BuyStep = Extract<Action, { kind: 'buy' }>;
+type MoveStep = Extract<Action, { kind: 'move' }>;
+type Spot = { col: number; row: number };
+
+/** a move step for `id` (`actor`'s) */
+function moveStep(id: number, anchor: Spot, actor: MutationContext['actor']): Action {
+    return { kind: 'move', unitId: id, anchor: { col: Math.round(anchor.col), row: Math.round(anchor.row) }, ...actor } as Action;
+}
 
 /**
  * The steps in order again, with virtual references renumbered to where
@@ -208,6 +234,30 @@ export function mutatePlan(plan: Plan, ctx: MutationContext, rng: () => number, 
         return { action: { kind: 'buy', typeId: o.id, anchor, rotated: rng() < 0.5, ...ctx.actor } as Action, from: null };
     };
     const level = (unitId: number): Work => ({ action: { kind: 'buyLevel', unitId, ...ctx.actor } as Action, from: null });
+    /** a movable pack's last move in the plan */
+    const moveOf = (id: number) => [...work].reverse().find((w): w is Work & { action: MoveStep } => w.action.kind === 'move' && w.action.unitId === id);
+    /** everything the plan places: its buys and the movable packs (a move added in front when it has none) */
+    const placed = (): { typeId: string; width: number; anchor: Spot; set: (anchor: Spot) => void }[] => [
+        ...buys.map((b) => {
+            const o = optionOf(b.action.typeId);
+            return {
+                typeId: b.action.typeId,
+                width: o ? (b.action.rotated ? o.rows : o.cols) : 1,
+                anchor: b.action.anchor,
+                set: (anchor: Spot) => replaceBuy(b, { anchor: { col: Math.round(anchor.col), row: Math.round(anchor.row) } }),
+            };
+        }),
+        ...ctx.movable.map((p) => ({
+            typeId: p.typeId,
+            width: p.rotated ? p.rows : p.cols,
+            anchor: moveOf(p.id)?.action.anchor ?? p.anchor,
+            set: (anchor: Spot) => {
+                const w = moveOf(p.id);
+                if (w) (w as Work).action = moveStep(p.id, anchor, ctx.actor);
+                else work.unshift({ action: moveStep(p.id, anchor, ctx.actor), from: null });
+            },
+        })),
+    ];
 
     const ops: Record<MutationSize, (() => string | null)[]> = {
         big: [
@@ -219,19 +269,17 @@ export function mutatePlan(plan: Plan, ctx: MutationContext, rng: () => number, 
                 return `all ${type} → ${to.id}`;
             },
             () => {
-                if (buys.length === 0) return null;
-                for (const b of buys) {
-                    const o = optionOf(b.action.typeId);
-                    const w = o ? (b.action.rotated ? o.rows : o.cols) : 1;
-                    replaceBuy(b, { anchor: { col: zone.colMin + zone.colMax - b.action.anchor.col - (w - 1), row: b.action.anchor.row } });
-                }
+                const all = placed();
+                if (all.length === 0) return null;
+                for (const p of all) p.set({ col: zone.colMin + zone.colMax - p.anchor.col - (p.width - 1), row: p.anchor.row });
                 return 'mirrored to the other flank';
             },
             () => {
-                if (buys.length === 0) return null;
+                const all = placed();
+                if (all.length === 0) return null;
                 const toFront = rng() < 0.5;
                 const d = intIn(rng, 3, 6) * Math.sign(zone.frontRow - zone.backRow) * (toFront ? 1 : -1);
-                for (const b of buys) replaceBuy(b, { anchor: { col: b.action.anchor.col, row: b.action.anchor.row + d } });
+                for (const p of all) p.set({ col: p.anchor.col, row: p.anchor.row + d });
                 return toFront ? 'all forward' : 'all back';
             },
             () => {
@@ -253,10 +301,10 @@ export function mutatePlan(plan: Plan, ctx: MutationContext, rng: () => number, 
                 return `one ${from} → ${to.id}`;
             },
             () => {
-                const b = pickOf(rng, buys);
-                if (!b) return null;
-                replaceBuy(b, { anchor: { col: b.action.anchor.col + sign(rng) * intIn(rng, 2, 4), row: b.action.anchor.row + sign(rng) * intIn(rng, 0, 3) } });
-                return `${b.action.typeId} moved`;
+                const p = pickOf(rng, placed());
+                if (!p) return null;
+                p.set({ col: p.anchor.col + sign(rng) * intIn(rng, 2, 4), row: p.anchor.row + sign(rng) * intIn(rng, 0, 3) });
+                return `${p.typeId} moved`;
             },
             () => {
                 const ref = pickOf(rng, packRefs);
@@ -298,12 +346,12 @@ export function mutatePlan(plan: Plan, ctx: MutationContext, rng: () => number, 
         ],
         small: [
             () => {
-                const b = pickOf(rng, buys);
-                if (!b) return null;
+                const p = pickOf(rng, placed());
+                if (!p) return null;
                 const horizontal = rng() < 0.5;
                 const d = sign(rng);
-                replaceBuy(b, { anchor: { col: b.action.anchor.col + (horizontal ? d : 0), row: b.action.anchor.row + (horizontal ? 0 : d) } });
-                return `${b.action.typeId} nudged`;
+                p.set({ col: p.anchor.col + (horizontal ? d : 0), row: p.anchor.row + (horizontal ? 0 : d) });
+                return `${p.typeId} nudged`;
             },
             () => {
                 const b = pickOf(rng, buys);
@@ -344,48 +392,110 @@ export interface EnemyPack {
     value: number;
 }
 
-/** `plan` with buy step `i` standing at `anchor` */
-export function withAnchor(plan: Plan, i: number, anchor: { col: number; row: number }): Plan {
-    const steps = [...plan.steps];
-    const step = steps[i];
-    if (step?.kind === 'buy') steps[i] = { ...step, anchor: { col: Math.round(anchor.col), row: Math.round(anchor.row) } };
-    return { steps };
-}
+/** what the position search places: a buy step of the plan, or a movable pack already on the board */
+export type PlacementRef = { kind: 'buy'; step: number } | { kind: 'pack'; id: number };
 
-/** `plan` with buy steps `i` and `j` trading places (and turns) */
-export function withSwap(plan: Plan, i: number, j: number): Plan {
-    const steps = [...plan.steps];
-    const a = steps[i];
-    const b = steps[j];
-    if (a?.kind !== 'buy' || b?.kind !== 'buy') return plan;
-    steps[i] = { ...a, anchor: b.anchor, rotated: b.rotated };
-    steps[j] = { ...b, anchor: a.anchor, rotated: a.rotated };
-    return { steps };
-}
-
-/** the plan's buy steps of packs the search may move (not walls or posts) */
-export function movableBuys(plan: Plan, ctx: MutationContext): number[] {
-    const ids = new Set(ctx.options.map((o) => o.id));
-    return plan.steps.flatMap((s, i) => (s.kind === 'buy' && ids.has(s.typeId) ? [i] : []));
+/** one placed pack of a plan: what it is and where the plan puts it */
+export interface Placed {
+    ref: PlacementRef;
+    typeId: string;
+    /** footprint as it stands (turn applied) */
+    width: number;
+    depth: number;
+    range: number;
+    rotated: boolean;
+    anchor: Spot;
 }
 
 /**
- * Where else buy step `i`'s pack could stand — chess-like, from the board:
+ * Everything `plan` places that the search may move: its buys of army packs
+ * (not walls or posts) and the seat's movable packs — where the plan's last
+ * move puts one, else where it stands.
+ */
+export function placementsOf(plan: Plan, ctx: MutationContext): Placed[] {
+    const out: Placed[] = [];
+    plan.steps.forEach((s, step) => {
+        if (s.kind !== 'buy') return;
+        const o = ctx.options.find((x) => x.id === s.typeId);
+        if (!o) return;
+        out.push({
+            ref: { kind: 'buy', step },
+            typeId: s.typeId,
+            width: s.rotated ? o.rows : o.cols,
+            depth: s.rotated ? o.cols : o.rows,
+            range: o.range,
+            rotated: s.rotated,
+            anchor: s.anchor,
+        });
+    });
+    for (const p of ctx.movable) {
+        const move = [...plan.steps].reverse().find((s): s is MoveStep => s.kind === 'move' && s.unitId === p.id);
+        out.push({
+            ref: { kind: 'pack', id: p.id },
+            typeId: p.typeId,
+            width: p.rotated ? p.rows : p.cols,
+            depth: p.rotated ? p.cols : p.rows,
+            range: p.range,
+            rotated: p.rotated,
+            anchor: move?.anchor ?? p.anchor,
+        });
+    }
+    return out;
+}
+
+/** a placement's label for the log */
+export function placedName(p: Placed): string {
+    return p.ref.kind === 'pack' ? `${p.typeId} (on board)` : p.typeId;
+}
+
+/**
+ * `plan` with `ref` standing at `anchor` (and turned `rotated`, a buy only):
+ * a buy's anchor changed, a pack's last move changed — or a move added in
+ * front, before the buys, as the normal AI moves its packs first.
+ */
+export function withPlacement(plan: Plan, ref: PlacementRef, anchor: Spot, ctx: MutationContext, rotated?: boolean): Plan {
+    const at = { col: Math.round(anchor.col), row: Math.round(anchor.row) };
+    if (ref.kind === 'buy') {
+        const steps = [...plan.steps];
+        const step = steps[ref.step];
+        if (step?.kind === 'buy') steps[ref.step] = { ...step, anchor: at, ...(rotated === undefined ? {} : { rotated }) };
+        return { steps };
+    }
+    let last = -1;
+    plan.steps.forEach((s, i) => {
+        if (s.kind === 'move' && s.unitId === ref.id) last = i;
+    });
+    if (last >= 0) {
+        const steps = [...plan.steps];
+        steps[last] = moveStep(ref.id, at, ctx.actor);
+        return { steps };
+    }
+    // a step in front: the plan's virtual references are renumbered past it
+    return compact([{ action: moveStep(ref.id, at, ctx.actor), from: null }, ...plan.steps.map((action, i) => ({ action, from: i }))]);
+}
+
+/** `plan` with two placements trading places (buys trade turns too; a pack keeps its own) */
+export function withSwap(plan: Plan, a: Placed, b: Placed, ctx: MutationContext): Plan {
+    const turn = (x: Placed, y: Placed) => (x.ref.kind === 'buy' && y.ref.kind === 'buy' ? y.rotated : undefined);
+    const once = withPlacement(plan, a.ref, b.anchor, ctx, turn(a, b));
+    // the first change may have put a step in front: find b again in the new plan
+    const bAgain = b.ref.kind === 'buy' && once.steps.length !== plan.steps.length ? { ...b.ref, step: b.ref.step + 1 } : b.ref;
+    return withPlacement(once, bAgain, a.anchor, ctx, turn(b, a));
+}
+
+/**
+ * Where else placement `p` could stand — chess-like, from the board:
  * opposite each of the other side's three most valuable packs (melee at the
  * front, ranged further back), either flank and the middle at the front and
  * the back, and behind its own melee (ranged only). Spots within a tile of
  * where it stands now are left out; the builder moves a spot that is taken
  * or off the zone to the nearest free tile.
  */
-export function positionSpots(plan: Plan, i: number, ctx: MutationContext, enemies: readonly EnemyPack[]): PositionSpot[] {
-    const step = plan.steps[i];
-    if (step?.kind !== 'buy') return [];
-    const o = ctx.options.find((x) => x.id === step.typeId);
-    if (!o) return [];
+export function positionSpots(plan: Plan, p: Placed, ctx: MutationContext, enemies: readonly EnemyPack[]): PositionSpot[] {
     const { zone } = ctx;
-    const w = step.rotated ? o.rows : o.cols;
-    const h = step.rotated ? o.cols : o.rows;
-    const ranged = o.range >= 10;
+    const w = p.width;
+    const h = p.depth;
+    const ranged = p.range >= 10;
     const depthRow = (d: number) => zone.backRow + (zone.frontRow - zone.backRow) * d - h / 2;
     const colAt = (f: number) => zone.colMin + (zone.colMax - zone.colMin) * f - w / 2;
     const out: PositionSpot[] = [];
@@ -399,14 +509,15 @@ export function positionSpots(plan: Plan, i: number, ctx: MutationContext, enemi
     out.push({ name: 'low flank, back', anchor: { col: colAt(0.12), row: depthRow(0.15) } });
     out.push({ name: 'high flank, back', anchor: { col: colAt(0.88), row: depthRow(0.15) } });
     if (ranged) {
-        // behind the plan's own melee nearest the middle
-        const melee = plan.steps
-            .map((s, k) => ({ s, k }))
-            .filter(({ s, k }) => k !== i && s.kind === 'buy' && (ctx.options.find((x) => x.id === (s as BuyStep).typeId)?.range ?? 99) < 10)
-            .map(({ s }) => s as BuyStep);
+        // behind the plan's own melee (bought or on the board)
         const back = Math.sign(zone.backRow - zone.frontRow) * 4;
+        const melee = placementsOf(plan, ctx).filter((m) => m.range < 10 && !sameRef(m.ref, p.ref));
         for (const m of melee.slice(0, 2)) out.push({ name: `behind own ${m.typeId}`, anchor: { col: m.anchor.col, row: m.anchor.row + back } });
     }
-    const near = (a: { col: number; row: number }) => Math.abs(a.col - step.anchor.col) <= 1 && Math.abs(a.row - step.anchor.row) <= 1;
+    const near = (a: Spot) => Math.abs(a.col - p.anchor.col) <= 1 && Math.abs(a.row - p.anchor.row) <= 1;
     return out.filter((spot) => !near(spot.anchor));
+}
+
+function sameRef(a: PlacementRef, b: PlacementRef): boolean {
+    return a.kind === 'buy' ? b.kind === 'buy' && a.step === b.step : b.kind === 'pack' && a.id === b.id;
 }

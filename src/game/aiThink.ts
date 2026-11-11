@@ -24,7 +24,7 @@ import type { LevelingSettings, TowerSettings } from './settings';
 import type { SeatId } from './seats';
 import type { Team, Unit } from './units';
 import { mulberry32 } from './map';
-import { describePlan, movableBuys, mutatePlan, planKey, positionSpots, withAnchor, withSwap, type EnemyPack, type MutationContext, type MutationSize, type Plan } from './aiPlan';
+import { describePlan, mutatePlan, placedName, placementsOf, planKey, positionSpots, withPlacement, withSwap, type EnemyPack, type MutationContext, type MutationSize, type Placed, type Plan, type PlacementRef } from './aiPlan';
 import { CELL } from './map';
 import type { AiDifficulty, AiStyle } from './aiProfile';
 
@@ -403,8 +403,8 @@ export class AiThinkSession {
     private stage: 'start' | 'position' | 'refine' = 'start';
     /** plans to test together (one pack's spots, or swaps); the next waits for all of them */
     private batch: { parent: PlanEntry; todo: { label: string; plan: Plan }[]; entries: PlanEntry[] } | null = null;
-    /** the leader's buy steps still to place this pass */
-    private posQueue: number[] = [];
+    /** the leader's placements (its buys, its movable packs) still to try this pass */
+    private posQueue: PlacementRef[] = [];
     private posPass = 0;
     private posStartScore = 0;
     private swapsDone = false;
@@ -549,7 +549,7 @@ export class AiThinkSession {
         const leader = this.beam()[0];
         if (!leader) return;
         this.stage = 'position';
-        this.posQueue = movableBuys(leader.draft.plan, this.mutation!);
+        this.posQueue = placementsOf(leader.draft.plan, this.mutation!).map((p) => p.ref);
         this.posPass = 0;
         this.posStartScore = leader.robust!;
         this.swapsDone = false;
@@ -575,12 +575,14 @@ export class AiThinkSession {
         const plan = leader.draft.plan;
         const ctx = this.mutation!;
         const fresh = (p: Plan) => !this.seen.has(planKey(p));
+        const placements = placementsOf(plan, ctx);
+        const sameRef = (a: PlacementRef, b: PlacementRef) => (a.kind === 'buy' ? b.kind === 'buy' && a.step === b.step : b.kind === 'pack' && a.id === b.id);
         while (this.posQueue.length > 0) {
-            const i = this.posQueue.shift()!;
-            const step = plan.steps[i];
-            if (step?.kind !== 'buy') continue;
-            const todo = positionSpots(plan, i, ctx, this.enemiesOf(leader.draft.board))
-                .map((spot) => ({ label: `pos: ${step.typeId} → ${spot.name}`, plan: withAnchor(plan, i, spot.anchor) }))
+            const ref = this.posQueue.shift()!;
+            const p: Placed | undefined = placements.find((x) => sameRef(x.ref, ref));
+            if (!p) continue;
+            const todo = positionSpots(plan, p, ctx, this.enemiesOf(leader.draft.board))
+                .map((spot) => ({ label: `pos: ${placedName(p)} → ${spot.name}`, plan: withPlacement(plan, p.ref, spot.anchor, ctx) }))
                 .filter((t) => fresh(t.plan));
             if (todo.length > 0) {
                 this.batch = { parent: leader, todo, entries: [] };
@@ -589,15 +591,14 @@ export class AiThinkSession {
         }
         if (!this.swapsDone) {
             this.swapsDone = true;
-            const buys = movableBuys(plan, ctx);
             const todo: { label: string; plan: Plan }[] = [];
-            for (let a = 0; a < buys.length; a++) {
-                for (let b = a + 1; b < buys.length; b++) {
-                    const sa = plan.steps[buys[a]!] as Extract<typeof plan.steps[number], { kind: 'buy' }>;
-                    const sb = plan.steps[buys[b]!] as typeof sa;
-                    if (sa.typeId === sb.typeId) continue;
-                    const swapped = withSwap(plan, buys[a]!, buys[b]!);
-                    if (fresh(swapped)) todo.push({ label: `pos: ${sa.typeId} ⇄ ${sb.typeId}`, plan: swapped });
+            for (let a = 0; a < placements.length; a++) {
+                for (let b = a + 1; b < placements.length; b++) {
+                    const pa = placements[a]!;
+                    const pb = placements[b]!;
+                    if (pa.typeId === pb.typeId) continue;
+                    const swapped = withSwap(plan, pa, pb, ctx);
+                    if (fresh(swapped)) todo.push({ label: `pos: ${placedName(pa)} ⇄ ${placedName(pb)}`, plan: swapped });
                 }
             }
             if (todo.length > 0) {
@@ -609,7 +610,7 @@ export class AiThinkSession {
         if (this.posPass === 0 && leader.robust! > this.posStartScore) {
             this.posPass = 1;
             this.posStartScore = leader.robust!;
-            this.posQueue = movableBuys(plan, ctx);
+            this.posQueue = placements.map((p) => p.ref);
             return this.nextPositionBatch();
         }
         return false;
