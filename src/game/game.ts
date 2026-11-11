@@ -1214,9 +1214,24 @@ export class Game {
     }
 
     /** Shift+Option+R / Shift+Cmd+R — save the current view as a PNG. */
+    /**
+     * Shift+Option+R: the 3D view as a PNG, in 4K — drawn once at 2160 lines
+     * (the window's shape) and copied out in that same task, then straight
+     * back to the window's size. A film running sets the size itself.
+     */
     private async takeScreenshot(): Promise<void> {
-        const filename = await saveScreenshot(this.threeCanvas, () => this.renderFrame());
-        this.hud.flashCinemaHint(filename ? 'screenshot saved' : 'screenshot failed', 1500);
+        const filming = this.filmDt !== null;
+        const aspect = Math.max(0.25, Math.min(4, this.wrapper.clientWidth / Math.max(1, this.wrapper.clientHeight)));
+        const height = 2160;
+        const width = Math.round((height * aspect) / 2) * 2;
+        // toBlob copies the pixels before it returns, so the window size can come back right after
+        const pending = saveScreenshot(this.threeCanvas, () => {
+            if (!filming) this.setFilmSize({ width, height });
+            this.renderFrame();
+        });
+        if (!filming) this.setFilmSize(null);
+        const filename = await pending;
+        this.hud.flashCinemaHint(filename ? `4K screenshot saved (${width}×${height})` : 'screenshot failed', 1500);
     }
 
     /** Shift+R (while recording) — stop and download the full take. */
