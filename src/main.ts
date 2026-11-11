@@ -6,6 +6,7 @@ import { CHAT_COOLDOWN_MS, CHAT_TEXT_LIMIT, emoteById, type ChatItem } from './g
 import { ChatBar } from './ui/chatBar';
 import { ChatFloat } from './ui/chatFloat';
 import { FriendsPanel } from './ui/friendsPanel';
+import { showReplayList } from './ui/replayList';
 import {
     introRosterEntries,
     mountYearIntro,
@@ -17,7 +18,7 @@ import {
 import { registerHoverTipClearer } from './ui/hoverTips';
 import { Game } from './game/game';
 import { audio, LOGO_LINE_COUNT, playMatchMusic, playMenuMusic } from './game/audio';
-import { fetchMatchReplay, type MatchMode, type MatchResult, type MatchTelemetry } from './game/telemetry';
+import { fetchMatchReplay, replayBuildMismatch, type MatchMode, type MatchResult, type MatchTelemetry } from './game/telemetry';
 import { ReplayControls } from './ui/replayControls';
 import { GamepadCursor } from './engine/gamepadCursor';
 import { CameraRig } from './engine/cameraRig';
@@ -2255,6 +2256,7 @@ function showNameEditor(): void {
         `<div class="hint">${syncHint}</div>` +
         `<div class="error" hidden></div>` +
         `<button type="button" class="profile-loadout" data-act="loadout">${t('menu:unitLoadout')}</button>` +
+        `<button type="button" class="profile-loadout" data-act="replays">${t('menu:replays', { defaultValue: 'Replays' })}</button>` +
         `<div class="actions">` +
         `<button type="button" data-act="cancel">${t('menu:cancel')}</button>` +
         `<button type="button" class="primary" data-act="save">${t('menu:save')}</button>` +
@@ -2371,6 +2373,17 @@ function showNameEditor(): void {
                 // whole menu chrome steps aside until it closes
                 menuChromeEl.style.display = 'none';
                 loadoutPanel.open();
+            });
+            return;
+        }
+        if (act === 'replays') {
+            // same as the loadout: an edit already made is saved on the way out
+            void save().then((saved) => {
+                if (!saved) return;
+                showReplayList(wrapper, {
+                    playerName: getPlayerName(),
+                    onWatch: (id, side) => void startReplayWatch(id, side),
+                });
             });
             return;
         }
@@ -3359,6 +3372,7 @@ function finishReturnToMenu(): void {
     replayControlsPanel?.remove();
     replayControlsPanel = null;
     currentReplayRecord = null;
+    setReplayUrl(null); // a reload in the menu must not start the replay again
     replaceThreeCanvas();
     started = false;
     setGameLayerVisible(false);
@@ -3580,9 +3594,6 @@ function constructGame(
         stopSinglePlayerPersist = wireSinglePlayerPersist(game);
     }
     if (editorMatch) game.editorLinks = editorLinks(settings.level);
-    if (replayControlsPanel) {
-        game.onSpeedIndexChange = (index) => replayControlsPanel!.setSpeedIndex(index);
-    }
     return game;
 }
 
@@ -4033,6 +4044,28 @@ let replayControlsPanel: ReplayControls | null = null;
 /** ?watch=<id>&side=<a|b> from replays.html — plays a stored match back at
  *  a natural pace instead of starting a new one. Checked ahead of any
  *  resume marker/single-player save so a replay link is never preempted. */
+/**
+ * The address names the replay being watched (?watch=<id>&side=<a|b>), so it
+ * can be copied and sent on: opening it plays the same replay. Null takes the
+ * two back out (back in the menu). Other parameters (?branch=…) stay.
+ */
+function setReplayUrl(replay: { id: string; side: 'a' | 'b' } | null): void {
+    try {
+        const url = new URL(location.href);
+        if (replay) {
+            url.searchParams.set('watch', replay.id);
+            url.searchParams.set('side', replay.side);
+        } else {
+            if (!url.searchParams.has('watch')) return;
+            url.searchParams.delete('watch');
+            url.searchParams.delete('side');
+        }
+        history.replaceState(history.state, '', url.href);
+    } catch {
+        // an address that can't be rewritten (file:// in some shells) just stays as it is
+    }
+}
+
 async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
     setMenuChromeVisible(true);
     setStatus(t('hud:loadingReplay', { defaultValue: 'Loading replay…' }));
@@ -4042,6 +4075,7 @@ async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
         return;
     }
     setStatus('');
+    setReplayUrl({ id, side });
     currentReplayRecord = record;
     const settings = record.replay.settings;
     settings.seed = record.replay.seed;
@@ -4054,20 +4088,33 @@ async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
         { actions: record.replay.actions, mode: record.mode },
     );
     const maxRound = Math.max(1, ...record.replay.actions.map((a) => a.round));
-    replayControlsPanel = new ReplayControls(
-        wrapper,
-        maxRound,
-        Game.REPLAY_SPEED_STEPS,
-        Game.REPLAY_SPEED_STEPS.indexOf(1),
-        {
-            onJump: (round) => void rebuildReplayAt(round),
-            onSkipToEnd: () => void rebuildReplayAt('end'),
-            onSkipDeployment: () => activeGame?.skipReplayDeployment(),
-            onSkipBattle: () => activeGame?.skipReplayBattle(),
-            onSpeedChange: (index) => activeGame?.setReplaySpeedIndex(index),
-            onSaveScenario: () => saveReplayScenario(),
-        },
-    );
+    replayControlsPanel = new ReplayControls(wrapper, maxRound, {
+        onJump: (round) => void rebuildReplayAt(round),
+        onSkipDeployment: () => activeGame?.skipReplayDeployment(),
+        onSaveScenario: () => saveReplayScenario(),
+    });
+    const mismatch = replayBuildMismatch(record);
+    if (mismatch) {
+        replayControlsPanel.setWarning(
+            t('hud:replayOtherBuild', {
+                why: mismatch,
+                defaultValue: '⚠ {{why}} — the battles may play out differently than they did.',
+            }),
+        );
+    }
+    followReplayRound();
+}
+
+/**
+ * The replay controls follow the playback: the round dropdown (it can't jump
+ * to the round it wrongly shows), the speed (the battle's own speed button
+ * changes it too), and out of the way while a battle runs.
+ */
+function followReplayRound(): void {
+    const game = activeGame as Game | null;
+    if (!game) return;
+    game.onReplayRound = (round) => replayControlsPanel?.setCurrentRound(round);
+    game.onReplayPhase = (phase, cinema) => replayControlsPanel?.setHidden(cinema || phase === 'battle' || phase === 'hpDraw');
 }
 
 /** round-jump / skip-to-end: tear down the current replay Game and
@@ -4076,6 +4123,12 @@ async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
  *  safer than trying to rewind a live instance in place. */
 async function rebuildReplayAt(target: number | 'end'): Promise<void> {
     if (!currentReplayRecord) return;
+    const lastRound = Math.max(1, ...currentReplayRecord.replay.actions.map((a) => a.round));
+    // forward: run on from where it is, no rebuild — instant
+    if (activeGame?.jumpReplayForward(target === 'end' ? Infinity : target)) {
+        replayControlsPanel?.setCurrentRound(target === 'end' ? lastRound : target);
+        return;
+    }
     activeGame?.destroy();
     activeGame = null;
     started = false;
@@ -4093,17 +4146,12 @@ async function rebuildReplayAt(target: number | 'end'): Promise<void> {
             mode: currentReplayRecord.mode,
         },
     );
-    // a fresh Game always starts at 1x — reapply whatever the panel (which
-    // survives the reconstruction) has selected. Explicit type restatement:
-    // TS over-narrows activeGame to `never` here otherwise, not accounting
-    // for startGame() (above) reassigning the module-level variable.
-    const game = activeGame as Game | null;
     if (replayControlsPanel) {
-        game?.setReplaySpeedIndex(replayControlsPanel.getSpeedIndex());
         const landedRound =
             target === 'end' ? Math.max(1, ...currentReplayRecord.replay.actions.map((a) => a.round)) : target;
         replayControlsPanel.setCurrentRound(landedRound);
     }
+    followReplayRound();
 }
 
 /**
@@ -4198,6 +4246,12 @@ async function verifyReplayAndReturn(id: string, side: 'a' | 'b'): Promise<void>
         setStatus(t('hud:replayNotFound', { defaultValue: 'Replay not found.' }));
         return;
     }
+    // another build would recompute another match — and file it as a mismatch
+    const mismatch = replayBuildMismatch(record);
+    if (mismatch) {
+        setStatus(t('hud:verifyOtherBuild', { why: mismatch, defaultValue: 'Not verified: {{why}}. Verify needs the build it was played on.' }));
+        return;
+    }
     const settings = record.replay.settings;
     settings.seed = record.replay.seed;
     startGame(
@@ -4273,6 +4327,11 @@ async function runBulkVerify(queue: { id: string; side: 'a' | 'b' }[]): Promise<
                 names: { local: '(unknown)', opponent: '(unknown)' },
                 error: 'replay not found',
             });
+            continue;
+        }
+        const mismatch = replayBuildMismatch(record);
+        if (mismatch) {
+            results.push({ id, side, ok: false, matches: false, names: record.names, error: `skipped: ${mismatch}` });
             continue;
         }
         activeGame?.destroy();

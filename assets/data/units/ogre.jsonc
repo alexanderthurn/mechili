@@ -17,7 +17,7 @@
         { "y": 2.4, "r": 0.9 },
     ],
     // innate disk like Rhino splash — Whirlwind tech widens it
-    "cleave": { "radius": 2 },
+    "cleave": { "radius": 3 },
     "cleaveScar": false, // no ground crater stamp on swings
     "crushOnKill": true, // the club presses its kills flat from above
     "buildingDamageMult": 4, // club: × damage against buildings and walls

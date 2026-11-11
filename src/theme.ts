@@ -716,6 +716,11 @@ html .mechili-name-edit .hint,
 html .mechili-suggest .s-lead,
 html .mechili-suggest .s-discord { color: ${INK_MUTED}; }
 html .mechili-name-edit .error { color: #9a2a1a; }
+html .mechili-replays .rp-row { border-color: rgba(90, 48, 16, 0.35); }
+html .mechili-replays :is(.rp-ai, .rp-vs, .rp-meta) { color: ${INK_MUTED}; }
+html .mechili-replays .rp-result.victory { color: #3d6e2a; }
+html .mechili-replays .rp-result.defeat { color: #9a2a1a; }
+html .mechili-replays .rp-result.quit { color: ${INK_RUST}; }
 /* the avatar upload is a label styled as a button: wood like the others */
 html .mechili-name-edit .avatar-pick {
     ${WOOD_BUTTON}

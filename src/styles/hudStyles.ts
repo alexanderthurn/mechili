@@ -3990,7 +3990,8 @@ ${hpTubeVal('.mechili-fightbar .hp-val', '13px')}
 .mechili-topbar .speed:focus-visible { outline: none; border-color: ${u.brassLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
 /* sit below End Deployment's deploy-phase hitbox so a phase swap can't
  * land a speed click on "End Deployment" (or the reverse) */
-.mechili-topbar.battle .speed {
+.mechili-topbar.battle .speed,
+.mechili-topbar.watching .speed {
     display: inline-block;
     margin-top: 44px;
 }

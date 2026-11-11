@@ -60,6 +60,7 @@ import { TutorialRuntime, type TutorialHost } from './tutorialRuntime';
 import {
     clearSinglePlayer,
     clearStarResumeMarker,
+    BASE_CONTENT_HASH,
     GAME_VERSION,
     formatGameVersion,
     isSameBuild,
@@ -892,6 +893,10 @@ export class Game {
     private replayLog: LoggedAction[] | null = null;
     /** index into replayLog of the next not-yet-dispatched entry */
     private replayCursor = 0;
+    /** a replay's round → when its deployment ended (its last move's time on the deploy clock) */
+    private readonly replayDeployEnd = new Map<number, number>();
+    /** a replay jump is running rounds headlessly: no soul drain, barks or splashes in between */
+    private replayFastForward = false;
     /** verify mode: re-submits telemetry at match end despite watching
      *  (see finishMatch) — everything else about watching stays the same */
     private replayVerify = false;
@@ -944,6 +949,10 @@ export class Game {
     private rematchStarted = false;
     /** a scenario was won (played, not edited or tested) — its id in the package */
     onScenarioWon: ((scenarioId: string) => void) | null = null;
+    /** watching a replay: a round's build phase began (the replay controls follow it) */
+    onReplayRound: ((round: number) => void) | null = null;
+    /** watching a replay: the phase and cinema mode, every frame (the replay controls hide in battle and in cinema) */
+    onReplayPhase: ((phase: Phase, cinema: boolean) => void) | null = null;
     /** a won scenario: play the next one of its package (meta.jsonc order) */
     onNextScenario: ((scenarioId: string) => void) | null = null;
     onRetryLastRound:
@@ -970,8 +979,6 @@ export class Game {
         | null = null;
     /** throttled hook for persisting single-player state to session storage */
     onStateCheckpoint: (() => void) | null = null;
-    /** replay panel keeps its speed <select> in sync with keyboard shortcuts */
-    onSpeedIndexChange: ((index: number) => void) | null = null;
     /** 0..1 while the 3D camera fly-in runs (main fades the brightness flash) */
     onMatchIntroProgress: ((t: number) => void) | null = null;
     /** fired once when the fly-in finishes (main clears the flash overlay) */
@@ -2214,10 +2221,8 @@ export class Game {
         // this match's real settings (including any ?hordeFactor= override) —
         // fixed for the match's lifetime, so a one-time snapshot is enough
         this.hud.setSettingsGroups(describeGameSettings(this.settings));
-        // watching's own wider-range speed control (replayControls.ts)
-        // replaces this button entirely — watching never changes for a
-        // Game instance's lifetime, so this is a one-time hide, not a toggle
-        if (this.watching) this.hud.setSpeedButtonVisible(false);
+        // watching keeps this button for the battle (where the replay
+        // controls step aside, see onReplayPhase), over the replay's wider range
         this.hud.setSpeedSteps(this.speedSteps);
         this.wireHudCallbacks(!!spectate);
         this.debug = new DebugOverlay(wrapper, debugEnabled());
@@ -3439,7 +3444,8 @@ export class Game {
         this.deferredRoundOffer = false;
         this.introCardsRevealed = false;
         this.onStateCheckpoint = null;
-        this.onSpeedIndexChange = null;
+        this.onReplayPhase = null;
+        this.onReplayRound = null;
         this.onReturnToMenu = null;
         this.onRetryLastRound = null;
         this.onStartTutorial = null;
@@ -3928,12 +3934,14 @@ export class Game {
     private startBuildPhase(): void {
         // watching: keep whatever playback speed the viewer picked instead
         // of snapping back to 1x every round — nothing live to reset for
-        if (!this.watching) this.resetSpeed();
+        // a replay too: every deployment starts at 1×, as in a match
+        this.resetSpeed();
         this.round++;
+        if (this.watching) this.onReplayRound?.(this.round);
         const atmosphere = this.rules.fixedAtmosphere;
         // The Year's final stand stays in its last round's winter
         const sceneRound = roundsVictory(this.settings) ? Math.min(this.round, this.settings.climb!.rounds) : this.round;
-        if (!atmosphere) this.weather?.onRound(sceneRound, this.hydrating);
+        if (!atmosphere) this.weather?.onRound(sceneRound, this.hydrating || this.replayFastForward);
         else if (this.round === 1) {
             this.weather?.setScene(
                 {
@@ -4116,6 +4124,8 @@ export class Game {
 
         // between-round cards (schedule owned by roundCardPreset algorithm)
         if (!this.editorMode && shouldOfferRoundCards(this.settings, this.round)) this.offerRoundCards();
+        // a replay's round is over: back from cinema mode to the deployment view and its controls
+        if (this.watching && this.hud.isUiHidden && !this.matchOver) this.toggleUiHidden();
         // cinema mode: startBuildPhase re-shows grid / deploy chrome — put it back away
         this.enforceCinemaWorld();
         // a test battle fights the board as placed: the player locks in after a
@@ -4782,9 +4792,12 @@ export class Game {
     /** one frame of every local AI's thinking (aiThink) */
     private tickAiThinking(dt: number): void {
         if (this.hydrating || !this.aiThinkMatch) return;
-        if (this.opponent instanceof AiOpponent) this.opponent.thinkTick(dt);
-        for (const e of this.extraAis) e.ai.thinkTick(dt);
+        const ais = [...(this.opponent instanceof AiOpponent ? [this.opponent] : []), ...this.extraAis.map((e) => e.ai)];
+        // a different seat first each frame: the first to look takes a freed worker
+        const first = this.aiThinkTurn++ % Math.max(1, ais.length);
+        for (let i = 0; i < ais.length; i++) ais[(first + i) % ais.length]!.thinkTick(dt);
     }
+    private aiThinkTurn = 0;
 
     /**
      * Shared AiOpponent context builder — used both at construction (every
@@ -5199,7 +5212,7 @@ export class Game {
      * @returns true when a celebrate was started (solo caller may lead deploy by a beat)
      */
     private playRoundVictorBark(completedRound: number): boolean {
-        if (this.hydrating || this.editorMode === 'test' || completedRound < 1) return false;
+        if (this.hydrating || this.replayFastForward || this.editorMode === 'test' || completedRound < 1) return false;
         let winningTeam: Team | null = null;
         if (roundsVictory(this.settings)) {
             const last = this.yearRounds[this.yearRounds.length - 1];
@@ -7284,11 +7297,37 @@ export class Game {
      * has its own resume-specific concerns (reopening a pending decision)
      * that don't apply to a fresh replay-mode Game instance.
      */
+    /**
+     * Watching a deployment: the seconds until it really ended (its last
+     * recorded move), not the clock it had — null outside one (the clock
+     * shows as usual; a round card's own clock too).
+     */
+    private replayDeployLeft(): number | null {
+        if (!this.watching || !this.replayLog || this.phase !== 'build' || this.round < 1 || this.awaitingCards) return null;
+        let end = this.replayDeployEnd.get(this.round);
+        if (end === undefined) {
+            end = 0;
+            for (const entry of this.replayLog) if (entry.round === this.round) end = entry.t;
+            this.replayDeployEnd.set(this.round, end);
+        }
+        return Math.max(0, end - (this.phaseBudgetSeconds() - this.phaseRemaining));
+    }
+
     private fastForwardReplayThroughRound(target: number): void {
         if (!this.replayLog) return;
-        while (this.replayCursor < this.replayLog.length && !this.matchOver) {
+        this.replayFastForward = true;
+        try {
+            this.fastForwardReplayLoop(target);
+        } finally {
+            this.replayFastForward = false;
+        }
+    }
+
+    private fastForwardReplayLoop(target: number): void {
+        const log = this.replayLog!;
+        while (this.replayCursor < log.length && !this.matchOver) {
             if (this.round === target && this.phase === 'build') return;
-            const entry = this.replayLog[this.replayCursor]!;
+            const entry = log[this.replayCursor]!;
             if (entry.round !== this.round || this.phase !== 'build') break; // shouldn't happen — safety guard
             const dispatchedRound = entry.round;
             this.dispatcher.dispatch(entry.action);
@@ -7300,10 +7339,10 @@ export class Game {
                 // without draining it here first, it (and everything after)
                 // gets permanently stranded by this loop's own round guard.
                 while (
-                    this.replayCursor < this.replayLog.length &&
-                    this.replayLog[this.replayCursor]!.round === dispatchedRound
+                    this.replayCursor < log.length &&
+                    log[this.replayCursor]!.round === dispatchedRound
                 ) {
-                    this.dispatcher.dispatch(this.replayLog[this.replayCursor]!.action);
+                    this.dispatcher.dispatch(log[this.replayCursor]!.action);
                     this.replayCursor++;
                 }
                 this.fastForwardBattle();
@@ -7609,14 +7648,6 @@ export class Game {
         return this.watching ? Game.REPLAY_SPEED_STEPS : Game.SPEED_STEPS;
     }
 
-    /** the new replay-controls panel's speed <select> calls this directly —
-     *  no peer to broadcast to (watching implies no net/star), unlike the
-     *  live cycleSpeed() button handler */
-    setReplaySpeedIndex(index: number): void {
-        if (!this.watching) return;
-        this.applySpeedIndex(index);
-    }
-
     private speedShortcutsActive(): boolean {
         return (
             (this.phase === 'battle' || this.watching) &&
@@ -7646,11 +7677,8 @@ export class Game {
         this.speedIndex = clamped;
         const multiplier = this.speedSteps[clamped]!;
         this.hud.setSpeed(multiplier);
-        if (this.watching) {
-            this.onSpeedIndexChange?.(clamped);
-        } else if (!this.hydrating) {
-            this.broadcast({ type: 'speed', multiplier });
-        }
+        // watching: no peer to tell
+        if (!this.watching && !this.hydrating) this.broadcast({ type: 'speed', multiplier });
     }
 
     /**
@@ -7663,7 +7691,6 @@ export class Game {
         if (index < 0 || index === this.speedIndex) return;
         this.speedIndex = index;
         this.hud.setSpeed(multiplier);
-        if (this.watching) this.onSpeedIndexChange?.(index);
     }
 
     /**
@@ -7688,16 +7715,29 @@ export class Game {
     }
 
     /**
-     * Skip Battle: instantly resolves the current battle phase headlessly
-     * (fastForwardBattle already does exactly this at a battle's natural
-     * end — sim.update() in a loop, no rendering) and lands on the next
-     * round's build phase, or finishMatch() if this was the last battle.
-     * A no-op outside battle phase (mirrors skipReplayDeployment's own
-     * phase guard, its build-phase counterpart).
+     * Jump-to-round forward, in place: what is left of this round runs
+     * headlessly (its deployment, its battle, the soul drain skipped), then
+     * every round up to `target`'s build phase. No rebuild, so it is
+     * instant. False when it can't go there from here (a round already
+     * started or behind: the caller rebuilds from the start instead).
      */
-    skipReplayBattle(): void {
-        if (!this.watching || this.phase !== 'battle') return;
-        this.fastForwardBattle();
+    jumpReplayForward(target: number): boolean {
+        if (!this.watching || !this.replayLog || this.matchOver || target <= this.round) return false;
+        if (this.phase !== 'build' && this.phase !== 'battle' && this.phase !== 'hpDraw') return false;
+        this.replayFastForward = true;
+        try {
+            if (this.phase === 'hpDraw') {
+                this.pendingHpDrawPlan = null;
+                this.pendingHpDrawPreHp = null;
+                this.proceedAfterHpDraw();
+            }
+            if (this.phase === 'build') this.skipReplayDeployment();
+            if (this.phase === 'battle') this.fastForwardBattle();
+            this.fastForwardReplayLoop(target);
+        } finally {
+            this.replayFastForward = false;
+        }
+        return true;
     }
 
     /**
@@ -9388,15 +9428,14 @@ export class Game {
         this.applySpeedIndex(next);
     }
 
-    /** battle speed returns to 1× at the start of every deployment phase
-     *  (never called while watching — see startBuildPhase's guard) */
+    /** battle speed returns to 1× at the start of every deployment phase (a replay's too) */
     private resetSpeed(): void {
         const index = this.speedSteps.indexOf(1);
         if (index < 0) return;
         this.speedIndex = index;
         this.hud.setSpeed(1);
-        // during hydration this runs once per replayed round — don't spam the peer
-        if (!this.hydrating) this.broadcast({ type: 'speed', multiplier: 1 });
+        // during hydration this runs once per replayed round — don't spam the peer; watching has none
+        if (!this.hydrating && !this.watching) this.broadcast({ type: 'speed', multiplier: 1 });
     }
 
     /** what the player pays right now, including an active recruit-level premium */
@@ -10435,6 +10474,7 @@ export class Game {
             }
             if (
                 !this.hydrating &&
+                !this.replayFastForward &&
                 built.sources.length > 0 &&
                 (built.damageToPlayer > 0 || built.damageToEnemy > 0)
             ) {
@@ -10736,7 +10776,7 @@ export class Game {
             return;
         }
         // The Year: who took the round, and the tally so far, before the next build phase
-        if (yearRoundDone && !this.hydrating) {
+        if (yearRoundDone && !this.hydrating && !this.replayFastForward) {
             this.hud.showYearRoundSplash(this.yearProgress(), () => {
                 if (this.disposed || this.matchOver) return;
                 this.announceBattleEnd();
@@ -11162,6 +11202,7 @@ export class Game {
                 schema: TELEMETRY_SCHEMA,
                 ts: Math.floor(Date.now() / 1000),
                 gameVersion: GAME_VERSION,
+                contentHash: BASE_CONTENT_HASH,
                 channel: telemetryChannel(),
                 // seat COUNT decides '2v2' vs 'mp' now, not `this.star`
                 // truthiness — 1v1 is a 2-seat star match too, and should
@@ -11724,11 +11765,12 @@ export class Game {
         this.hud.setPhase(
             this.round,
             this.phase,
-            this.phaseRemaining,
+            this.replayDeployLeft() ?? this.phaseRemaining,
             waitingForPeer,
             allyLockedIn,
             this.watching,
         );
+        if (this.watching) this.onReplayPhase?.(this.phase, this.hud.isUiHidden);
         // live countdown on the "Waiting…" seat-drop notice — re-render
         // only when the displayed second actually changes, not every frame.
         // matchOver-gated too: finishMatch/resumeIfAllClear already null

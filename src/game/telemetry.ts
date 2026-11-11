@@ -9,7 +9,7 @@
  */
 
 import { BUILD_CHANNEL, type BuildChannel } from './channel';
-import { GAME_VERSION, statsUrl } from './net';
+import { BASE_CONTENT_HASH, GAME_VERSION, formatGameVersion, statsUrl } from './net';
 import type { LoggedAction } from './actions';
 import type { SeatDef } from './seats';
 import type { GameSettings } from './settings';
@@ -108,6 +108,28 @@ export interface MatchTelemetry {
     replay: MatchReplayPayload;
     /** the local player ended it by giving up or leaving mid-match (result: defeat) */
     quit?: boolean;
+    /** the build's content hash (BASE_CONTENT_HASH); newer clients only */
+    contentHash?: string;
+}
+
+/** a recorded game version for people: '0.9.32', or '#14' for the old hand-counted ones */
+export function gameVersionLabel(encoded: number): string {
+    return encoded >= 1000 ? formatGameVersion(encoded) : `#${encoded}`;
+}
+
+/**
+ * Why `record` won't play back as it was here, or null when it should: it was
+ * recorded with another version, or the same version with other content (a
+ * unit edited since). The battles of such a replay come out differently.
+ */
+export function replayBuildMismatch(record: Pick<MatchTelemetry, 'gameVersion' | 'contentHash'>): string | null {
+    if (record.gameVersion !== GAME_VERSION) {
+        return `recorded with ${gameVersionLabel(record.gameVersion)}, this build is ${formatGameVersion(GAME_VERSION)}`;
+    }
+    if (record.contentHash && record.contentHash !== BASE_CONTENT_HASH) {
+        return `recorded with other content of ${formatGameVersion(GAME_VERSION)} (units or data changed since)`;
+    }
+    return null;
 }
 
 const SUBMIT_TIMEOUT_MS = 8_000;
@@ -249,6 +271,50 @@ export async function fetchMatchReplay(id: string, side?: 'a' | 'b'): Promise<Ma
         if (!data || !data.replay) return null;
         if (!Array.isArray(data.replay.actions) || data.replay.actions.length === 0) return null;
         return data as MatchTelemetry;
+    } catch {
+        return null;
+    }
+}
+
+/** one record of a match in the replay list (stats.php `grouped`, no action log) */
+export interface ReplayListRecord {
+    id: string;
+    ts: number;
+    side: 'a' | 'b';
+    source: 'player' | 'verify';
+    mode: MatchMode;
+    gameVersion: number;
+    contentHash?: string;
+    result: MatchResult;
+    rounds: number;
+    playerHp: number;
+    enemyHp: number;
+    names: { local: string; opponent: string };
+    seats: { name: string; side: 'a' | 'b'; ai: boolean; difficulty: string | null }[];
+    hasReplay: boolean;
+    quit?: boolean;
+}
+
+/** one match: every record its clients (and Verify runs) submitted */
+export interface ReplayListGroup {
+    matchKey: string;
+    ts: number;
+    records: ReplayListRecord[];
+}
+
+/**
+ * A page of the replay list, newest first: `name`'s own matches when given.
+ * `before` is the previous page's `next`. Null when the server can't be reached.
+ */
+export async function fetchReplayList(opts: { name?: string; limit?: number; before?: string | null }): Promise<{ groups: ReplayListGroup[]; next: string | null } | null> {
+    try {
+        const params = new URLSearchParams({ action: 'grouped', limit: String(opts.limit ?? 30) });
+        if (opts.name) params.set('name', opts.name);
+        if (opts.before) params.set('before', opts.before);
+        const res = await fetch(`${statsUrl()}?${params}`);
+        if (!res.ok) return null;
+        const data = (await res.json()) as { groups?: ReplayListGroup[]; next?: string | null };
+        return { groups: (data.groups ?? []).map((g) => ({ ...g, records: g.records.map((r) => ({ ...r, seats: r.seats ?? [] })) })), next: data.next ?? null };
     } catch {
         return null;
     }

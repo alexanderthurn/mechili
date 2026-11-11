@@ -261,6 +261,19 @@ export function thinkPool(): ThinkPool {
     return (pool ??= new ThinkPool());
 }
 
+/** the sessions thinking now — they split the pool between them */
+const thinking = new Set<AiThinkSession>();
+
+/**
+ * How many battles one session may have running at once: an equal share of
+ * the pool among the sessions still thinking. Without it the seat ticked
+ * first takes every worker that frees up and a second Learner starves.
+ */
+function fairShare(size: number): number {
+    for (const s of thinking) if (!s.thinking) thinking.delete(s);
+    return Math.max(1, Math.ceil(size / Math.max(1, thinking.size)));
+}
+
 // ------------------------------------------------------------------ the session
 
 /** the match's side of the plan simulation (Game implements it) */
@@ -406,6 +419,7 @@ export class AiThinkSession {
         this.rng = mulberry32(Math.floor(ai.rng() * 0x7fffffff));
         this.tag = `[aiThink] seat ${ai.seatId} (${ai.difficultyLevel}) round ${round}`;
         host.begin();
+        thinking.add(this);
         const seeded = () => mulberry32(Math.floor(this.rng() * 0x7fffffff));
         type PlanStyle = { style: AiStyle; rushSide: 0 | 1 };
         const styles = ai.styleOptions.flatMap((st): PlanStyle[] => (st === 'rusher' ? [{ style: st, rushSide: 0 }, { style: st, rushSide: 1 }] : [{ style: st, rushSide: 0 }]));
@@ -426,18 +440,25 @@ export class AiThinkSession {
         return this.done;
     }
 
+    /** still at it this round (a session left behind by a new round is not) */
+    get thinking(): boolean {
+        return !this.done && this.host.active(this.round);
+    }
+
     tick(dt: number): void {
         if (this.done) return;
         if (!this.host.active(this.round)) {
             this.done = true;
+            thinking.delete(this);
             console.info(`${this.tag}: cancelled (phase over)`);
             return;
         }
         this.elapsed += dt;
         if (this.humansReadyAt === null && this.host.humansReady()) this.humansReadyAt = this.elapsed;
         const p = thinkPool();
-        // one new plan per frame while a worker would sit idle — dry runs stay spread out
-        if (!p.broken && !this.stopped && this.entries.length < THINK_MAX_PLANS && p.load < p.size && !this.timeUp()) this.step();
+        // one new plan per frame while a worker would sit idle and this seat is under its share — dry runs stay spread out
+        const free = p.load < p.size && this.inFlight < fairShare(p.size);
+        if (!p.broken && !this.stopped && this.entries.length < THINK_MAX_PLANS && free && !this.timeUp()) this.step();
         if (this.shouldFinish()) {
             this.finish();
         } else if (this.elapsed >= this.nextNote) {
@@ -715,6 +736,7 @@ export class AiThinkSession {
 
     private finish(): void {
         this.done = true;
+        thinking.delete(this);
         const wall = ((performance.now() - this.wallStart) / 1000).toFixed(1);
         const ready = this.humansReadyAt === null ? 'humans still deploying' : `humans ready at ${this.humansReadyAt.toFixed(1)} s`;
         // the careful look ranks; with none done yet, the rough one

@@ -1,6 +1,6 @@
 import { execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { cpSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { defineConfig } from 'vite';
 
@@ -48,12 +48,20 @@ function contentHash() {
     return hash.digest('hex');
 }
 
+const buildContentHash = contentHash();
+
 /** Copy backend/ (PHP matchmaking, etc.) into dist alongside the game bundle. */
 function copyBackend() {
     return {
         name: 'copy-backend',
         closeBundle() {
             cpSync(backendDir, resolve('dist/backend'), { recursive: true });
+            // which build the game next to it is — replays.html flags replays of other builds
+            const [major = 0, minor = 0, patch = 0] = appVersion.split('-')[0].split('.').map(Number);
+            writeFileSync(
+                resolve('dist/backend/build.json'),
+                JSON.stringify({ version: appVersion, gameVersion: major * 1_000_000 + minor * 1_000 + patch, contentHash: buildContentHash }),
+            );
         },
     };
 }
@@ -74,7 +82,7 @@ export default defineConfig({
         __APP_VERSION__: JSON.stringify(appVersion),
         __GIT_BRANCH__: JSON.stringify(gitBranch()),
         __STEAM_APP_ID__: JSON.stringify(steamAppId),
-        __CONTENT_HASH__: JSON.stringify(contentHash()),
+        __CONTENT_HASH__: JSON.stringify(buildContentHash),
     },
     plugins: [copyBackend()],
 });

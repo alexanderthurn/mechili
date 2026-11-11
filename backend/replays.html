@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>MECHILI — match replays</title>
+  <title>Melodan Replays</title>
   <style>
     :root {
       --bg: #1a1814;
@@ -75,6 +75,11 @@
     .badge.verified { color: var(--good); border-color: var(--good); }
     .badge.unverified { color: var(--muted); }
     .badge.mismatch { color: var(--bad); border-color: var(--bad); }
+    .badge.quit { color: #d8a050; border-color: #d8a050; }
+    .badge.other-build { color: var(--muted); border-style: dashed; }
+    .ai-tag { color: var(--muted); font-weight: 400; font-size: 12px; }
+    .raw-link.off { opacity: 0.45; cursor: default; }
+    #more { margin-top: 12px; }
     .score-line { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
     .score-line .side-name { font-weight: 600; }
     .score-line .side-name.winner { color: var(--good); font-weight: 700; }
@@ -140,7 +145,8 @@
 </head>
 <body>
   <h1>Match replays</h1>
-  <p class="sub">Every real client submits its own replay at match end — records sharing a matchKey are the same match (plus any later Verify re-checks).</p>
+  <p class="sub">Every real client submits its own replay at match end — records sharing a matchKey are the same match (plus any later Verify re-checks).
+    <span id="build-line"></span></p>
 
   <div class="row">
     <label>API base
@@ -149,13 +155,13 @@
     <label>Mode
       <select id="mode">
         <option value="all">all</option>
-        <option value="mp">multiplayer</option>
         <option value="ai">vs AI</option>
-        <option value="2v2">2v2</option>
+        <option value="mp">1v1 online</option>
+        <option value="2v2">2v2 / team (3+ seats)</option>
       </select>
     </label>
     <label>Version
-      <input id="version" size="6" placeholder="any" />
+      <input id="version" size="8" placeholder="any, e.g. 0.9.32" />
     </label>
     <label>Status
       <select id="status">
@@ -174,8 +180,13 @@
   <div class="status" id="status-line">Ready.</div>
 
   <div class="groups" id="groups"></div>
+  <button id="more" hidden>Load more</button>
 
   <p class="hint">
+    "other build" means the replay was recorded with another version (or other
+    unit data) than the game this page opens: Watch then plays it under
+    today's rules, so the battles come out differently, and Verify is off for it.
+    "quit" means the player gave up or left before the end.
     "Verified" means at least one ⚡ Verify re-check (a headless re-simulation
     of the stored action log) has been run against this match and nothing it
     touched disagreed — with itself, or with the opposing side. "Unverified"
@@ -198,6 +209,54 @@
 
     // default: same folder as this page
     apiInput.value = new URL('stats.php', location.href).href;
+
+    /** the game build next to this page (build.json, written at build time); null: unknown */
+    let build = null;
+    const buildReady = fetch(new URL('build.json', location.href).href)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => {
+        build = b && typeof b.gameVersion === 'number' ? b : null;
+        document.getElementById('build-line').textContent = build
+          ? `Watch and Verify open build ${build.version}.`
+          : '';
+      })
+      .catch(() => {});
+
+    /** encoded game version → '0.9.32' ('#14': the old hand-counted ones) */
+    function versionLabel(v) {
+      v = Number(v) || 0;
+      if (v < 1000) return `#${v}`;
+      return `${Math.floor(v / 1e6)}.${Math.floor(v / 1e3) % 1e3}.${v % 1e3}`;
+    }
+
+    /** '0.9.32' or '9032' → the encoded number, NaN when neither */
+    function parseVersion(text) {
+      const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(text);
+      if (m) return Number(m[1]) * 1e6 + Number(m[2]) * 1e3 + Number(m[3]);
+      return /^\d+$/.test(text) ? Number(text) : NaN;
+    }
+
+    /** why a record won't play back true with the build here, or null */
+    function otherBuild(r) {
+      if (!build) return null;
+      if (r.gameVersion !== build.gameVersion) return `recorded with ${versionLabel(r.gameVersion)}, this build is ${build.version}`;
+      if (r.contentHash && build.contentHash && r.contentHash !== build.contentHash) return `recorded with other unit data of ${build.version}`;
+      return null;
+    }
+
+    const DIFFICULTY = { easy: 'Easy', medium: 'Medium', hard: 'Hard', learner: 'Learner' };
+
+    /** one seat for a score line: its name, an AI's difficulty after it */
+    function seatHtml(seat) {
+      const tag = seat.ai ? ` <span class="ai-tag">(${escapeHtml(DIFFICULTY[seat.difficulty] || seat.difficulty || 'AI')})</span>` : '';
+      return `${escapeHtml(seat.name || (seat.ai ? 'AI' : '(unknown)'))}${tag}`;
+    }
+
+    /** a side's seats joined ('mangoo + Ally (Learner)'), or null when the record has none */
+    function sideNames(record, side) {
+      const seats = (record.seats || []).filter((x) => x.side === side);
+      return seats.length ? seats.map(seatHtml).join(' + ') : null;
+    }
 
     document.getElementById('load').addEventListener('click', () => load().catch((e) => {
       statusEl.textContent = 'Failed: ' + (e.message || e);
@@ -278,26 +337,31 @@
     function renderScoreLine(records) {
       const a = primaryForSide(records, 'a');
       const b = primaryForSide(records, 'b');
-      let left, right;
-      if (a && b) {
-        left = { name: a.names.local || 'Side A', score: a.playerHp, result: a.result };
-        right = { name: b.names.local || 'Side B', score: b.playerHp, result: b.result };
-      } else {
-        const solo = a || b;
-        if (!solo) return '';
-        const opposite = solo.result === 'victory' ? 'defeat' : solo.result === 'defeat' ? 'victory' : 'draw';
-        left = { name: solo.names.local || '(unknown)', score: solo.playerHp, result: solo.result };
-        right = { name: solo.names.opponent || 'AI', score: solo.enemyHp, result: opposite };
-      }
+      const any = a || b;
+      if (!any) return '';
+      const other = (side) => (side === 'a' ? 'b' : 'a');
+      const flip = (res) => (res === 'victory' ? 'defeat' : res === 'defeat' ? 'victory' : 'draw');
+      // each side from its own record when it reported, else from the other one's
+      const sideOf = (side) => {
+        const own = side === 'a' ? a : b;
+        const rec = own || any;
+        const names = sideNames(rec, side);
+        if (own) return { names: names || escapeHtml(own.names.local || `Side ${side.toUpperCase()}`), score: own.playerHp, result: own.result };
+        return { names: names || escapeHtml(any.names.opponent || 'AI'), score: any.enemyHp, result: flip(any.result) };
+      };
+      // the reporting side on the left
+      const leftSide = a ? 'a' : 'b';
+      const left = sideOf(leftSide);
+      const right = sideOf(other(leftSide));
       const leftCls = resultClass(left.result);
       const rightCls = resultClass(right.result);
       const crown = (cls) => (cls === 'winner' ? '🏆 ' : '');
       return `<span class="score-line">
-        <span class="side-name ${leftCls}">${crown(leftCls)}${escapeHtml(left.name)}</span>
+        <span class="side-name ${leftCls}">${crown(leftCls)}${left.names}</span>
         <span class="score">${left.score}</span>
         <span class="vs">vs</span>
         <span class="score">${right.score}</span>
-        <span class="side-name ${rightCls}">${crown(rightCls)}${escapeHtml(right.name)}</span>
+        <span class="side-name ${rightCls}">${crown(rightCls)}${right.names}</span>
       </span>`;
     }
 
@@ -338,7 +402,13 @@
         : '<span class="badge unverified">○ unverified</span>';
 
       const scoreLine = renderScoreLine(records);
-      const modeTag = `<span class="mode-tag">${escapeHtml(records[0].mode)}${info.solo ? ' · solo' : ''}</span>`;
+      const seats = records[0].seats || [];
+      const perSide = (side) => seats.filter((x) => x.side === side).length;
+      const MODES = { ai: 'vs AI', mp: '1v1 online', '2v2': seats.length ? `${perSide('a')}v${perSide('b')}` : 'team' };
+      const modeTag = `<span class="mode-tag">${escapeHtml(MODES[records[0].mode] || records[0].mode)} · ${escapeHtml(versionLabel(records[0].gameVersion))}${info.solo ? ' · solo' : ''}</span>`;
+      const quitBadge = records.some((r) => r.quit) ? '<span class="badge quit" title="Ended early: the player gave up or left">quit</span>' : '';
+      const buildWhy = otherBuild(records[0]);
+      const buildBadge = buildWhy ? `<span class="badge other-build" title="${escapeHtml(buildWhy)}">other build</span>` : '';
 
       const recsHtml = records.map((r) => {
         const uid = `${group.matchKey}-${r.side}-${r.id}-${idx}`;
@@ -350,15 +420,20 @@
         const sourceTag = r.source === 'verify' ? '<span class="source-tag">verify</span>' : '';
         // summary-only telemetry (schema 2 default) has no action log — hide
         // Watch/Verify so users don't hit a dead load
+        // another build recomputes another match: Watch warns, Verify is off (it would file a false mismatch)
+        const why = otherBuild(r);
+        const verifyLink = why
+          ? `<span class="raw-link off" title="${escapeHtml(why)} — Verify needs the build it was played on">⚡ Verify</span>`
+          : `<a class="raw-link" href="${verifyUrl}" title="Instantly recomputes the result and re-submits it — no new file if it still matches, a second one if it doesn't">⚡ Verify</a>`;
         const replayLinks = r.hasReplay
-          ? `<a class="raw-link" href="${watchUrl}">▶ Watch</a>
-          <a class="raw-link" href="${verifyUrl}" title="Instantly recomputes the result and re-submits it — no new file if it still matches, a second one if it doesn't">⚡ Verify</a>`
-          : `<span class="raw-link" style="opacity:0.45;cursor:default" title="Summary-only record (no action log)">○ No replay</span>`;
+          ? `<a class="raw-link" href="${watchUrl}"${why ? ` title="${escapeHtml(why)} — plays under today's rules, the battles may differ"` : ''}>▶ Watch${why ? ' ⚠' : ''}</a>
+          ${verifyLink}`
+          : `<span class="raw-link off" title="Summary-only record (no action log)">○ No replay</span>`;
         return `<div class="rec">
           <div class="name">${escapeHtml(r.names.local || '(unknown)')}${sourceTag}</div>
-          <div class="vs">vs ${escapeHtml(r.names.opponent || '(unknown)')} · side ${escapeHtml(r.side)}</div>
-          <div class="result ${escapeHtml(r.result)}">${escapeHtml(r.result)} · ${r.playerHp} - ${r.enemyHp}</div>
-          <div class="meta">${r.rounds} rounds · v${r.gameVersion} · ${fmtTime(r.ts)}</div>
+          <div class="vs">vs ${sideNames(r, r.side === 'a' ? 'b' : 'a') || escapeHtml(r.names.opponent || '(unknown)')} · side ${escapeHtml(r.side)}</div>
+          <div class="result ${escapeHtml(r.result)}">${escapeHtml(r.result)}${r.quit ? ' (quit)' : ''} · ${r.playerHp} - ${r.enemyHp}</div>
+          <div class="meta">${r.rounds} rounds · ${escapeHtml(versionLabel(r.gameVersion))} · ${fmtTime(r.ts)}</div>
           ${replayLinks}
           <a class="raw-link" data-id="${escapeHtml(r.id)}" data-side="${escapeHtml(r.side)}" data-target="raw-${uid}">View raw ▸</a>
           <pre id="raw-${uid}" hidden></pre>
@@ -371,6 +446,8 @@
         <div class="group-head">
           <span class="chevron">▸</span>
           ${badge}
+          ${quitBadge}
+          ${buildBadge}
           ${scoreLine}
           ${modeTag}
           <span class="when">${fmtTime(group.ts)}</span>
@@ -410,61 +487,80 @@
       if (head) head.closest('.group').classList.toggle('open');
     });
 
-    async function load() {
+    /** the cursor for the next page (stats.php's `next`), null: no more */
+    let nextCursor = null;
+    const moreBtn = document.getElementById('more');
+
+    /** the first page (`append` false) or the next one, filtered on the server */
+    async function load(append = false) {
+      await buildReady;
       const btn = document.getElementById('load');
       const mode = document.getElementById('mode').value;
-      const version = document.getElementById('version').value.trim();
+      const versionText = document.getElementById('version').value.trim();
       const status = document.getElementById('status').value;
       const limit = Math.max(1, parseInt(document.getElementById('limit').value, 10) || 100);
       const base = apiInput.value.replace(/\?.*$/, '');
+      const params = new URLSearchParams({ action: 'grouped', limit: String(limit) });
+      if (mode !== 'all') params.set('mode', mode);
+      if (status !== 'all') params.set('status', status);
+      if (versionText) {
+        const v = parseVersion(versionText);
+        if (!Number.isFinite(v)) {
+          statusEl.textContent = 'Version: like 0.9.32 (or the stored number, e.g. 9032).';
+          return;
+        }
+        params.set('gameVersion', String(v));
+      }
+      if (append && nextCursor) params.set('before', nextCursor);
       btn.disabled = true;
+      moreBtn.disabled = true;
       statusEl.textContent = 'Loading…';
       try {
-        const res = await fetch(`${base}?action=grouped&limit=${limit}`);
+        const res = await fetch(`${base}?${params}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        let groups = data.groups || [];
-        if (mode !== 'all') {
-          groups = groups
-            .map((g) => ({ ...g, records: g.records.filter((r) => r.mode === mode) }))
-            .filter((g) => g.records.length > 0);
-        }
-        if (version) {
-          groups = groups
-            .map((g) => ({ ...g, records: g.records.filter((r) => String(r.gameVersion) === version) }))
-            .filter((g) => g.records.length > 0);
-        }
-        if (status !== 'all') {
-          groups = groups.filter((g) => {
-            const info = analyzeGroup(g.records);
-            const s = info.mismatch ? 'mismatch' : info.verified ? 'verified' : 'unverified';
-            return s === status;
-          });
-        }
-        groupsEl.innerHTML = groups.map((g, i) => renderGroup(g, i)).join('') ||
-          '<p class="sub">No matches found.</p>';
-        lastFilteredGroups = groups;
-        const verifiedCount = groups.filter((g) => analyzeGroup(g.records).verified).length;
-        const mismatched = groups.filter((g) => analyzeGroup(g.records).mismatch).length;
+        const groups = data.groups || [];
+        nextCursor = data.next || null;
+        const shown = append ? lastFilteredGroups.concat(groups) : groups;
+        const html = groups.map((g, i) => renderGroup(g, (append ? lastFilteredGroups.length : 0) + i)).join('');
+        if (append) groupsEl.insertAdjacentHTML('beforeend', html);
+        else groupsEl.innerHTML = html || '<p class="sub">No matches found.</p>';
+        lastFilteredGroups = shown;
+        moreBtn.hidden = !nextCursor;
+        const verifiedCount = shown.filter((g) => analyzeGroup(g.records).verified).length;
+        const mismatched = shown.filter((g) => analyzeGroup(g.records).mismatch).length;
         statusEl.textContent =
-          `${groups.length} match(es) · ${verifiedCount} verified` +
+          `${shown.length} match(es)${nextCursor ? ' (more below)' : ''} · ${verifiedCount} verified` +
           (mismatched ? ` · ${mismatched} mismatch(es)` : '') + '.';
       } finally {
         btn.disabled = false;
+        moreBtn.disabled = false;
       }
     }
 
+    moreBtn.addEventListener('click', () => load(true).catch((e) => {
+      statusEl.textContent = 'Failed: ' + (e.message || e);
+    }));
+
     document.getElementById('bulk-verify').addEventListener('click', () => {
       const queue = [];
+      let skipped = 0;
       for (const g of lastFilteredGroups) {
         for (const r of g.records) {
-          if (r.source !== 'verify') queue.push({ id: r.id, side: r.side });
+          if (r.source === 'verify' || !r.hasReplay) continue;
+          // another build would file a false mismatch for each one
+          if (otherBuild(r)) skipped++;
+          else queue.push({ id: r.id, side: r.side });
         }
       }
       if (queue.length === 0) {
-        statusEl.textContent = 'Nothing to verify — load some replays first.';
+        statusEl.textContent = skipped
+          ? `Nothing to verify: all ${skipped} shown record(s) are from another build.`
+          : 'Nothing to verify — load some replays first.';
         return;
       }
+      const note = skipped ? ` (${skipped} from another build left out)` : '';
+      if (!confirm(`Re-check ${queue.length} record(s)${note}? Every one that doesn't match is stored on the server as a mismatch.`)) return;
       sessionStorage.setItem('mechili-bulk-verify-queue', JSON.stringify(queue));
       location.href = new URL(`../index.html?bulkverify=1`, location.href).href;
     });

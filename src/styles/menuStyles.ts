@@ -1671,6 +1671,10 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     color: ${u.text};
 }
 .mechili-replay-controls .rc-row { display: flex; align-items: center; gap: 8px; }
+.mechili-replay-controls .rc-row[hidden] { display: none; }
+/* a battle is on (only the battle's own centered speed button, the HUD's) or cinema mode */
+.mechili-replay-controls.is-hidden { display: none; }
+.mechili-replay-controls .rc-warning { color: #e0a060; max-width: 34em; line-height: 1.35; }
 .mechili-replay-controls label { display: flex; align-items: center; gap: 4px; }
 .mechili-replay-controls input, .mechili-replay-controls select {
     font: inherit;
@@ -2506,6 +2510,27 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
 }
 .mechili-name-edit .avatar-pick:hover { border-color: ${u.hover}; color: ${u.brassLight}; }
 .mechili-name-edit .actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.mechili-replays .box { width: min(560px, 94vw); max-width: min(560px, 94vw); }
+.mechili-replays .rp-filter { display: flex; gap: 6px; }
+.mechili-replays .rp-scope.is-on { border-color: ${u.brassLight}; color: ${u.brassLight}; }
+.mechili-replays .rp-list { display: flex; flex-direction: column; gap: 6px; }
+.mechili-replays .rp-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1.5px solid ${u.border};
+    border-radius: 3px;
+}
+.mechili-replays .rp-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mechili-replays .rp-head { font-size: 13px; font-weight: 600; }
+.mechili-replays .rp-result.victory { color: ${u.techOwned}; }
+.mechili-replays .rp-result.defeat { color: #c85a48; }
+.mechili-replays .rp-result.quit { color: #c88a38; }
+.mechili-replays .rp-names { font-size: 13px; overflow-wrap: anywhere; }
+.mechili-replays .rp-ai, .mechili-replays .rp-vs, .mechili-replays .rp-meta { color: ${u.textMuted}; font-size: 12px; }
+.mechili-replays .rp-watch { flex: none; white-space: nowrap; }
+.mechili-replays .rp-watch:disabled { opacity: 0.45; cursor: default; }
 /* leaves the dialog rather than committing it — full width, above the
    Cancel/Save pair, so it never reads as a third commit action */
 .mechili-name-edit .profile-loadout {

@@ -1,20 +1,16 @@
 /**
- * Watch-mode-only controls: jump to a round, skip to the end, and a much
- * wider speed range than the live-match speed button (which is hidden for
- * the whole life of a watching Game instance — see Hud.setSpeedButtonVisible).
+ * Watch-mode-only controls: jump to a round and skip a deployment. The speed
+ * is the match's own speed button (shown for the whole replay, see Hud), not
+ * a control of its own here.
  * A small, self-contained DOM overlay, not folded into the large Hud class —
  * it survives across the Game reconstructions a round-jump causes (main.ts's
  * rebuildReplayAt), so it can't be owned by the Game instance itself.
  */
 import { t } from '../i18n';
-import { speedKeyFor, speedKeyHint } from './speedKeys';
 
 export interface ReplayControlsCallbacks {
     onJump(round: number): void;
-    onSkipToEnd(): void;
     onSkipDeployment(): void;
-    onSkipBattle(): void;
-    onSpeedChange(index: number): void;
     /** save the board as it stands as a scenario; resolves to a short status line */
     onSaveScenario(): Promise<string>;
 }
@@ -22,15 +18,8 @@ export interface ReplayControlsCallbacks {
 export class ReplayControls {
     private readonly root: HTMLDivElement;
     private readonly roundSelect: HTMLSelectElement;
-    private readonly speedSelect: HTMLSelectElement;
 
-    constructor(
-        wrapper: HTMLElement,
-        maxRound: number,
-        speedSteps: readonly number[],
-        initialSpeedIndex: number,
-        cb: ReplayControlsCallbacks,
-    ) {
+    constructor(wrapper: HTMLElement, maxRound: number, cb: ReplayControlsCallbacks) {
         this.root = document.createElement('div');
         this.root.className = 'mechili-replay-controls';
         const roundOptions = Array.from({ length: maxRound }, (_, i) => i + 1)
@@ -42,30 +31,14 @@ export class ReplayControls {
             `<div class="rc-row">` +
             `<label>${t('hud:replayRound', { defaultValue: 'Round' })} <select class="rc-round">${roundOptions}</select></label>` +
             `<button type="button" class="rc-skip-deploy">${t('hud:replaySkipDeploy', { defaultValue: 'Skip Deployment' })}</button>` +
-            `<button type="button" class="rc-skip-battle">${t('hud:replaySkipBattle', { defaultValue: 'Skip Battle' })}</button>` +
-            `<button type="button" class="rc-end">${t('hud:replaySkipEnd', { defaultValue: 'Skip to End' })}</button>` +
             `</div>` +
-            `<div class="rc-row">` +
-            `<label>${t('hud:replaySpeed', { defaultValue: 'Speed' })} <select class="rc-speed">` +
-            speedSteps
-                .map((s, i) => {
-                    const key = speedKeyFor(i, speedSteps.length);
-                    const label =
-                        s === 0 ? t('hud:pause', { defaultValue: 'Pause' }) : `${s}×`;
-                    return `<option value="${i}">${key ? `${key} · ` : ''}${label}</option>`;
-                })
-                .join('') +
-            `</select></label>` +
-            `<span class="rc-speed-hint">${speedKeyHint(speedSteps)}</span>` +
-            `</div>` +
-            `<div class="rc-row">` +
+            // hidden for now: saving a replay's board as a scenario
+            `<div class="rc-row" hidden>` +
             `<button type="button" class="rc-save-scenario">${t('hud:replaySaveScenario', { defaultValue: 'Save as scenario' })}</button>` +
             `<span class="rc-save-status"></span>` +
             `</div>`;
 
         this.roundSelect = this.root.querySelector<HTMLSelectElement>('.rc-round')!;
-        this.speedSelect = this.root.querySelector<HTMLSelectElement>('.rc-speed')!;
-        this.speedSelect.value = String(initialSpeedIndex);
 
         // selecting a round jumps immediately — no separate confirm button
         this.roundSelect.addEventListener('change', () => {
@@ -73,9 +46,6 @@ export class ReplayControls {
             if (Number.isFinite(round) && round >= 1) cb.onJump(round);
         });
         this.root.querySelector('.rc-skip-deploy')!.addEventListener('click', () => cb.onSkipDeployment());
-        this.root.querySelector('.rc-skip-battle')!.addEventListener('click', () => cb.onSkipBattle());
-        this.root.querySelector('.rc-end')!.addEventListener('click', () => cb.onSkipToEnd());
-        this.speedSelect.addEventListener('change', () => cb.onSpeedChange(Number(this.speedSelect.value)));
         const saveButton = this.root.querySelector<HTMLButtonElement>('.rc-save-scenario')!;
         const saveStatus = this.root.querySelector<HTMLSpanElement>('.rc-save-status')!;
         saveButton.addEventListener('click', () => {
@@ -90,21 +60,25 @@ export class ReplayControls {
         wrapper.appendChild(this.root);
     }
 
-    /** re-synced after a jump so re-opening the dropdown later shows where
-     *  you actually are, not just the last explicit selection */
+    /** a battle is on or cinema mode (Shift+C): the panel steps aside (the speed button stays) */
+    setHidden(on: boolean): void {
+        this.root.classList.toggle('is-hidden', on);
+    }
+
+    /** a line above the controls (the replay was recorded with another build) */
+    setWarning(text: string): void {
+        let el = this.root.querySelector<HTMLDivElement>('.rc-warning');
+        if (!el) {
+            el = document.createElement('div');
+            el.className = 'rc-warning';
+            this.root.prepend(el);
+        }
+        el.textContent = text;
+    }
+
+    /** re-synced after a jump and at every round's start, so the dropdown shows where you are */
     setCurrentRound(round: number): void {
         this.roundSelect.value = String(round);
-    }
-
-    /** re-applied after rebuildReplayAt reconstructs the Game (a fresh
-     *  instance otherwise resets to 1x) — the panel is the source of truth
-     *  for "what speed did the viewer pick", since it survives reconstruction */
-    getSpeedIndex(): number {
-        return Number(this.speedSelect.value);
-    }
-
-    setSpeedIndex(index: number): void {
-        this.speedSelect.value = String(index);
     }
 
     remove(): void {

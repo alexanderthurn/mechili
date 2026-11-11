@@ -217,5 +217,26 @@
     "defender": "Defender"
   },
   "aiDifficultyPick": "Change difficulty",
-  "aiPersonalityPick": "Change personality"
+  "aiPersonalityPick": "Change personality",
+  "replays": "Replays",
+  "replaysTitle": "Replays",
+  "replaysMine": "My matches",
+  "replaysAll": "All players",
+  "replaysMore": "Load more",
+  "replaysLoading": "Loading…",
+  "replaysOffline": "The replay server could not be reached.",
+  "replaysNone": "No recorded matches yet.",
+  "replaysWatch": "Watch",
+  "replaysNoLog": "Recorded without its moves",
+  "replaysVictory": "Victory",
+  "replaysDefeat": "Defeat",
+  "replaysDraw": "Draw",
+  "replaysQuit": "Quit",
+  "replaysRounds_one": "{{count}} round",
+  "replaysRounds_other": "{{count}} rounds",
+  "replaysModeAi": "vs AI",
+  "replaysModeMp": "1v1 online",
+  "replaysAi": "AI",
+  "replaysOtherBuild": "{{why}} — the battles may play out differently than they did.",
+  "replaysBuild": "Replays play with this build ({{version}}); ⚠ marks ones recorded with another."
 }

@@ -3911,6 +3911,8 @@ export class Hud {
         // the scenario editor's deployment has no clock
         this.timerEl.textContent = Number.isFinite(s) ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : '∞';
         this.topBar.classList.toggle('battle', phase === 'battle' || phase === 'hpDraw');
+        // a replay: the speed button stays for the deployments too
+        this.topBar.classList.toggle('watching', watching);
         // last 5s of deployment — pulse so the player knows to hurry
         this.timerEl.classList.toggle(
             'urgent',
@@ -3959,12 +3961,6 @@ export class Hud {
         this.speedEl.textContent = multiplier === 0 ? t('hud:pause') : `${multiplier}×`;
     }
 
-    /** watch mode replaces this with its own wider-range speed control
-     *  (replayControls.ts) — set once, never toggled back (a Game instance's
-     *  watching-ness never changes for its lifetime) */
-    setSpeedButtonVisible(visible: boolean): void {
-        this.speedEl.style.display = visible ? '' : 'none';
-    }
 
     setHp(player: number, enemy: number, playerMax?: number, enemyMax?: number): void {
         // Prefer authoritative match peaks (reconnect/hydrate). Fall back to

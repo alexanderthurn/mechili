@@ -37,6 +37,9 @@
  *       `hasReplay` is true when replay.actions is non-empty.
  *   GET  ?action=get&id=<id>
  *       One full record.
+ *   GET  ?action=grouped&limit=&mode=&gameVersion=&status=&name=&before=
+ *       Matches grouped by matchKey, newest first, filtered here; `next` is
+ *       the `before` cursor for the following page.
  *   GET  ?action=count
  *       {"count":n}
  *   POST|GET ?action=stripReplay&key=<ADMIN_KEY>&before=<unix>&dryRun=1
@@ -390,50 +393,136 @@ function handleGrouped(): void {
     $limit = (int)($_GET['limit'] ?? 100);
     if ($limit < 1) $limit = 100;
     if ($limit > MAX_LIST) $limit = MAX_LIST;
+    // filters, applied here so "the last N 2v2 matches" really are N of them
+    $mode = (string)($_GET['mode'] ?? '');
+    $version = (int)($_GET['gameVersion'] ?? 0);
+    $status = (string)($_GET['status'] ?? '');
+    if (!in_array($status, ['verified', 'unverified', 'mismatch'], true)) $status = '';
+    // one player's matches: the records they submitted themselves
+    $player = mb_strtolower(trim((string)($_GET['name'] ?? '')));
+    // paging: the file name the previous page stopped at (files sort newest-last)
+    $before = basename((string)($_GET['before'] ?? ''));
 
     $groups = []; // matchKey => group; insertion order = newest-group-first, since we scan files newest-first
+    $firstFile = []; // matchKey => the newest file name of that group (the paging cursor)
+    $seen = []; // matchKeys of groups an earlier page already covered
     foreach (array_reverse(matchFiles()) as $path) {
+        $name = basename($path);
+        // {tsBucket}_{matchKey}_{side}_{id}.json — the match key without opening the file
+        $parts = explode('_', $name);
+        $key = $parts[1] ?? '';
+        if ($before !== '' && strcmp($name, $before) >= 0) {
+            if ($key !== '') $seen[$key] = true;
+            continue;
+        }
+        if ($key !== '' && isset($seen[$key])) continue;
+        // enough groups: only their siblings are still read (a status filter needs every group whole)
+        if ($status === '' && count($groups) >= $limit && !isset($groups[$key])) continue;
+
         $raw = @file_get_contents($path);
         if ($raw === false) continue;
         $data = json_decode($raw, true);
         if (!is_array($data)) continue;
-
         $matchKey = (string)($data['matchKey'] ?? '');
         if ($matchKey === '') continue;
+        if ($mode !== '' && ($data['mode'] ?? '') !== $mode) continue;
+        if ($version > 0 && (int)($data['gameVersion'] ?? 0) !== $version) continue;
+        if ($player !== '' && mb_strtolower((string)($data['names']['local'] ?? '')) !== $player) continue;
 
         if (!isset($groups[$matchKey])) {
-            if (count($groups) >= $limit) continue; // already have enough groups — but keep scanning for siblings of ones we do have
+            if ($status === '' && count($groups) >= $limit) continue;
             $groups[$matchKey] = ['matchKey' => $matchKey, 'ts' => (int)($data['ts'] ?? 0), 'records' => []];
+            $firstFile[$matchKey] = $name;
         }
-        $groups[$matchKey]['records'][] = [
-            'id' => $data['id'] ?? '',
-            'ts' => (int)($data['ts'] ?? 0),
-            'side' => $data['side'] ?? 'a',
-            'source' => $data['source'] ?? 'player',
-            'mode' => $data['mode'] ?? 'unknown',
-            'gameVersion' => $data['gameVersion'] ?? 0,
-            'result' => $data['result'] ?? 'unknown',
-            'rounds' => $data['rounds'] ?? 0,
-            'playerHp' => $data['playerHp'] ?? 0,
-            'enemyHp' => $data['enemyHp'] ?? 0,
-            // a matching Verify re-check never creates its own record (see
-            // recordVerification) — these two fields are the only trace one
-            // ever happened, tracked on the original record instead
-            'verifiedCount' => (int)($data['verifiedCount'] ?? 0),
-            'lastVerifiedAt' => (int)($data['lastVerifiedAt'] ?? 0),
-            'names' => [
-                'local' => $data['names']['local'] ?? '',
-                'opponent' => $data['names']['opponent'] ?? '',
-            ],
-            // full canonical seat list (2v2+) — empty on records predating
-            // this field, or a solo/1v1 record where names above already
-            // says everything
-            'roster' => is_array($data['roster'] ?? null) ? $data['roster'] : [],
-            'hasReplay' => recordHasReplay($data),
-        ];
+        $groups[$matchKey]['records'][] = groupedRecord($data);
     }
 
-    respond(['groups' => array_values($groups)]);
+    if ($status !== '') {
+        $groups = array_filter($groups, fn ($g) => groupStatus($g['records']) === $status);
+        $groups = array_slice($groups, 0, $limit, true);
+    }
+    $out = ['groups' => array_values($groups)];
+    // more there: the cursor for the next page
+    if (count($groups) >= $limit) {
+        $keys = array_keys($groups);
+        $out['next'] = $firstFile[end($keys)] ?? null;
+    }
+    respond($out);
+}
+
+/** what the replay list shows of one record (no action log) */
+function groupedRecord(array $data): array {
+    $rec = [
+        'id' => $data['id'] ?? '',
+        'ts' => (int)($data['ts'] ?? 0),
+        'side' => $data['side'] ?? 'a',
+        'source' => $data['source'] ?? 'player',
+        'mode' => $data['mode'] ?? 'unknown',
+        'gameVersion' => $data['gameVersion'] ?? 0,
+        'result' => $data['result'] ?? 'unknown',
+        'rounds' => $data['rounds'] ?? 0,
+        'playerHp' => $data['playerHp'] ?? 0,
+        'enemyHp' => $data['enemyHp'] ?? 0,
+        // a matching Verify re-check never creates its own record (see
+        // recordVerification) — these two fields are the only trace one
+        // ever happened, tracked on the original record instead
+        'verifiedCount' => (int)($data['verifiedCount'] ?? 0),
+        'lastVerifiedAt' => (int)($data['lastVerifiedAt'] ?? 0),
+        'names' => [
+            'local' => $data['names']['local'] ?? '',
+            'opponent' => $data['names']['opponent'] ?? '',
+        ],
+        // full canonical seat list (2v2+) — empty on records predating
+        // this field, or a solo/1v1 record where names above already
+        // says everything
+        'roster' => is_array($data['roster'] ?? null) ? $data['roster'] : [],
+        // every seat with its AI difficulty, from the replay's own settings
+        'seats' => replaySeats($data),
+        'hasReplay' => recordHasReplay($data),
+    ];
+    if (!empty($data['quit'])) $rec['quit'] = true;
+    if (is_string($data['contentHash'] ?? null)) $rec['contentHash'] = $data['contentHash'];
+    return $rec;
+}
+
+/** the replay settings' seats: name, side, AI difficulty (null: a human) */
+function replaySeats(array $data): array {
+    $seats = $data['replay']['settings']['seats'] ?? null;
+    if (!is_array($seats)) return [];
+    $out = [];
+    foreach ($seats as $seat) {
+        if (!is_array($seat)) continue;
+        $difficulty = $seat['aiDifficulty'] ?? null;
+        $ai = ($seat['controller'] ?? '') === 'ai' || is_string($difficulty);
+        $out[] = [
+            'name' => mb_substr((string)($seat['name'] ?? ''), 0, 32),
+            'side' => (int)($seat['side'] ?? 0) === 0 ? 'a' : 'b',
+            'ai' => $ai,
+            'difficulty' => is_string($difficulty) ? mb_substr($difficulty, 0, 16) : null,
+        ];
+    }
+    return $out;
+}
+
+/** replays.html's analyzeGroup, for the status filter: 'mismatch' | 'verified' | 'unverified' */
+function groupStatus(array $records): string {
+    $bySide = ['a' => [], 'b' => []];
+    foreach ($records as $r) $bySide[$r['side'] === 'b' ? 'b' : 'a'][] = $r;
+    $same = fn ($x, $y) => $x['result'] === $y['result'] && $x['rounds'] === $y['rounds']
+        && $x['playerHp'] === $y['playerHp'] && $x['enemyHp'] === $y['enemyHp'];
+    foreach ($bySide as $list) {
+        foreach ($list as $r) if (!$same($r, $list[0])) return 'mismatch';
+    }
+    if ($bySide['a'] && $bySide['b']) {
+        $a = $bySide['a'][0]['result'];
+        $b = $bySide['b'][0]['result'];
+        $opposite = ($a === 'victory' && $b === 'defeat') || ($a === 'defeat' && $b === 'victory') || ($a === 'draw' && $b === 'draw');
+        if (!$opposite || $bySide['a'][0]['rounds'] !== $bySide['b'][0]['rounds']) return 'mismatch';
+    }
+    foreach ($records as $r) {
+        if (($r['source'] ?? '') === 'verify' || ($r['verifiedCount'] ?? 0) > 0) return 'verified';
+    }
+    return 'unverified';
 }
 
 function handleGet(): void {
@@ -643,6 +732,8 @@ function normalizeRecord(array $data): array {
     if ($channel !== '') $out['channel'] = $channel;
     // the player gave up or left mid-match (the result is then their defeat)
     if (!empty($data['quit'])) $out['quit'] = true;
+    // the build's content hash: a replay only plays back true on the same content
+    if (is_string($data['contentHash'] ?? null) && preg_match('/^[a-f0-9]{64}$/', $data['contentHash'])) $out['contentHash'] = $data['contentHash'];
     if ($techs !== []) $out['techs'] = $techs;
     if ($damage !== []) $out['damage'] = $damage;
     if ($packs !== []) $out['packs'] = $packs;
