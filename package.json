@@ -38,6 +38,7 @@
   },
   "dependencies": {
     "i18next": "^26.4.2",
+    "mediabunny": "1.62.1",
     "peerjs": "^1.5.5",
     "pixi.js": "^8.19.0",
     "steam-electron-build": "github:alexanderthurn/steam-electron-build",

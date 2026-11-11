@@ -904,6 +904,15 @@ export class Game {
     onPracticeDone: (() => void) | null = null;
     /** index into replayLog of the next not-yet-dispatched entry */
     private replayCursor = 0;
+    /**
+     * Filming a replay (replayFilm.ts): the loop is off the ticker and driven
+     * by hand, one fixed step per video frame (filmFrame) — so the video is
+     * smooth however long a frame takes to draw. Null: not filming (always,
+     * outside that one feature).
+     */
+    private filmDt: number | null = null;
+    /** a film frame that only runs on (before the chosen part starts): no drawing */
+    private filmSkipDraw = false;
     /** a replay's round → when its deployment ended (its last move's time on the deploy clock) */
     private readonly replayDeployEnd = new Map<number, number>();
     /** a replay jump is running rounds headlessly: no soul drain, barks or splashes in between */
@@ -5237,7 +5246,8 @@ export class Game {
      * @returns true when a celebrate was started (solo caller may lead deploy by a beat)
      */
     private playRoundVictorBark(completedRound: number): boolean {
-        if (this.hydrating || this.replayFastForward || this.editorMode === 'test' || completedRound < 1) return false;
+        // not while a replay is filmed either: the portrait flies over the film's loader (it is page-level DOM)
+        if (this.hydrating || this.replayFastForward || this.filmDt !== null || this.editorMode === 'test' || completedRound < 1) return false;
         let winningTeam: Team | null = null;
         if (roundsVictory(this.settings)) {
             const last = this.yearRounds[this.yearRounds.length - 1];
@@ -7759,6 +7769,72 @@ export class Game {
             this.dispatcher.dispatch(this.replayLog[this.replayCursor]!.action);
             this.replayCursor++;
         }
+    }
+
+    /** a replay just opened: it waits on Pause until the viewer starts it (the speed button) */
+    pauseReplay(): void {
+        if (!this.watching || !this.replayLog) return;
+        const pause = this.speedSteps.indexOf(0);
+        if (pause >= 0) this.applySpeedIndex(pause);
+    }
+
+    // ---- filming a replay (replayFilm.ts) — nothing here runs unless a film does
+
+    /** hands the loop to a film: off the ticker, at 1×. Watching a replay only; false otherwise. */
+    beginFilm(): boolean {
+        if (!this.watching || !this.replayLog || this.filmDt !== null || this.disposed) return false;
+        this.pixiApp.ticker.remove(this.boundTick);
+        const normal = this.speedSteps.indexOf(1);
+        if (normal >= 0) this.applySpeedIndex(normal);
+        this.filmDt = 0;
+        return true;
+    }
+
+    /** one video frame: the game advanced exactly `dt` seconds and — unless `draw` is false — drawn (into the 3D canvas) */
+    filmFrame(dt: number, draw = true): void {
+        if (this.filmDt === null) return;
+        this.filmDt = dt;
+        this.filmSkipDraw = !draw;
+        try {
+            this.tick(dt);
+        } finally {
+            this.filmSkipDraw = false;
+        }
+    }
+
+    /** draws at `size` pixels (the film's resolution), or back to the window's */
+    setFilmSize(size: { width: number; height: number } | null): void {
+        if (size) {
+            this.renderer.setPixelRatio(1);
+            this.resize(size.width, size.height);
+        } else {
+            this.renderer.setPixelRatio(effectiveDpr());
+            this.onWindowResize();
+        }
+    }
+
+    /** the film is over: the window's size and the ticker again */
+    endFilm(): void {
+        if (this.filmDt === null) return;
+        this.filmDt = null;
+        this.lastSimRealTimeMs = null;
+        if (this.disposed) return;
+        this.setFilmSize(null);
+        this.pixiApp.ticker.add(this.boundTick);
+    }
+
+    /** the camera's pose — a film's rebuild hands it on, so the shot stays the one the viewer set */
+    get filmCamera(): ReturnType<CameraRig['getPose']> {
+        return this.rig.getPose();
+    }
+
+    set filmCamera(pose: ReturnType<CameraRig['getPose']>) {
+        this.rig.setPose(pose);
+    }
+
+    /** what a film watches for: the phase, whether the match is over, and whether the game draws yet (warm-up done) */
+    get filmState(): { phase: Phase; matchOver: boolean; ready: boolean } {
+        return { phase: this.phase, matchOver: this.matchOver, ready: this.warmedUp && !this.disposed };
     }
 
     /**
@@ -11427,8 +11503,9 @@ export class Game {
             !soloPaused &&
             !this.introActive &&
             !this.outroActive;
+        // a replay being filmed (replayFilm.ts) runs on the film's fixed step, not the clock
         const trueDtSeconds =
-            this.lastSimRealTimeMs === null ? dtSeconds : (nowMs - this.lastSimRealTimeMs) / 1000;
+            this.filmDt !== null || this.lastSimRealTimeMs === null ? dtSeconds : (nowMs - this.lastSimRealTimeMs) / 1000;
         this.lastSimRealTimeMs = simTimingActive ? nowMs : null;
         if (this.introActive) this.tickMatchIntro(dtSeconds);
         if (this.outroActive) this.tickMatchOutro(dtSeconds);
@@ -11888,7 +11965,7 @@ export class Game {
         if (profile) cpu.end('hud');
         if (profile) cpu.begin();
         updateScreenShake(dtSeconds);
-        this.renderFrame();
+        if (!this.filmSkipDraw) this.renderFrame();
         if (profile) cpu.end('render');
         // the overlay's numbers (sorting the instance pools, walking every unit) only when it shows
         if (this.debug.isEnabled) {

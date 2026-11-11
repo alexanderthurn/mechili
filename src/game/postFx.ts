@@ -273,8 +273,10 @@ export class PostFx {
     }
 
     private build(): void {
-        const el = this.renderer.domElement;
-        this.resolution.set(Math.max(4, el.clientWidth), Math.max(4, el.clientHeight));
+        // the size the renderer draws at, not the canvas's size on screen: the same in play,
+        // but a replay film draws at 4K behind a smaller window (its frames came out upscaled)
+        const size = this.renderer.getSize(new Vector2());
+        this.resolution.set(Math.max(4, size.x), Math.max(4, size.y));
         const pr = this.renderer.getPixelRatio();
         const bw = Math.max(4, Math.floor(this.resolution.x * pr));
         const bh = Math.max(4, Math.floor(this.resolution.y * pr));

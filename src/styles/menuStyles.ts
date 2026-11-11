@@ -1699,6 +1699,79 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     animation: mechili-replay-spin 0.9s linear infinite;
 }
 @keyframes mechili-replay-spin { to { transform: rotate(360deg); } }
+.mechili-film-progress button { margin-top: 6px; padding: 6px 14px; border: 1.5px solid ${u.border}; border-radius: 4px; background: ${u.panelBg}; color: ${u.text}; cursor: pointer; }
+.mechili-film-preview {
+    position: absolute;
+    inset: 0;
+    z-index: 61;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.55);
+    pointer-events: auto;
+}
+.mechili-film-preview .fp-box {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    width: min(960px, 92vw);
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 4px;
+    color: ${u.text};
+}
+.mechili-film-preview .fp-title { font-size: 14px; font-weight: 600; }
+.mechili-film-preview .fp-video { width: 100%; max-height: 70vh; background: #000; border-radius: 2px; }
+.mechili-film-preview .fp-actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+.mechili-film-preview .fp-gap { flex: 1; }
+.mechili-film-preview .fp-bar {
+    position: relative;
+    height: 22px;
+    margin: 2px 9px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid ${u.border};
+    border-radius: 3px;
+    cursor: pointer;
+    touch-action: none;
+}
+.mechili-film-preview .fp-sel { position: absolute; top: 0; bottom: 0; background: rgba(214, 170, 90, 0.32); }
+.mechili-film-preview .fp-head { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: ${u.text}; pointer-events: none; }
+.mechili-film-preview .fp-handle {
+    position: absolute;
+    top: -5px;
+    bottom: -5px;
+    width: 12px;
+    margin-left: -6px;
+    background: ${u.brassLight};
+    border-radius: 3px;
+    cursor: ew-resize;
+}
+.mechili-film-preview .fp-info { font-size: 12px; color: ${u.textMuted}; }
+.mechili-film-preview .fp-actions button {
+    padding: 7px 14px;
+    border: 1.5px solid ${u.border};
+    border-radius: 4px;
+    background: ${u.panelBg};
+    color: ${u.text};
+    cursor: pointer;
+}
+.mechili-film-preview .fp-actions button.primary { color: ${u.brassLight}; }
+.mechili-film-note {
+    position: absolute;
+    left: 50%;
+    top: calc(70px + env(safe-area-inset-top));
+    transform: translateX(-50%);
+    z-index: 61;
+    padding: 8px 14px;
+    max-width: min(560px, 92vw);
+    background: ${u.panelBgDark};
+    border: 1.5px solid ${u.border};
+    border-radius: 4px;
+    color: ${u.text};
+    font-size: 13px;
+    cursor: pointer;
+}
 .mechili-replay-controls.is-hidden,
 .mechili-replay-controls.is-practicing { display: none; }
 .mechili-replay-controls .rc-warning { color: #e0a060; max-width: 34em; line-height: 1.35; }

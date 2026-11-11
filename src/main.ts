@@ -127,7 +127,7 @@ import { builtInCampaigns, campaignLevel, campaignSummary, completedLevels, isBu
 import { loadedLandscape, loadLandscape } from './game/landscape';
 import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
-import { applySteamLanguageDefault, debugEnabled, effectiveDpr, onPrefsChange, prefs, updatePrefs } from './game/prefs';
+import { applySteamLanguageDefault, debugEnabled, effectiveDpr, GRAPHICS_PRESETS, onPrefsChange, overridePrefs, prefs, updatePrefs } from './game/prefs';
 import { openSettings } from './ui/settings';
 import { openSuggest } from './suggest';
 import { cssUrl, iconHtml } from './ui/iconAtlas';
@@ -4094,6 +4094,8 @@ async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
     replaySeat = recordingSeat(record);
     replayRound = 1;
     buildReplayGame({ round: 1 });
+    // opened: it waits on Pause until the viewer starts it
+    (activeGame as Game | null)?.pauseReplay();
     const seats = record.replay.settings.seats ?? [];
     replayControlsPanel = new ReplayControls(wrapper, replayLastRound(record), {
         seats: seats.map((s, seat) => ({ seat, label: replaySeatLabel(s) })),
@@ -4105,6 +4107,8 @@ async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
         },
         onSkipDeployment: () => activeGame?.skipReplayDeployment(),
         onTryRound: () => void withReplayLoader(roundLoadingText(replayRound), () => startPracticeRound()),
+        onFilm: () => void openReplayFilm('film'),
+        onPreview: () => void openReplayFilm('preview'),
         onSaveScenario: () => saveReplayScenario(),
     });
     const mismatch = replayBuildMismatch(record);
@@ -4198,9 +4202,11 @@ async function rebuildReplayAt(target: number | 'end'): Promise<void> {
         if (activeGame?.jumpReplayForward(target === 'end' ? Infinity : target)) {
             replayRound = landed;
             replayControlsPanel?.setCurrentRound(landed);
-            return;
+        } else {
+            rebuildReplay(target);
         }
-        rebuildReplay(target);
+        // a round picked: it waits on Pause, as when the replay was opened
+        (activeGame as Game | null)?.pauseReplay();
     });
 }
 
@@ -4246,6 +4252,56 @@ function rebuildReplay(target: number | 'end'): void {
     replayControlsPanel?.setPracticing(false);
     replayControlsPanel?.setCurrentRound(replayRound);
     followReplayRound();
+}
+
+/**
+ * "Film Round N" / "Preview": the round's battle rendered into an .mp4,
+ * frame by frame (replayFilm.ts — loaded only here, with its encoder
+ * library). The film is taken in a rebuild at Ultra (in effect for the take
+ * only, never saved); the preview right away, with the player's own
+ * graphics. Afterwards the replay is rebuilt at that round again, ready for
+ * another take, from the same shot.
+ */
+async function openReplayFilm(kind: 'film' | 'preview', range: { from: number; to: number } | null = null): Promise<void> {
+    if (!activeGame || !currentReplayRecord || replayLoaderEl) return;
+    const film = await import('./game/replayFilm');
+    const round = replayRound;
+    // the shot the viewer set survives the rebuilds
+    const camera = activeGame.filmCamera;
+    const keepCamera = () => {
+        const game = activeGame as Game | null;
+        if (game) game.filmCamera = camera;
+    };
+    // the film draws at its preset (a rebuild with it, not saved); the preview as the screen does
+    const preset = film.FILM_SPECS[kind].preset;
+    const restorePrefs = preset ? overridePrefs(GRAPHICS_PRESETS[preset]) : () => undefined;
+    let result: Awaited<ReturnType<typeof film.filmBattle>>;
+    try {
+        if (preset) {
+            await withReplayLoader(roundLoadingText(round), () => {
+                rebuildReplay(round);
+                keepCamera();
+            });
+        }
+        replayControlsPanel?.setPracticing(true);
+        const game = activeGame as Game | null;
+        result = game ? await film.filmBattle(game, threeCanvas, wrapper, round, kind, range) : { ok: false, reason: 'no replay' };
+    } finally {
+        restorePrefs();
+    }
+    await withReplayLoader(roundLoadingText(round), () => {
+        rebuildReplay(round);
+        keepCamera();
+    });
+    if (result.ok && result.video) {
+        // the preview plays on the spot; "Film in 4K" takes the real one from the same shot
+        film.showPreviewPlayer(wrapper, result.video, round, result.seconds, (chosen) => void openReplayFilm('film', chosen));
+        return;
+    }
+    film.showFilmNote(
+        wrapper,
+        result.ok ? `Filmed ${result.seconds.toFixed(1)} s of round ${round} → ${result.file}` : `Film stopped: ${result.reason}`,
+    );
 }
 
 /**

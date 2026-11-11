@@ -898,6 +898,21 @@ export function prefs(): Prefs {
     return cached;
 }
 
+/**
+ * `patch` in effect for a while, NOT saved (the stored settings stay the
+ * player's): a replay film draws at Ultra. Returns the undo, which puts the
+ * previous values back (and stores those, should anything have saved the
+ * patched ones meanwhile).
+ */
+export function overridePrefs(patch: Partial<Prefs>): () => void {
+    const p = prefs();
+    const before = Object.fromEntries(Object.keys(patch).map((k) => [k, p[k as keyof Prefs]])) as Partial<Prefs>;
+    Object.assign(p, patch);
+    normalizePrefs(p);
+    for (const listener of [...listeners]) listener();
+    return () => updatePrefs(before);
+}
+
 export function updatePrefs(patch: Partial<Prefs>): void {
     Object.assign(prefs(), patch);
     normalizePrefs(prefs());
