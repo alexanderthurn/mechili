@@ -4101,10 +4101,10 @@ async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
         onJump: (round) => void rebuildReplayAt(round),
         onSeat: (seat) => {
             replaySeat = seat;
-            rebuildReplay(replayRound);
+            void withReplayLoader(roundLoadingText(replayRound), () => rebuildReplay(replayRound));
         },
         onSkipDeployment: () => activeGame?.skipReplayDeployment(),
-        onTryRound: () => startPracticeRound(),
+        onTryRound: () => void withReplayLoader(roundLoadingText(replayRound), () => startPracticeRound()),
         onSaveScenario: () => saveReplayScenario(),
     });
     const mismatch = replayBuildMismatch(record);
@@ -4190,16 +4190,52 @@ function followReplayRound(): void {
     game.onReplayPhase = (phase, cinema) => replayControlsPanel?.setHidden(cinema || phase === 'battle' || phase === 'hpDraw');
 }
 
-/** a round jump: forward runs on in place (instant), anything else rebuilds */
+/** a round jump: forward runs on in place, anything else rebuilds — behind the loader either way */
 async function rebuildReplayAt(target: number | 'end'): Promise<void> {
     if (!currentReplayRecord) return;
     const landed = target === 'end' ? replayLastRound(currentReplayRecord) : target;
-    if (activeGame?.jumpReplayForward(target === 'end' ? Infinity : target)) {
-        replayRound = landed;
-        replayControlsPanel?.setCurrentRound(landed);
-        return;
+    await withReplayLoader(roundLoadingText(landed), () => {
+        if (activeGame?.jumpReplayForward(target === 'end' ? Infinity : target)) {
+            replayRound = landed;
+            replayControlsPanel?.setCurrentRound(landed);
+            return;
+        }
+        rebuildReplay(target);
+    });
+}
+
+function roundLoadingText(round: number): string {
+    return t('hud:replayLoadingRound', { n: round, defaultValue: 'Loading round {{n}}…' });
+}
+
+let replayLoaderEl: HTMLDivElement | null = null;
+
+/**
+ * `work` behind a full-screen loader: a replay rebuild (and the battles it
+ * re-simulates) holds the page for a while, so the loader is painted first
+ * and taken away once the new view has drawn. A second call while one runs
+ * is dropped (a double click on a round).
+ */
+async function withReplayLoader(text: string, work: () => void): Promise<void> {
+    if (replayLoaderEl) return;
+    const el = document.createElement('div');
+    el.className = 'mechili-replay-loader';
+    el.innerHTML = `<div class="rl-spin"></div><div class="rl-text"></div>`;
+    el.querySelector('.rl-text')!.textContent = text;
+    wrapper.appendChild(el);
+    replayLoaderEl = el;
+    const frame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
+    try {
+        // two frames: the loader is on screen before the page blocks
+        await frame();
+        await frame();
+        work();
+        await frame();
+        await frame();
+    } finally {
+        el.remove();
+        replayLoaderEl = null;
     }
-    rebuildReplay(target);
 }
 
 /** the replay rebuilt from the start, standing at `target`'s deployment */
@@ -4226,7 +4262,7 @@ function startPracticeRound(): void {
     if (!game) return;
     // over (or left): straight back to the replay, at the tried round — after the
     // frame that ended it (the Game is mid-update when it says so)
-    game.onPracticeDone = () => setTimeout(() => rebuildReplay(round), 0);
+    game.onPracticeDone = () => void withReplayLoader(roundLoadingText(round), () => rebuildReplay(round));
 }
 
 /**

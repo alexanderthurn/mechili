@@ -1650,15 +1650,17 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     }
 }
 
-/* watch-mode-only jump/speed controls — top-right, deliberately NOT
-   top-center: the round/phase/timer readout (.mechili-topbar) already lives
-   there and this panel used to sit directly on top of it, hiding the one
-   piece of info (time left in the round) replay viewers actually want */
+/* watch-mode-only controls — bottom-center, just above the collapsed chat
+   strip (.mechili-chat): clear of the round/timer readout at the top and the
+   shop and items on the sides. Under the chat's layer, so the chat opened
+   lies over it rather than the other way round. */
 .mechili-replay-controls {
     position: absolute;
-    top: calc(10px + env(safe-area-inset-top));
-    inset-inline-end: calc(16px + env(safe-area-inset-right));
-    z-index: 30;
+    left: 50%;
+    bottom: calc(40px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    z-index: 14;
+    align-items: center;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -1673,6 +1675,30 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-replay-controls .rc-row { display: flex; align-items: center; gap: 8px; }
 .mechili-replay-controls .rc-row[hidden] { display: none; }
 /* a battle is on (only the battle's own centered speed button, the HUD's) or cinema mode */
+/* a replay rebuilding (round jump, other player, Try this round): covers the half-built view */
+.mechili-replay-loader {
+    position: absolute;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    background: ${u.panelBgDark};
+    color: ${u.text};
+    font-size: 15px;
+    pointer-events: auto;
+}
+.mechili-replay-loader .rl-spin {
+    width: 34px;
+    height: 34px;
+    border: 3px solid ${u.border};
+    border-top-color: ${u.brassLight};
+    border-radius: 50%;
+    animation: mechili-replay-spin 0.9s linear infinite;
+}
+@keyframes mechili-replay-spin { to { transform: rotate(360deg); } }
 .mechili-replay-controls.is-hidden,
 .mechili-replay-controls.is-practicing { display: none; }
 .mechili-replay-controls .rc-warning { color: #e0a060; max-width: 34em; line-height: 1.35; }
