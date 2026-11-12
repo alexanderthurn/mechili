@@ -6,6 +6,7 @@ import {
     InstancedBufferAttribute,
     Matrix4,
     Object3D,
+    Quaternion,
     Vector3,
     MeshDepthMaterial,
     MeshStandardMaterial,
@@ -858,6 +859,31 @@ function boneNow(skin: InstancedSkinData, s: SkinAnimState, bone: number, out: M
     return out;
 }
 
+const _pA = new Vector3();
+const _pB = new Vector3();
+const _sA = new Vector3();
+const _sB = new Vector3();
+const _qA = new Quaternion();
+const _qB = new Quaternion();
+
+/**
+ * {@link boneNow}, but a fade between two clips blends position, rotation (slerp)
+ * and scale apart instead of averaging the matrices' numbers — averaging two
+ * rotations shrinks the bone mid-fade, and a shaft stored on that shrunk bone
+ * kept the inverse of the shrink for good (archer arrows grown ballista-sized).
+ */
+function boneNowRigid(skin: InstancedSkinData, s: SkinAnimState, bone: number, out: Matrix4): Matrix4 {
+    const t = skinTime.value;
+    const k = Math.min(1, Math.max(0, (t - s.fadeStart) / FADE_SECONDS));
+    if (k >= 1 || !s.b) return clipBone(skin, s.a, bone, t, out);
+    clipBone(skin, s.a, bone, t, out).decompose(_pA, _qA, _sA);
+    clipBone(skin, s.b, bone, t, _mB).decompose(_pB, _qB, _sB);
+    _pA.lerp(_pB, 1 - k);
+    _qA.slerp(_qB, 1 - k);
+    _sA.lerp(_sB, 1 - k);
+    return out.compose(_pA, _qA, _sA);
+}
+
 /** Live bone followers (proxy children) that {@link updateInstancedSkinBones} keeps posed. */
 const followers = new Set<Object3D>();
 const _v = new Vector3();
@@ -929,7 +955,8 @@ export function instancedSkinBoneAt(proxy: Object3D, worldPoint: Vector3, skin: 
         byBone[bone] = f;
         followers.add(f);
     }
-    boneNow(skin, s, bone, f.matrix);
+    // the shaft is stored against this pose: a clean one, never the shrunk mid-fade average
+    boneNowRigid(skin, s, bone, f.matrix);
     f.updateMatrixWorld(true);
     return f;
 }
