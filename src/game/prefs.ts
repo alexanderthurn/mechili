@@ -51,6 +51,8 @@ export interface Prefs {
     combatChat: boolean;
     /** Master mute — silences sfx, music, and ui. */
     audioMuted: boolean;
+    /** replays (and their films): the camera follows the fighting by itself (battleCamera.ts) */
+    autoBattleCamera: boolean;
     /** Master gain 0..1 (applied after mute). */
     masterVolume: number;
     /** Combat / world SFX group gain 0..1. */
@@ -353,6 +355,7 @@ export function prefsHadStoredLanguage(): boolean {
 const DEFAULTS: Prefs = {
     combatChat: true,
     audioMuted: false,
+    autoBattleCamera: true,
     masterVolume: 1,
     sfxVolume: 1,
     musicVolume: 0.7,
@@ -737,6 +740,7 @@ function asUnitInterval(): Sanitizer {
 const SANITIZERS: Partial<Record<keyof Prefs, Sanitizer>> = {
     combatChat: asBool,
     audioMuted: asBool,
+    autoBattleCamera: asBool,
     masterVolume: asUnitInterval(),
     sfxVolume: asUnitInterval(),
     musicVolume: asUnitInterval(),

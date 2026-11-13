@@ -7,6 +7,7 @@
  * it survives across the Game reconstructions a round-jump causes (main.ts's
  * rebuildReplayAt), so it can't be owned by the Game instance itself.
  */
+import { prefs, updatePrefs } from '../game/prefs';
 import { t } from '../i18n';
 
 function escapeHtml(s: string): string {
@@ -52,6 +53,7 @@ export class ReplayControls {
             `<label>${t('hud:replayRound', { defaultValue: 'Round' })} <select class="rc-round">${roundOptions}</select></label>` +
             `<button type="button" class="rc-skip-deploy">${t('hud:replaySkipDeploy', { defaultValue: 'Skip Deployment' })}</button>` +
             `<button type="button" class="rc-try">${t('hud:replayTryRound', { defaultValue: 'Try this round' })}</button>` +
+            `<button type="button" class="rc-autocam" title="In the battle, the camera films the fighting by itself — wide, mid and close shots; films too. Pan, zoom or turn to take it for a moment.">🎥 Auto camera</button>` +
             `<button type="button" class="rc-preview" title="A quick film of this round's battle to look at — from there, the real one in 4K (wide or a Short)">🎬 Preview Round 1</button>` +
             `</div>` +
             // hidden for now: saving a replay's board as a scenario
@@ -70,6 +72,13 @@ export class ReplayControls {
         this.root.querySelector('.rc-skip-deploy')!.addEventListener('click', () => cb.onSkipDeployment());
         this.root.querySelector('.rc-try')!.addEventListener('click', () => cb.onTryRound());
         this.root.querySelector('.rc-preview')!.addEventListener('click', () => cb.onPreview());
+        const autoCam = this.root.querySelector<HTMLButtonElement>('.rc-autocam')!;
+        const showAutoCam = () => autoCam.classList.toggle('is-on', prefs().autoBattleCamera);
+        showAutoCam();
+        autoCam.addEventListener('click', () => {
+            updatePrefs({ autoBattleCamera: !prefs().autoBattleCamera });
+            showAutoCam();
+        });
         const seatSelect = this.root.querySelector<HTMLSelectElement>('.rc-seat')!;
         seatSelect.addEventListener('change', () => cb.onSeat(Number(seatSelect.value)));
         // a replay without a roster (very old) has no one else to watch

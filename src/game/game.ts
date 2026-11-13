@@ -29,6 +29,7 @@ import { t, techName } from '../i18n';
 import { THEME } from '../theme';
 import { CameraRig, type RigState } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
+import { BattleCamera } from './battleCamera';
 import { GamepadCursor } from '../engine/gamepadCursor';
 import { disposeScene } from '../engine/disposeScene';
 import { ActionDispatcher, buildingUpgradeFor, type ActionContext, garrisonFovYaw, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, xpThresholdFor, type Action, type LoggedAction, type TacticIdSource } from './actions';
@@ -7838,13 +7839,36 @@ export class Game {
     setFilmView(view: { aspect: number; x: number; y: number; w: number; h: number } | null): void {
         const camera = this.rig.camera;
         if (!view) {
+            this.filmFit = Math.min(1, camera.aspect);
             camera.clearViewOffset();
             return;
         }
         const fullH = 10_000;
         const fullW = fullH * view.aspect;
         camera.aspect = view.aspect;
+        this.filmFit = Math.min(view.h, view.w * view.aspect);
         camera.setViewOffset(fullW, fullH, view.x * fullW, view.y * fullH, view.w * fullW, view.h * fullH);
+    }
+
+    // ---- the automatic battle camera (battleCamera.ts) — replays and their films, when the viewer turned it on
+
+    private readonly battleCam = new BattleCamera();
+    private battleCamSim: BattleSim | null = null;
+    /** how much of the window a film shows: min(h, w · aspect) of its view (1: all of it) */
+    private filmFit = 1;
+
+    private updateBattleCamera(dtSeconds: number, gameDt: number): void {
+        const sim = this.sim;
+        if (!sim || this.phase !== 'battle' || !this.watching || !this.replayLog || !prefs().autoBattleCamera) {
+            this.battleCamSim = null;
+            return;
+        }
+        if (this.battleCamSim !== sim) {
+            this.battleCamSim = sim;
+            this.battleCam.reset(this.rig, sim.actors);
+        }
+        const fit = this.filmDt !== null ? this.filmFit : Math.min(1, this.rig.camera.aspect);
+        this.battleCam.update(dtSeconds, gameDt, sim.actors, this.rig, fit);
     }
 
     /** the film is over: the window's size and the ticker again */
@@ -11807,6 +11831,7 @@ export class Game {
             this.gamepad.update(dtSeconds);
             this.rig.update(dtSeconds);
             this.tutorial?.tickCamera();
+            this.updateBattleCamera(dtSeconds, gameDt);
         }
         // Audio listener: xz on look-at (stable under orbit), y rises with the
         // camera so max zoom ducks ground SFX instead of staying "in the fight".

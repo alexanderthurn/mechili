@@ -1674,6 +1674,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 }
 .mechili-replay-controls .rc-row { display: flex; align-items: center; gap: 8px; }
 .mechili-replay-controls .rc-row[hidden] { display: none; }
+.mechili-replay-controls .rc-autocam:not(.is-on) { opacity: 0.5; text-decoration: line-through; }
 /* a battle is on (only the battle's own centered speed button, the HUD's) or cinema mode */
 /* a replay rebuilding (round jump, other player, Try this round): covers the half-built view */
 .mechili-replay-loader {
