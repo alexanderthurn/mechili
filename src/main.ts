@@ -4073,6 +4073,7 @@ function setReplayUrl(replay: { id: string; side: 'a' | 'b' } | null): void {
             if (!url.searchParams.has('watch')) return;
             url.searchParams.delete('watch');
             url.searchParams.delete('side');
+            url.searchParams.delete('round');
         }
         history.replaceState(history.state, '', url.href);
     } catch {
@@ -4080,7 +4081,21 @@ function setReplayUrl(replay: { id: string; side: 'a' | 'b' } | null): void {
     }
 }
 
-async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
+/** the replay's round in the address (?round=), so a reload or a shared link lands there */
+function setReplayUrlRound(round: number): void {
+    try {
+        const url = new URL(location.href);
+        if (!url.searchParams.has('watch')) return;
+        if (round > 1) url.searchParams.set('round', String(round));
+        else url.searchParams.delete('round');
+        history.replaceState(history.state, '', url.href);
+    } catch {
+        // as setReplayUrl
+    }
+}
+
+/** `round`: open at that round's deployment (?round= in a link), clamped to the match's rounds */
+async function startReplayWatch(id: string, side: 'a' | 'b', round = 1): Promise<void> {
     setMenuChromeVisible(true);
     setStatus(t('hud:loadingReplay', { defaultValue: 'Loading replay…' }));
     const record = await fetchMatchReplay(id, side);
@@ -4092,8 +4107,8 @@ async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
     setReplayUrl({ id, side });
     currentReplayRecord = record;
     replaySeat = recordingSeat(record);
-    replayRound = 1;
-    buildReplayGame({ round: 1 });
+    replayRound = Math.max(1, Math.min(replayLastRound(record), Math.floor(round) || 1));
+    buildReplayGame({ round: replayRound });
     // opened: it waits on Pause until the viewer starts it
     (activeGame as Game | null)?.pauseReplay();
     const seats = record.replay.settings.seats ?? [];
@@ -4105,7 +4120,7 @@ async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
             replaySeat = seat;
             void withReplayLoader(roundLoadingText(replayRound), () => rebuildReplay(replayRound));
         },
-        onSkipDeployment: () => activeGame?.skipReplayDeployment(),
+        onSkipDeployment: () => activeGame?.skipReplayDeployment(true),
         onTryRound: () => void withReplayLoader(roundLoadingText(replayRound), () => startPracticeRound()),
         onPreview: () => void openReplayFilm('preview'),
         onSaveScenario: () => saveReplayScenario(),
@@ -4119,6 +4134,8 @@ async function startReplayWatch(id: string, side: 'a' | 'b'): Promise<void> {
             }),
         );
     }
+    replayControlsPanel.setCurrentRound(replayRound);
+    setReplayUrlRound(replayRound);
     followReplayRound();
 }
 
@@ -4189,6 +4206,7 @@ function followReplayRound(): void {
     game.onReplayRound = (round) => {
         replayRound = round;
         replayControlsPanel?.setCurrentRound(round);
+        setReplayUrlRound(round);
     };
     game.onReplayPhase = (phase, cinema) => replayControlsPanel?.setHidden(cinema || phase === 'battle' || phase === 'hpDraw');
 }
@@ -4201,6 +4219,7 @@ async function rebuildReplayAt(target: number | 'end'): Promise<void> {
         if (activeGame?.jumpReplayForward(target === 'end' ? Infinity : target)) {
             replayRound = landed;
             replayControlsPanel?.setCurrentRound(landed);
+            setReplayUrlRound(landed);
         } else {
             rebuildReplay(target);
         }
@@ -4250,6 +4269,7 @@ function rebuildReplay(target: number | 'end'): void {
     replayRound = target === 'end' ? replayLastRound(currentReplayRecord) : target;
     replayControlsPanel?.setPracticing(false);
     replayControlsPanel?.setCurrentRound(replayRound);
+    setReplayUrlRound(replayRound);
     followReplayRound();
 }
 
@@ -6504,7 +6524,7 @@ if (bulkVerify) {
 } else if (watchId && (watchSide === 'a' || watchSide === 'b')) {
     // outranks any resume marker/single-player save — a replay link should
     // never be silently preempted by stale local state
-    void startReplayWatch(watchId, watchSide);
+    void startReplayWatch(watchId, watchSide, Number(watchParams.get('round') ?? 1));
 } else if (starMpMarker && Date.now() - (starMpMarker.savedAt ?? 0) <= STAR_RESUME_AUTO_MS) {
     // Fresh enough that the host may still be holding the seat. Reopening the
     // tab minutes later and watching it announce "Reconnecting…" before failing

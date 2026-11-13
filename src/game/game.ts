@@ -1172,6 +1172,7 @@ export class Game {
             const digit = parseInt(e.code.slice(5), 10);
             const index = this.speedShortcutIndex(digit);
             if (index !== null && this.speedShortcutsActive()) {
+                this.replayHeldPaused = false;
                 this.applySpeedIndex(index);
                 return;
             }
@@ -7776,8 +7777,14 @@ export class Game {
      * battle phases carry no logged actions), so no explicit phase check
      * is needed inside the loop.
      */
-    skipReplayDeployment(): void {
+    /** `atNormalSpeed`: the viewer's Skip Deployment — the battle then plays at 1× (not on a paused or fast replay) */
+    skipReplayDeployment(atNormalSpeed = false): void {
         if (!this.watching || !this.replayLog || this.phase !== 'build') return;
+        if (atNormalSpeed) {
+            this.replayHeldPaused = false;
+            const normal = this.speedSteps.indexOf(1);
+            if (normal >= 0) this.applySpeedIndex(normal);
+        }
         while (
             this.replayCursor < this.replayLog.length &&
             this.replayLog[this.replayCursor]!.round === this.round
@@ -7791,8 +7798,14 @@ export class Game {
     pauseReplay(): void {
         if (!this.watching || !this.replayLog) return;
         const pause = this.speedSteps.indexOf(0);
-        if (pause >= 0) this.applySpeedIndex(pause);
+        if (pause < 0) return;
+        this.applySpeedIndex(pause);
+        // a deployment starting next (resetSpeed's 1×) doesn't undo it — only the viewer does
+        this.replayHeldPaused = true;
     }
+
+    /** a replay put on Pause by opening it or a round jump: stays paused until the viewer picks a speed */
+    private replayHeldPaused = false;
 
     // ---- filming a replay (replayFilm.ts) — nothing here runs unless a film does
 
@@ -7800,6 +7813,7 @@ export class Game {
     beginFilm(): boolean {
         if (!this.watching || !this.replayLog || this.filmDt !== null || this.disposed) return false;
         this.pixiApp.ticker.remove(this.boundTick);
+        this.replayHeldPaused = false;
         const normal = this.speedSteps.indexOf(1);
         if (normal >= 0) this.applySpeedIndex(normal);
         this.filmDt = 0;
@@ -9607,11 +9621,13 @@ export class Game {
     private cycleSpeed(direction: number): void {
         const next = this.speedIndex + direction;
         if (next < 0 || next >= this.speedSteps.length) return;
+        this.replayHeldPaused = false;
         this.applySpeedIndex(next);
     }
 
     /** battle speed returns to 1× at the start of every deployment phase (a replay's too) */
     private resetSpeed(): void {
+        if (this.watching && this.replayHeldPaused) return;
         const index = this.speedSteps.indexOf(1);
         if (index < 0) return;
         this.speedIndex = index;
@@ -11670,6 +11686,7 @@ export class Game {
                         modelId: a.unit.type.modelId ?? a.unit.type.id,
                         structure: !!a.unit.type.structure,
                         exactSeat: !!a.unit.type.wall,
+                        noStick: !!a.unit.type.wall?.gate,
                         // skinned units: ride the bone under the hit (death clips carry it)
                         // (a ballista bolt asks for the body only — GPU-skinned models know theirs)
                         boneAt: (world, coreSeat) => {

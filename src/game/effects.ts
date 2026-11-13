@@ -1586,6 +1586,8 @@ export type StuckAttachRef = {
      * its box spans tower to tower, so a miss fell back to its middle, high up)
      */
     exactSeat?: boolean;
+    /** nothing sticks here (a gate: its doors swing, a shaft would hang in the air) */
+    noStick?: boolean;
 };
 
 const _seatRay = new Raycaster();
@@ -2316,6 +2318,7 @@ export class StuckBoltRenderer {
 
             const ref =
                 e.attachIndex !== undefined ? (resolveAttach?.(e.attachIndex) ?? null) : null;
+            if (ref?.noStick) continue;
             const dig = e.style === 'largeArrow' ? 0.22 : 0.1;
             seatStuckBoltCenter(
                 e.x,
