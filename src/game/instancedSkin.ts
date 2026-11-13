@@ -601,20 +601,38 @@ export function registerInstancedSkinProxy(proxy: Object3D): void {
     stateOf(proxy);
 }
 
+/** game seconds a fire clip plays past its blow before a unit walking off may cut it */
+const FIRE_CUT_GRACE = 0.2;
+/** smoothed speed ratio from which a unit counts as walking off (not a scrum's jostle) */
+const WALK_OFF_SPEED = 0.35;
+
 /**
  * Loop `walk` or `idle` at `rate` × the clip's authored speed. Changing only the
  * rate keeps the current phase, so a wingbeat never jumps. A one-shot (fire)
- * finishes first; a dead mech ignores loops.
+ * finishes first — unless `walkingOff`: a unit that walks away after its shot walks
+ * (past the blow), instead of gliding off in the shot's pose; it also walks out of a
+ * held beam pose, which comes back once it stands. A dead mech ignores loops.
  */
-export function playInstancedSkinLoop(proxy: Object3D, role: LoopRole, rate: number, skin: InstancedSkinData): void {
+export function playInstancedSkinLoop(proxy: Object3D, role: LoopRole, rate: number, skin: InstancedSkinData, walkingOff = false): void {
     const s = stateOf(proxy);
-    if (s.dying || s.holding) return;
+    if (s.dying) return;
+    const t = skinTime.value;
+    if (s.holding && !walkingOff) {
+        // stood still again while the beam is on: back into its cast pose (the fire clip's end)
+        const fire = skin.clips.fire;
+        if (fire && s.a.role !== 'fire') crossTo(s, 'fire', fire.duration, fire.speed);
+        return;
+    }
     const clip = skin.clips[role];
     if (!clip) return;
-    const t = skinTime.value;
     const r = rate * clip.speed;
     const cur = skin.clips[s.a.role];
-    if (cur && !cur.loop && clipSeconds(s.a, t) < cur.duration) return; // let the one-shot land
+    if (cur && !cur.loop) {
+        const at = clipSeconds(s.a, t);
+        // the blow (hitAt; the start without one) and a beat after it, in clip seconds
+        const cuttable = walkingOff && s.a.role === 'fire' && at >= (skin.fireLead + FIRE_CUT_GRACE) * cur.speed;
+        if (at < cur.duration && !cuttable) return; // let the one-shot land
+    }
     if (s.a.role === role) {
         if (Math.abs(s.a.rate - r) > 1e-4) {
             s.a.phase0 = clipSeconds(s.a, t);
@@ -739,7 +757,8 @@ export function driveGroundSkin(
     // near-stopped shuffle from freezing mid-stride
     const ratio = Math.min(2, Math.max(0.05, s.speed)) * (input.rate ?? 1);
     // lifted into the air (Sky Lift) with a fly clip: run on air instead of walking
-    if (s.walking) playInstancedSkinLoop(proxy, input.airborne && skin.clips.fly ? 'fly' : 'walk', ratio, skin);
+    const walkingOff = s.walking && s.speed > WALK_OFF_SPEED;
+    if (s.walking) playInstancedSkinLoop(proxy, input.airborne && skin.clips.fly ? 'fly' : 'walk', ratio, skin, walkingOff);
     else playInstancedSkinLoop(proxy, 'idle', 1, skin);
 }
 
