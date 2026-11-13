@@ -4261,10 +4261,19 @@ function rebuildReplay(target: number | 'end'): void {
  * graphics. Afterwards the replay is rebuilt at that round again, ready for
  * another take, from the same shot.
  */
+/** the last preview taken: after a film it opens again, as it was set, to film once more */
+let lastFilmPreview: {
+    record: unknown;
+    round: number;
+    video: Blob;
+    seconds: number;
+    sound: import('./game/replayFilm').FilmSoundParts | null;
+} | null = null;
+
 async function openReplayFilm(
-    kind: 'film' | 'short' | 'preview',
-    range: { from: number; to: number } | null = null,
-    area: { cx: number; cy: number; h: number } | null = null,
+    kind: 'film' | 'short' | '2k' | 'preview',
+    /** a film: what the preview was set to (range, format, area, mix) */
+    state: import('./game/replayFilm').PreviewState | null = null,
 ): Promise<void> {
     if (!activeGame || !currentReplayRecord || replayLoaderEl) return;
     const film = await import('./game/replayFilm');
@@ -4288,7 +4297,9 @@ async function openReplayFilm(
         }
         replayControlsPanel?.setPracticing(true);
         const game = activeGame as Game | null;
-        result = game ? await film.filmBattle(game, threeCanvas, wrapper, round, kind, range, area) : { ok: false, reason: 'no replay' };
+        result = game
+            ? await film.filmBattle(game, threeCanvas, wrapper, round, kind, state?.range ?? null, state?.area ?? null, state?.mix)
+            : { ok: false, reason: 'no replay' };
     } finally {
         restorePrefs();
     }
@@ -4296,11 +4307,17 @@ async function openReplayFilm(
         rebuildReplay(round);
         keepCamera();
     });
+    const reopen = (preview: NonNullable<typeof lastFilmPreview>, as: typeof state) =>
+        film.showPreviewPlayer(wrapper, preview.video, round, preview.seconds, preview.sound, (chosen) => void openReplayFilm(chosen.format, chosen), as);
     if (result.ok && result.video) {
         // the preview plays on the spot; "Film in 4K" takes the real one from the same shot
-        film.showPreviewPlayer(wrapper, result.video, round, result.seconds, (chosen, format, chosenArea) => void openReplayFilm(format, chosen, chosenArea));
+        lastFilmPreview = { record: currentReplayRecord, round, video: result.video, seconds: result.seconds, sound: result.sound };
+        reopen(lastFilmPreview, null);
         return;
     }
+    // a film done (or stopped): back to its preview, set as it was, to film again
+    const preview = lastFilmPreview;
+    if (kind !== 'preview' && preview && preview.record === currentReplayRecord && preview.round === round) reopen(preview, state);
     film.showFilmNote(
         wrapper,
         result.ok ? `Filmed ${result.seconds.toFixed(1)} s of round ${round} → ${result.file}` : `Film stopped: ${result.reason}`,

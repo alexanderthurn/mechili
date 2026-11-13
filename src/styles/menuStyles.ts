@@ -1747,6 +1747,9 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     touch-action: none;
 }
 .mechili-film-preview .fp-area[hidden] { display: none; }
+/* 2K's middle part: shown, not moved */
+.mechili-film-preview .fp-area.fixed { pointer-events: none; cursor: default; }
+.mechili-film-preview .fp-area.fixed .fp-area-size { display: none; }
 .mechili-film-preview .fp-stage { overflow: hidden; }
 .mechili-film-preview .fp-area-size {
     position: absolute;
@@ -1794,6 +1797,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     cursor: pointer;
 }
 .mechili-film-preview .fp-actions button.primary { color: ${u.brassLight}; }
+.mechili-film-preview .fp-actions button.fp-mix:not(.is-on) { opacity: 0.5; text-decoration: line-through; }
 .mechili-film-note {
     position: absolute;
     left: 50%;

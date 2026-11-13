@@ -16,7 +16,18 @@
  * not saved to the player's settings).
  */
 
-import { BufferTarget, CanvasSource, canEncodeVideo, Mp4OutputFormat, Output } from 'mediabunny';
+import {
+    AudioBufferSource,
+    BufferTarget,
+    CanvasSource,
+    canEncodeVideo,
+    getFirstEncodableAudioCodec,
+    Mp4OutputFormat,
+    Output,
+    QUALITY_HIGH,
+    QUALITY_MEDIUM,
+} from 'mediabunny';
+import { audio } from './audio';
 import type { Phase } from '../ui/hud';
 import type { GraphicsPreset } from './prefs';
 
@@ -32,23 +43,51 @@ export interface FilmGame {
 }
 
 /** a film is downloaded (`file`); a preview is handed back to be played on the spot (`video`) */
-export type FilmResult = { ok: true; file: string | null; video: Blob | null; seconds: number } | { ok: false; reason: string };
+export type FilmResult =
+    | { ok: true; file: string | null; video: Blob | null; seconds: number; sound: FilmSoundParts | null }
+    | { ok: false; reason: string };
+
+/** a preview's soundtrack apart: the player mixes it live, as the SFX / Music buttons say */
+export type FilmSoundParts = { sfx: AudioBuffer; music: AudioBuffer };
+
+/** what the preview player was set to — it opens like that again after a film */
+export interface PreviewState {
+    range: FilmRange;
+    format: FilmFormat;
+    area: ShortArea | null;
+    mix: FilmSound;
+}
+
+/** what the film's first sound track (the one players play) holds; the sounds and the music also come as tracks of their own */
+export type FilmSound = { sfx: boolean; music: boolean };
 
 /** wide: the window's shape; short: 9:16 upright (YouTube Shorts) */
-export type FilmKind = 'film' | 'short' | 'preview';
+export type FilmKind = 'film' | 'short' | '2k' | 'preview';
+
+/** what the preview offers to film */
+export type FilmFormat = Exclude<FilmKind, 'preview'>;
 
 /** a short is the window's view narrowed to this shape (the camera keeps its vertical view, so it is the middle strip) */
 export const SHORT_ASPECT = 9 / 16;
+
+/** 2K: 16:9 out of the middle of the view, 1080p — what X (Twitter) takes */
+export const TWO_K_ASPECT = 16 / 9;
 
 /**
  * Each kind's size, rate and graphics. `aspect` null: the window's shape.
  * `fallbackHeight`: tried when the browser can't encode the full size.
  * `preset` null: the player's own graphics, no rebuild before the take.
+ * `maxBitrate`: a cap the upload site sets. `oneSoundTrack`: only the mix, no
+ * sounds / music tracks apart (an upload site may refuse several).
  */
-export const FILM_SPECS: Record<FilmKind, { height: number; fallbackHeight?: number; aspect: number | null; fps: number; preset: GraphicsPreset | null }> = {
+export const FILM_SPECS: Record<
+    FilmKind,
+    { height: number; fallbackHeight?: number; aspect: number | null; fps: number; preset: GraphicsPreset | null; maxBitrate?: number; oneSoundTrack?: boolean }
+> = {
     film: { height: 2160, aspect: null, fps: 60, preset: 'ultra' },
     short: { height: 3840, fallbackHeight: 1920, aspect: SHORT_ASPECT, fps: 60, preset: 'ultra' },
-    preview: { height: 540, aspect: null, fps: 15, preset: null },
+    '2k': { height: 1080, aspect: TWO_K_ASPECT, fps: 60, preset: 'ultra', maxBitrate: 12_000_000, oneSoundTrack: true },
+    preview: { height: 540, aspect: null, fps: 15, preset: null, oneSoundTrack: true },
 };
 
 /** about 0.1 bits per pixel per frame — crisp for a busy battlefield (4K60: ~50 Mbit/s) */
@@ -57,6 +96,8 @@ const BITS_PER_PIXEL_FRAME = 0.1;
 const MAX_SECONDS = 600;
 /** frames run unfilmed while the skipped deployment turns into the battle */
 const MAX_LEAD_SECONDS = 20;
+/** a soundtrack without a chosen part (the preview of a whole battle) is recorded this long at most */
+const MAX_SOUND_SECONDS = 300;
 /** how long a freshly built game may take to warm up before filming gives up, ms */
 const READY_TIMEOUT_MS = 60_000;
 
@@ -113,6 +154,13 @@ export interface ShortArea {
 /** the smallest area, as a part of the view's height */
 const MIN_SHORT_H = 0.2;
 
+/** 2K's rectangle in the view: 16:9 from its middle, as high or as wide as the view allows */
+function twoKRect(viewAspect: number): { x: number; y: number; w: number; h: number } {
+    const w = Math.min(1, TWO_K_ASPECT / viewAspect);
+    const h = Math.min(1, viewAspect / TWO_K_ASPECT);
+    return { x: (1 - w) / 2, y: (1 - h) / 2, w, h };
+}
+
 /** the area's rectangle in the view (0…1, from the top left), kept inside it */
 function shortRect(area: ShortArea, viewAspect: number): { x: number; y: number; w: number; h: number } {
     const h = Math.max(MIN_SHORT_H, Math.min(1, area.h));
@@ -140,7 +188,11 @@ export function showPreviewPlayer(
     video: Blob,
     round: number,
     seconds: number,
-    onFilm: (range: FilmRange, kind: 'film' | 'short', area: ShortArea | null) => void,
+    /** its sound apart (null: the file's own track, if any) */
+    sound: FilmSoundParts | null,
+    onFilm: (state: PreviewState) => void,
+    /** opened again after a film: as it was set then */
+    initial: PreviewState | null = null,
 ): void {
     const url = URL.createObjectURL(video);
     const overlay = document.createElement('div');
@@ -149,7 +201,8 @@ export function showPreviewPlayer(
         `<div class="fp-box">` +
         `<div class="fp-head-row"><div class="fp-title">Preview of round ${round}</div>` +
         `<div class="fp-format"><button type="button" data-format="film" class="is-on">Wide</button>` +
-        `<button type="button" data-format="short">Short</button></div></div>` +
+        `<button type="button" data-format="short">Short</button>` +
+        `<button type="button" data-format="2k" title="1080p, 16:9 from the middle — small enough for X">2K</button></div></div>` +
         `<div class="fp-frame"><div class="fp-stage"><video class="fp-video" autoplay playsinline></video>` +
         `<div class="fp-area" hidden><div class="fp-area-size" title="Drag: bigger / smaller"></div></div></div></div>` +
         `<div class="fp-area-hint" hidden>Short: drag the frame to move it, its corner (or the mouse wheel) to size it — a smaller frame is filmed closer, as sharp.</div>` +
@@ -159,6 +212,8 @@ export function showPreviewPlayer(
         `<div class="fp-actions">` +
         `<button type="button" data-act="play">Pause</button>` +
         `<button type="button" data-act="all">Whole battle</button>` +
+        `<button type="button" data-act="mix" data-part="sfx" class="fp-mix is-on" title="The battle's sounds — in the preview and the film's sound (a film also has them as a track of their own)">🔊 SFX</button>` +
+        `<button type="button" data-act="mix" data-part="music" class="fp-mix is-on" title="The match's music — in the preview and the film's sound (a film also has it as a track of its own)">♪ Music</button>` +
         `<span class="fp-gap"></span>` +
         `<button type="button" data-act="close">Close</button>` +
         `<button type="button" class="primary" data-act="film"></button>` +
@@ -177,13 +232,74 @@ export function showPreviewPlayer(
     const areaEl = overlay.querySelector<HTMLDivElement>('.fp-area')!;
     const areaHint = overlay.querySelector<HTMLDivElement>('.fp-area-hint')!;
     videoEl.src = url;
-    let format: 'film' | 'short' = 'film';
-    const area: ShortArea = { cx: 0.5, cy: 0.5, h: 1 };
+    let format: FilmFormat = initial?.format ?? 'film';
+    const area: ShortArea = initial?.area ? { ...initial.area } : { cx: 0.5, cy: 0.5, h: 1 };
+    const mix: FilmSound = initial ? { ...initial.mix } : { sfx: true, music: true };
+    overlay.querySelectorAll<HTMLButtonElement>('.fp-mix').forEach((b) => b.classList.toggle('is-on', mix[b.dataset.part as keyof FilmSound]));
+
+    // the sound: both parts played along with the video in a context of the player's own — heard
+    // whatever the game's mute or volumes, and the SFX / Music buttons switch them live
+    const listen = sound ? new AudioContext() : null;
+    const partGain = listen
+        ? { sfx: listen.createGain(), music: listen.createGain() }
+        : null;
+    if (listen && partGain) {
+        partGain.sfx.connect(listen.destination);
+        partGain.music.connect(listen.destination);
+        videoEl.muted = true;
+    }
+    const applyMix = () => {
+        if (!partGain) return;
+        partGain.sfx.gain.value = mix.sfx ? 1 : 0;
+        partGain.music.gain.value = mix.music ? 1 : 0;
+    };
+    applyMix();
+    let playing: AudioBufferSourceNode[] = [];
+    /** where the sound was started (context time) and from which video time */
+    let soundAt = { ctx: 0, video: 0 };
+    const stopSound = () => {
+        for (const src of playing) {
+            try {
+                src.stop();
+            } catch {
+                /* not started */
+            }
+            src.disconnect();
+        }
+        playing = [];
+    };
+    const startSound = () => {
+        stopSound();
+        if (!listen || !partGain || !sound || videoEl.paused) return;
+        void listen.resume();
+        const from = videoEl.currentTime;
+        for (const part of ['sfx', 'music'] as const) {
+            const src = listen.createBufferSource();
+            src.buffer = sound[part];
+            src.connect(partGain[part]);
+            src.start(0, Math.min(from, sound[part].duration));
+            playing.push(src);
+        }
+        soundAt = { ctx: listen.currentTime, video: from };
+    };
+    videoEl.addEventListener('playing', startSound);
+    videoEl.addEventListener('seeked', startSound);
+    videoEl.addEventListener('pause', stopSound);
     const videoAspect = () => (videoEl.videoWidth > 0 ? videoEl.videoWidth / videoEl.videoHeight : 16 / 9);
     const paintArea = () => {
         const short = format === 'short';
-        areaEl.hidden = !short;
+        // 2K shows its fixed middle part; only a Short's frame can be moved and sized
+        areaEl.hidden = !short && format !== '2k';
+        areaEl.classList.toggle('fixed', format === '2k');
         areaHint.hidden = !short;
+        if (format === '2k') {
+            const r = twoKRect(videoAspect());
+            areaEl.style.left = `${r.x * 100}%`;
+            areaEl.style.top = `${r.y * 100}%`;
+            areaEl.style.width = `${r.w * 100}%`;
+            areaEl.style.height = `${r.h * 100}%`;
+            return;
+        }
         if (!short) return;
         const r = shortRect(area, videoAspect());
         // keep the stored middle where the rectangle really is (it was kept inside the view)
@@ -231,7 +347,7 @@ export function showPreviewPlayer(
     window.addEventListener('pointerup', onAreaUp);
 
     let total = Math.max(MIN_RANGE, seconds);
-    const range: FilmRange = { from: 0, to: total };
+    const range: FilmRange = initial ? { ...initial.range } : { from: 0, to: total };
     const pct = (t: number) => `${(Math.max(0, Math.min(total, t)) / total) * 100}%`;
     const paint = () => {
         sel.style.left = pct(range.from);
@@ -241,7 +357,7 @@ export function showPreviewPlayer(
         head.style.left = pct(videoEl.currentTime);
         const whole = range.from <= 0.01 && range.to >= total - 0.01;
         info.textContent = whole ? `The whole battle: ${fmt(total)}` : `From ${fmt(range.from)} to ${fmt(range.to)} — ${fmt(range.to - range.from)}`;
-        const what = format === 'short' ? 'as Short' : 'in 4K';
+        const what = format === 'short' ? 'as Short' : format === '2k' ? 'in 2K' : 'in 4K';
         filmBtn.textContent = whole ? `🎬 Film ${what}` : `🎬 Film ${fmt(range.to - range.from)} ${what}`;
         frame.classList.toggle('short', format === 'short');
         paintArea();
@@ -253,7 +369,9 @@ export function showPreviewPlayer(
         if (Number.isFinite(videoEl.duration) && videoEl.duration > 0) {
             total = videoEl.duration;
             range.to = Math.min(range.to, total) || total;
+            range.from = Math.min(range.from, Math.max(0, range.to - MIN_RANGE));
         }
+        if (range.from > 0) videoEl.currentTime = range.from;
         paint();
     });
     // the loop over the chosen part, checked every frame (timeupdate is too coarse)
@@ -261,6 +379,11 @@ export function showPreviewPlayer(
     const watch = () => {
         if (!videoEl.paused && (videoEl.currentTime >= range.to || videoEl.currentTime < range.from - 0.05)) {
             videoEl.currentTime = range.from;
+        }
+        // the sound kept with the picture (a stall, a dropped frame): restarted where the video is
+        if (playing.length && listen && !videoEl.paused && !videoEl.seeking) {
+            const heard = soundAt.video + (listen.currentTime - soundAt.ctx);
+            if (Math.abs(heard - videoEl.currentTime) > 0.12) startSound();
         }
         paint();
         raf = requestAnimationFrame(watch);
@@ -313,6 +436,8 @@ export function showPreviewPlayer(
         window.removeEventListener('pointermove', onAreaMove);
         window.removeEventListener('pointerup', onAreaUp);
         videoEl.pause();
+        stopSound();
+        void listen?.close().catch(() => undefined);
         overlay.remove();
         URL.revokeObjectURL(url);
     };
@@ -330,12 +455,19 @@ export function showPreviewPlayer(
     overlay.addEventListener('click', (e) => {
         if (e.target === overlay) return close();
         const button = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
-        if (button?.dataset.format) format = button.dataset.format === 'short' ? 'short' : 'film';
+        const picked = button?.dataset.format;
+        if (picked) format = picked === 'short' || picked === '2k' ? picked : 'film';
         const act = button?.dataset.act;
         if (act === 'close') close();
         if (act === 'play') {
             if (videoEl.paused) void videoEl.play();
             else videoEl.pause();
+        }
+        if (act === 'mix') {
+            const part = button!.dataset.part as keyof FilmSound;
+            mix[part] = !mix[part];
+            button!.classList.toggle('is-on', mix[part]);
+            applyMix();
         }
         if (act === 'all') {
             range.from = 0;
@@ -345,7 +477,7 @@ export function showPreviewPlayer(
             const chosen = { ...range };
             const chosenArea = format === 'short' ? { ...area } : null;
             close();
-            onFilm(chosen, format, chosenArea);
+            onFilm({ range: chosen, format, area: chosenArea, mix: { ...mix } });
         }
     });
     parent.appendChild(overlay);
@@ -367,6 +499,19 @@ function progressOverlay(parent: HTMLElement): { set(text: string): void; cancel
     };
 }
 
+/** the sounds and the music summed as `mix` asks (left out: silent) */
+function mixOf(parts: { sfx: AudioBuffer; music: AudioBuffer }, mix: FilmSound): AudioBuffer {
+    const { length, sampleRate } = parts.sfx;
+    const out = new AudioBuffer({ length, numberOfChannels: 2, sampleRate });
+    for (let ch = 0; ch < 2; ch++) {
+        const o = out.getChannelData(ch);
+        const a = parts.sfx.getChannelData(ch);
+        const b = parts.music.getChannelData(ch);
+        for (let i = 0; i < length; i++) o[i] = (mix.sfx ? a[i]! : 0) + (mix.music ? b[i]! : 0);
+    }
+    return out;
+}
+
 /**
  * Films the battle of the round the replay stands at: its deployment
  * skipped, then the battle and its soul drain, frame by frame — into the
@@ -382,6 +527,8 @@ export async function filmBattle(
     range: FilmRange | null = null,
     /** a Short: the part of the view it holds (null: the middle strip, full height) */
     area: ShortArea | null = null,
+    /** what the mix (the first sound track) holds */
+    mix: FilmSound = { sfx: true, music: true },
 ): Promise<FilmResult> {
     if (typeof VideoEncoder === 'undefined') return { ok: false, reason: 'This browser cannot encode video (no WebCodecs).' };
     const spec = FILM_SPECS[kind];
@@ -393,7 +540,8 @@ export async function filmBattle(
     const sizeAt = (h: number) => {
         const height = h - (h % 2);
         const width = Math.round((height * aspect) / 2) * 2;
-        return { width, height, bitrate: Math.max(1_500_000, Math.round(width * height * fps * BITS_PER_PIXEL_FRAME)) };
+        const bitrate = Math.max(1_500_000, Math.round(width * height * fps * BITS_PER_PIXEL_FRAME));
+        return { width, height, bitrate: Math.min(bitrate, spec.maxBitrate ?? Infinity) };
     };
     let size = sizeAt(spec.height);
     if (!(await canEncodeVideo('avc', size)) && spec.fallbackHeight) size = sizeAt(spec.fallbackHeight);
@@ -405,11 +553,33 @@ export async function filmBattle(
     const output = new Output({ format: new Mp4OutputFormat({ fastStart: 'in-memory' }), target });
     const source = new CanvasSource(canvas, { codec: 'avc', bitrate, keyFrameInterval: 2 });
     output.addVideoTrack(source, { frameRate: fps });
+    // the battle's sound, rendered along with the frames (audio.ts filmAudio*); none where nothing encodes it.
+    // Track 1 is the mix players play; a film also carries the sounds and the music apart, for a video editor.
+    const soundCodec = await getFirstEncodableAudioCodec(['aac', 'opus'], { numberOfChannels: 2, sampleRate: 48_000 });
+    const quality = kind === 'preview' ? QUALITY_MEDIUM : QUALITY_HIGH;
+    const track = (name: string, primary: boolean) => {
+        const src = new AudioBufferSource({ codec: soundCodec!, quality });
+        output.addAudioTrack(src, { name, disposition: { default: primary, primary } });
+        return src;
+    };
+    // the preview's file stays silent: its player mixes the parts itself (any codec or none)
+    const sound =
+        kind === 'preview'
+            ? { mix: null, apart: null }
+            : soundCodec
+              ? {
+                    mix: track('Mix', true),
+                    apart: spec.oneSoundTrack ? null : { sfx: track('Sounds', false), music: track('Music', false) },
+                }
+              : null;
+    let previewSound: FilmSoundParts | null = null;
 
     const progress = progressOverlay(parent);
     // a freshly built game draws nothing until its warm-up is done — a film started before
     // would record one frozen frame forever
     progress.set('Preparing…');
+    // every sound decoded up front: one decoded mid-film would sound late
+    if (sound) await audio.preload().catch(() => undefined);
     const readyBy = performance.now() + READY_TIMEOUT_MS;
     while (!game.filmState.ready && performance.now() < readyBy && !progress.cancelled()) await new Promise((r) => window.setTimeout(r, 50));
     if (!game.filmState.ready || progress.cancelled() || !game.beginFilm()) {
@@ -420,9 +590,12 @@ export async function filmBattle(
     let frames = 0;
     let finished = false;
     try {
+        // the speakers stay silent; from the chosen part on, every sound goes to the soundtrack
+        if (sound) audio.filmAudioBegin();
         game.setFilmSize({ width, height });
         // a Short draws its area of the window's view (sharp at full size), not a squeezed view
         if (kind === 'short') game.setFilmView({ aspect: viewAspect, ...shortRect(area ?? { cx: 0.5, cy: 0.5, h: 1 }, viewAspect) });
+        if (kind === '2k') game.setFilmView({ aspect: viewAspect, ...twoKRect(viewAspect) });
         await output.start();
         // the rest of the deployment at once; frames run (unfilmed) until the battle is on
         game.skipReplayDeployment();
@@ -430,6 +603,8 @@ export async function filmBattle(
             game.filmFrame(dt);
         }
         if (game.filmState.phase !== 'battle') throw new Error(`the battle of round ${round} did not start`);
+        // the battle's own bed is asked for now (the deployment had another): decoded before it is needed
+        if (sound) await audio.filmAudioPrepare().catch(() => undefined);
         const filming = () => {
             const { phase, matchOver } = game.filmState;
             return (phase === 'battle' || phase === 'hpDraw') && !matchOver;
@@ -446,13 +621,16 @@ export async function filmBattle(
                 }
                 continue;
             }
+            if (frames === 0 && sound) audio.filmAudioStart(range ? range.to - range.from : MAX_SOUND_SECONDS, step * dt);
             game.filmFrame(dt);
             // the canvas is read in the same task it was drawn in (CanvasSource takes it at once)
             await source.add(frames * dt, dt);
             frames++;
+            // the frame's sounds started at its time; the soundtrack renders on to the next
+            if (sound) await audio.filmAudioStep(dt);
             if (frames % 10 === 0) {
                 const of = range ? ` of ${((to - from) * dt).toFixed(1)} s` : ' of battle';
-                progress.set(`${kind === 'preview' ? 'Preview of' : kind === 'short' ? 'Short of' : 'Filming'} round ${round}… ${(frames * dt).toFixed(1)} s${of}`);
+                progress.set(`${kind === 'preview' ? 'Preview of' : kind === 'short' ? 'Short of' : kind === '2k' ? '2K of' : 'Filming'} round ${round}… ${(frames * dt).toFixed(1)} s${of}`);
                 await breathe();
             }
         }
@@ -461,20 +639,33 @@ export async function filmBattle(
             await output.cancel();
             return { ok: false, reason: 'Cancelled.' };
         }
+        if (sound) {
+            progress.set('Adding the sound…');
+            const parts = await audio.filmAudioFinish(frames * dt);
+            if (parts && kind === 'preview') previewSound = parts;
+            if (parts && sound.mix) {
+                await sound.mix.add(mixOf(parts, mix));
+                if (sound.apart) {
+                    await sound.apart.sfx.add(parts.sfx);
+                    await sound.apart.music.add(parts.music);
+                }
+            }
+        }
         progress.set('Writing the file…');
         await output.finalize();
         finished = true;
         if (kind === 'preview') {
-            return { ok: true, file: null, video: new Blob([target.buffer!], { type: 'video/mp4' }), seconds: frames * dt };
+            return { ok: true, file: null, video: new Blob([target.buffer!], { type: 'video/mp4' }), seconds: frames * dt, sound: previewSound };
         }
         const file = filenameFor(round, kind);
         download(target.buffer!, file);
-        return { ok: true, file, video: null, seconds: frames * dt };
+        return { ok: true, file, video: null, seconds: frames * dt, sound: null };
     } catch (err) {
         if (!finished) await output.cancel().catch(() => undefined);
         return { ok: false, reason: err instanceof Error ? err.message : String(err) };
     } finally {
         progress.remove();
+        audio.filmAudioEnd();
         game.endFilm();
     }
 }

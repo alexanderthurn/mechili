@@ -3924,8 +3924,53 @@ type Voice = {
     panner?: PannerNode;
 };
 
+/** what a film's soundtrack sets aside of the live bus and gives back at its end */
+type LiveAudio = {
+    ctx: BaseAudioContext | null;
+    master: GainNode;
+    groups: Record<AudioGroupId, GainNode>;
+    loopBus: GainNode;
+    voices: Voice[];
+    voiceCount: Map<string, number>;
+    loops: AudioBus['loops'];
+    musicSource: AudioBufferSourceNode | null;
+    musicGain: GainNode | null;
+    musicCueId: string | null;
+};
+
+/** the frame grid an OfflineAudioContext can stop on */
+const RENDER_QUANTUM = 128;
+const FILM_SAMPLE_RATE = 48_000;
+/** a bed fades in over this long when it starts, seconds */
+const MUSIC_FADE_IN = 1.2;
+/**
+ * A film's own levels, whatever the player set: sounds −12 dB (they peaked at
+ * full scale), music lifted +12 dB over the old 0.7 so the bed leads, ~6 dB over
+ * the battle instead of ~17 dB under it. Music may exceed 1 — its stems peak low.
+ */
+const FILM_VOLUMES = { masterVolume: 1, sfxVolume: 0.25, musicVolume: 2.8, uiVolume: 0.25 } as const;
+
 class AudioBus {
-    private ctx: AudioContext | null = null;
+    /** the context sounds go to: the speakers' one, or a film's offline one while it records */
+    private ctx: BaseAudioContext | null = null;
+    /** the speakers' context (created on the first gesture) */
+    private liveCtx: AudioContext | null = null;
+    /**
+     * A replay film's soundtrack (replayFilm.ts): the live bus set aside and silent,
+     * every sound played into an OfflineAudioContext that renders one film frame at
+     * a time. Before {@link filmAudioStart} (the battle running up to the filmed part)
+     * nothing sounds at all.
+     */
+    private film: {
+        live: LiveAudio;
+        /** the throttle clock (ms) at the soundtrack's 0 */
+        baseMs: number;
+        ctx: OfflineAudioContext | null;
+        rendering: Promise<AudioBuffer> | null;
+        /** film time reached so far (s), and where the render last stopped */
+        t: number;
+        stoppedAt: number;
+    } | null = null;
     private master!: GainNode;
     private groups!: Record<AudioGroupId, GainNode>;
     /** Hazard / beam beds — same SFX volume pref, never time-scaled or ducked. */
@@ -4113,14 +4158,17 @@ class AudioBus {
     applyPrefs(): void {
         if (!this.ctx) return;
         const p = prefs();
-        const mute = p.audioMuted ? 0 : 1;
-        this.master.gain.value = mute * clamp01(p.masterVolume);
-        const sfx = clamp01(p.sfxVolume);
+        const mute = this.muted ? 0 : 1;
+        // a film's soundtrack is mixed at its own levels, whatever the player turned down
+        const film = !!this.film?.ctx;
+        const levels = film ? FILM_VOLUMES : p;
+        this.master.gain.value = mute * clamp01(levels.masterVolume);
+        const sfx = clamp01(levels.sfxVolume);
         this.groups.sfx.gain.value = sfx * sfxTimeDuck(this.timeScale);
         // paused: hold the world beds (dragon wings/breath, fire, beams) silent
         this.loopBus.gain.value = this.timeScale <= 0 ? 0 : sfx;
-        this.groups.music.gain.value = clamp01(p.musicVolume);
-        this.groups.ui.gain.value = clamp01(p.uiVolume);
+        this.groups.music.gain.value = film ? levels.musicVolume : clamp01(levels.musicVolume);
+        this.groups.ui.gain.value = clamp01(levels.uiVolume);
         // mute stops the bed, unmute brings back whatever the state wants
         this.syncMusic();
     }
@@ -4144,8 +4192,9 @@ class AudioBus {
             }
         }
         if (this.ctx) {
-            this.groups.sfx.gain.value = clamp01(prefs().sfxVolume) * sfxTimeDuck(next);
-            this.loopBus.gain.value = next <= 0 ? 0 : clamp01(prefs().sfxVolume);
+            const sfx = clamp01((this.film?.ctx ? FILM_VOLUMES : prefs()).sfxVolume);
+            this.groups.sfx.gain.value = sfx * sfxTimeDuck(next);
+            this.loopBus.gain.value = next <= 0 ? 0 : sfx;
         }
     }
 
@@ -4158,7 +4207,7 @@ class AudioBus {
         if (!this.unlocked) this.unlock();
         const cue = CUES[cueId];
         if (!cue || !this.ctx) return false;
-        if (prefs().audioMuted) return false;
+        if (this.muted) return false;
 
         const maxV = cue.maxVoices ?? 8;
         if ((this.voiceCount.get(cueId) ?? 0) >= maxV) return false;
@@ -4251,7 +4300,9 @@ class AudioBus {
 
     /** make what plays match {@link wantedMusic} (and mute) */
     private syncMusic(): void {
-        const want = prefs().audioMuted ? null : this.wantedMusic;
+        // a film's bed is laid at its start (filmAudioStart); the live one resumes after it
+        if (this.film) return;
+        const want = this.muted ? null : this.wantedMusic;
         const current = this.musicSource ? this.musicCueId : this.loadingMusic;
         if (want === current) return;
         const gen = ++this.musicGen;
@@ -4275,7 +4326,7 @@ class AudioBus {
         await this.decodeAll([path]);
         if (gen !== this.musicGen) return;
         this.loadingMusic = null;
-        if (!this.ctx || prefs().audioMuted) return;
+        if (!this.ctx || this.muted) return;
         const buf = this.buffers.get(path);
         if (!buf) return;
         this.lastCuePath.set(cueId, path);
@@ -4294,7 +4345,7 @@ class AudioBus {
             return;
         }
         const now = this.ctx.currentTime;
-        gain.gain.linearRampToValueAtTime(target, now + 1.2);
+        gain.gain.linearRampToValueAtTime(target, now + MUSIC_FADE_IN);
         this.musicSource = src;
         this.musicGain = gain;
         this.musicCueId = cueId;
@@ -4373,7 +4424,7 @@ class AudioBus {
     /** True when spoken unit/commander VO may play (prefs toggle). */
     private voicesOn(): boolean {
         const p = prefs();
-        return !p.audioMuted && p.voicesEnabled;
+        return !this.muted && p.voicesEnabled;
     }
 
     /** Human commander bark — stops any other commander VO so hover switches cleanly. */
@@ -4412,7 +4463,7 @@ class AudioBus {
         if (!this.voicesOn()) return;
         const cueId = `commander_${cardId}`;
         if (!CUES[cueId]) return;
-        const now = performance.now();
+        const now = this.nowMs();
         if (now - this.lastUnitSelectAt < UNIT_SELECT_COOLDOWN_MS) return;
         this.lastUnitSelectAt = now;
         this.stopUnitBarks();
@@ -4430,7 +4481,7 @@ class AudioBus {
         if (!this.voicesOn()) return;
         const cueId = `commander_${cardId}_rival`;
         if (!CUES[cueId]) return;
-        const now = performance.now();
+        const now = this.nowMs();
         if (now - this.lastUnitSelectAt < UNIT_SELECT_COOLDOWN_MS) return;
         this.lastUnitSelectAt = now;
         this.stopUnitBarks();
@@ -4512,7 +4563,7 @@ class AudioBus {
         const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
         const cueId = `unit_${voiceId}`;
         if (!CUES[cueId]) return;
-        const now = performance.now();
+        const now = this.nowMs();
         if (now - this.lastUnitSelectAt < UNIT_SELECT_COOLDOWN_MS) return;
         if (Math.random() > UNIT_SELECT_CHANCE) return;
         this.lastUnitSelectAt = now;
@@ -4532,7 +4583,7 @@ class AudioBus {
         const cueId = `unit_${voiceId}`;
         const cue = CUES[cueId];
         if (!cue || cue.paths.length === 0) return;
-        const now = performance.now();
+        const now = this.nowMs();
         // Short debounce only — intentional clicks should advance promptly.
         if (now - this.lastUnitSelectAt < 180) return;
         this.lastUnitSelectAt = now;
@@ -4555,7 +4606,7 @@ class AudioBus {
         const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
         const cueId = `unit_${voiceId}_rival`;
         if (!CUES[cueId]) return;
-        const now = performance.now();
+        const now = this.nowMs();
         if (now - this.lastUnitSelectAt < UNIT_SELECT_COOLDOWN_MS) return;
         this.lastUnitSelectAt = now;
         this.stopUnitBarks();
@@ -4571,7 +4622,7 @@ class AudioBus {
     playBuildingSelect(typeId: string): void {
         const cueId = BUILDING_SELECT_CUE[typeId];
         if (!cueId || !CUES[cueId]) return;
-        const now = performance.now();
+        const now = this.nowMs();
         if (now - this.lastUnitSelectAt < UNIT_SELECT_COOLDOWN_MS) return;
         this.lastUnitSelectAt = now;
         void this.ensureCue(cueId).then((ok) => {
@@ -4588,7 +4639,7 @@ class AudioBus {
         const cueId = BUILDING_SELECT_CUE[typeId];
         const cue = cueId ? CUES[cueId] : undefined;
         if (!cueId || !cue || cue.paths.length === 0) return;
-        const now = performance.now();
+        const now = this.nowMs();
         if (now - this.lastUnitSelectAt < 180) return;
         this.lastUnitSelectAt = now;
         const i = this.unitSelectNextIndex.get(cueId) ?? 0;
@@ -4736,7 +4787,7 @@ class AudioBus {
         if (!this.unlocked) this.unlock();
         const cue = CUES[cueId];
         if (!cue || !this.ctx) return 0;
-        if (prefs().audioMuted) return 0;
+        if (this.muted) return 0;
         const buf = this.buffers.get(path);
         if (!buf) return 0;
 
@@ -4800,7 +4851,7 @@ class AudioBus {
         const voiceId = UNIT_VOICE_ALIAS[typeId] ?? typeId;
         const cueId = `unit_${voiceId}_hurt`;
         if (!CUES[cueId]) return;
-        const now = performance.now();
+        const now = this.nowMs();
         if (now - this.lastUnitHurtAt < UNIT_HURT_COOLDOWN_MS) return;
         const opts = this.closeCamSpatialOpts(typeId);
         if (!opts) return;
@@ -5189,7 +5240,7 @@ class AudioBus {
             return;
         }
         if (!this.unlocked) this.unlock();
-        if (!cue || !this.ctx || prefs().audioMuted) return;
+        if (!cue || !this.ctx || this.muted) return;
         const path = cue.paths[0];
         if (!path) return;
         const buf = this.buffers.get(path);
@@ -5380,7 +5431,9 @@ class AudioBus {
 
     private releaseVoice(voice: Voice): void {
         const i = this.voices.indexOf(voice);
-        if (i >= 0) this.voices.splice(i, 1);
+        // a voice of a context no longer playing (a finished film's) changes nothing here
+        if (i < 0) return;
+        this.voices.splice(i, 1);
         const n = (this.voiceCount.get(voice.cueId) ?? 1) - 1;
         if (n <= 0) this.voiceCount.delete(voice.cueId);
         else this.voiceCount.set(voice.cueId, n);
@@ -5394,23 +5447,14 @@ class AudioBus {
     }
 
     private ensureCtx(): AudioContext {
-        if (this.ctx) return this.ctx;
+        if (this.liveCtx) return this.liveCtx;
         const Ctx =
             window.AudioContext ||
             (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        this.ctx = new Ctx();
-        this.master = this.ctx.createGain();
-        this.master.connect(this.ctx.destination);
-        this.groups = {
-            sfx: this.ctx.createGain(),
-            music: this.ctx.createGain(),
-            ui: this.ctx.createGain(),
-        };
-        this.loopBus = this.ctx.createGain();
-        this.groups.sfx.connect(this.master);
-        this.loopBus.connect(this.master);
-        this.groups.music.connect(this.master);
-        this.groups.ui.connect(this.master);
+        this.liveCtx = new Ctx();
+        // a film recording: the live bus is built when it gives the bus back (filmAudioEnd)
+        if (this.film) return this.liveCtx;
+        this.buildGraph(this.liveCtx);
         this.applyPrefs();
         if (!this.unsubPrefs) {
             let voiceLanguage = prefs().voiceLanguage;
@@ -5422,7 +5466,52 @@ class AudioBus {
                 for (const path of [...this.buffers.keys()]) if (isVoicePath(path)) this.buffers.delete(path);
             });
         }
-        const l = this.ctx.listener;
+        return this.liveCtx;
+    }
+
+    /**
+     * The bus on `ctx`: master ← sfx, loops, music, ui; the listener looking down the field.
+     * `split` (a film's four-channel soundtrack): no master — the sounds (sfx, loops, ui)
+     * on channels 0–1, the music on 2–3, so the film can keep them as tracks of their own.
+     */
+    private buildGraph(ctx: BaseAudioContext, split = false): void {
+        this.ctx = ctx;
+        this.master = ctx.createGain();
+        this.groups = {
+            sfx: ctx.createGain(),
+            music: ctx.createGain(),
+            ui: ctx.createGain(),
+        };
+        this.loopBus = ctx.createGain();
+        if (split) {
+            const merger = ctx.createChannelMerger(4);
+            const pair = (first: number): GainNode => {
+                // always two channels: a mono sound alone would leave the right one empty
+                const sum = ctx.createGain();
+                sum.channelCount = 2;
+                sum.channelCountMode = 'explicit';
+                sum.channelInterpretation = 'speakers';
+                const split = ctx.createChannelSplitter(2);
+                sum.connect(split);
+                split.connect(merger, 0, first);
+                split.connect(merger, 1, first + 1);
+                return sum;
+            };
+            const sounds = pair(0);
+            this.groups.sfx.connect(sounds);
+            this.loopBus.connect(sounds);
+            this.groups.ui.connect(sounds);
+            this.groups.music.connect(pair(2));
+            ctx.destination.channelInterpretation = 'discrete';
+            merger.connect(ctx.destination);
+        } else {
+            this.master.connect(ctx.destination);
+            this.groups.sfx.connect(this.master);
+            this.loopBus.connect(this.master);
+            this.groups.music.connect(this.master);
+            this.groups.ui.connect(this.master);
+        }
+        const l = ctx.listener;
         if (l.forwardX) {
             l.forwardX.value = 0;
             l.forwardY.value = -0.35;
@@ -5431,7 +5520,181 @@ class AudioBus {
             l.upY.value = 1;
             l.upZ.value = 0;
         }
-        return this.ctx;
+    }
+
+    /** muted by the player — but a film records its sound regardless; silent while it runs up to the filmed part */
+    private get muted(): boolean {
+        if (this.film) return !this.film.ctx;
+        return prefs().audioMuted;
+    }
+
+    /** the clock the throttles go by (ms): the soundtrack's own while a film records, else the wall */
+    private nowMs(): number {
+        const f = this.film;
+        return f ? f.baseMs + (f.ctx ? f.ctx.currentTime * 1000 : 0) : performance.now();
+    }
+
+    // ---- a replay film's soundtrack (replayFilm.ts) — nothing here runs unless a film does
+
+    /** a film starts: the live sound stops (speakers silent) and is set aside until {@link filmAudioEnd} */
+    filmAudioBegin(): void {
+        if (this.film) return;
+        this.ensureCtx();
+        const live: LiveAudio = {
+            ctx: this.ctx,
+            master: this.master,
+            groups: this.groups,
+            loopBus: this.loopBus,
+            voices: this.voices,
+            voiceCount: this.voiceCount,
+            loops: this.loops,
+            musicSource: this.musicSource,
+            musicGain: this.musicGain,
+            musicCueId: this.musicCueId,
+        };
+        if (this.master) this.master.gain.value = 0;
+        this.voices = [];
+        this.voiceCount = new Map();
+        this.loops = new Map();
+        this.musicSource = null;
+        this.musicGain = null;
+        this.film = { live, baseMs: performance.now(), ctx: null, rendering: null, t: 0, stoppedAt: 0 };
+    }
+
+    /**
+     * The bed the game wants now decoded for a film — even when music is muted (it was
+     * never started). Call once the battle is on: the deployment has a bed of its own.
+     */
+    async filmAudioPrepare(): Promise<void> {
+        const bed = this.wantedMusic;
+        const cue = bed ? CUES[bed] : undefined;
+        if (!bed || !cue || cue.group !== 'music') return;
+        let path = this.lastCuePath.get(bed);
+        if (!path) {
+            path = this.pickCuePath(bed, cue);
+            if (!path) return;
+            this.lastCuePath.set(bed, path);
+        }
+        await this.decodeAll([path]);
+    }
+
+    /**
+     * The filmed part begins: from here every sound is recorded, at most `seconds`
+     * long — the battle's sounds and, apart from them, the bed the game wants now,
+     * `musicFrom` seconds in (where it would be: the battle's bed starts with the battle,
+     * fading in over its first moments as in the game).
+     */
+    filmAudioStart(seconds: number, musicFrom = 0): void {
+        const f = this.film;
+        if (!f || f.ctx) return;
+        f.baseMs = this.nowMs();
+        f.ctx = new OfflineAudioContext(4, Math.ceil((seconds + 1) * FILM_SAMPLE_RATE), FILM_SAMPLE_RATE);
+        this.buildGraph(f.ctx, true);
+        this.applyPrefs();
+        this.setListener(this.listenerX, this.listenerZ, undefined, this.listenerCamAlt);
+        const bed = this.wantedMusic;
+        const cue = bed ? CUES[bed] : undefined;
+        const path = bed ? this.lastCuePath.get(bed) : undefined;
+        const buf = path ? this.buffers.get(path) : undefined;
+        if (cue && buf) {
+            const src = f.ctx.createBufferSource();
+            src.buffer = buf;
+            src.loop = true;
+            const gain = f.ctx.createGain();
+            const level = cue.gain ?? 0.4;
+            // the game's fade-in (startMusic: 1.2 s), picked up where the clip starts
+            const into = Math.max(0, musicFrom);
+            gain.gain.value = level * Math.min(1, into / MUSIC_FADE_IN);
+            if (into < MUSIC_FADE_IN) gain.gain.linearRampToValueAtTime(level, MUSIC_FADE_IN - into);
+            src.connect(gain).connect(this.groups.music);
+            src.start(0, into % buf.duration);
+            this.musicSource = src;
+            this.musicGain = gain;
+            this.musicCueId = bed;
+        }
+    }
+
+    /** one film frame went by: the soundtrack renders on to it */
+    async filmAudioStep(dt: number): Promise<void> {
+        const f = this.film;
+        if (!f?.ctx) return;
+        f.t += dt;
+        const q = RENDER_QUANTUM / f.ctx.sampleRate;
+        const at = Math.ceil(f.t / q - 1e-6) * q;
+        // a frame shorter than the grid: the next one stops a step later
+        if (at <= f.stoppedAt || at >= f.ctx.length / f.ctx.sampleRate) return;
+        f.stoppedAt = at;
+        const stop = f.ctx.suspend(at);
+        if (f.rendering) void f.ctx.resume();
+        else f.rendering = f.ctx.startRendering();
+        await stop;
+    }
+
+    /** the soundtrack of the film so far, `seconds` long, as the sounds and the music apart (null: nothing was recorded) */
+    async filmAudioFinish(seconds: number): Promise<{ sfx: AudioBuffer; music: AudioBuffer } | null> {
+        const f = this.film;
+        if (!f?.ctx) return null;
+        this.stopFilmSounds();
+        const ctx = f.ctx;
+        let rendered: AudioBuffer;
+        if (f.rendering) {
+            void ctx.resume();
+            rendered = await f.rendering;
+        } else {
+            rendered = await ctx.startRendering();
+        }
+        const length = Math.min(rendered.length, Math.max(1, Math.round(seconds * rendered.sampleRate)));
+        const pair = (first: number): AudioBuffer => {
+            const out = new AudioBuffer({ length, numberOfChannels: 2, sampleRate: rendered.sampleRate });
+            for (let ch = 0; ch < 2; ch++) out.copyToChannel(rendered.getChannelData(first + ch).subarray(0, length), ch);
+            return out;
+        };
+        return { sfx: pair(0), music: pair(2) };
+    }
+
+    /** the film is over (or stopped): its sounds dropped, the live bus back as it was */
+    filmAudioEnd(): void {
+        const f = this.film;
+        if (!f) return;
+        this.stopFilmSounds();
+        if (f.ctx && f.rendering) void f.ctx.resume().catch(() => undefined);
+        this.film = null;
+        const live = f.live;
+        this.ctx = live.ctx;
+        if (live.ctx) {
+            this.master = live.master;
+            this.groups = live.groups;
+            this.loopBus = live.loopBus;
+        }
+        this.voices = live.voices;
+        this.voiceCount = live.voiceCount;
+        this.loops = live.loops;
+        this.musicSource = live.musicSource;
+        this.musicGain = live.musicGain;
+        this.musicCueId = live.musicCueId;
+        // a live context made while the film ran gets its bus now
+        if (!this.ctx && this.liveCtx) this.buildGraph(this.liveCtx);
+        this.applyPrefs();
+    }
+
+    /** every sound on the film's context stopped (the render's rest is silence) */
+    private stopFilmSounds(): void {
+        const all = [...this.voices.map((v) => v.source), ...[...this.loops.values()].map((l) => l.source)];
+        if (this.musicSource) all.push(this.musicSource);
+        for (const src of all) {
+            try {
+                src.onended = null;
+                src.stop();
+            } catch {
+                /* not started / already stopped */
+            }
+        }
+        this.voices = [];
+        this.voiceCount = new Map();
+        this.loops = new Map();
+        this.musicSource = null;
+        this.musicGain = null;
+        this.musicCueId = null;
     }
 
     private async decodeAll(paths: string[]): Promise<void> {
