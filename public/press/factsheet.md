@@ -20,7 +20,11 @@
 - Steam: https://store.steampowered.com/app/4987230
 - Website: https://melodan.com
 - Play in the browser: https://play.melodan.com
-- Trailer: https://trailer.melodan.com
+- Trailer: https://trailer.melodan.com (YouTube)
+- Trailer MP4, 1080p: https://press.melodan.com/trailer2_130_cover_2k.mp4
+- Trailer MP4, 4K: https://press.melodan.com/trailer2_130_cover.mp4
+- Trailer MP4 without music, 1080p: https://press.melodan.com/trailer2_130_cover_nomusic_2k.mp4
+- Trailer MP4 without music, 4K: https://press.melodan.com/trailer2_130_cover_nomusic.mp4
 - Discord: https://discord.melodan.com
 - Source code: https://github.melodan.com
 - Press kit: https://melodan.com/press.html
