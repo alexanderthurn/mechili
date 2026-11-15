@@ -762,6 +762,7 @@ app.innerHTML = `
     <a href="${PLAY_URL}">${esc(t('homepage:footer.play'))}</a>
     ${steamLink('', esc(t('homepage:footer.steam')))}
     <a href="#suggest" id="mh-footer-suggest">${esc(t('homepage:footer.feedback'))}</a>
+    <a href="./press.html">${esc(t('homepage:footer.press'))}</a>
     <a href="https://feuerware.com/2025/imprint.html" rel="noopener noreferrer" target="_blank">${esc(t('homepage:footer.imprint'))}</a>
     <a href="https://feuerware.com/2025/privacy.html" rel="noopener noreferrer" target="_blank">${esc(t('homepage:footer.privacy'))}</a>
   </div>

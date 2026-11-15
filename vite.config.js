@@ -75,6 +75,7 @@ export default defineConfig({
             input: {
                 main: resolve('index.html'),
                 web: resolve('web.html'),
+                press: resolve('press.html'),
             },
         },
     },
