@@ -3189,6 +3189,20 @@ export class BattleSim {
         this.emitStuckBolt(style, x, y, z, sx, sy, sz, hit, scale);
     }
 
+    /**
+     * A unit that arrives mid-battle (a summon rising, a brood released) faces the
+     * foe it will go for now. Its facing was set long before — at battle start,
+     * often toward a nearby wall — and with that it walked off backwards while it
+     * slowly turned round.
+     */
+    private faceFoeOnArrival(a: Actor): void {
+        const foe = this.closestEnemy(a, true);
+        if (!foe) return;
+        a.facing = detAtan2(-(foe.x - a.x), -(foe.z - a.z));
+        a.prevFacing = a.facing;
+        a.mesh.rotation.y = a.facing;
+    }
+
     /** dormant summons materialize one by one at their appearAt time */
     private stepSummonAppearances(): void {
         for (const a of this.actors) {
@@ -3196,6 +3210,7 @@ export class BattleSim {
             a.appeared = true;
             a.alive = true;
             a.mesh.visible = true;
+            this.faceFoeOnArrival(a);
             this.events.push({
                 kind: 'summon',
                 x: a.x,
@@ -3590,6 +3605,7 @@ export class BattleSim {
             a.appeared = true;
             a.alive = true;
             a.mesh.visible = true;
+            this.faceFoeOnArrival(a);
             a.footY = this.feetY(a);
             this.events.push({
                 kind: 'summon',
