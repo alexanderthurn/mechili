@@ -160,6 +160,15 @@ h3 { font-size: 19px; margin: 22px 0 8px; }
 }
 .pk-play-note { font-size: 13px; color: var(--cream); text-shadow: 0 1px 3px #000; }
 
+.pk-faq { margin: 0; }
+.pk-faq dt {
+    margin-top: 16px;
+    color: var(--brass-light);
+    font-weight: 800;
+}
+.pk-faq dt:first-child { margin-top: 0; }
+.pk-faq dd { margin: 4px 0 0; }
+
 .pk-shots {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));

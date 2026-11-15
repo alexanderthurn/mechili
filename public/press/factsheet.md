@@ -5,10 +5,15 @@
 | **Title** | Melodan |
 | **Genre** | Medieval fantasy strategy auto-battler |
 | **Developer** | Alexander Thurn (Feuerware), Germany |
+| **Team** | Alexander Thurn + AI · community: TNT |
 | **Publisher** | Self-published |
-| **Release** | March 2027 (Steam) |
-| **Playtest** | Free playtest on Steam, available now |
-| **Platforms** | PC via Steam (Windows, macOS, Linux) · free in the browser at play.melodan.com |
+| **Release** | 19 March 2027 (Steam) |
+| **Playtest** | Free on Steam since 1 November 2026 |
+| **Next event** | Steam Auto Battler RPG Fest 2026, 16–23 November 2026 |
+| **Platforms** | PC via Steam (Windows, macOS, Linux) · free in the browser at play.melodan.com · no consoles planned |
+| **Steam Deck** | Not supported |
+| **Crossplay** | No (browser and Steam play separately) |
+| **Engine** | three.js, runs in the browser |
 | **Price** | TBA |
 | **Languages** | 31 languages |
 | **Modes** | 1v1 and 2v2 PvP (ranked & casual), Horde and Co-op Horde vs. AI waves, single player vs. AI |

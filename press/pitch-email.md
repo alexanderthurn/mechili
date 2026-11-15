@@ -10,6 +10,8 @@
 
 Hi [Name],
 
+[Optional hook during the fest: "Melodan is part of the Steam Auto Battler RPG Fest 2026 (16–23 November) – "]
+
 I'm Alexander, an indie developer from Germany, and I'd love to show you **Melodan**: a medieval fantasy strategy auto-battler where both players deploy their armies in secret and then watch the battle play out. [One sentence why it fits them, e.g. "I saw your coverage of Mechabellum and thought this could interest you."]
 
 - Trailer: https://trailer.melodan.com (MP4 download in the press kit)
@@ -29,6 +31,8 @@ press@feuerware.com
 **Betreff:** Melodan – Fantasy-Auto-Battler im Mittelalter, kostenloser Playtest auf Steam
 
 Hallo [Name],
+
+[Optionaler Aufhänger während des Fests: „Melodan ist Teil des Steam Auto Battler RPG Fest 2026 (16.–23. November) – “]
 
 ich bin Alexander, Indie-Entwickler aus Deutschland, und möchte dir gern **Melodan** zeigen: ein mittelalterliches Fantasy-Strategie-Auto-Battler, in dem beide Spieler ihre Armeen verdeckt aufstellen und dann der Schlacht zusehen. [Ein Satz, warum es zu euch passt, z. B. „Ich habe eure Berichte zu Mechabellum gelesen und dachte, das könnte euch interessieren.“]
 
