@@ -151,7 +151,6 @@
     "play": "Teste no navegador",
     "feedback": "Enviar feedback",
     "discord": "Discord",
-    "devlog": "Diário do desenvolvedor",
     "waysTitle": "Formas de ajudar",
     "way1": "Compartilhe ideias e relatórios de erros.",
     "way2": "Abra pull requests em {{github}} (GPL-3.0)",

@@ -151,7 +151,6 @@
     "play": "Testen in de browser",
     "feedback": "Feedback verzenden",
     "discord": "Discord",
-    "devlog": "Ontwikkelaarslogboek",
     "waysTitle": "Manieren om te helpen",
     "way1": "Deel ideeën en bugrapporten.",
     "way2": "Open pull requests op {{github}} (GPL-3.0)",

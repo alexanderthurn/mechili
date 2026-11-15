@@ -151,7 +151,6 @@
     "play": "Tesztelés böngészőben",
     "feedback": "Visszajelzés küldése",
     "discord": "Discord",
-    "devlog": "Fejlesztői napló",
     "waysTitle": "Segítő módok",
     "way1": "Ötletek és hibajelentések megosztása",
     "way2": "Nyílt pull requestek a {{github}} oldalon (GPL-3.0)",

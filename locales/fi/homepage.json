@@ -151,7 +151,6 @@
     "play": "Testaa selaimessa",
     "feedback": "Lähetä palautetta",
     "discord": "Discord",
-    "devlog": "Kehittäjäloki",
     "waysTitle": "Auttamiskeinoja",
     "way1": "Jaa ideoita ja bugiraportteja",
     "way2": "Avoimet pull-pyynnöt {{github}}:ssa (GPL-3.0)",

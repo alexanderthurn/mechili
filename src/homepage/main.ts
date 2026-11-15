@@ -76,7 +76,6 @@ const STEAM_URL = 'https://steam.melodan.com';
 const DISCORD_URL = 'https://discord.melodan.com';
 const GITHUB_URL = 'https://github.melodan.com';
 const TRAILER_URL = 'https://trailer.melodan.com';
-const DEVLOG_URL = 'https://devlog.melodan.com';
 const PLAY_URL =
     location.hostname === 'melodan.com' || location.hostname === 'www.melodan.com'
         ? 'https://play.melodan.com/'
@@ -720,10 +719,6 @@ app.innerHTML = `
       <a class="mh-suggest-btn" href="${PLAY_URL}">${esc(t('homepage:contribute.play'))}</a>
       <button type="button" class="mh-suggest-btn" id="mh-suggest-open">${esc(t('homepage:contribute.feedback'))}</button>
       <a class="mh-suggest-btn mh-discord-btn" href="${esc(DISCORD_URL)}" rel="noopener noreferrer" target="_blank">${DISCORD_ICON_SVG} ${esc(t('homepage:contribute.discord'))}</a>
-      <a class="mh-trailer-btn" href="${esc(DEVLOG_URL)}" rel="noopener noreferrer" target="_blank">
-        ${YOUTUBE_ICON_SVG}
-        <span>${esc(t('homepage:contribute.devlog'))}</span>
-      </a>
     </div>
     <div class="mh-community-body">
       <div class="mh-community-block">

@@ -151,7 +151,6 @@
     "play": "Test i browser",
     "feedback": "Send feedback",
     "discord": "Discord",
-    "devlog": "Udviklerlog",
     "waysTitle": "Måder at hjælpe på",
     "way1": "Del idéer og fejlrapporter",
     "way2": "Åbn pull requests på {{github}} (GPL-3.0)",

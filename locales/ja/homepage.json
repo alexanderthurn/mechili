@@ -151,7 +151,6 @@
     "play": "ブラウザでテスト",
     "feedback": "フィードバックを送る",
     "discord": "Discord",
-    "devlog": "開発者ログ",
     "waysTitle": "助け方",
     "way1": "アイデアとバグ報告を共有する",
     "way2": "{{github}} でプルリクエストを開く（GPL-3.0）",

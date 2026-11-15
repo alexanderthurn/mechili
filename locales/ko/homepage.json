@@ -151,7 +151,6 @@
     "play": "브라우저에서 테스트",
     "feedback": "피드백 보내기",
     "discord": "Discord",
-    "devlog": "개발자 로그",
     "waysTitle": "도울 방법",
     "way1": "아이디어와 버그 제보 공유",
     "way2": "{{github}}에 풀 리퀘스트 열기 (GPL-3.0)",

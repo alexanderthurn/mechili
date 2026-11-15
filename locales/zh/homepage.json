@@ -151,7 +151,6 @@
     "play": "在浏览器中试玩",
     "feedback": "发送反馈",
     "discord": "Discord",
-    "devlog": "开发日志",
     "waysTitle": "可以怎样帮忙",
     "way1": "分享想法与缺陷报告",
     "way2": "在 {{github}} 上提交拉取请求（GPL-3.0）",

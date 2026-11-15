@@ -1355,9 +1355,6 @@ html, body {
 .mh-together-cta .mh-suggest-btn {
     text-decoration: none;
 }
-.mh-together-cta .mh-trailer-btn {
-    margin-top: 6px;
-}
 .mh-community-body {
     max-width: 520px;
     margin: 28px auto 0;

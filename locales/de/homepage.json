@@ -151,7 +151,6 @@
     "play": "Im Browser testen",
     "feedback": "Feedback senden",
     "discord": "Discord",
-    "devlog": "Entwickler-Logbuch",
     "waysTitle": "Möglichkeiten zur Hilfe",
     "way1": "Teile Ideen und Fehlerberichte",
     "way2": "Pull-Requests für {{github}} (GPL-3.0) öffnen",
