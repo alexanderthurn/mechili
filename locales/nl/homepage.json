@@ -15,14 +15,15 @@
     "missing": "{{label}} ⬢ sleep het bestand naar assets/marketing/screenshots/"
   },
   "shot": {
-    "1": "Legerinzet in de open plek in het bos.",
-    "2": "Uitzetfase en eenheidswinkel",
-    "3": "Drakenvuur spuwen over het veld.",
-    "4": "Plaatsingszones naast elkaar",
-    "5": "Massale veldslag op de vlakte",
-    "6": "Winterbolwerk in de sneeuw",
-    "7": "Dubbele bases op het raster",
-    "8": "Grote versterkte basis"
+    "1": "Slagveld in een bebost bergdal",
+    "2": "De strijd van bovenaf met magische stralen",
+    "3": "Dwergen-strijdgroep op mars",
+    "4": "Herfstslag in een diepe kloof",
+    "5": "Vleermuizenzwerm bestormt de muren",
+    "6": "Een spreuk richten tijdens de opstelling",
+    "7": "Massaslag in de sneeuw",
+    "8": "Ogers midden in de strijd",
+    "9": "Opstelling met de eenhedenwinkel"
   },
   "lightbox": {
     "gallery": "Screenshotgalerij",

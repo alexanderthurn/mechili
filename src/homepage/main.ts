@@ -82,7 +82,7 @@ const PLAY_URL =
         ? 'https://play.melodan.com/'
         : new URL('./index.html', location.href).href;
 
-const SCREENSHOT_DEFS = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({
+const SCREENSHOT_DEFS = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => ({
     n,
     label: t(`homepage:shot.${n}`),
 }));

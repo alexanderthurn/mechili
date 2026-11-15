@@ -15,14 +15,15 @@
     "missing": "{{label}} ⬢ arrastra el archivo a assets/marketing/screenshots/"
   },
   "shot": {
-    "1": "Despliegue del ejército en el claro del bosque",
-    "2": "Fase de despliegue y tienda de unidades",
-    "3": "Aliento de fuego de dragón sobre el campo",
-    "4": "Zonas de despliegue paralelas",
-    "5": "Batalla masiva en las llanuras",
-    "6": "Fortaleza invernal en la nieve",
-    "7": "Bases dobles en la cuadrícula",
-    "8": "Gran base fortificada"
+    "1": "Campo de batalla en un valle boscoso de montaña",
+    "2": "La batalla desde arriba con rayos mágicos",
+    "3": "Banda de guerra enana en marcha",
+    "4": "Batalla otoñal en un cañón profundo",
+    "5": "Enjambre de murciélagos asaltando las murallas",
+    "6": "Apuntando un hechizo durante el despliegue",
+    "7": "Batalla masiva en la nieve",
+    "8": "Ogros en plena batalla",
+    "9": "Despliegue con la tienda de unidades"
   },
   "lightbox": {
     "gallery": "Galería de capturas de pantalla",

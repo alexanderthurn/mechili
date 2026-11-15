@@ -15,14 +15,15 @@
     "missing": "{{label}} ⬢ Fájl behelyezése az eszközök/marketing/képernyőképek/ mappába"
   },
   "shot": {
-    "1": "Hadsereg bevetése az erdőtisztáson",
-    "2": "Telepítési fázis és egységbolt",
-    "3": "Sárkány tűz lehelete a mező felett",
-    "4": "Egymás melletti telepítési zónák",
-    "5": "Tömeges csata a síkságon",
-    "6": "Téli erődítmény a hóban",
-    "7": "Kettős bázisok a rácson",
-    "8": "Nagy erődített bázis"
+    "1": "Csatatér egy erdős hegyi völgyben",
+    "2": "A csata felülről, mágikus sugarakkal",
+    "3": "Törpe harcoscsapat menetben",
+    "4": "Őszi csata egy mély kanyonban",
+    "5": "Denevérraj ostromolja a falakat",
+    "6": "Varázslat célzása a felállítás során",
+    "7": "Tömeges csata a hóban",
+    "8": "Ogrék a csata sűrűjében",
+    "9": "Felállítás az egységbolttal"
   },
   "lightbox": {
     "gallery": "Képernyőkép-galéria",

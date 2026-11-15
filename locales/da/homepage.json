@@ -15,14 +15,15 @@
     "missing": "{{label}} ⬢ slip fil i aktiver/markedsføring/skærmbilleder/"
   },
   "shot": {
-    "1": "Hærens indsættelse i skovrydningen",
-    "2": "Udrulningsfase og enhedsbutik",
-    "3": "Dragens ildånde over marken",
-    "4": "Side-om-side opstillingszoner",
-    "5": "Massekamp på sletterne",
-    "6": "Vinterfæstning i sneen",
-    "7": "Dobbelte baser på gitteret",
-    "8": "Stor befæstet base"
+    "1": "Slagmark i en skovklædt bjergdal",
+    "2": "Slaget set fra oven med magiske stråler",
+    "3": "Dværgekrigerflok på march",
+    "4": "Efterårsslag i en dyb kløft",
+    "5": "Flagermussværm stormer murene",
+    "6": "Sigte med en besværgelse under opstillingen",
+    "7": "Masseslag i sneen",
+    "8": "Trolde midt i slaget",
+    "9": "Opstilling med enhedsbutikken"
   },
   "lightbox": {
     "gallery": "Skærmbilledegalleri",

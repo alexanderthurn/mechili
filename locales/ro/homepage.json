@@ -15,14 +15,15 @@
     "missing": "{{label}} ⬢ plasează fișierul în assets/marketing/screenshots/"
   },
   "shot": {
-    "1": "Desfășurarea armatei în defrișarea pădurii",
-    "2": "Faza de desfășurare și magazinul de unități",
-    "3": "Respirație de foc de dragon peste câmp",
-    "4": "Zone de desfășurare alăturate",
-    "5": "Bătălie în masă pe câmpie",
-    "6": "Fortăreață de iarnă în zăpadă",
-    "7": "Baze duble pe grilă",
-    "8": "Bază fortificată mare"
+    "1": "Câmp de luptă într-o vale montană împădurită",
+    "2": "Bătălia de sus, cu raze magice",
+    "3": "Ceată de război a piticilor în marș",
+    "4": "Bătălie de toamnă într-un canion adânc",
+    "5": "Roi de lilieci asaltând zidurile",
+    "6": "Țintirea unei vrăji în timpul desfășurării",
+    "7": "Bătălie în masă în zăpadă",
+    "8": "Căpcăuni în toiul bătăliei",
+    "9": "Desfășurare cu magazinul de unități"
   },
   "lightbox": {
     "gallery": "Galerie de capturi de ecran",

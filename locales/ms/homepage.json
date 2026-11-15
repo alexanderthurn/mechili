@@ -15,14 +15,15 @@
     "missing": "{{label}} ⬢ lepaskan fail dalam aset/pemasaran/tangkapan skrin/"
   },
   "shot": {
-    "1": "Pengerahan tentera di kawasan hutan",
-    "2": "Fasa penempatan dan kedai unit",
-    "3": "Nafas api naga di atas padang",
-    "4": "Zon penggunaan bersebelahan",
-    "5": "Pertempuran besar-besaran di dataran",
-    "6": "Kubu kuat musim sejuk di salji",
-    "7": "Pangkalan berganda pada grid",
-    "8": "Pangkalan berkubu besar"
+    "1": "Medan perang di lembah hutan pergunungan",
+    "2": "Pertempuran dari atas dengan pancaran sihir",
+    "3": "Pasukan perang kerdil sedang berarak",
+    "4": "Pertempuran musim luruh di ngarai dalam",
+    "5": "Kawanan kelawar menyerbu tembok",
+    "6": "Membidik mantera semasa pengerahan",
+    "7": "Pertempuran besar-besaran di salji",
+    "8": "Ogre di tengah-tengah pertempuran",
+    "9": "Pengerahan dengan kedai unit"
   },
   "lightbox": {
     "gallery": "Galeri tangkapan skrin",

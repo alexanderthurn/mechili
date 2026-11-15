@@ -15,14 +15,15 @@
     "missing": "{{label}} ⬢ Datei in assets/marketing/screenshots/ ablegen"
   },
   "shot": {
-    "1": "Armeeeinsatz auf der Waldlichtung",
-    "2": "Einsatzphase und Einheiten-Shop",
-    "3": "Drachenfeueratem über dem Feld",
-    "4": "Nebeneinanderliegende Einsatzzonen",
-    "5": "Massenschlacht in der Ebene",
-    "6": "Winter-Hochburg im Schnee",
-    "7": "Doppelbasen auf dem Gitter",
-    "8": "Großer befestigter Stützpunkt"
+    "1": "Schlachtfeld in einem bewaldeten Bergtal",
+    "2": "Schlacht von oben mit magischen Strahlen",
+    "3": "Zwergen-Kriegsschar auf dem Marsch",
+    "4": "Herbstschlacht in einer tiefen Schlucht",
+    "5": "Fledermausschwarm stürmt die Mauern",
+    "6": "Einen Zauber anvisieren in der Aufstellung",
+    "7": "Massenschlacht im Schnee",
+    "8": "Oger mitten im Kampfgetümmel",
+    "9": "Aufstellung mit dem Einheitenshop"
   },
   "lightbox": {
     "gallery": "Screenshot-Galerie",

@@ -15,14 +15,15 @@
     "missing": "{{label}} ⬢ släpp filen i resurser/marknadsföring/skärmdumpar/"
   },
   "shot": {
-    "1": "Arméplacering i skogsröjningen",
-    "2": "Utplaceringsfas och enhetsbutik",
-    "3": "Drakeeld andedräkt över fältet",
-    "4": "Sida vid sida-distributionszoner",
-    "5": "Massstrid på slätterna",
-    "6": "Vinterfästning i snön",
-    "7": "Dubbla baser på nätet",
-    "8": "Stor befäst bas"
+    "1": "Slagfält i en skogig bergsdal",
+    "2": "Striden ovanifrån med magiska strålar",
+    "3": "Dvärgarnas krigsskara på marsch",
+    "4": "Höststrid i en djup kanjon",
+    "5": "Fladdermussvärm stormar murarna",
+    "6": "Sikta en besvärjelse under utplaceringen",
+    "7": "Massdrabbning i snön",
+    "8": "Troll mitt i striden",
+    "9": "Utplacering med enhetsbutiken"
   },
   "lightbox": {
     "gallery": "Skärmdumpsgalleri",

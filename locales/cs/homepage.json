@@ -15,14 +15,15 @@
     "missing": "{{label}} ⬢ vložit soubor do assets/marketing/screenshots/"
   },
   "shot": {
-    "1": "Nasazení armády na mýtině lesa",
-    "2": "Fáze nasazení a obchod jednotek",
-    "3": "Dračí ohnivý dech nad polem",
-    "4": "Zóny nasazení vedle sebe",
-    "5": "Masová bitva na pláních",
-    "6": "Zimní pevnost ve sněhu",
-    "7": "Dvojité základny na mřížce",
-    "8": "Velká opevněná základna"
+    "1": "Bojiště v zalesněném horském údolí",
+    "2": "Bitva shora s magickými paprsky",
+    "3": "Trpasličí válečná družina na pochodu",
+    "4": "Podzimní bitva v hlubokém kaňonu",
+    "5": "Hejno netopýrů útočí na hradby",
+    "6": "Míření kouzla během rozmístění",
+    "7": "Masová bitva ve sněhu",
+    "8": "Zlobři uprostřed bitvy",
+    "9": "Rozmístění s obchodem jednotek"
   },
   "lightbox": {
     "gallery": "Galerie screenshotů",

@@ -15,14 +15,15 @@
     "missing": "{{label}} ⬢ drop file in assets/marketing/screenshots/"
   },
   "shot": {
-    "1": "Army deployment in the forest clearing",
-    "2": "Deployment phase and unit shop",
-    "3": "Dragon fire breath over the field",
-    "4": "Side-by-side deployment zones",
-    "5": "Mass battle on the plains",
-    "6": "Winter stronghold in the snow",
-    "7": "Dual bases on the grid",
-    "8": "Large fortified base"
+    "1": "Battlefield in a mountain forest valley",
+    "2": "Battle from above with magic beams",
+    "3": "Dwarf war band on the march",
+    "4": "Autumn battle in a deep canyon",
+    "5": "Bat swarm storming the walls",
+    "6": "Aiming a spell during deployment",
+    "7": "Mass battle in the snow",
+    "8": "Ogres in the thick of battle",
+    "9": "Deployment with the unit shop"
   },
   "lightbox": {
     "gallery": "Screenshot gallery",

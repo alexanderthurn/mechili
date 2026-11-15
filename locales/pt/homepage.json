@@ -15,14 +15,15 @@
     "missing": "{{label}} ⬢ solte o ficheiro em assets/marketing/screenshots/"
   },
   "shot": {
-    "1": "Desdobramento do exército na clareira da floresta",
-    "2": "Fase de mobilização e loja de unidades",
-    "3": "Sopro de fogo de dragão sobre o campo",
-    "4": "Zonas de mobilização lado a lado",
-    "5": "Batalha em massa nas planícies",
-    "6": "Fortaleza de inverno na neve",
-    "7": "Duas bases na grade",
-    "8": "Grande base fortificada"
+    "1": "Campo de batalha num vale florestal de montanha",
+    "2": "A batalha vista de cima com raios mágicos",
+    "3": "Bando de guerra anão em marcha",
+    "4": "Batalha de outono num desfiladeiro profundo",
+    "5": "Enxame de morcegos a assaltar as muralhas",
+    "6": "Apontar um feitiço durante o destacamento",
+    "7": "Batalha em massa na neve",
+    "8": "Ogres no meio da batalha",
+    "9": "Destacamento com a loja de unidades"
   },
   "lightbox": {
     "gallery": "Galeria de capturas de ecrã",

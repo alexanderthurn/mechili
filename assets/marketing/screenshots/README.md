@@ -13,7 +13,7 @@ Homepage grid uses small `01`–`04`; clicking opens the Full HD lightbox. The l
 Re-encode after replacing the 4K JPG masters:
 
 ```bash
-for i in 1 2 3 4 5 6 7 8; do
+for i in 1 2 3 4 5 6 7 8 9; do
   cwebp -q 85 -m 6 "4k/sc${i}.jpg" -o "4k/sc${i}.webp"
   magick "4k/sc${i}.jpg" -resize 1920x1080 -quality 88 "fullhd/screen_${i}.jpg"
   cwebp -q 80 -m 6 "fullhd/screen_${i}.jpg" -o "fullhd/screen_${i}.webp"

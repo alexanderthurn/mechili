@@ -15,14 +15,15 @@
     "missing": "{{label}} ⬢ upuść plik w assets/marketing/screenshots/"
   },
   "shot": {
-    "1": "Rozmieszczenie wojsk na polanie leśnej",
-    "2": "Faza rozmieszczenia i sklep jednostek",
-    "3": "Ziejący ogniem smok nad polem",
-    "4": "Strefy rozmieszczenia obok siebie",
-    "5": "Masowa bitwa na równinach",
-    "6": "Zimowa twierdza w śniegu",
-    "7": "Podwójne bazy na siatce",
-    "8": "Duża ufortyfikowana baza"
+    "1": "Pole bitwy w zalesionej górskiej dolinie",
+    "2": "Bitwa z góry z magicznymi promieniami",
+    "3": "Krasnoludzka drużyna w marszu",
+    "4": "Jesienna bitwa w głębokim kanionie",
+    "5": "Rój nietoperzy szturmuje mury",
+    "6": "Celowanie zaklęciem podczas rozmieszczania",
+    "7": "Masowa bitwa w śniegu",
+    "8": "Ogry w samym środku bitwy",
+    "9": "Rozmieszczanie ze sklepem jednostek"
   },
   "lightbox": {
     "gallery": "Galeria zrzutów ekranu",

@@ -15,14 +15,15 @@
     "missing": "{{label}} ⬢ trascina il file in assets/marketing/screenshots/"
   },
   "shot": {
-    "1": "Schieramento dell'esercito nella radura della foresta",
-    "2": "Fase di schieramento e negozio unità",
-    "3": "Il soffio di fuoco del drago si abbatte sul campo.",
-    "4": "Zone di dispiegamento affiancate",
-    "5": "Battaglia di massa nelle pianure",
-    "6": "Fortezza invernale nella neve",
-    "7": "Doppie basi sulla griglia",
-    "8": "Grande base fortificata"
+    "1": "Campo di battaglia in una valle boscosa di montagna",
+    "2": "La battaglia dall'alto con raggi magici",
+    "3": "Banda guerriera di nani in marcia",
+    "4": "Battaglia autunnale in un canyon profondo",
+    "5": "Sciame di pipistrelli all'assalto delle mura",
+    "6": "Mirare un incantesimo durante lo schieramento",
+    "7": "Battaglia di massa nella neve",
+    "8": "Orchi nel pieno della battaglia",
+    "9": "Schieramento con il negozio delle unità"
   },
   "lightbox": {
     "gallery": "Galleria di screenshot",

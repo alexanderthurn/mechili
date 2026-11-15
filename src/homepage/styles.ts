@@ -606,9 +606,13 @@ html, body {
 .mh-lightbox-nav.next { right: 12px; }
 .mh-lightbox-stage {
     position: absolute;
-    inset: 56px 64px 88px;
-    display: grid;
-    place-items: center;
+    /* bottom: room for the footer (caption + links, up to ~116px) so it never covers the shot */
+    inset: 64px 72px 124px;
+    /* flex, not grid: the stage's height is definite, so the image's max-height: 100%
+       really caps it — a grid's auto row grew to the image and overflow cut it off */
+    display: flex;
+    align-items: center;
+    justify-content: center;
     touch-action: none;
     cursor: pointer;
     user-select: none;
@@ -628,6 +632,10 @@ html, body {
     cursor: grab;
 }
 .mh-lightbox-img {
+    display: block;
+    flex: 0 1 auto;
+    min-width: 0;
+    min-height: 0;
     max-width: 100%;
     max-height: 100%;
     width: auto;
@@ -710,7 +718,7 @@ html, body {
 }
 @media (max-width: 720px) {
     .mh-lightbox-stage {
-        inset: 48px 0 84px;
+        inset: 56px 0 104px;
     }
     .mh-lightbox-nav {
         display: none;

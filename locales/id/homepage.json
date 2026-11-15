@@ -15,14 +15,15 @@
     "missing": "{{label}} ⬢ seret file ke assets/marketing/screenshots/"
   },
   "shot": {
-    "1": "Pengerahan tentara di lahan terbuka hutan.",
-    "2": "Fase penempatan dan toko unit",
-    "3": "Semburan api naga di atas lapangan.",
-    "4": "Zona penempatan berdampingan",
-    "5": "Pertempuran besar-besaran di dataran",
-    "6": "Benteng musim dingin di tengah salju",
-    "7": "Dua basis pada grid",
-    "8": "Pangkalan besar yang diper fortified"
+    "1": "Medan perang di lembah hutan pegunungan",
+    "2": "Pertempuran dari atas dengan sinar sihir",
+    "3": "Pasukan perang kurcaci sedang berbaris",
+    "4": "Pertempuran musim gugur di ngarai dalam",
+    "5": "Kawanan kelelawar menyerbu tembok",
+    "6": "Membidik mantra saat penempatan",
+    "7": "Pertempuran massal di salju",
+    "8": "Ogre di tengah pertempuran",
+    "9": "Penempatan dengan toko unit"
   },
   "lightbox": {
     "gallery": "Galeri tangkapan layar",

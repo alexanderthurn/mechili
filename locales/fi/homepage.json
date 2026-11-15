@@ -15,14 +15,15 @@
     "missing": "{{label}} ⬢ pudota tiedosto kansioon resurssit/markkinointi/kuvakaappaukset/"
   },
   "shot": {
-    "1": "Armeijan sijoittuminen metsänraivaukseen",
-    "2": "Käyttöönottovaihe ja yksikkökauppa",
-    "3": "Lohikäärmeen tulen henkäys pellon yllä",
-    "4": "Vierekkäiset käyttöönottoalueet",
-    "5": "Massataistelu tasangoilla",
-    "6": "Talvinen linnoitus lumessa",
-    "7": "Kaksoisjalustat ruudukossa",
-    "8": "Suuri linnoitettu tukikohta"
+    "1": "Taistelukenttä metsäisessä vuorilaaksossa",
+    "2": "Taistelu ylhäältä taikasäteineen",
+    "3": "Kääpiöiden sotajoukko marssilla",
+    "4": "Syystaistelu syvässä kanjonissa",
+    "5": "Lepakkoparvi rynnäköi muureille",
+    "6": "Loitsun tähtääminen sijoitusvaiheessa",
+    "7": "Joukkotaistelu lumessa",
+    "8": "Peikot keskellä taistelua",
+    "9": "Sijoitusvaihe ja yksikkökauppa"
   },
   "lightbox": {
     "gallery": "Kuvakaappausgalleria",

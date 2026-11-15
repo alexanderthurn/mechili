@@ -15,14 +15,15 @@
     "missing": "{{label}} ⬢ dosyayı assets/marketing/screenshots/ klasörüne bırakın"
   },
   "shot": {
-    "1": "Orman temizleme çalışmalarına ordunun konuşlandırılması",
-    "2": "Konuşlanma aşaması ve birim dükkânı",
-    "3": "Ejderhanın ateş püskürtmesi tarlanın üzerinde",
-    "4": "Yan yana konuşlandırma bölgeleri",
-    "5": "Ovalarda kitlesel savaş",
-    "6": "Karlar içindeki kış kalesi",
-    "7": "şebekede çift üsler",
-    "8": "Büyük müstahkem üs"
+    "1": "Ormanlık bir dağ vadisinde savaş alanı",
+    "2": "Büyülü ışınlarla yukarıdan savaş",
+    "3": "Yürüyüşteki cüce savaş birliği",
+    "4": "Derin bir kanyonda sonbahar savaşı",
+    "5": "Surlara saldıran yarasa sürüsü",
+    "6": "Konuşlandırma sırasında büyü nişanlamak",
+    "7": "Karda kitlesel savaş",
+    "8": "Savaşın ortasında devler",
+    "9": "Birlik dükkânıyla konuşlandırma"
   },
   "lightbox": {
     "gallery": "Ekran görüntüsü galerisi",

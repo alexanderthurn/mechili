@@ -15,14 +15,15 @@
     "missing": "{{label}} ⬢ slipp filen i ressurser/markedsføring/skjermbilder/"
   },
   "shot": {
-    "1": "Hærens utplassering i skogrydding",
-    "2": "Utplasseringsfase og enhetsbutikk",
-    "3": "Dragens ildpust over feltet",
-    "4": "Side-om-side oppstillingssoner",
-    "5": "Massekamp på slettene",
-    "6": "Vinterfestning i snøen",
-    "7": "Doble baser på rutenettet",
-    "8": "Stor befestet base"
+    "1": "Slagmark i en skogkledd fjelldal",
+    "2": "Slaget sett ovenfra med magiske stråler",
+    "3": "Dvergenes krigerflokk på marsj",
+    "4": "Høstslag i en dyp kløft",
+    "5": "Flaggermussverm stormer murene",
+    "6": "Sikte med en trylleformel under utplasseringen",
+    "7": "Masseslag i snøen",
+    "8": "Troll midt i slaget",
+    "9": "Utplassering med enhetsbutikken"
   },
   "lightbox": {
     "gallery": "Skjermbildegalleri",

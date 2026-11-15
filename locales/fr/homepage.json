@@ -15,14 +15,15 @@
     "missing": "{{label}} ⬢ Déposez le fichier dans assets/marketing/screenshots/"
   },
   "shot": {
-    "1": "Déploiement de l'armée dans la clairière",
-    "2": "Phase de déploiement et boutique d’unités",
-    "3": "Souffle de feu du dragon sur le champ",
-    "4": "Zones de déploiement côte à côte",
-    "5": "Bataille massive dans les plaines",
-    "6": "Refuge hivernal sous la neige",
-    "7": "Deux bases sur la grille",
-    "8": "Grande base fortifiée"
+    "1": "Champ de bataille dans une vallée forestière de montagne",
+    "2": "La bataille vue d'en haut, rayons magiques",
+    "3": "Bande de guerre naine en marche",
+    "4": "Bataille d'automne dans un canyon profond",
+    "5": "Nuée de chauves-souris à l'assaut des murs",
+    "6": "Viser un sort pendant le déploiement",
+    "7": "Bataille de masse dans la neige",
+    "8": "Des ogres au cœur de la mêlée",
+    "9": "Déploiement avec la boutique d'unités"
   },
   "lightbox": {
     "gallery": "Galerie de captures d'écran",
