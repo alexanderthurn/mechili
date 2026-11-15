@@ -12,7 +12,7 @@
     "browse": "スクリーンショットを見る",
     "open": "スクリーンショットを開く：{{label}}",
     "fallback": "スクリーンショット",
-    "missing": "{{label}} ⬢ assets/marketing/screenshots/ にファイルを配置"
+    "missing": "{{label}} ⬢ public/marketing/screenshots/ にファイルを配置"
   },
   "shot": {
     "1": "山あいの森の谷の戦場",

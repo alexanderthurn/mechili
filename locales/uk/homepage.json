@@ -12,7 +12,7 @@
     "browse": "Переглянути скріншоти",
     "open": "Відкрити скріншот: {{label}}",
     "fallback": "Знімок екрана",
-    "missing": "{{label}} ⬢ перетягнути файл у assets/marketing/screenshots/"
+    "missing": "{{label}} ⬢ перетягнути файл у public/marketing/screenshots/"
   },
   "shot": {
     "1": "Поле битви в лісистій гірській долині",

@@ -12,7 +12,7 @@
     "browse": "เรียกดูภาพหน้าจอ",
     "open": "เปิดภาพหน้าจอ: {{label}}",
     "fallback": "ภาพหน้าจอ",
-    "missing": "{{label}} ⬢ วางไฟล์ใน assets/marketing/screenshots/"
+    "missing": "{{label}} ⬢ วางไฟล์ใน public/marketing/screenshots/"
   },
   "shot": {
     "1": "สนามรบในหุบเขาป่าบนภูเขา",

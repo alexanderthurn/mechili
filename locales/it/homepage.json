@@ -12,7 +12,7 @@
     "browse": "Visualizza gli screenshot",
     "open": "Apri lo screenshot: {{label}}",
     "fallback": "Screenshot",
-    "missing": "{{label}} ⬢ trascina il file in assets/marketing/screenshots/"
+    "missing": "{{label}} ⬢ trascina il file in public/marketing/screenshots/"
   },
   "shot": {
     "1": "Campo di battaglia in una valle boscosa di montagna",

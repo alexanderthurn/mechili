@@ -12,7 +12,7 @@
     "browse": "Разгледайте екранни снимки",
     "open": "Отвори екранна снимка: {{label}}",
     "fallback": "Скрийншот",
-    "missing": "{{label}} ⬢ пуснете файла в assets/marketing/screenshots/"
+    "missing": "{{label}} ⬢ пуснете файла в public/marketing/screenshots/"
   },
   "shot": {
     "1": "Бойно поле в залесена планинска долина",

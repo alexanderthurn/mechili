@@ -12,7 +12,7 @@
     "browse": "Xem ảnh chụp màn hình",
     "open": "Mở ảnh chụp màn hình: {{label}}",
     "fallback": "Ảnh chụp màn hình",
-    "missing": "{{label}} ⬢ thả tệp vào thư mục assets/marketing/screenshots/"
+    "missing": "{{label}} ⬢ thả tệp vào thư mục public/marketing/screenshots/"
   },
   "shot": {
     "1": "Chiến trường trong thung lũng rừng núi",

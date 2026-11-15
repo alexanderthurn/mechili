@@ -12,7 +12,7 @@
     "browse": "Parcourir les captures d'écran",
     "open": "Ouvrir la capture d'écran : {{label}}",
     "fallback": "Capture d'écran",
-    "missing": "{{label}} ⬢ Déposez le fichier dans assets/marketing/screenshots/"
+    "missing": "{{label}} ⬢ Déposez le fichier dans public/marketing/screenshots/"
   },
   "shot": {
     "1": "Champ de bataille dans une vallée forestière de montagne",

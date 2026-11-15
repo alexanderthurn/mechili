@@ -12,7 +12,7 @@
     "browse": "تصفح لقطات الشاشة",
     "open": "فتح لقطة الشاشة: {{label}}",
     "fallback": "لقطة شاشة",
-    "missing": "{{label}} ⬢ ضع الملف في assets/marketing/screenshots/"
+    "missing": "{{label}} ⬢ ضع الملف في public/marketing/screenshots/"
   },
   "shot": {
     "1": "ساحة معركة في وادٍ جبلي مكسو بالغابات",

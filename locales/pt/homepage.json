@@ -12,7 +12,7 @@
     "browse": "Veja as capturas de ecrã",
     "open": "Abrir captura de ecrã: {{label}}",
     "fallback": "Captura de ecrã",
-    "missing": "{{label}} ⬢ solte o ficheiro em assets/marketing/screenshots/"
+    "missing": "{{label}} ⬢ solte o ficheiro em public/marketing/screenshots/"
   },
   "shot": {
     "1": "Campo de batalha num vale florestal de montanha",

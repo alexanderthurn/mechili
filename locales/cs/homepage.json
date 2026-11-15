@@ -12,7 +12,7 @@
     "browse": "Procházet snímky obrazovky",
     "open": "Otevřít snímek obrazovky: {{label}}",
     "fallback": "Snímek obrazovky",
-    "missing": "{{label}} ⬢ vložit soubor do assets/marketing/screenshots/"
+    "missing": "{{label}} ⬢ vložit soubor do public/marketing/screenshots/"
   },
   "shot": {
     "1": "Bojiště v zalesněném horském údolí",

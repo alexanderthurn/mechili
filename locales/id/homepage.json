@@ -12,7 +12,7 @@
     "browse": "Lihat tangkapan layar",
     "open": "Buka tangkapan layar: {{label}}",
     "fallback": "Tangkapan layar",
-    "missing": "{{label}} ⬢ seret file ke assets/marketing/screenshots/"
+    "missing": "{{label}} ⬢ seret file ke public/marketing/screenshots/"
   },
   "shot": {
     "1": "Medan perang di lembah hutan pegunungan",

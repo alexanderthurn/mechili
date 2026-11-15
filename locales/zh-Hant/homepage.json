@@ -12,7 +12,7 @@
     "browse": "瀏覽全部截圖",
     "open": "打開截圖：{{label}}",
     "fallback": "截圖",
-    "missing": "{{label}} ⬢ 請把檔案放入 assets/marketing/screenshots/"
+    "missing": "{{label}} ⬢ 請把檔案放入 public/marketing/screenshots/"
   },
   "shot": {
     "1": "山間林谷中的戰場",

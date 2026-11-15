@@ -2,11 +2,10 @@
 /**
  * Press kit ZIP, packed when someone asks for it (press.html → backend/press.php).
  *
- * Nothing is built or stored for it: the press texts sit next to this script
- * (backend/press/*.md), and the 4K screenshots, logo and developer photo are
- * the files the site already ships in assets/ — under hashed names
- * (sc1-<hash>.jpg …), found here by pattern. Images are stored, not deflated
- * (they are compressed already), so it is quick.
+ * Nothing is built or stored for it: it zips the site's fixed public files —
+ * press/ (texts, logo, developer photo) and the 4K screenshots in
+ * marketing/screenshots/4k/ — plus the icon. Images are stored, not deflated
+ * (they are compressed already), so it is quick. In the repo these live in public/.
  */
 declare(strict_types=1);
 
@@ -18,41 +17,22 @@ function fail(int $code, string $message): void
     exit;
 }
 
-/** the newest file in $dir whose name matches $regex (an old build's leftover loses) */
-function newest(string $dir, string $regex): ?string
-{
-    $best = null;
-    foreach (scandir($dir) ?: [] as $name) {
-        if (!preg_match($regex, $name)) continue;
-        $path = $dir . '/' . $name;
-        if ($best === null || filemtime($path) > filemtime($best)) $best = $path;
-    }
-    return $best;
-}
-
 if (!class_exists('ZipArchive')) fail(500, 'ZIP support is not available on this server.');
 
 $site = dirname(__DIR__);
-$assets = $site . '/assets';
-if (!is_dir($assets)) fail(500, 'Site assets not found.');
-// Vite's hash: 8 characters of [A-Za-z0-9_-]
-$hash = '[A-Za-z0-9_-]{8}';
 
-/** ZIP name => file on disk */
+/** name in the ZIP => file on disk */
 $files = [];
-foreach (['factsheet.md', 'descriptions.md', 'press-release-playtest.md'] as $text) {
-    $files[$text] = __DIR__ . '/press/' . $text;
+foreach (glob($site . '/press/*') ?: [] as $path) {
+    $name = basename($path);
+    if (str_contains($name, '-small.')) continue; // the page's small preview, not for print
+    $files[preg_match('/\.(png|jpe?g)$/i', $name) ? (str_contains($name, 'logo') ? "logos/$name" : "developer/$name") : $name] = $path;
 }
-$files['logos/melodan-logo.png'] = newest($assets, "/^logo-trimmed-$hash\\.png$/");
 $files['logos/melodan-icon-256.png'] = $site . '/favicon-256.png';
-$files['developer/alexander-thurn.jpg'] = newest($assets, "/^alexander-thurn-$hash\\.jpg$/");
-$shots = [];
-foreach (scandir($assets) ?: [] as $name) {
-    if (preg_match("/^sc(\\d+)-$hash\\.jpg$/", $name, $m)) $shots[(int) $m[1]] = true;
-}
-ksort($shots);
-foreach (array_keys($shots) as $n) {
-    $files["screenshots/melodan-screenshot-$n.jpg"] = newest($assets, "/^sc$n-$hash\\.jpg$/");
+$shots = glob($site . '/marketing/screenshots/4k/sc*.jpg') ?: [];
+natsort($shots);
+foreach ($shots as $path) {
+    $files['screenshots/melodan-screenshot-' . preg_replace('/\D/', '', basename($path)) . '.jpg'] = $path;
 }
 
 $tmp = tempnam(sys_get_temp_dir(), 'presskit');
@@ -65,12 +45,10 @@ $zip = new ZipArchive();
 if ($zip->open($tmp, ZipArchive::OVERWRITE) !== true) fail(500, 'Could not create the ZIP.');
 $added = 0;
 foreach ($files as $name => $path) {
-    if ($path === null || !is_file($path)) continue;
+    if (!is_file($path)) continue;
     $inZip = 'melodan-presskit/' . $name;
     $zip->addFile($path, $inZip);
-    if (preg_match('/\.(jpe?g|png|webp)$/i', $name) && method_exists($zip, 'setCompressionName')) {
-        $zip->setCompressionName($inZip, ZipArchive::CM_STORE);
-    }
+    if (preg_match('/\.(jpe?g|png|webp)$/i', $name)) $zip->setCompressionName($inZip, ZipArchive::CM_STORE);
     $added++;
 }
 $zip->close();

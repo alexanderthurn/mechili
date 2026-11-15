@@ -12,7 +12,7 @@
     "browse": "스크린샷 둘러보기",
     "open": "스크린샷 열기: {{label}}",
     "fallback": "스크린샷",
-    "missing": "{{label}} ⬢ assets/marketing/screenshots/에 파일을 넣으세요"
+    "missing": "{{label}} ⬢ public/marketing/screenshots/에 파일을 넣으세요"
   },
   "shot": {
     "1": "숲이 우거진 산골짜기의 전장",

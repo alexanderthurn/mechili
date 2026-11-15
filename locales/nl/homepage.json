@@ -12,7 +12,7 @@
     "browse": "Bekijk schermafbeeldingen",
     "open": "Open schermafbeelding: {{label}}",
     "fallback": "Schermafbeelding",
-    "missing": "{{label}} ⬢ sleep het bestand naar assets/marketing/screenshots/"
+    "missing": "{{label}} ⬢ sleep het bestand naar public/marketing/screenshots/"
   },
   "shot": {
     "1": "Slagveld in een bebost bergdal",

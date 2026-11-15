@@ -20,11 +20,12 @@
       Press kit page. The texts below are plain HTML — edit them here.
       Screenshots, logo / photo download links and the trailer are filled in
       by src/press/main.ts; the ZIP is packed on request by backend/press.php.
-      The same texts as Markdown (in the ZIP): backend/press/*.md
+      The same texts as Markdown (in the ZIP): public/press/*.md.
+      Files under / here (/press/…, /favicon-256.png) are public/ files.
     -->
     <header class="pk-hero">
         <a href="./web.html" class="pk-back">← melodan.com</a>
-        <img class="pk-logo" src="./assets/ui/logo-trimmed.png" alt="Melodan" width="1315" height="244" />
+        <img class="pk-logo" src="/press/melodan-logo.png" alt="Melodan" width="1315" height="244" />
         <p class="pk-tagline">Medieval fantasy strategy auto-battler</p>
         <h1>Press Kit</h1>
         <div class="pk-ctas">
@@ -124,11 +125,11 @@
                 <h2>Logos</h2>
                 <div class="pk-logo-tiles">
                     <a class="pk-tile pk-tile-dark" data-asset="logo" data-name="melodan-logo.png" download>
-                        <img src="./assets/ui/logo-trimmed.png" alt="Melodan logo" />
+                        <img src="/press/melodan-logo.png" alt="Melodan logo" />
                         <span>Logo · PNG, transparent, 1315 × 244</span>
                     </a>
                     <a class="pk-tile" data-asset="icon" data-name="melodan-icon-256.png" download>
-                        <img src="./favicon-256.png" alt="Melodan icon" class="pk-icon" />
+                        <img src="/favicon-256.png" alt="Melodan icon" class="pk-icon" />
                         <span>Icon · PNG, 256 × 256</span>
                     </a>
                 </div>
@@ -137,7 +138,7 @@
                 <h2>About the developer</h2>
                 <div class="pk-dev">
                     <a data-asset="photo" data-name="alexander-thurn.jpg" download title="Download photo (1024 × 1024)">
-                        <img src="./assets/press/alexander-thurn-small.jpg" alt="Alexander Thurn" width="160" height="160" />
+                        <img src="/press/alexander-thurn-small.jpg" alt="Alexander Thurn" width="160" height="160" />
                     </a>
                     <p>
                         <strong>Alexander Thurn</strong> is an indie game developer from Germany who has been making games

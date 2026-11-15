@@ -17,10 +17,10 @@ for the desktop / Steam client.
 ## Screenshots
 
 <p align="center">
-  <a href="assets/marketing/screenshots/4k/sc1.jpg"><img src="assets/marketing/screenshots/01.webp" alt="MELODAN screenshot 1" width="280" /></a>
-  <a href="assets/marketing/screenshots/4k/sc2.jpg"><img src="assets/marketing/screenshots/02.webp" alt="MELODAN screenshot 2" width="280" /></a>
-  <a href="assets/marketing/screenshots/4k/sc3.jpg"><img src="assets/marketing/screenshots/03.webp" alt="MELODAN screenshot 3" width="280" /></a>
-  <a href="assets/marketing/screenshots/4k/sc4.jpg"><img src="assets/marketing/screenshots/04.webp" alt="MELODAN screenshot 4" width="280" /></a>
+  <a href="public/marketing/screenshots/4k/sc1.jpg"><img src="public/marketing/screenshots/01.webp" alt="MELODAN screenshot 1" width="280" /></a>
+  <a href="public/marketing/screenshots/4k/sc2.jpg"><img src="public/marketing/screenshots/02.webp" alt="MELODAN screenshot 2" width="280" /></a>
+  <a href="public/marketing/screenshots/4k/sc3.jpg"><img src="public/marketing/screenshots/03.webp" alt="MELODAN screenshot 3" width="280" /></a>
+  <a href="public/marketing/screenshots/4k/sc4.jpg"><img src="public/marketing/screenshots/04.webp" alt="MELODAN screenshot 4" width="280" /></a>
 </p>
 
 ## How it plays

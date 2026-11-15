@@ -12,7 +12,7 @@
     "browse": "Răsfoiți capturile de ecran",
     "open": "Deschideți captura de ecran: {{label}}",
     "fallback": "Captură de ecran",
-    "missing": "{{label}} ⬢ plasează fișierul în assets/marketing/screenshots/"
+    "missing": "{{label}} ⬢ plasează fișierul în public/marketing/screenshots/"
   },
   "shot": {
     "1": "Câmp de luptă într-o vale montană împădurită",

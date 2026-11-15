@@ -12,7 +12,7 @@
     "browse": "Browse screenshots",
     "open": "Open screenshot: {{label}}",
     "fallback": "Screenshot",
-    "missing": "{{label}} ⬢ drop file in assets/marketing/screenshots/"
+    "missing": "{{label}} ⬢ drop file in public/marketing/screenshots/"
   },
   "shot": {
     "1": "Battlefield in a mountain forest valley",

@@ -12,7 +12,7 @@
     "browse": "Screenshots ansehen",
     "open": "Screenshot öffnen: {{label}}",
     "fallback": "Screenshot",
-    "missing": "{{label}} ⬢ Datei in assets/marketing/screenshots/ ablegen"
+    "missing": "{{label}} ⬢ Datei in public/marketing/screenshots/ ablegen"
   },
   "shot": {
     "1": "Schlachtfeld in einem bewaldeten Bergtal",

@@ -12,7 +12,7 @@
     "browse": "Przeglądaj zrzuty ekranu",
     "open": "Otwórz zrzut ekranu: {{label}}",
     "fallback": "Zrzut ekranu",
-    "missing": "{{label}} ⬢ upuść plik w assets/marketing/screenshots/"
+    "missing": "{{label}} ⬢ upuść plik w public/marketing/screenshots/"
   },
   "shot": {
     "1": "Pole bitwy w zalesionej górskiej dolinie",

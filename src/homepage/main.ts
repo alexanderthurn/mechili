@@ -1,5 +1,6 @@
 import { buildingAbilities } from '../game/buildingAbilities';
 import type { RoundCard, StartCard } from '../game/cards';
+import { SCREENSHOT_NUMBERS, screenshotFiles } from '../marketingFiles';
 import { DISPLAY } from '../game/displayNames';
 import { DEFAULT_SETTINGS, describeGameSettings, type SettingGroup } from '../game/settings';
 import { itemSlotLimit, type ItemDef } from '../game/items';
@@ -81,21 +82,21 @@ const PLAY_URL =
         ? 'https://play.melodan.com/'
         : new URL('./index.html', location.href).href;
 
-const SCREENSHOT_DEFS = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => ({
+const SCREENSHOT_DEFS = SCREENSHOT_NUMBERS.map((n) => ({
     n,
     label: t(`homepage:shot.${n}`),
 }));
 
 const MORE_SCREENSHOTS = SCREENSHOT_DEFS.map((s) => ({
-    src: new URL(`../../assets/marketing/screenshots/fullhd/screen_${s.n}.webp`, import.meta.url).href,
-    fullhd: new URL(`../../assets/marketing/screenshots/fullhd/screen_${s.n}.jpg`, import.meta.url).href,
-    raw4k: new URL(`../../assets/marketing/screenshots/4k/sc${s.n}.jpg`, import.meta.url).href,
+    src: screenshotFiles.fullHdWebp(s.n),
+    fullhd: screenshotFiles.fullHdJpg(s.n),
+    raw4k: screenshotFiles.uhdJpg(s.n),
     label: s.label,
 }));
 
 /** Small thumbs for the homepage grid (first four). */
 const SCREENSHOTS = SCREENSHOT_DEFS.slice(0, 4).map((s, i) => ({
-    src: new URL(`../../assets/marketing/screenshots/0${s.n}.webp`, import.meta.url).href,
+    src: screenshotFiles.thumb(s.n),
     label: s.label,
     index: i,
 }));

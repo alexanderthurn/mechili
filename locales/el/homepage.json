@@ -12,7 +12,7 @@
     "browse": "Περιήγηση στιγμιότυπων",
     "open": "Άνοιγμα στιγμιότυπου: {{label}}",
     "fallback": "Στιγμιότυπο",
-    "missing": "{{label}} ⬢ βάλε αρχείο στο assets/marketing/screenshots/"
+    "missing": "{{label}} ⬢ βάλε αρχείο στο public/marketing/screenshots/"
   },
   "shot": {
     "1": "Πεδίο μάχης σε δασωμένη ορεινή κοιλάδα",

@@ -12,7 +12,7 @@
     "browse": "Ekran görüntülerini inceleyin",
     "open": "Ekran görüntüsünü aç: {{label}}",
     "fallback": "Ekran görüntüsü",
-    "missing": "{{label}} ⬢ dosyayı assets/marketing/screenshots/ klasörüne bırakın"
+    "missing": "{{label}} ⬢ dosyayı public/marketing/screenshots/ klasörüne bırakın"
   },
   "shot": {
     "1": "Ormanlık bir dağ vadisinde savaş alanı",

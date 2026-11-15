@@ -12,7 +12,7 @@
     "browse": "Смотреть все скриншоты",
     "open": "Открыть скриншот: {{label}}",
     "fallback": "Скриншот",
-    "missing": "{{label}} ⬢ положите файл в assets/marketing/screenshots/"
+    "missing": "{{label}} ⬢ положите файл в public/marketing/screenshots/"
   },
   "shot": {
     "1": "Поле битвы в лесистой горной долине",
