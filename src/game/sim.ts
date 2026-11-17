@@ -4554,7 +4554,9 @@ export class BattleSim {
         // Dead wrecks: air units tumble first; settled corpses stay glued to terrain
         const crashLands: CrashLand[] = [];
         for (const a of this.actors) {
-            if (a.alive || a.unit.type.structure) continue;
+            // a summon (or a production reserve) not yet arrived is dormant, not dead:
+            // posing it as a corpse would leave it lying in the ground once it appears
+            if (a.alive || a.unit.type.structure || !a.appeared) continue;
             const fall = a.mesh.userData.deathFall as DeathFallState | undefined;
             const tip = a.mesh.userData.deathTip as DeathTipState | undefined;
             const deathClip = a.mesh.userData.deathClip as DeathClipState | undefined;
