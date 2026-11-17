@@ -37,8 +37,8 @@ export interface CameraSmoothing {
 }
 export const CAMERA_SMOOTHING_TUNING = {
     off: { rampUp: 0, rampDown: 0, wheelRate: Infinity },
-    normal: { rampUp: 0.08, rampDown: 0.12, wheelRate: 10 },
-    strong: { rampUp: 0.15, rampDown: 0.25, wheelRate: 6 },
+    normal: { rampUp: 0.04, rampDown: 0.06, wheelRate: 20 },
+    strong: { rampUp: 0.08, rampDown: 0.12, wheelRate: 10 },
 } as const satisfies Record<string, CameraSmoothing>;
 
 /** `current` eased toward `target` over a time constant `tau` (0 = at once) */
@@ -434,7 +434,9 @@ export class CameraControls {
             let step = this.wheelPending * k;
             if (Math.abs(this.wheelPending) < 1e-4) step = this.wheelPending;
             this.wheelPending -= step;
-            this.rig.zoomAt(Math.exp(step), this.wheelAt.x, this.wheelAt.y);
+            // toward where the cursor is now, not where it was at the notch
+            const at = this.pointer ?? this.wheelAt;
+            this.rig.zoomAt(Math.exp(step), at.x, at.y);
         }
         // rotation — skip while Shift is held so Shift+E (timed clip) / other
         // Shift+letter debug chords don't also spin the camera

@@ -108,8 +108,6 @@ export function mountIntroRoster(
     cover: HTMLElement,
     entries: readonly IntroRosterEntry[],
     side: 'a' | 'b' = 'a',
-    /** one line under the teams: the kind of match (mode · Komtur · season · terrain) */
-    details?: string,
 ): void {
     unmountIntroRoster(cover);
     const player = SIDE_COLORS[side === 'a' ? 0 : 1]!.css;
@@ -130,9 +128,7 @@ export function mountIntroRoster(
         teamHtml('player', entries.filter((e) => e.team === 'player')) +
         `<div class="mr-vs">${escapeHtml(t('hud:vs'))}</div>` +
         teamHtml('enemy', entries.filter((e) => e.team === 'enemy')) +
-        `</div>` +
-        (details ? `<div class="mr-details">${escapeHtml(details)}</div>` : '') +
-        `</div>`;
+        `</div></div>`;
     cover.appendChild(el);
 }
 

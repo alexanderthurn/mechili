@@ -138,15 +138,19 @@ export class CameraRig {
 
     /** Zooms by a factor while keeping the ground point under the cursor fixed. */
     zoomAt(factor: number, screenX: number, screenY: number): void {
+        // both points on the DESIRED camera: measuring "before" on the live one put the
+        // live-vs-desired gap of a pan still easing in into the correction, so every
+        // zoom step took part of an ongoing move back (zoom + move felt like rubber)
+        this.applyState(this.desired);
         const before = this.screenToGround(screenX, screenY, this.viewW, this.viewH);
         this.desired.zoom = MathUtils.clamp(this.desired.zoom * factor, this.minZoom, this.maxZoom);
         if (before) {
             // measure where that point lands once the desired state settles, and pan to compensate
             this.applyState(this.desired);
             const after = this.screenToGround(screenX, screenY, this.viewW, this.viewH);
-            this.applyState(this.state);
             if (after) this.pan(before.x - after.x, before.z - after.z);
         }
+        this.applyState(this.state);
     }
 
     rotate(deltaHeading: number): void {
