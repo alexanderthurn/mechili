@@ -1127,6 +1127,8 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-menu .m-roster-tags {
     order: 10;
     flex: 0 0 100%;
+    /* one chip's height even when empty: every seat box the same height */
+    min-height: 18px;
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-start;

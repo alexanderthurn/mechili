@@ -3079,8 +3079,9 @@ function renderRosterTable(
             // the seat's tags (army, role) on a line of their own under the name
             const tags = document.createElement('div');
             tags.className = 'm-roster-tags';
-            // the seat's army: a chip that walks the armies where this client may change it
-            if (lobbyArmy) {
+            // the seat's army: a chip that walks the armies where this client may change it —
+            // only in debug mode: players play the standard army
+            if (lobbyArmy && debugEnabled()) {
                 const army = roster[seat]!.army ?? 'standard';
                 const editable = lobbyArmy.canEdit(seat);
                 const chip = document.createElement(editable ? 'button' : 'span');
@@ -3138,20 +3139,24 @@ function renderRosterTable(
                 chip(`is-${difficulty}`, t(`menu:aiDifficulty.${difficulty}`), t('menu:aiDifficultyPick'), () =>
                     lobbyArmy?.pickAi?.(seat, { aiDifficulty: AI_DIFFICULTIES[(AI_DIFFICULTIES.indexOf(difficulty) + 1) % AI_DIFFICULTIES.length]! }),
                 );
-                // only the styles that fit the seat's Siege role (a stored one that doesn't shows as Random);
-                // a role still open is settled at Start, so only the styles that fit either
-                const fits = !lobbySiege
-                    ? personalitiesFor(null)
-                    : entry.yearRole
-                      ? personalitiesFor(entry.yearRole)
-                      : personalitiesFor('attacker').filter((p) => personalitiesFor('defender').includes(p));
-                const stored = entry.aiPersonality ?? DEFAULT_AI_PERSONALITY;
-                const personality = fits.includes(stored) ? stored : 'random';
-                chip(`is-${personality}`, t(`menu:aiPersonality.${personality}`), t('menu:aiPersonalityPick'), () =>
-                    lobbyArmy?.pickAi?.(seat, { aiPersonality: fits[(fits.indexOf(personality) + 1) % fits.length]! }),
-                );
+                // the style chip only in debug mode: players see the strength, the style stays Random
+                if (debugEnabled()) {
+                    // only the styles that fit the seat's Siege role (a stored one that doesn't shows as Random);
+                    // a role still open is settled at Start, so only the styles that fit either
+                    const fits = !lobbySiege
+                        ? personalitiesFor(null)
+                        : entry.yearRole
+                          ? personalitiesFor(entry.yearRole)
+                          : personalitiesFor('attacker').filter((p) => personalitiesFor('defender').includes(p));
+                    const stored = entry.aiPersonality ?? DEFAULT_AI_PERSONALITY;
+                    const personality = fits.includes(stored) ? stored : 'random';
+                    chip(`is-${personality}`, t(`menu:aiPersonality.${personality}`), t('menu:aiPersonalityPick'), () =>
+                        lobbyArmy?.pickAi?.(seat, { aiPersonality: fits[(fits.indexOf(personality) + 1) % fits.length]! }),
+                    );
+                }
             }
-            if (tags.childElementCount > 0) cell.appendChild(tags);
+            // always: an empty line keeps a seat without chips as tall as one with them
+            cell.appendChild(tags);
             if (filled && seat !== 0 && roster[seat]!.ready) {
                 const ready = document.createElement('span');
                 ready.className = 'm-roster-ready';
