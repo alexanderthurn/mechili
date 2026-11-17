@@ -85,6 +85,8 @@ const SELECT_LIFT = 2.8;
 const _blobCenter = new Vector3();
 /** green tint for movable packs that are not currently selected */
 const MOVABLE_PLATE_OPACITY = 0.52;
+/** the faint frame under the unit the mouse is over (a hint, well below a selection) */
+const HOVER_HINT_OPACITY = 0.32;
 
 /**
  * The selection / hover / carry plate: a soft frame on the ground instead of a flat
@@ -562,6 +564,8 @@ export class PlacementController {
     private readonly occupied = new Map<string, Unit>();
     private readonly hoverMesh: Mesh;
     private readonly hoverMaterial: MeshBasicMaterial;
+    /** the faint frame under the unit the mouse is over */
+    private readonly hoverHintMesh: Mesh;
     private readonly selectMesh: Mesh;
     private readonly rangeMesh: Mesh;
     /** open wall ends / the carried wall's tower tiles while a wall rides the cursor */
@@ -684,6 +688,8 @@ export class PlacementController {
         attachSelectPlateShader(this.hoverMaterial);
         this.selectMesh = makeMarker(SELECT_COLOR, 0.22);
         this.selectMesh.position.y = 0.03;
+        this.hoverHintMesh = makeMarker(VALID_COLOR, HOVER_HINT_OPACITY);
+        attachSelectPlateShader(this.hoverHintMesh.material as MeshBasicMaterial, { still: true, opacity: HOVER_HINT_OPACITY });
 
         // attack / min-range / aura rings for the selected pack (any owner)
         this.rangeMesh = createRangeRing(scene);
@@ -3290,6 +3296,38 @@ export class PlacementController {
     }
 
     /** green footprint plate over a pack that an armed thing may be applied to */
+    /**
+     * A faint frame under the unit the mouse is over — own or a visible
+     * enemy's — while nothing rides the cursor and nothing is being aimed.
+     * Not under what is selected already (that has its own frame).
+     */
+    private paintHoverHint(timeSeconds: number): void {
+        this.hoverHintMesh.visible = false;
+        if (!this.enabled || !this.pointer || this.rectActive || this.pointerCarries || this.itemArmed?.()) return;
+        const picked = this.pickUnitAt(this.pointer.x, this.pointer.y);
+        // an archer posted on a wall: the wall is what a click takes
+        const over = picked && picked.hostUnitId !== null ? this.unitById(picked.hostUnitId) ?? picked : picked;
+        if (!over || over.destroyed || this.isHighlighted(over)) return;
+        if (over.team !== 'player' && !this.enemyIntelVisible(over)) return;
+        const fp = this.footprintOf(over.type, over.rotated);
+        const center = over.gridless
+            ? new Vector3(over.world.x, over.world.y, over.world.z)
+            : this.map.areaCenter(over.cell, fp.cols, fp.rows);
+        const material = this.hoverHintMesh.material as MeshBasicMaterial;
+        this.placeFootprintPlate(this.hoverHintMesh, material, center, fp, this.standingPlateColor(over), timeSeconds, false, 0.035, over.pinnedY ?? undefined, over);
+    }
+
+    /**
+     * The plate colour of a unit standing still (selected, hovered, inside the
+     * rubber band): green while it is mine and can still move, else its owner's
+     * colour — mine once it stands for good (an older wall, a tower), an
+     * enemy's, an ally's, the horde's. A carried pack shows green / pink for
+     * where it may land instead.
+     */
+    private standingPlateColor(u: Unit): number {
+        return this.isMovable(u) ? VALID_COLOR : this.ownerHex(u);
+    }
+
     private paintPackHoverPlate(over: Unit, timeSeconds: number): void {
         const snap = this.isFogged(over) ? this.intelSnapshot.get(over.id) : undefined;
         const cell = snap?.cell ?? over.cell;
@@ -3317,6 +3355,7 @@ export class PlacementController {
     private updateMarkers(timeSeconds: number): void {
         const sel = this.selectedUnit;
         this.hoverMesh.visible = false;
+        this.paintHoverHint(timeSeconds);
         this.wallMarkers.hide();
         this.prevWallSnap = this.lastWallSnap;
         this.lastWallSnap = null;
@@ -3485,7 +3524,7 @@ export class PlacementController {
                 this.hoverMaterial,
                 center,
                 plateFp,
-                VALID_COLOR,
+                this.standingPlateColor(sel),
                 timeSeconds,
                 true,
                 0.04,
@@ -3710,10 +3749,10 @@ export class PlacementController {
                 unit.view.position.set(center.x, unit.world.y, center.z);
                 if (unit.type.structure) unit.seatMembers(center.x, center.z);
             }
-            // standing still (selected, or inside the rubber band): the selection colour;
-            // carried: green / red for whether each pack may land there
+            // standing still (selected, or inside the rubber band): by what it is (standingPlateColor);
+            // carried: green / pink for whether each pack may land there
             const color = !delta
-                ? SELECT_COLOR
+                ? this.standingPlateColor(unit)
                 : this.groupSpotValid(unit, anchor, units)
                   ? VALID_COLOR
                   : INVALID_COLOR;
