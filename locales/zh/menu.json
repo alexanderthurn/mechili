@@ -197,6 +197,7 @@
   "buysPerRound": "每回合购买次数",
   "walls": "城墙",
   "postedUnits": "驻守单位",
+  "seasons": "季节",
   "armies": {
     "standard": "标准军队",
     "komtur": "孔图尔军队"

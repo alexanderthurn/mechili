@@ -286,5 +286,14 @@
     "normal": "Normal",
     "passive": "Passive",
     "passiveCheap": "Passive, halv pris"
+  },
+  "seasons": {
+    "randomYear": "Tilfældigt år",
+    "year": "År",
+    "randomSeason": "Tilfældig årstid",
+    "spring": "Forår",
+    "summer": "Sommer",
+    "autumn": "Efterår",
+    "winter": "Vinter"
   }
 }

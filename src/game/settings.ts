@@ -19,6 +19,7 @@ import {
 export { DEFAULT_HORDE_PRESET_ID, HORDE_ALGORITHMS, hordeAlgorithmById } from './hordeAlgorithms';
 export type { HordeContext, HordeAlgorithm } from './hordeAlgorithms';
 import type { UnitType } from './units';
+import { seasonsModeOption, type SeasonsMode } from './seasons';
 import type { SeatDef, SeatId } from './seats';
 
 /**
@@ -33,10 +34,11 @@ export const CLIMB_ROUNDS = 12;
 export const CLIMB_SIDE_HP = 1;
 export const CLIMB_SUPPLY_GROWTH_PER_ROUND: number | null = null;
 /**
- * Campaign: human income growth per round — 200, the same as normal matches.
+ * Campaign: human income growth per round — 300, the same as normal matches
+ * (only the fallback for saves of before; The Year takes the match's own growth).
  * Round grant is still `startingSupply + (round - 1) * growth`.
  */
-export const CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND = 200;
+export const CLIMB_PLAYER_SUPPLY_GROWTH_PER_ROUND = 300;
 
 /**
  * A match's Siege and Rounds rules (see {@link GameSettings.climb}) — single
@@ -256,6 +258,8 @@ export interface GameSettings {
     walls?: WallsMode;
     /** units posted on walls and buildings (see {@link PostedUnitsMode}); omit = 'normal' */
     postedUnits?: PostedUnitsMode;
+    /** which seasons the rounds run through (see weather.ts SeasonsMode); omit = random season */
+    seasons?: SeasonsMode;
     economy: EconomySettings;
     towers: TowerSettings;
     leveling: LevelingSettings;
@@ -637,6 +641,20 @@ export function postedUnitsModeOption(raw: unknown): PostedUnitsMode {
     return POSTED_UNITS_MODES.includes(raw as PostedUnitsMode) ? (raw as PostedUnitsMode) : DEFAULT_POSTED_UNITS_MODE;
 }
 
+/** a Seasons mode's name in the current language */
+export function seasonsModeName(mode: SeasonsMode): string {
+    const fallback = {
+        randomYear: 'Random year',
+        year: 'Year',
+        randomSeason: 'Random season',
+        spring: 'Spring',
+        summer: 'Summer',
+        autumn: 'Autumn',
+        winter: 'Winter',
+    }[mode];
+    return t(`settings:seasons.${mode}`, { defaultValue: fallback });
+}
+
 export function postedUnitsModeName(mode: PostedUnitsMode): string {
     const fallback = { normal: 'Normal', passive: 'Passive', passiveCheap: 'Passive, half price' }[mode];
     return t(`settings:postedUnits.${mode}`, { defaultValue: fallback });
@@ -746,7 +764,7 @@ export const MONEY_FACTOR_OPTIONS: readonly MoneyFactorOption[] = [
 
 export const DEFAULT_MONEY_FACTOR = 1;
 /** see {@link EconomySettings.flatIncomePerRound} */
-export const DEFAULT_FLAT_INCOME_PER_ROUND = 100;
+export const DEFAULT_FLAT_INCOME_PER_ROUND = 0;
 
 /** Snap unknown / legacy values onto a known lobby option (default ×1). */
 export function moneyFactorOption(raw: unknown): number {
@@ -830,8 +848,9 @@ export const DEFAULT_SETTINGS: GameSettings = {
     startMoney: DEFAULT_START_MONEY,
     strongholdMode: DEFAULT_STRONGHOLD_MODE,
     economy: {
-        startingSupply: 200,
-        supplyGrowthPerRound: 200,
+        // 1× income: 300 × the round number (300, 600, 900, …), no flat part
+        startingSupply: 300,
+        supplyGrowthPerRound: 300,
         flatIncomePerRound: DEFAULT_FLAT_INCOME_PER_ROUND,
         techCostEscalation: 200,
     },
@@ -967,6 +986,7 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         strongholdMode: strongholdModeOption(settings.strongholdMode),
         walls: wallsModeOption(settings.walls),
         postedUnits: postedUnitsModeOption(settings.postedUnits),
+        seasons: seasonsModeOption(settings.seasons),
         climb: settings.climb
             ? {
                   // older saves: roundsToWin was the wins needed, as long as a Year lasts now

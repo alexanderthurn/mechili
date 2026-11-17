@@ -286,5 +286,14 @@
     "normal": "보통",
     "passive": "수동",
     "passiveCheap": "수동, 반값"
+  },
+  "seasons": {
+    "randomYear": "무작위 한 해",
+    "year": "한 해",
+    "randomSeason": "무작위 계절",
+    "spring": "봄",
+    "summer": "여름",
+    "autumn": "가을",
+    "winter": "겨울"
   }
 }

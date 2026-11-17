@@ -286,5 +286,14 @@
     "normal": "Normál",
     "passive": "Passzív",
     "passiveCheap": "Passzív, fél áron"
+  },
+  "seasons": {
+    "randomYear": "Véletlen év",
+    "year": "Év",
+    "randomSeason": "Véletlen évszak",
+    "spring": "Tavasz",
+    "summer": "Nyár",
+    "autumn": "Ősz",
+    "winter": "Tél"
   }
 }

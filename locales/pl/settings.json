@@ -286,5 +286,14 @@
     "normal": "Normalne",
     "passive": "Pasywne",
     "passiveCheap": "Pasywne, za pół ceny"
+  },
+  "seasons": {
+    "randomYear": "Losowy rok",
+    "year": "Rok",
+    "randomSeason": "Losowa pora roku",
+    "spring": "Wiosna",
+    "summer": "Lato",
+    "autumn": "Jesień",
+    "winter": "Zima"
   }
 }

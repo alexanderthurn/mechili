@@ -286,5 +286,14 @@
     "normal": "通常",
     "passive": "パッシブ",
     "passiveCheap": "パッシブ・半額"
+  },
+  "seasons": {
+    "randomYear": "ランダムな一年",
+    "year": "一年",
+    "randomSeason": "ランダムな季節",
+    "spring": "春",
+    "summer": "夏",
+    "autumn": "秋",
+    "winter": "冬"
   }
 }

@@ -286,5 +286,14 @@
     "normal": "ปกติ",
     "passive": "เชิงรับ",
     "passiveCheap": "เชิงรับ ครึ่งราคา"
+  },
+  "seasons": {
+    "randomYear": "ปีแบบสุ่ม",
+    "year": "ทั้งปี",
+    "randomSeason": "ฤดูแบบสุ่ม",
+    "spring": "ฤดูใบไม้ผลิ",
+    "summer": "ฤดูร้อน",
+    "autumn": "ฤดูใบไม้ร่วง",
+    "winter": "ฤดูหนาว"
   }
 }

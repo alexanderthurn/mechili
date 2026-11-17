@@ -286,5 +286,14 @@
     "normal": "普通",
     "passive": "被动",
     "passiveCheap": "被动，半价"
+  },
+  "seasons": {
+    "randomYear": "随机年份",
+    "year": "全年",
+    "randomSeason": "随机季节",
+    "spring": "春",
+    "summer": "夏",
+    "autumn": "秋",
+    "winter": "冬"
   }
 }

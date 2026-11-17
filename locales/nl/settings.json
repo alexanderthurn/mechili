@@ -286,5 +286,14 @@
     "normal": "Normaal",
     "passive": "Passief",
     "passiveCheap": "Passief, halve prijs"
+  },
+  "seasons": {
+    "randomYear": "Willekeurig jaar",
+    "year": "Jaar",
+    "randomSeason": "Willekeurig seizoen",
+    "spring": "Lente",
+    "summer": "Zomer",
+    "autumn": "Herfst",
+    "winter": "Winter"
   }
 }

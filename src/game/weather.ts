@@ -26,6 +26,7 @@ import { mulberry32, type BattleMap, worldHeightAt } from './map';
 import { sceneryFogScale } from './prefs';
 import { loadWorldTexture, moonUrl } from './worldTextures';
 import { t } from '../i18n';
+import type { SeasonsMode } from './seasons';
 
 /** slow seasonal look — biases the sky tint and drives vegetation via `onSeasonChange` */
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
@@ -403,6 +404,37 @@ const WEATHER_STEPS: { kind: WeatherKind; intensity: number }[] = [
     { kind: 'snow', intensity: 1 },
 ];
 
+/** a match's seasons: the mode, and a number from its seed for the random ones (same on every client) */
+export interface SeasonsPlan {
+    mode: SeasonsMode;
+    /** any non-negative integer drawn once per match */
+    pick: number;
+}
+
+/**
+ * A season setting's one scene, the same every round: Spring morning (1),
+ * Summer golden (5), Autumn storm (9), Deep winter (11) — indices into
+ * {@link ATMOSPHERE_SCENES}.
+ */
+const SEASON_SCENE: Record<Season, number> = { spring: 0, summer: 4, autumn: 8, winter: 10 };
+
+/** the year-tour scene of `round` under a match's seasons plan */
+export function sceneIndexForRound(round: number, plan: SeasonsPlan): number {
+    const n = ATMOSPHERE_SCENES.length;
+    const step = Math.max(0, round - 1);
+    const wrap = (i: number) => ((i % n) + n) % n;
+    switch (plan.mode) {
+        case 'year':
+            return wrap(step);
+        case 'randomYear':
+            return wrap(plan.pick + step);
+        case 'randomSeason':
+            return SEASON_SCENE[SEASON_CYCLE[plan.pick % SEASON_CYCLE.length]!];
+        default:
+            return SEASON_SCENE[plan.mode];
+    }
+}
+
 /** Named year-tour beat: coherent season × time × weather (hotkey N). */
 export interface AtmosphereScene {
     label: string;
@@ -467,9 +499,9 @@ export const ATMOSPHERE_SCENES: readonly AtmosphereScene[] = [
         atmosphere: { season: 'winter', timeOfDay: 'night', weatherKind: 'snow', weatherIntensity: 1 },
     },
     {
-        // a light fall keeps the ground white for the Year's last round (clear skies would melt it)
-        label: 'Frost morning',
-        atmosphere: { season: 'winter', timeOfDay: 'dawn', weatherKind: 'snow', weatherIntensity: 0.2 },
+        // the Year's last round: deep winter again, the finale in the heaviest snow
+        label: 'Deep winter',
+        atmosphere: { season: 'winter', timeOfDay: 'night', weatherKind: 'snow', weatherIntensity: 1 },
     },
 ];
 
@@ -1032,9 +1064,8 @@ export class Weather {
      * so peers stay in sync. Cheat keys (N / X / V / Y) still override live
      * for debugging; the next deploy start snaps back to the round's scene.
      */
-    onRound(round: number, immediate = false): void {
-        const n = ATMOSPHERE_SCENES.length;
-        const i = ((round - 1) % n + n) % n;
+    onRound(round: number, immediate = false, seasons: SeasonsPlan = { mode: 'year', pick: 0 }): void {
+        const i = sceneIndexForRound(round, seasons);
         const scene = ATMOSPHERE_SCENES[i]!;
         this.setScene(scene.atmosphere, i, immediate);
     }

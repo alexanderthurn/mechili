@@ -286,5 +286,14 @@
     "normal": "Звичайні",
     "passive": "Пасивні",
     "passiveCheap": "Пасивні, за пів ціни"
+  },
+  "seasons": {
+    "randomYear": "Випадковий рік",
+    "year": "Рік",
+    "randomSeason": "Випадкова пора року",
+    "spring": "Весна",
+    "summer": "Літо",
+    "autumn": "Осінь",
+    "winter": "Зима"
   }
 }

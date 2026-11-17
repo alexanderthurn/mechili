@@ -197,6 +197,7 @@
   "buysPerRound": "ラウンドごとの購入数",
   "walls": "城壁",
   "postedUnits": "配置ユニット",
+  "seasons": "季節",
   "armies": {
     "standard": "標準軍",
     "komtur": "コムトゥール軍"

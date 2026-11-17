@@ -220,6 +220,7 @@ import {
     type LandscapeData,
 } from './landscape';
 import type { Weather } from './weather';
+import { seasonsModeOption } from './seasons';
 import {
     screenToTerrain,
     PlacementController,
@@ -4072,7 +4073,11 @@ export class Game {
         const atmosphere = this.rules.fixedAtmosphere;
         // The Year's final stand stays in its last round's winter
         const sceneRound = roundsVictory(this.settings) ? Math.min(this.round, this.settings.climb!.rounds) : this.round;
-        if (!atmosphere) this.weather?.onRound(sceneRound, this.hydrating || this.replayFastForward);
+        if (!atmosphere) {
+            // the Seasons setting: which scenes, and (random modes) a pick from the match seed
+            const seasons = { mode: seasonsModeOption(this.settings.seasons), pick: seedFrom(this.seed, 'seasons') };
+            this.weather?.onRound(sceneRound, this.hydrating || this.replayFastForward, seasons);
+        }
         else if (this.round === 1) {
             this.weather?.setScene(
                 {

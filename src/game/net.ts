@@ -12,6 +12,7 @@ import type { CanonicalSeatDef, SeatId } from './seats';
 import type { LevelRef } from './level';
 import { answerLevelMessage, LevelDownload, matchLevelOffer } from './levelSync';
 import type { GameSettings, PostedUnitsMode, StrongholdMode, WallsMode } from './settings';
+import type { SeasonsMode } from './seasons';
 import type { MapSize } from './map';
 import type { TerrainShape } from './terrainShapes';
 
@@ -357,6 +358,8 @@ export interface CustomGameConfig {
     walls?: WallsMode;
     /** units posted on walls and buildings: normal / passive / passiveCheap (GameSettings.postedUnits); omit = normal */
     postedUnits?: PostedUnitsMode;
+    /** which seasons the rounds run through (seasons.ts); omit = random season */
+    seasons?: SeasonsMode;
     /** what the Stronghold is worth this match; see GameSettings.strongholdMode */
     strongholdMode: StrongholdMode;
     /**

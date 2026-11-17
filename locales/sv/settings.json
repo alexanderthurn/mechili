@@ -286,5 +286,14 @@
     "normal": "Normal",
     "passive": "Passiva",
     "passiveCheap": "Passiva, halva priset"
+  },
+  "seasons": {
+    "randomYear": "Slumpat år",
+    "year": "År",
+    "randomSeason": "Slumpad årstid",
+    "spring": "Vår",
+    "summer": "Sommar",
+    "autumn": "Höst",
+    "winter": "Vinter"
   }
 }

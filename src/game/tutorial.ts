@@ -184,7 +184,10 @@ export function applyTutorialMode(settings: GameSettings, id: number): void {
         };
     }
     // the lessons' purses are exact: no flat income on top
-    settings.economy = { ...settings.economy, flatIncomePerRound: 0 };
+    // the lessons were tuned on +200 a round (the match's own growth is 300 now)
+    settings.economy = { ...settings.economy, flatIncomePerRound: 0, supplyGrowthPerRound: 200 };
+    // and on the year from early spring, as they were made
+    settings.seasons = 'year';
 }
 
 /**

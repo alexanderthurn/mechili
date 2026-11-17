@@ -286,5 +286,14 @@
     "normal": "Нормални",
     "passive": "Пасивни",
     "passiveCheap": "Пасивни, на половин цена"
+  },
+  "seasons": {
+    "randomYear": "Случайна година",
+    "year": "Година",
+    "randomSeason": "Случаен сезон",
+    "spring": "Пролет",
+    "summer": "Лято",
+    "autumn": "Есен",
+    "winter": "Зима"
   }
 }

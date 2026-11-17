@@ -286,5 +286,14 @@
     "normal": "Normal",
     "passive": "Pasive",
     "passiveCheap": "Pasive, la jumătate de preț"
+  },
+  "seasons": {
+    "randomYear": "An aleatoriu",
+    "year": "An",
+    "randomSeason": "Anotimp aleatoriu",
+    "spring": "Primăvară",
+    "summer": "Vară",
+    "autumn": "Toamnă",
+    "winter": "Iarnă"
   }
 }

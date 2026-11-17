@@ -286,5 +286,14 @@
     "normal": "Κανονικές",
     "passive": "Παθητικές",
     "passiveCheap": "Παθητικές, μισή τιμή"
+  },
+  "seasons": {
+    "randomYear": "Τυχαίο έτος",
+    "year": "Έτος",
+    "randomSeason": "Τυχαία εποχή",
+    "spring": "Άνοιξη",
+    "summer": "Καλοκαίρι",
+    "autumn": "Φθινόπωρο",
+    "winter": "Χειμώνας"
   }
 }

@@ -286,5 +286,14 @@
     "normal": "Normální",
     "passive": "Pasivní",
     "passiveCheap": "Pasivní, za poloviční cenu"
+  },
+  "seasons": {
+    "randomYear": "Náhodný rok",
+    "year": "Rok",
+    "randomSeason": "Náhodné období",
+    "spring": "Jaro",
+    "summer": "Léto",
+    "autumn": "Podzim",
+    "winter": "Zima"
   }
 }

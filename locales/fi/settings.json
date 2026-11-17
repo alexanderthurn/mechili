@@ -286,5 +286,14 @@
     "normal": "Normaali",
     "passive": "Passiiviset",
     "passiveCheap": "Passiiviset, puoleen hintaan"
+  },
+  "seasons": {
+    "randomYear": "Satunnainen vuosi",
+    "year": "Vuosi",
+    "randomSeason": "Satunnainen vuodenaika",
+    "spring": "Kevät",
+    "summer": "Kesä",
+    "autumn": "Syksy",
+    "winter": "Talvi"
   }
 }

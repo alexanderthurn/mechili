@@ -286,5 +286,14 @@
     "normal": "Normal",
     "passive": "Pasif",
     "passiveCheap": "Pasif, yarı fiyat"
+  },
+  "seasons": {
+    "randomYear": "Rastgele yıl",
+    "year": "Yıl",
+    "randomSeason": "Rastgele mevsim",
+    "spring": "İlkbahar",
+    "summer": "Yaz",
+    "autumn": "Sonbahar",
+    "winter": "Kış"
   }
 }

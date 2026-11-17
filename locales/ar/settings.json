@@ -286,5 +286,14 @@
     "normal": "عادي",
     "passive": "سلبية",
     "passiveCheap": "سلبية، بنصف السعر"
+  },
+  "seasons": {
+    "randomYear": "سنة عشوائية",
+    "year": "سنة",
+    "randomSeason": "فصل عشوائي",
+    "spring": "الربيع",
+    "summer": "الصيف",
+    "autumn": "الخريف",
+    "winter": "الشتاء"
   }
 }

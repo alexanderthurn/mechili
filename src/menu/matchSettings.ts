@@ -41,6 +41,7 @@ import {
     type GameSettings,
 } from '../game/settings';
 import { applyTutorialMode } from '../game/tutorial';
+import { DEFAULT_SEASONS_MODE, seasonsModeOption } from '../game/seasons';
 import { DEFAULT_ROUND_CARD_PRESET_ID, roundCardAlgorithmById } from '../game/roundCardAlgorithms';
 import { isLevelAvailable } from '../game/level';
 import { duoSeats, type CanonicalSeatDef } from '../game/seats';
@@ -121,6 +122,7 @@ export const DEFAULT_CUSTOM_GAME: CustomGameConfig = {
     buysPerRound: DEFAULT_BUYS_PER_ROUND,
     walls: DEFAULT_WALLS_MODE,
     postedUnits: DEFAULT_POSTED_UNITS_MODE,
+    seasons: DEFAULT_SEASONS_MODE,
     strongholdMode: DEFAULT_STRONGHOLD_MODE,
     terrainShape: DEFAULT_TERRAIN_SHAPE,
 };
@@ -190,6 +192,7 @@ export function loadCustomGameConfig(): CustomGameConfig {
             buysPerRound: buysPerRoundOption(parsed.buysPerRound),
             walls: wallsModeOption(parsed.walls),
             postedUnits: postedUnitsModeOption(parsed.postedUnits),
+            seasons: seasonsModeOption(parsed.seasons),
             strongholdMode: strongholdModeOption(parsed.strongholdMode),
             map: mapOption(parsed.map),
             boardSize: boardSizeOption(parsed.boardSize),
@@ -227,6 +230,7 @@ export function applyCustomGameConfig(settings: GameSettings, cfg: CustomGameCon
     settings.deploy = { ...settings.deploy, unitsPerRound: resolveBuysPerRound(cfg.buysPerRound) };
     settings.walls = wallsModeOption(cfg.walls);
     settings.postedUnits = postedUnitsModeOption(cfg.postedUnits);
+    settings.seasons = seasonsModeOption(cfg.seasons);
     settings.strongholdMode = strongholdModeOption(cfg.strongholdMode);
     settings.terrainShape = terrainShapeOption(cfg.terrainShape);
     // the generated terrain's board size (a saved map replaces it with its own, see lobbyMatchSettings)
@@ -314,14 +318,18 @@ export function localMatchSettings(opts: LocalMatchOpts = {}): GameSettings {
     settings.buildTimeSeconds = 60 * 60;
     settings.specialistTimeSeconds = 60 * 60;
     settings.cardTimeSeconds = 60 * 60;
-    if (opts.climb) applyClimbMode(settings, opts.climb);
+    // The Year walks the whole year, from early spring (a room picks its own, see applyCustomGameConfig)
+    if (opts.climb) {
+        applyClimbMode(settings, opts.climb);
+        settings.seasons = 'year';
+    }
     if (opts.tutorial != null) applyTutorialMode(settings, opts.tutorial);
     return settings;
 }
 
 export function defaultLobbySettings(): Pick<
     CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'fixedSideHp' | 'moneyFactor' | 'startMoney' | 'buysPerRound' | 'walls' | 'postedUnits' | 'strongholdMode' | 'terrainShape' | 'map' | 'boardSize'
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'fixedSideHp' | 'moneyFactor' | 'startMoney' | 'buysPerRound' | 'walls' | 'postedUnits' | 'seasons' | 'strongholdMode' | 'terrainShape' | 'map' | 'boardSize'
 > {
     return {
         map: undefined,
@@ -336,6 +344,7 @@ export function defaultLobbySettings(): Pick<
         buysPerRound: DEFAULT_BUYS_PER_ROUND,
         walls: DEFAULT_WALLS_MODE,
         postedUnits: DEFAULT_POSTED_UNITS_MODE,
+        seasons: DEFAULT_SEASONS_MODE,
         strongholdMode: DEFAULT_STRONGHOLD_MODE,
         terrainShape: DEFAULT_TERRAIN_SHAPE,
     };
@@ -353,6 +362,7 @@ export function isNonDefaultLobbySettings(cfg: CustomGameConfig, defaults = defa
         buysPerRoundOption(cfg.buysPerRound) !== defaults.buysPerRound ||
         wallsModeOption(cfg.walls) !== defaults.walls ||
         postedUnitsModeOption(cfg.postedUnits) !== defaults.postedUnits ||
+        seasonsModeOption(cfg.seasons) !== defaults.seasons ||
         cfg.strongholdMode !== defaults.strongholdMode ||
         terrainShapeOption(cfg.terrainShape) !== defaults.terrainShape ||
         mapValue(cfg.map) !== mapValue(defaults.map) ||
@@ -443,6 +453,7 @@ export function loadPracticeConfig(): CustomGameConfig {
             buysPerRound: buysPerRoundOption(parsed.buysPerRound ?? defaults.buysPerRound),
             walls: wallsModeOption(parsed.walls ?? defaults.walls),
             postedUnits: postedUnitsModeOption(parsed.postedUnits ?? defaults.postedUnits),
+            seasons: seasonsModeOption(parsed.seasons ?? defaults.seasons),
             strongholdMode: strongholdModeOption(parsed.strongholdMode ?? defaults.strongholdMode),
             map: mapOption(parsed.map),
             boardSize: boardSizeOption(parsed.boardSize ?? defaults.boardSize),

@@ -156,6 +156,7 @@ import {
     POSTED_UNITS_MODES,
     postedUnitsModeName,
     postedUnitsModeOption,
+    seasonsModeName,
     commanderHpOptionById,
     commanderHpSelectId,
     customGamePaceById,
@@ -167,6 +168,7 @@ import {
     startMoneyOption,
     type GameSettings,
 } from './game/settings';
+import { SEASONS_MODES, seasonsModeOption } from './game/seasons';
 import {
     ROUND_CARD_ALGORITHMS,
     roundCardAlgorithmById,
@@ -1128,6 +1130,9 @@ menu.innerHTML = `
                     <label class="m-field"><span class="m-field-label" data-i18n="menu:postedUnits"></span>
                         <select class="cg-posted"></select>
                     </label>
+                    <label class="m-field"><span class="m-field-label" data-i18n="menu:seasons"></span>
+                        <select class="cg-seasons"></select>
+                    </label>
                     <label class="m-field"><span class="m-field-label" data-i18n="menu:stronghold"></span>
                         <select class="cg-stronghold"></select>
                     </label>
@@ -1514,6 +1519,7 @@ const cgStartMoneyEl = menu.querySelector<HTMLSelectElement>('.cg-start-money')!
 const cgBuysEl = menu.querySelector<HTMLSelectElement>('.cg-buys')!;
 const cgWallsEl = menu.querySelector<HTMLSelectElement>('.cg-walls')!;
 const cgPostedEl = menu.querySelector<HTMLSelectElement>('.cg-posted')!;
+const cgSeasonsEl = menu.querySelector<HTMLSelectElement>('.cg-seasons')!;
 const cgStrongholdEl = menu.querySelector<HTMLSelectElement>('.cg-stronghold')!;
 const cgLandscapeEl = menu.querySelector<HTMLSelectElement>('.cg-landscape')!;
 const cgTerrainEl = menu.querySelector<HTMLSelectElement>('.cg-terrain')!;
@@ -1891,7 +1897,7 @@ function wireSelectShortLabels(select: HTMLSelectElement): void {
 }
 
 /** the advanced selects whose options carry a short label and a full blurb */
-const LOBBY_BLURB_SELECTS = [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl, cgMoneyEl, cgStartMoneyEl, cgBuysEl, cgWallsEl, cgPostedEl, cgStrongholdEl];
+const LOBBY_BLURB_SELECTS = [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl, cgMoneyEl, cgStartMoneyEl, cgBuysEl, cgWallsEl, cgPostedEl, cgSeasonsEl, cgStrongholdEl];
 
 /** the room's preset options in the current language (rebuilt on a language change) */
 function fillLobbySettingOptions(): void {
@@ -1925,6 +1931,7 @@ function fillLobbySettingOptions(): void {
     }));
     fill(cgWallsEl, WALLS_MODES.map((m) => [m, wallsModeName(m), wallsModeName(m)]));
     fill(cgPostedEl, POSTED_UNITS_MODES.map((m) => [m, postedUnitsModeName(m), postedUnitsModeName(m)]));
+    fill(cgSeasonsEl, SEASONS_MODES.map((m) => [m, seasonsModeName(m), seasonsModeName(m)]));
     fill(cgStrongholdEl, STRONGHOLD_MODE_OPTIONS.map((o) => [o.mode, strongholdModeName(o), formatStrongholdModeOption(o)]));
 }
 fillLobbySettingOptions();
@@ -1977,6 +1984,7 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     cgBuysEl.value = String(buysPerRoundOption(cfg.buysPerRound));
     cgWallsEl.value = wallsModeOption(cfg.walls);
     cgPostedEl.value = postedUnitsModeOption(cfg.postedUnits);
+    cgSeasonsEl.value = seasonsModeOption(cfg.seasons);
     cgStrongholdEl.value = strongholdModeOption(cfg.strongholdMode);
     mapChoice.refresh(cfg.map, boardSizeOption(cfg.boardSize));
     refreshTerrainOptions();
@@ -2024,6 +2032,7 @@ function changedLobbySettings(cfg: CustomGameConfig): [HTMLSelectElement, boolea
         [cgBuysEl, buysPerRoundOption(cfg.buysPerRound) !== d.buysPerRound],
         [cgWallsEl, wallsModeOption(cfg.walls) !== d.walls],
         [cgPostedEl, postedUnitsModeOption(cfg.postedUnits) !== d.postedUnits],
+        [cgSeasonsEl, seasonsModeOption(cfg.seasons) !== d.seasons],
         [cgStrongholdEl, cfg.strongholdMode !== d.strongholdMode],
         [cgTerrainEl, terrainShapeOption(cfg.terrainShape) !== d.terrainShape],
         [cgLandscapeEl, mapValue(cfg.map) !== mapValue(d.map) || (!cfg.map && boardSizeOption(cfg.boardSize) !== d.boardSize)],
@@ -2130,7 +2139,7 @@ registerHoverTipClearer(() => hideLobbySettingTip());
 
 function readLobbySettingsForm(): Pick<
     CustomGameConfig,
-    | 'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'fixedSideHp' | 'moneyFactor' | 'startMoney' | 'buysPerRound' | 'walls' | 'postedUnits' | 'strongholdMode'
+    | 'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'fixedSideHp' | 'moneyFactor' | 'startMoney' | 'buysPerRound' | 'walls' | 'postedUnits' | 'seasons' | 'strongholdMode'
     | 'map' | 'boardSize' | 'terrainShape' | 'siege' | 'victory' | 'fog'
 > {
     const hpOpt = commanderHpOptionById(cgCommanderHpEl.value);
@@ -2151,6 +2160,7 @@ function readLobbySettingsForm(): Pick<
         buysPerRound: buysPerRoundOption(Number(cgBuysEl.value)),
         walls: wallsModeOption(cgWallsEl.value),
         postedUnits: postedUnitsModeOption(cgPostedEl.value),
+        seasons: seasonsModeOption(cgSeasonsEl.value),
         strongholdMode: strongholdModeOption(cgStrongholdEl.value),
     };
 }
@@ -2669,6 +2679,7 @@ let activeLobbyHost: { config: CustomGameConfig; onChange: () => void; save?: (c
     cgBuysEl.addEventListener('change', onChange);
     cgWallsEl.addEventListener('change', onChange);
     cgPostedEl.addEventListener('change', onChange);
+    cgSeasonsEl.addEventListener('change', onChange);
     cgStrongholdEl.addEventListener('change', onChange);
     cgLandscapeEl.addEventListener('change', onChange);
     cgTerrainEl.addEventListener('change', onChange);
@@ -2748,6 +2759,7 @@ function showHostLobbySettings(
     cgBuysEl.disabled = false;
     cgWallsEl.disabled = false;
     cgPostedEl.disabled = false;
+    cgSeasonsEl.disabled = false;
     cgStrongholdEl.disabled = false;
     cgLandscapeEl.disabled = false;
     cgTerrainEl.disabled = false;
@@ -2784,6 +2796,7 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
     cgBuysEl.disabled = true;
     cgWallsEl.disabled = true;
     cgPostedEl.disabled = true;
+    cgSeasonsEl.disabled = true;
     cgStrongholdEl.disabled = true;
     cgLandscapeEl.disabled = true;
     cgTerrainEl.disabled = true;

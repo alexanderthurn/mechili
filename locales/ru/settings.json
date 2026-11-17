@@ -286,5 +286,14 @@
     "normal": "Обычные",
     "passive": "Пассивные",
     "passiveCheap": "Пассивные, за полцены"
+  },
+  "seasons": {
+    "randomYear": "Случайный год",
+    "year": "Год",
+    "randomSeason": "Случайный сезон",
+    "spring": "Весна",
+    "summer": "Лето",
+    "autumn": "Осень",
+    "winter": "Зима"
   }
 }

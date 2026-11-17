@@ -286,5 +286,14 @@
     "normal": "Biasa",
     "passive": "Pasif",
     "passiveCheap": "Pasif, separuh harga"
+  },
+  "seasons": {
+    "randomYear": "Tahun rawak",
+    "year": "Setahun",
+    "randomSeason": "Musim rawak",
+    "spring": "Bunga",
+    "summer": "Panas",
+    "autumn": "Luruh",
+    "winter": "Sejuk"
   }
 }

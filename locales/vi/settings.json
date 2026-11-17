@@ -286,5 +286,14 @@
     "normal": "Bình thường",
     "passive": "Thụ động",
     "passiveCheap": "Thụ động, nửa giá"
+  },
+  "seasons": {
+    "randomYear": "Năm ngẫu nhiên",
+    "year": "Cả năm",
+    "randomSeason": "Mùa ngẫu nhiên",
+    "spring": "Xuân",
+    "summer": "Hạ",
+    "autumn": "Thu",
+    "winter": "Đông"
   }
 }
