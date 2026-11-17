@@ -9,6 +9,12 @@
     "normal": "Normal",
     "strong": "Strong"
   },
+  "cameraSmoothing": "Camera smoothing",
+  "smoothing": {
+    "off": "Off",
+    "normal": "Normal",
+    "strong": "Strong"
+  },
   "controls": "Controls",
   "controlsHelp": "Help",
   "chat": "Chat",

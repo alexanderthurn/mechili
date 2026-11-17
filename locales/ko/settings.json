@@ -9,6 +9,12 @@
     "normal": "보통",
     "strong": "강하게"
   },
+  "cameraSmoothing": "카메라 부드럽게",
+  "smoothing": {
+    "off": "끄기",
+    "normal": "보통",
+    "strong": "강하게"
+  },
   "controls": "조작",
   "controlsHelp": "도움말",
   "chat": "채팅",

@@ -9,6 +9,12 @@
     "normal": "Κανονικό",
     "strong": "Έντονο"
   },
+  "cameraSmoothing": "Εξομάλυνση κάμερας",
+  "smoothing": {
+    "off": "Ανενεργό",
+    "normal": "Κανονικό",
+    "strong": "Έντονο"
+  },
   "controls": "Χειριστήρια",
   "controlsHelp": "Βοήθεια",
   "chat": "Chat",

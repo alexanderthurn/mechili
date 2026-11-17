@@ -9,6 +9,12 @@
     "normal": "Normaal",
     "strong": "Sterk"
   },
+  "cameraSmoothing": "Camera-afvlakking",
+  "smoothing": {
+    "off": "Uit",
+    "normal": "Normaal",
+    "strong": "Sterk"
+  },
   "controls": "Bedieningselementen",
   "controlsHelp": "Hulp",
   "chat": "Chat",

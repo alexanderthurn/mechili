@@ -9,6 +9,12 @@
     "normal": "標準",
     "strong": "強"
   },
+  "cameraSmoothing": "カメラのスムージング",
+  "smoothing": {
+    "off": "オフ",
+    "normal": "標準",
+    "strong": "強"
+  },
   "controls": "操作",
   "controlsHelp": "ヘルプ",
   "chat": "チャット",

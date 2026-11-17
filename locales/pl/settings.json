@@ -9,6 +9,12 @@
     "normal": "Normalne",
     "strong": "Silne"
   },
+  "cameraSmoothing": "Wygładzanie kamery",
+  "smoothing": {
+    "off": "Wył.",
+    "normal": "Normalne",
+    "strong": "Silne"
+  },
   "controls": "Sterowanie",
   "controlsHelp": "Pomoc",
   "chat": "Pogawędzić",

@@ -24,6 +24,30 @@ const PAN_THRESHOLD = 12; // px of midpoint travel (parallel two-finger drag)
 const THREE_ORBIT_SLOP = 9;
 
 /**
+ * How the camera eases (Settings → Camera smoothing). Dragging the ground and
+ * orbiting stay direct whatever this says — they follow the hand.
+ *  - `rampUp` / `rampDown`: seconds (time constant) for keys / edge scrolling and
+ *    Q/E to reach full speed and to coast out after letting go
+ *  - `wheelRate`: how fast a wheel notch's zoom is fed in (per second; Infinity = at once)
+ */
+export interface CameraSmoothing {
+    rampUp: number;
+    rampDown: number;
+    wheelRate: number;
+}
+export const CAMERA_SMOOTHING_TUNING = {
+    off: { rampUp: 0, rampDown: 0, wheelRate: Infinity },
+    normal: { rampUp: 0.08, rampDown: 0.12, wheelRate: 10 },
+    strong: { rampUp: 0.15, rampDown: 0.25, wheelRate: 6 },
+} as const satisfies Record<string, CameraSmoothing>;
+
+/** `current` eased toward `target` over a time constant `tau` (0 = at once) */
+function approach(current: number, target: number, tau: number, dt: number): number {
+    if (tau <= 0) return target;
+    return current + (target - current) * (1 - Math.exp(-dt / tau));
+}
+
+/**
  * Typical RTS camera input on top of {@link CameraRig}:
  *  - WASD / arrows: heading-relative panning
  *  - mouse at screen edges: edge scrolling
@@ -53,6 +77,16 @@ export class CameraControls {
     onRightClick: (() => void) | null = null;
     /** while true, one-finger drags aim/carry instead of panning (game wires placement state) */
     suppressTouchPan: (() => boolean) | null = null;
+    /** the camera's easing (the game sets it from its setting) */
+    smoothing: CameraSmoothing = CAMERA_SMOOTHING_TUNING.normal;
+
+    /** keys / edge scrolling: the current pan speed (heading-relative, -1..1 each) and Q/E spin */
+    private panVelX = 0;
+    private panVelZ = 0;
+    private spinVel = 0;
+    /** wheel zoom still to feed in (log of the zoom factor) and where it aims */
+    private wheelPending = 0;
+    private wheelAt = { x: 0, y: 0 };
 
     private readonly pressed = new Set<string>();
     /** key CODES currently producing '+' / '-' — layout-independent zoom keys */
@@ -131,7 +165,13 @@ export class CameraControls {
                 if (!this.enabled) return;
                 e.preventDefault();
                 const local = this.toLocal(e);
-                this.rig.zoomAt(Math.exp(e.deltaY * 0.0012), local.x, local.y);
+                this.wheelAt = local;
+                if (!Number.isFinite(this.smoothing.wheelRate)) {
+                    this.rig.zoomAt(Math.exp(e.deltaY * 0.0012), local.x, local.y);
+                } else {
+                    // fed in over the next frames (update) — the point under the cursor stays put
+                    this.wheelPending += e.deltaY * 0.0012;
+                }
             },
             { passive: false },
         );
@@ -383,7 +423,18 @@ export class CameraControls {
     update(dtSeconds: number): void {
         if (!this.enabled) {
             this.pressed.clear();
+            this.panVelX = this.panVelZ = this.spinVel = 0;
+            this.wheelPending = 0;
             return;
+        }
+        const sm = this.smoothing;
+        // wheel: a share of what's left each frame
+        if (this.wheelPending !== 0) {
+            const k = 1 - Math.exp(-dtSeconds * sm.wheelRate);
+            let step = this.wheelPending * k;
+            if (Math.abs(this.wheelPending) < 1e-4) step = this.wheelPending;
+            this.wheelPending -= step;
+            this.rig.zoomAt(Math.exp(step), this.wheelAt.x, this.wheelAt.y);
         }
         // rotation — skip while Shift is held so Shift+E (timed clip) / other
         // Shift+letter debug chords don't also spin the camera
@@ -393,7 +444,9 @@ export class CameraControls {
             if (this.pressed.has('KeyQ')) spin += 1;
             if (this.pressed.has('KeyE')) spin -= 1;
         }
-        if (spin !== 0) this.rig.rotate(spin * ROTATE_SPEED * dtSeconds);
+        this.spinVel = approach(this.spinVel, spin, spin !== 0 ? sm.rampUp : sm.rampDown, dtSeconds);
+        if (Math.abs(this.spinVel) < 1e-3 && spin === 0) this.spinVel = 0;
+        if (this.spinVel !== 0) this.rig.rotate(this.spinVel * ROTATE_SPEED * dtSeconds);
 
         // + / − zoom toward the pointer (or the surface center)
         let zoomDir = 0;
@@ -430,14 +483,22 @@ export class CameraControls {
             if (p.y > rect.height - m) dz -= 1;
         }
 
-        if (dx !== 0 || dz !== 0) {
+        // the wanted direction (unit length), then the speed eases toward it: a short
+        // run-up, and a coast after letting go
+        const len = Math.hypot(dx, dz);
+        const wantX = len > 0 ? dx / len : 0;
+        const wantZ = len > 0 ? dz / len : 0;
+        const tau = len > 0 ? sm.rampUp : sm.rampDown;
+        this.panVelX = approach(this.panVelX, wantX, tau, dtSeconds);
+        this.panVelZ = approach(this.panVelZ, wantZ, tau, dtSeconds);
+        if (len === 0 && Math.hypot(this.panVelX, this.panVelZ) < 1e-3) this.panVelX = this.panVelZ = 0;
+        if (this.panVelX !== 0 || this.panVelZ !== 0) {
             const speed = this.rig.zoom * 0.9 * dtSeconds;
-            const invLen = 1 / Math.hypot(dx, dz);
             const fwd = this.rig.groundForward;
             const right = this.rig.groundRight;
             this.rig.pan(
-                (right.x * dx + fwd.x * dz) * speed * invLen,
-                (right.z * dx + fwd.z * dz) * speed * invLen,
+                (right.x * this.panVelX + fwd.x * this.panVelZ) * speed,
+                (right.z * this.panVelX + fwd.z * this.panVelZ) * speed,
             );
         }
     }

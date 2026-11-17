@@ -9,6 +9,12 @@
     "normal": "Normaali",
     "strong": "Voimakas"
   },
+  "cameraSmoothing": "Kameran pehmennys",
+  "smoothing": {
+    "off": "Pois",
+    "normal": "Normaali",
+    "strong": "Voimakas"
+  },
   "controls": "Ohjauslaitteet",
   "controlsHelp": "Auttaa",
   "chat": "Chat",

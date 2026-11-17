@@ -9,6 +9,12 @@
     "normal": "Normal",
     "strong": "Forte"
   },
+  "cameraSmoothing": "Suavização da câmara",
+  "smoothing": {
+    "off": "Desligado",
+    "normal": "Normal",
+    "strong": "Forte"
+  },
   "controls": "Controles",
   "controlsHelp": "Ajuda",
   "chat": "Bater papo",

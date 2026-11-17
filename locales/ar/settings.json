@@ -9,6 +9,12 @@
     "normal": "عادي",
     "strong": "قوي"
   },
+  "cameraSmoothing": "تنعيم الكاميرا",
+  "smoothing": {
+    "off": "إيقاف",
+    "normal": "عادي",
+    "strong": "قوي"
+  },
   "controls": "التحكم",
   "controlsHelp": "مساعدة",
   "chat": "دردشة",

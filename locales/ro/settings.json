@@ -9,6 +9,12 @@
     "normal": "Normal",
     "strong": "Puternic"
   },
+  "cameraSmoothing": "Netezirea camerei",
+  "smoothing": {
+    "off": "Oprit",
+    "normal": "Normal",
+    "strong": "Puternic"
+  },
   "controls": "Controale",
   "controlsHelp": "Ajutor",
   "chat": "Chat",

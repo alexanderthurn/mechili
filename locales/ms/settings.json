@@ -9,6 +9,12 @@
     "normal": "Biasa",
     "strong": "Kuat"
   },
+  "cameraSmoothing": "Pelicinan kamera",
+  "smoothing": {
+    "off": "Mati",
+    "normal": "Biasa",
+    "strong": "Kuat"
+  },
   "controls": "Kawalan",
   "controlsHelp": "Bantuan",
   "chat": "Sembang",

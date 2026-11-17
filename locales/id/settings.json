@@ -9,6 +9,12 @@
     "normal": "Normal",
     "strong": "Kuat"
   },
+  "cameraSmoothing": "Penghalusan kamera",
+  "smoothing": {
+    "off": "Mati",
+    "normal": "Normal",
+    "strong": "Kuat"
+  },
   "controls": "Kontrol",
   "controlsHelp": "Membantu",
   "chat": "Mengobrol",

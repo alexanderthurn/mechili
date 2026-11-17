@@ -9,6 +9,12 @@
     "normal": "Обычная",
     "strong": "Сильная"
   },
+  "cameraSmoothing": "Сглаживание камеры",
+  "smoothing": {
+    "off": "Выкл.",
+    "normal": "Обычная",
+    "strong": "Сильная"
+  },
   "controls": "Управление",
   "controlsHelp": "Справка",
   "chat": "Чат",

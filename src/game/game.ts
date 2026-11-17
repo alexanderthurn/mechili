@@ -28,7 +28,7 @@ import { DISPLAY } from './displayNames';
 import { t, techName, unitName } from '../i18n';
 import { THEME } from '../theme';
 import { CameraRig, type RigState } from '../engine/cameraRig';
-import { CameraControls } from '../engine/cameraControls';
+import { CAMERA_SMOOTHING_TUNING, CameraControls } from '../engine/cameraControls';
 import { BattleCamera } from './battleCamera';
 import { GamepadCursor } from '../engine/gamepadCursor';
 import { disposeScene } from '../engine/disposeScene';
@@ -2052,6 +2052,7 @@ export class Game {
             this.rig.setPose(this.introFrom);
         }
         this.controls = new CameraControls(this.rig, surface);
+        this.controls.smoothing = CAMERA_SMOOTHING_TUNING[prefs().cameraSmoothing];
         if (matchIntro) this.controls.enabled = false;
         // edge scrolling is hover-based and has no touch equivalent
         const syncEdgeScroll = () => {
@@ -3349,6 +3350,8 @@ export class Game {
     private applyPrefs(): void {
         if (this.disposed) return;
         const p = prefs();
+        // the controls exist from the constructor on (this listener is registered a bit earlier)
+        if (this.controls) this.controls.smoothing = CAMERA_SMOOTHING_TUNING[p.cameraSmoothing];
         const gpuDirty =
             p.fireVfx !== this.appliedFireVfx ||
             p.shadows !== this.appliedShadows ||

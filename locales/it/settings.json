@@ -9,6 +9,12 @@
     "normal": "Normale",
     "strong": "Forte"
   },
+  "cameraSmoothing": "Fluidità della telecamera",
+  "smoothing": {
+    "off": "Disattivato",
+    "normal": "Normale",
+    "strong": "Forte"
+  },
   "controls": "Comandi",
   "controlsHelp": "Aiuto",
   "chat": "Chiacchierata",

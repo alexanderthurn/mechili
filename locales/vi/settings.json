@@ -9,6 +9,12 @@
     "normal": "Bình thường",
     "strong": "Mạnh"
   },
+  "cameraSmoothing": "Làm mượt camera",
+  "smoothing": {
+    "off": "Tắt",
+    "normal": "Bình thường",
+    "strong": "Mạnh"
+  },
   "controls": "Điều khiển",
   "controlsHelp": "Giúp đỡ",
   "chat": "Trò chuyện",

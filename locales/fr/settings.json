@@ -9,6 +9,12 @@
     "normal": "Normal",
     "strong": "Fort"
   },
+  "cameraSmoothing": "Lissage de la caméra",
+  "smoothing": {
+    "off": "Désactivé",
+    "normal": "Normal",
+    "strong": "Fort"
+  },
   "controls": "Commandes",
   "controlsHelp": "Aide",
   "chat": "Chat",

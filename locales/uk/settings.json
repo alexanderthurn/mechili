@@ -9,6 +9,12 @@
     "normal": "Звичайне",
     "strong": "Сильне"
   },
+  "cameraSmoothing": "Згладжування камери",
+  "smoothing": {
+    "off": "Вимк.",
+    "normal": "Звичайне",
+    "strong": "Сильне"
+  },
   "controls": "Елементи керування",
   "controlsHelp": "Допомога",
   "chat": "Чат",

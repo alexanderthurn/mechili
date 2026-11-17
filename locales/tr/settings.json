@@ -9,6 +9,12 @@
     "normal": "Normal",
     "strong": "Güçlü"
   },
+  "cameraSmoothing": "Kamera yumuşatma",
+  "smoothing": {
+    "off": "Kapalı",
+    "normal": "Normal",
+    "strong": "Güçlü"
+  },
   "controls": "Kontroller",
   "controlsHelp": "Yardım",
   "chat": "Sohbet",

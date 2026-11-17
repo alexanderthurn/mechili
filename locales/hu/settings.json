@@ -9,6 +9,12 @@
     "normal": "Normál",
     "strong": "Erős"
   },
+  "cameraSmoothing": "Kamera simítása",
+  "smoothing": {
+    "off": "Ki",
+    "normal": "Normál",
+    "strong": "Erős"
+  },
   "controls": "Vezérlők",
   "controlsHelp": "Segítség",
   "chat": "Csevegés",

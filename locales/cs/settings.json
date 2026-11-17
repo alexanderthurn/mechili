@@ -9,6 +9,12 @@
     "normal": "Normální",
     "strong": "Silné"
   },
+  "cameraSmoothing": "Vyhlazení kamery",
+  "smoothing": {
+    "off": "Vypnuto",
+    "normal": "Normální",
+    "strong": "Silné"
+  },
   "controls": "Ovládací prvky",
   "controlsHelp": "Pomoc",
   "chat": "Povídání",

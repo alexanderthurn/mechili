@@ -9,6 +9,12 @@
     "normal": "正常",
     "strong": "強烈"
   },
+  "cameraSmoothing": "鏡頭平滑",
+  "smoothing": {
+    "off": "關閉",
+    "normal": "正常",
+    "strong": "強烈"
+  },
   "controls": "操作",
   "controlsHelp": "幫助",
   "chat": "聊天",

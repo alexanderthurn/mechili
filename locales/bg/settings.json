@@ -9,6 +9,12 @@
     "normal": "Нормално",
     "strong": "Силно"
   },
+  "cameraSmoothing": "Изглаждане на камерата",
+  "smoothing": {
+    "off": "Изкл.",
+    "normal": "Нормално",
+    "strong": "Силно"
+  },
   "controls": "Контроли",
   "controlsHelp": "Помощ",
   "chat": "Чат",
