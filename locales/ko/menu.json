@@ -224,5 +224,15 @@
     "defender": "수비형"
   },
   "aiDifficultyPick": "난이도 변경",
-  "aiPersonalityPick": "성향 변경"
+  "aiPersonalityPick": "성향 변경",
+  "introLoad": {
+    "prepare": "대전 준비 중",
+    "board": "전장을 세우는 중",
+    "ground": "초원이 자라는 중",
+    "shaders": "군대가 준비하는 중",
+    "textures": "깃발을 칠하는 중",
+    "done": "전투로!",
+    "waiting": "다른 플레이어를 기다리는 중",
+    "waitingFor": "{{names}} 기다리는 중 ({{total}}명 중 {{ready}}명 준비)"
+  }
 }

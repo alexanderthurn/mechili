@@ -224,5 +224,15 @@
     "defender": "Savunmacı"
   },
   "aiDifficultyPick": "Zorluğu değiştir",
-  "aiPersonalityPick": "Kişiliği değiştir"
+  "aiPersonalityPick": "Kişiliği değiştir",
+  "introLoad": {
+    "prepare": "Maç hazırlanıyor",
+    "board": "Savaş alanı yükseliyor",
+    "ground": "Çayır büyüyor",
+    "shaders": "Ordular hazırlanıyor",
+    "textures": "Sancaklar boyanıyor",
+    "done": "Savaşa!",
+    "waiting": "Diğer oyuncular bekleniyor",
+    "waitingFor": "{{names}} bekleniyor ({{total}} oyuncudan {{ready}} hazır)"
+  }
 }

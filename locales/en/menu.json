@@ -249,5 +249,15 @@
   "replaysModeMp": "1v1 online",
   "replaysAi": "AI",
   "replaysOtherBuild": "{{why}} — the battles may play out differently than they did.",
-  "replaysBuild": "Replays play with this build ({{version}}); ⚠ marks ones recorded with another."
+  "replaysBuild": "Replays play with this build ({{version}}); ⚠ marks ones recorded with another.",
+  "introLoad": {
+    "prepare": "Preparing the match",
+    "board": "Raising the battlefield",
+    "ground": "Growing the meadow",
+    "shaders": "Readying the armies",
+    "textures": "Painting the banners",
+    "done": "To battle!",
+    "waiting": "Waiting for the other players",
+    "waitingFor": "Waiting for {{names}} ({{ready}} of {{total}} ready)"
+  }
 }

@@ -224,5 +224,15 @@
     "defender": "防御型"
   },
   "aiDifficultyPick": "難易度を変更",
-  "aiPersonalityPick": "性格を変更"
+  "aiPersonalityPick": "性格を変更",
+  "introLoad": {
+    "prepare": "対戦を準備中",
+    "board": "戦場を築いています",
+    "ground": "草原が育っています",
+    "shaders": "軍勢が整っています",
+    "textures": "旗を塗っています",
+    "done": "いざ戦いへ！",
+    "waiting": "他のプレイヤーを待っています",
+    "waitingFor": "{{names}} を待っています（{{total}}人中{{ready}}人準備完了）"
+  }
 }

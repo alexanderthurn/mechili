@@ -224,5 +224,15 @@
     "defender": "Védekező"
   },
   "aiDifficultyPick": "Nehézség módosítása",
-  "aiPersonalityPick": "Személyiség módosítása"
+  "aiPersonalityPick": "Személyiség módosítása",
+  "introLoad": {
+    "prepare": "A meccs előkészítése",
+    "board": "Felemelkedik a csatatér",
+    "ground": "Nő a rét",
+    "shaders": "A seregek felkészülnek",
+    "textures": "Festik a zászlókat",
+    "done": "Csatába!",
+    "waiting": "Várakozás a többi játékosra",
+    "waitingFor": "Várakozás: {{names}} ({{ready}}/{{total}} kész)"
+  }
 }

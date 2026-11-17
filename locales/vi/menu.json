@@ -224,5 +224,15 @@
     "defender": "Phòng thủ"
   },
   "aiDifficultyPick": "Đổi độ khó",
-  "aiPersonalityPick": "Đổi tính cách"
+  "aiPersonalityPick": "Đổi tính cách",
+  "introLoad": {
+    "prepare": "Đang chuẩn bị trận đấu",
+    "board": "Đang dựng chiến trường",
+    "ground": "Đồng cỏ đang mọc",
+    "shaders": "Các đạo quân đang sẵn sàng",
+    "textures": "Đang vẽ cờ hiệu",
+    "done": "Xung trận!",
+    "waiting": "Đang chờ những người chơi khác",
+    "waitingFor": "Đang chờ {{names}} ({{ready}}/{{total}} đã sẵn sàng)"
+  }
 }

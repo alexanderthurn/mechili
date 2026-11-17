@@ -224,5 +224,15 @@
     "defender": "Bertahan"
   },
   "aiDifficultyPick": "Ubah tingkat kesulitan",
-  "aiPersonalityPick": "Ubah kepribadian"
+  "aiPersonalityPick": "Ubah kepribadian",
+  "introLoad": {
+    "prepare": "Menyiapkan pertandingan",
+    "board": "Membangun medan perang",
+    "ground": "Padang rumput tumbuh",
+    "shaders": "Pasukan bersiap",
+    "textures": "Mewarnai panji-panji",
+    "done": "Maju bertempur!",
+    "waiting": "Menunggu pemain lain",
+    "waitingFor": "Menunggu {{names}} ({{ready}} dari {{total}} siap)"
+  }
 }

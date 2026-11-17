@@ -224,5 +224,15 @@
     "defender": "防守型"
   },
   "aiDifficultyPick": "更改难度",
-  "aiPersonalityPick": "更改性格"
+  "aiPersonalityPick": "更改性格",
+  "introLoad": {
+    "prepare": "正在准备对局",
+    "board": "正在筑起战场",
+    "ground": "草地正在生长",
+    "shaders": "军队正在集结",
+    "textures": "正在绘制旗帜",
+    "done": "开战！",
+    "waiting": "正在等待其他玩家",
+    "waitingFor": "正在等待 {{names}}（{{ready}}/{{total}} 已就绪）"
+  }
 }

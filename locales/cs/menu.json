@@ -224,5 +224,15 @@
     "defender": "Obránce"
   },
   "aiDifficultyPick": "Změnit obtížnost",
-  "aiPersonalityPick": "Změnit povahu"
+  "aiPersonalityPick": "Změnit povahu",
+  "introLoad": {
+    "prepare": "Příprava zápasu",
+    "board": "Bojiště se zvedá",
+    "ground": "Louka roste",
+    "shaders": "Armády se chystají",
+    "textures": "Malují se korouhve",
+    "done": "Do boje!",
+    "waiting": "Čeká se na ostatní hráče",
+    "waitingFor": "Čeká se na: {{names}} ({{ready}} z {{total}} připraveno)"
+  }
 }

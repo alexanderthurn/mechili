@@ -577,6 +577,12 @@ export type NetMessage =
      *  per-client, so this needs the same host-arbitrated go-signal as
      *  starBattleStart rather than each client deciding independently) */
     | { type: 'starNextRound'; round: number }
+    /** guest → host at a fresh match start: this player's game has loaded (repeated until the go) */
+    | { type: 'starLoaded' }
+    /** host → every guest: who has loaded so far, of whom the start waits for (the loading bar) */
+    | { type: 'starLoadState'; loaded: SeatId[]; expected: SeatId[] }
+    /** host → every guest: everyone has loaded (or the wait timed out) — start now, together */
+    | { type: 'starAllLoaded' }
     /** every client's battle-start state fingerprint, sent to the host for
      *  N-way comparison. A mismatch is logged AND treated as a resync
      *  trigger for the disagreeing seat(s) — see Game.verifyStarChecks. */

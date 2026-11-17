@@ -228,5 +228,15 @@
     "defender": "Verteidiger"
   },
   "aiDifficultyPick": "Schwierigkeit ändern",
-  "aiPersonalityPick": "Persönlichkeit ändern"
+  "aiPersonalityPick": "Persönlichkeit ändern",
+  "introLoad": {
+    "prepare": "Die Partie wird vorbereitet",
+    "board": "Das Schlachtfeld entsteht",
+    "ground": "Die Wiese wächst",
+    "shaders": "Die Heere rüsten sich",
+    "textures": "Die Banner werden bemalt",
+    "done": "Zur Schlacht!",
+    "waiting": "Warte auf die anderen Spieler",
+    "waitingFor": "Warte auf {{names}} ({{ready}} von {{total}} bereit)"
+  }
 }

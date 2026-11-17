@@ -224,5 +224,15 @@
     "defender": "Obrońca"
   },
   "aiDifficultyPick": "Zmień poziom trudności",
-  "aiPersonalityPick": "Zmień osobowość"
+  "aiPersonalityPick": "Zmień osobowość",
+  "introLoad": {
+    "prepare": "Przygotowanie meczu",
+    "board": "Wznoszenie pola bitwy",
+    "ground": "Łąka rośnie",
+    "shaders": "Armie się szykują",
+    "textures": "Malowanie sztandarów",
+    "done": "Do boju!",
+    "waiting": "Czekanie na pozostałych graczy",
+    "waitingFor": "Czekanie na: {{names}} ({{ready}} z {{total}} gotowych)"
+  }
 }

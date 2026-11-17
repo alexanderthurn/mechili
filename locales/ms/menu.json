@@ -224,5 +224,15 @@
     "defender": "Bertahan"
   },
   "aiDifficultyPick": "Tukar tahap kesukaran",
-  "aiPersonalityPick": "Tukar personaliti"
+  "aiPersonalityPick": "Tukar personaliti",
+  "introLoad": {
+    "prepare": "Menyediakan perlawanan",
+    "board": "Membina medan perang",
+    "ground": "Padang rumput tumbuh",
+    "shaders": "Tentera bersiap sedia",
+    "textures": "Mewarnakan panji-panji",
+    "done": "Ke medan perang!",
+    "waiting": "Menunggu pemain lain",
+    "waitingFor": "Menunggu {{names}} ({{ready}} daripada {{total}} sedia)"
+  }
 }

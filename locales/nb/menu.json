@@ -224,5 +224,15 @@
     "defender": "Forsvarer"
   },
   "aiDifficultyPick": "Endre vanskelighetsgrad",
-  "aiPersonalityPick": "Endre personlighet"
+  "aiPersonalityPick": "Endre personlighet",
+  "introLoad": {
+    "prepare": "Kampen forberedes",
+    "board": "Slagmarken reiser seg",
+    "ground": "Enga gror",
+    "shaders": "Hærene gjør seg klare",
+    "textures": "Bannerne males",
+    "done": "Til kamp!",
+    "waiting": "Venter på de andre spillerne",
+    "waitingFor": "Venter på {{names}} ({{ready}} av {{total}} klare)"
+  }
 }

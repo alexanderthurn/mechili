@@ -2211,9 +2211,11 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     pointer-events: none;
     will-change: transform;
 }
+/* the dive zoom is off for now: the background stands still behind the roster and the loading bar
 .mechili-intro-cover.dive .mechili-intro-menu-bg {
     animation: mechili-intro-dive 8s linear forwards;
 }
+*/
 .mechili-intro-cover .mechili-intro-logo {
     position: absolute;
     left: 0;
@@ -2233,11 +2235,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     /* dissolve as soon as the menu zoom starts — not tied to the 3D handoff */
     animation: mechili-intro-logo-fade 0.55s ease-out forwards;
 }
-.mechili-intro-cover.dive .mechili-match-roster,
-.mechili-intro-cover.dive .mechili-climb-intro {
-    /* same beat as the logo — roster/card shouldn't linger through the dive */
-    animation: mechili-intro-logo-fade 0.55s ease-out forwards;
-}
+/* the roster / match card stays through the loading — it leaves with the whole cover */
 @keyframes mechili-outro-rise {
     from { transform: translate3d(0, 0, 0) scale3d(3.5, 3.5, 1); }
     to { transform: translate3d(0, 0, 0) scale3d(1, 1, 1); }
@@ -2484,6 +2482,23 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     justify-content: center;
     gap: clamp(18px, 4.5vw, 40px);
 }
+.mechili-match-roster .mr-player.mr-loaded .mr-name::after {
+    /* a fresh multiplayer start: this player's game has loaded */
+    content: ' ✓';
+    color: #7fd67a;
+    font-weight: 900;
+}
+.mechili-match-roster .mr-details {
+    position: relative;
+    z-index: 1;
+    margin-top: clamp(14px, 2.4vh, 22px);
+    text-align: center;
+    font-size: clamp(13px, 1.5vw, 16px);
+    font-weight: bold;
+    letter-spacing: 1.5px;
+    color: ${u.brassLight};
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+}
 .mechili-match-roster .mr-vs {
     font-size: clamp(22px, 3.2vw, 32px);
     font-weight: 900;
@@ -2618,6 +2633,38 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 }
 .mechili-loading .load-bar {
     width: 100%;
+}
+/* the match's loading bar on the intro cover: along the bottom, under the roster */
+.mechili-intro-cover .mechili-intro-load {
+    position: absolute;
+    left: 50%;
+    /* between the chat bar (at the very bottom) and its floating lines (from 130px up) */
+    bottom: calc(60px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: min(520px, calc(100vw - 48px));
+    pointer-events: none;
+    user-select: none;
+}
+.mechili-intro-cover .mechili-intro-load .load-bar { width: 100%; }
+${hpTubeTrack(u, '.mechili-intro-load .hp-track', '26px')}
+${hpTubeFill(
+    '.mechili-intro-load .hp-fill',
+    `linear-gradient(180deg, #7ec4f0 0%, ${pc} 42%, #2d6a9e 100%)`,
+    { transition: '0.25s ease-out' },
+)}
+${hpTubeVal('.mechili-intro-load .hp-val', '13px', 'letter-spacing: 1px;')}
+.mechili-intro-cover .mechili-intro-load .load-status {
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: ${u.textMuted};
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
 }
 ${hpTubeTrack(u, '.mechili-loading .hp-track', '36px')}
 ${hpTubeFill(

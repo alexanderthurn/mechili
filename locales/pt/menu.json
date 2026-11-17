@@ -224,5 +224,15 @@
     "defender": "Defensor"
   },
   "aiDifficultyPick": "Alterar dificuldade",
-  "aiPersonalityPick": "Alterar personalidade"
+  "aiPersonalityPick": "Alterar personalidade",
+  "introLoad": {
+    "prepare": "A preparar a partida",
+    "board": "A erguer o campo de batalha",
+    "ground": "O prado está a crescer",
+    "shaders": "Os exércitos preparam-se",
+    "textures": "A pintar os estandartes",
+    "done": "À batalha!",
+    "waiting": "À espera dos outros jogadores",
+    "waitingFor": "À espera de {{names}} ({{ready}} de {{total}} prontos)"
+  }
 }

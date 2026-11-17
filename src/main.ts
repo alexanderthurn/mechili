@@ -13,10 +13,11 @@ import {
     mountScenarioIntro,
     mountTutorialIntro,
     mountIntroRoster,
+    markIntroRosterReady,
     prefetchIntroRosterMmrs,
 } from './ui/introRoster';
 import { registerHoverTipClearer } from './ui/hoverTips';
-import { Game } from './game/game';
+import { Game, type MatchLoadWait } from './game/game';
 import { audio, LOGO_LINE_COUNT, playMatchMusic, playMenuMusic } from './game/audio';
 import { fetchMatchReplay, replayBuildMismatch, type MatchMode, type MatchResult, type MatchTelemetry } from './game/telemetry';
 import { ReplayControls } from './ui/replayControls';
@@ -643,11 +644,24 @@ let introCoverEl: HTMLDivElement | null = null;
 let introGen = 0;
 /** MMR map prefetched on the intro cover — consumed once by the next Game. */
 let pendingIntroRosterMmr: Map<string, number> | null = null;
-/** Pause on the filled roster before the menu dive / 3D handoff. */
-const INTRO_ROSTER_HOLD_MS = 2000;
+/** the roster / match card stays on the cover at least this long (a fast load waits) */
+const INTRO_MIN_SHOW_MS = 2500;
 
-function introRosterHold(): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, INTRO_ROSTER_HOLD_MS));
+/**
+ * One line under the intro roster: what kind of match this is — mode, the
+ * Komtur if it plays, the season, the terrain.
+ */
+function matchDetailsLine(settings: GameSettings): string {
+    const parts: string[] = [];
+    parts.push(isSiege(settings) ? t('menu:presets.siege', { defaultValue: 'Siege' }) : t('menu:modeStandard', { defaultValue: 'Standard' }));
+    const horde = hordeAlgorithmById(settings.hordePreset);
+    if (horde.id !== 'off') {
+        parts.push(`${t('menu:presets.komtur', { defaultValue: 'The Komtur' })}: ${shortSelectLabel(horde.describe())}`);
+    }
+    parts.push(seasonsModeName(seasonsModeOption(settings.seasons)));
+    const text = TERRAIN_SHAPE_TEXT[terrainShapeOption(settings.terrainShape)];
+    parts.push(t(`menu:${text.name[0]}`, { defaultValue: text.name[1] }));
+    return parts.join(' · ');
 }
 
 function clearIntroCover(): void {
@@ -680,12 +694,67 @@ function showIntroCover(deferDive = false): void {
     logoImg.width = 600;
     logoImg.height = 327;
     layoutIntroLogo(logoImg);
-    cover.append(bg, logoImg);
+    // the match's loading bar along the bottom (same tube as the boot bar)
+    const load = document.createElement('div');
+    load.className = 'mechili-intro-load';
+    load.innerHTML =
+        `<div class="load-bar"><div class="hp-track">` +
+        `<div class="hp-fill" style="transform:scaleX(0)"></div>` +
+        `<span class="hp-val">0%</span>` +
+        `</div></div>` +
+        `<div class="load-status"></div>`;
+    cover.append(bg, logoImg, load);
     wrapper.appendChild(cover);
     introCoverEl = cover;
+    setIntroLoad(0, introLoadLabel('prepare'));
     void bg.offsetWidth;
     cover.classList.add('active');
     if (!deferDive) startIntroCoverDive();
+}
+
+type IntroLoadStep = 'prepare' | 'board' | 'ground' | 'shaders' | 'textures' | 'waiting' | 'done';
+/** where each step starts on the bar — building the board blocks the page, so the bar jumps */
+const INTRO_LOAD_AT: Record<IntroLoadStep, number> = {
+    prepare: 0.02,
+    board: 0.05,
+    ground: 0.4,
+    shaders: 0.55,
+    textures: 0.85,
+    waiting: 0.9,
+    done: 1,
+};
+
+function introLoadLabel(step: IntroLoadStep, wait?: MatchLoadWait): string {
+    if (step === 'waiting') {
+        return wait && wait.waiting.length > 0
+            ? t('menu:introLoad.waitingFor', {
+                  names: wait.waiting.join(', '),
+                  ready: wait.ready,
+                  total: wait.total,
+                  defaultValue: 'Waiting for {{names}} ({{ready}} of {{total}} ready)',
+              })
+            : t('menu:introLoad.waiting', { defaultValue: 'Waiting for the other players' });
+    }
+    const fallback: Record<IntroLoadStep, string> = {
+        prepare: 'Preparing the match',
+        board: 'Raising the battlefield',
+        ground: 'Growing the meadow',
+        shaders: 'Readying the armies',
+        textures: 'Painting the banners',
+        waiting: 'Waiting for the other players',
+        done: 'To battle!',
+    };
+    return t(`menu:introLoad.${step}`, { defaultValue: fallback[step] });
+}
+
+/** the intro cover's loading bar (no-op without a cover) */
+function setIntroLoad(fraction: number, label: string): void {
+    const load = introCoverEl?.querySelector<HTMLElement>('.mechili-intro-load');
+    if (!load) return;
+    const f = Math.max(0, Math.min(1, fraction));
+    load.querySelector<HTMLElement>('.hp-fill')!.style.transform = `scaleX(${f})`;
+    load.querySelector<HTMLElement>('.hp-val')!.textContent = `${Math.round(f * 100)}%`;
+    load.querySelector<HTMLElement>('.load-status')!.textContent = label;
 }
 
 function startIntroCoverDive(): void {
@@ -3879,6 +3948,22 @@ function startGame(
 
     const beginHandoff = (game: Game): void => {
         if (gen !== introGen || !started || !introCoverEl) return;
+        // the warm-up's share of the bar: from the ground step to full
+        game.onLoadProgress = (fraction, step, wait) => {
+            if (gen !== introGen) return;
+            // the warm-up reports 0..1 (0..0.9 when the start waits for everyone): from the ground step on
+            const from = INTRO_LOAD_AT.ground;
+            setIntroLoad(from + (1 - from) * fraction, introLoadLabel(step, wait));
+            // the roster ticks off who has loaded
+            if (wait && introCoverEl) markIntroRosterReady(introCoverEl, wait.readyNames);
+        };
+        // multiplayer: the chat works on the loading screen already
+        if (star) game.showChatDuringIntro();
+        // the roster / match card stays readable a moment even on a fast machine
+        const shownFor = performance.now() - introShownAt;
+        if (shownFor < INTRO_MIN_SHOW_MS) {
+            game.matchStartHold = new Promise((r) => setTimeout(r, INTRO_MIN_SHOW_MS - shownFor));
+        }
         game.onMatchIntroProgress = (t) => {
             if (gen !== introGen || !introCoverEl) return;
             introCoverEl.style.opacity = String(1 - t);
@@ -3900,15 +3985,15 @@ function startGame(
         beginHandoff(game);
     };
 
+    // the card / roster and the bar's "building" step paint first (two frames),
+    // then the board is built — that blocks the page, the CSS dive keeps moving
     const runBootHandoff = (): void => {
-        if (coverActive) {
-            bootWithHandoff();
-        } else {
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => bootWithHandoff());
-            });
-        }
+        setIntroLoad(INTRO_LOAD_AT.board, introLoadLabel('board'));
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => bootWithHandoff());
+        });
     };
+    const introShownAt = performance.now();
 
     if (showCoverPanel && introCoverEl && useClimbIntro && settings.climb) {
         const climb = settings.climb;
@@ -3923,36 +4008,23 @@ function startGame(
             ? undefined
             : { attacker: t('menu:rosterTeam', { n: 1 }), defender: t('menu:rosterTeam', { n: 2 }) };
         mountYearIntro(introCoverEl, { rounds: played.slice(0, total), total, regular: climb.rounds, you, ...(names ? { names } : {}) });
-        void introRosterHold().then(() => {
-            if (gen !== introGen || !started) return;
-            startIntroCoverDive();
-            runBootHandoff();
-        });
+        startIntroCoverDive();
+        runBootHandoff();
     } else if (showCoverPanel && introCoverEl && scenarioIntro) {
         mountScenarioIntro(introCoverEl, scenarioIntro.title, scenarioIntro.briefing);
-        void introRosterHold().then(() => {
-            if (gen !== introGen || !started) return;
-            startIntroCoverDive();
-            runBootHandoff();
-        });
+        startIntroCoverDive();
+        runBootHandoff();
     } else if (showCoverPanel && introCoverEl && useTutorialIntro && settings.tutorial) {
         mountTutorialIntro(introCoverEl, settings.tutorial.id);
-        void introRosterHold().then(() => {
-            if (gen !== introGen || !started) return;
-            startIntroCoverDive();
-            runBootHandoff();
-        });
+        startIntroCoverDive();
+        runBootHandoff();
     } else if (showCoverPanel && introCoverEl && !resume) {
         const entries = introRosterEntries(settings, side, names, star);
-        mountIntroRoster(introCoverEl, entries, side);
-        void prefetchIntroRosterMmrs(introCoverEl, entries).then(async (mmrMap) => {
-            if (gen !== introGen || !started) return;
-            pendingIntroRosterMmr = mmrMap;
-            await introRosterHold();
-            if (gen !== introGen || !started) return;
-            startIntroCoverDive();
-            runBootHandoff();
-        });
+        mountIntroRoster(introCoverEl, entries, side, matchDetailsLine(settings));
+        // the ratings fill in on the roster when they come; the match looks its own up
+        void prefetchIntroRosterMmrs(introCoverEl, entries);
+        startIntroCoverDive();
+        runBootHandoff();
     } else {
         if (coverActive && introCoverEl && !introCoverEl.classList.contains('dive')) {
             startIntroCoverDive();

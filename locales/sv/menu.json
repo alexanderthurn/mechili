@@ -224,5 +224,15 @@
     "defender": "Försvarare"
   },
   "aiDifficultyPick": "Ändra svårighetsgrad",
-  "aiPersonalityPick": "Ändra personlighet"
+  "aiPersonalityPick": "Ändra personlighet",
+  "introLoad": {
+    "prepare": "Matchen förbereds",
+    "board": "Slagfältet reser sig",
+    "ground": "Ängen växer",
+    "shaders": "Arméerna gör sig redo",
+    "textures": "Fanorna målas",
+    "done": "Till strid!",
+    "waiting": "Väntar på de andra spelarna",
+    "waitingFor": "Väntar på {{names}} ({{ready}} av {{total}} redo)"
+  }
 }

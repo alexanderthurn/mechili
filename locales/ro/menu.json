@@ -224,5 +224,15 @@
     "defender": "Apărător"
   },
   "aiDifficultyPick": "Schimbă dificultatea",
-  "aiPersonalityPick": "Schimbă personalitatea"
+  "aiPersonalityPick": "Schimbă personalitatea",
+  "introLoad": {
+    "prepare": "Se pregătește meciul",
+    "board": "Se ridică câmpul de luptă",
+    "ground": "Crește pajiștea",
+    "shaders": "Armatele se pregătesc",
+    "textures": "Se pictează stindardele",
+    "done": "La luptă!",
+    "waiting": "Se așteaptă ceilalți jucători",
+    "waitingFor": "Se așteaptă {{names}} ({{ready}} din {{total}} pregătiți)"
+  }
 }

@@ -224,5 +224,15 @@
     "defender": "Forsvarer"
   },
   "aiDifficultyPick": "Skift sværhedsgrad",
-  "aiPersonalityPick": "Skift personlighed"
+  "aiPersonalityPick": "Skift personlighed",
+  "introLoad": {
+    "prepare": "Kampen forberedes",
+    "board": "Slagmarken rejser sig",
+    "ground": "Engen gror",
+    "shaders": "Hærene gør sig klar",
+    "textures": "Bannerne males",
+    "done": "Til kamp!",
+    "waiting": "Venter på de andre spillere",
+    "waitingFor": "Venter på {{names}} ({{ready}} af {{total}} klar)"
+  }
 }

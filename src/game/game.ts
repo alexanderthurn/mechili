@@ -341,6 +341,18 @@ import { getUnitInstanceRenderer } from './unitInstances';
 /** scratch for hoofprint foot positions */
 const _hoof = new Vector3();
 
+/** the match-start warm-up's steps, as the intro cover's loading bar names them */
+export type MatchLoadStep = 'ground' | 'shaders' | 'textures' | 'waiting' | 'done';
+/** while a multiplayer start waits: who is in, who isn't yet */
+export type MatchLoadWait = { ready: number; total: number; waiting: string[]; readyNames: string[] };
+
+/** a fresh multiplayer start waits this long for the slowest player, then starts anyway */
+const START_BARRIER_HOST_TIMEOUT_MS = 30_000;
+/** a guest stops waiting on its own after this (the host's go never came) */
+const START_BARRIER_GUEST_TIMEOUT_MS = 45_000;
+/** a guest repeats its "loaded" this often until the host has it (it may have been early) */
+const START_BARRIER_RESEND_MS = 2_000;
+
 /** menu→match camera fly-in (fresh starts only) */
 const MATCH_INTRO_SEC = 1.0;
 /** card overlays begin fading in during the tail of the fly-in (t = 0..1) */
@@ -1010,6 +1022,31 @@ export class Game {
     onStateCheckpoint: (() => void) | null = null;
     /** 0..1 while the 3D camera fly-in runs (main fades the brightness flash) */
     onMatchIntroProgress: ((t: number) => void) | null = null;
+    /**
+     * The match-start warm-up's progress (the loading bar on the intro cover):
+     * `fraction` of the warm-up's own share, 0..1, and the step now running.
+     * Set right after construction — the warm-up's first await comes before any report.
+     */
+    onLoadProgress: ((fraction: number, step: MatchLoadStep, wait?: MatchLoadWait) => void) | null = null;
+    /**
+     * A fresh multiplayer match: every human player's game loads, then all start
+     * together (the card pick runs on each player's clock — a slow loader would
+     * otherwise see it later than the rest). Each reports "loaded" to the host;
+     * the host gives the go once everyone has, or after a timeout.
+     */
+    private startBarrier: {
+        /** human seats this start waits for */
+        expected: SeatId[];
+        loaded: Set<SeatId>;
+        /** this client's own game has finished loading */
+        selfLoaded: boolean;
+        released: boolean;
+        release: () => void;
+        promise: Promise<void>;
+        timers: ReturnType<typeof setTimeout>[];
+    } | null = null;
+    /** the loop (and the camera fly-in) waits for this too — the cover's minimum time on screen */
+    matchStartHold: Promise<void> | null = null;
     /** fired once when the fly-in finishes (main clears the flash overlay) */
     onMatchIntroDone: (() => void) | null = null;
     /** 0..1 while the match→menu fly-out runs (main fades the menu cover in) */
@@ -2418,9 +2455,13 @@ export class Game {
         // Compile + upload everything (incl. the detailed ground / meadow, whose materials
         // swap in a few microtasks later) without blocking the GPU, then start the loop —
         // nothing draws until then, the intro cover stays up and keeps diving smoothly.
-        void this.warmUpForMatchStart().then(() => {
-            if (!this.disposed) this.warmedUp = true;
-        });
+        if (this.star && !resume && !spectate && !replay) this.createStartBarrier();
+        // loaded → told to the host at once; the cover's minimum time runs alongside the wait
+        void this.warmUpForMatchStart()
+            .then(() => Promise.all([this.passStartBarrier(), this.matchStartHold ?? undefined]))
+            .then(() => {
+                if (!this.disposed) this.warmedUp = true;
+            });
         pixiApp.ticker.add(this.boundTick);
     }
 
@@ -3135,19 +3176,140 @@ export class Game {
      * few per frame, and only then let the game loop (and its camera intro) start.
      */
     private async warmUpForMatchStart(): Promise<void> {
+        // with a start barrier the own load fills 90% — the rest is everyone else
+        const share = this.startBarrier ? 0.9 : 1;
+        const report = (fraction: number, step: MatchLoadStep) =>
+            this.onLoadProgress?.(fraction * share, step === 'done' && this.startBarrier ? 'waiting' : step);
+        await Promise.resolve();
+        report(0, 'ground');
         await Promise.all([this.map.groundReady, this.scenery.meadowReady]);
         if (this.disposed) return;
+        report(0.35, 'shaders');
         this.primeForWarm();
         await this.renderer.compileAsync(this.scene, this.rig.camera);
         if (this.disposed) return;
-        await this.uploadTexturesSpread();
+        report(0.75, 'textures');
+        await this.uploadTexturesSpread((done) => report(0.75 + 0.25 * done, 'textures'));
         if (this.disposed) return;
         this.renderFrame();
         this.restoreAfterWarm();
+        report(1, 'done');
+    }
+
+    // ── the start barrier (fresh multiplayer matches) ───────────────────────
+
+    /** the chat over the loading screen (the rest of the HUD waits for the fly-in) */
+    showChatDuringIntro(): void {
+        this.hud.setChatIntroVisible(true);
+    }
+
+    private createStartBarrier(): void {
+        const star = this.star!;
+        const humans = this.seats.flatMap((def, i) => (def.controller === 'human' ? [i as SeatId] : []));
+        // the host knows who is connected; a guest learns the rest from the host
+        const connected = star.role === 'host' ? new Set(star.hub.connectedSeats()) : null;
+        const expected = connected ? humans.filter((seat) => seat === this.humanSeat || connected.has(seat)) : humans;
+        if (expected.length <= 1) return;
+        let release!: () => void;
+        const promise = new Promise<void>((r) => (release = r));
+        this.startBarrier = { expected, loaded: new Set(), selfLoaded: false, released: false, release, promise, timers: [] };
+    }
+
+    /** this client is loaded: report it, then wait for the go (no barrier: at once) */
+    private passStartBarrier(): Promise<void> | undefined {
+        const b = this.startBarrier;
+        if (!b || this.disposed || !this.star) return undefined;
+        b.selfLoaded = true;
+        b.loaded.add(this.humanSeat);
+        const star = this.star;
+        if (star.role === 'host') {
+            b.timers.push(setTimeout(() => this.releaseStartBarrier(true), START_BARRIER_HOST_TIMEOUT_MS));
+            this.checkStartBarrier();
+        } else {
+            const send = () => {
+                if (!b.released && !this.disposed) star.session.send({ type: 'starLoaded' });
+            };
+            send();
+            const resend = setInterval(() => {
+                if (b.released || this.disposed) clearInterval(resend);
+                else send();
+            }, START_BARRIER_RESEND_MS);
+            b.timers.push(resend as unknown as ReturnType<typeof setTimeout>);
+            b.timers.push(setTimeout(() => this.releaseStartBarrier(false), START_BARRIER_GUEST_TIMEOUT_MS));
+            this.reportStartWait();
+        }
+        return b.promise;
+    }
+
+    /** host: everyone in (or gone)? then go — and tell the guests either way who is in */
+    private checkStartBarrier(): void {
+        const b = this.startBarrier;
+        if (!b || b.released || !this.star || this.star.role !== 'host') return;
+        const connected = new Set(this.star.hub.connectedSeats());
+        // a player who dropped out while loading isn't waited for
+        b.expected = b.expected.filter((seat) => seat === this.humanSeat || connected.has(seat));
+        this.star.hub.broadcast({ type: 'starLoadState', loaded: [...b.loaded], expected: b.expected });
+        if (b.selfLoaded && b.expected.every((seat) => b.loaded.has(seat))) this.releaseStartBarrier(true);
+        else this.reportStartWait();
+    }
+
+    /** the go: host tells the guests; everyone starts */
+    private releaseStartBarrier(broadcast: boolean): void {
+        const b = this.startBarrier;
+        if (!b || b.released) return;
+        b.released = true;
+        for (const timer of b.timers) clearTimeout(timer);
+        if (broadcast && this.star?.role === 'host') this.star.hub.broadcast({ type: 'starAllLoaded' });
+        this.onLoadProgress?.(1, 'done');
+        b.release();
+    }
+
+    /** the loading bar: own load done, these players still loading */
+    private reportStartWait(): void {
+        const b = this.startBarrier;
+        if (!b || b.released || !b.selfLoaded) return;
+        const ready = b.expected.filter((seat) => b.loaded.has(seat));
+        const waiting = b.expected.filter((seat) => !b.loaded.has(seat));
+        const nameOf = (seat: SeatId) => this.seats[seat]?.name ?? '?';
+        this.onLoadProgress?.(0.9, 'waiting', {
+            ready: ready.length,
+            total: b.expected.length,
+            waiting: waiting.map(nameOf),
+            readyNames: ready.map(nameOf),
+        });
+    }
+
+    /** the barrier's messages (host and guest) — true when `msg` was one */
+    private onStartBarrierMessage(msg: NetMessage, fromSeat: SeatId | undefined, isHost: boolean): boolean {
+        if (msg.type === 'starLoaded') {
+            const b = this.startBarrier;
+            if (isHost && b && fromSeat !== undefined && !b.released) {
+                b.loaded.add(fromSeat);
+                this.checkStartBarrier();
+            } else if (isHost && b?.released && fromSeat !== undefined) {
+                // a late repeat after the go: tell that guest again
+                if (this.star?.role === 'host') this.star.hub.broadcast({ type: 'starAllLoaded' });
+            }
+            return true;
+        }
+        if (msg.type === 'starLoadState') {
+            const b = this.startBarrier;
+            if (!isHost && b && !b.released) {
+                b.expected = msg.expected;
+                for (const seat of msg.loaded) b.loaded.add(seat);
+                this.reportStartWait();
+            }
+            return true;
+        }
+        if (msg.type === 'starAllLoaded') {
+            if (!isHost) this.releaseStartBarrier(false);
+            return true;
+        }
+        return false;
     }
 
     /** upload every texture the scene uses, a slice of the frame at a time */
-    private async uploadTexturesSpread(): Promise<void> {
+    private async uploadTexturesSpread(onProgress?: (done: number) => void): Promise<void> {
         const found = new Set<Texture>();
         const add = (v: unknown) => {
             const t = v as Texture | null;
@@ -3173,6 +3335,7 @@ export class Game {
             while (i < list.length && performance.now() - t0 < TEXTURE_UPLOAD_BUDGET_MS) {
                 this.renderer.initTexture(list[i++]!);
             }
+            onProgress?.(i / list.length);
             await new Promise<void>((r) => requestAnimationFrame(() => r()));
             if (this.disposed) return;
         }
@@ -6074,6 +6237,8 @@ export class Game {
                 // the outcome is decided — no AI takeover / forfeit for a farewell
                 if (this.departedSeats.has(seat)) return;
                 this.resolveSeatGone(seat);
+                // a start still waiting for this player goes on without them
+                this.checkStartBarrier();
             };
         }
     }
@@ -8147,6 +8312,7 @@ export class Game {
         if (this.disposed || this.matchOver || !this.star) return;
         const star = this.star;
         const isHost = star.role === 'host';
+        if (this.onStartBarrierMessage(msg, fromSeat, isHost)) return;
         if (msg.type === 'action') {
             // host: stamp the CONNECTION's seat, never the sender's claim.
             // Relay happens AFTER dispatch (inside drainStarRemoteQueue), not

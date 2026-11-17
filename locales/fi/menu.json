@@ -224,5 +224,15 @@
     "defender": "Puolustaja"
   },
   "aiDifficultyPick": "Vaihda vaikeustaso",
-  "aiPersonalityPick": "Vaihda luonne"
+  "aiPersonalityPick": "Vaihda luonne",
+  "introLoad": {
+    "prepare": "Ottelua valmistellaan",
+    "board": "Taistelukenttä kohoaa",
+    "ground": "Niitty kasvaa",
+    "shaders": "Armeijat valmistautuvat",
+    "textures": "Lippuja maalataan",
+    "done": "Taisteluun!",
+    "waiting": "Odotetaan muita pelaajia",
+    "waitingFor": "Odotetaan: {{names}} ({{ready}}/{{total}} valmiina)"
+  }
 }

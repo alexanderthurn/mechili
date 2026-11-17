@@ -224,5 +224,15 @@
     "defender": "Защитник"
   },
   "aiDifficultyPick": "Смени трудността",
-  "aiPersonalityPick": "Смени характера"
+  "aiPersonalityPick": "Смени характера",
+  "introLoad": {
+    "prepare": "Подготовка на мача",
+    "board": "Бойното поле се издига",
+    "ground": "Ливадата расте",
+    "shaders": "Армиите се подготвят",
+    "textures": "Рисуват се знамената",
+    "done": "В бой!",
+    "waiting": "Изчакване на другите играчи",
+    "waitingFor": "Изчакване на {{names}} ({{ready}} от {{total}} готови)"
+  }
 }

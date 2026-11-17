@@ -5423,6 +5423,14 @@ export class Hud {
      * Soft-hide match chrome for the menu→match cinematic (opacity fade).
      * Unlike {@link setUiHidden}, this does not show the cinema keyboard hint.
      */
+    /** the chat alone over the intro cover (multiplayer loading screen) — the fly-in's end shows the rest */
+    setChatIntroVisible(visible: boolean): void {
+        for (const el of [this.chatBarWidget?.el, this.chatFloat.el]) {
+            if (!el) continue;
+            el.classList.toggle('mechili-intro-hide', !visible && this.introChromeHidden);
+        }
+    }
+
     setMatchChromeVisible(visible: boolean): void {
         this.introChromeHidden = !visible;
         for (const el of [...this.mountedRoots, ...this.tutorialOverlays()]) {

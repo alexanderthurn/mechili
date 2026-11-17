@@ -24,6 +24,8 @@ export type IntroRosterEntry = {
     name: string;
     avatar?: string | null;
     controller: 'human' | 'ai';
+    /** an AI seat's strength, when the room set one */
+    aiDifficulty?: string;
     mmr: number | null;
     isLocal: boolean;
 };
@@ -66,6 +68,7 @@ export function introRosterEntries(
         name: s.name,
         avatar: s.avatar,
         controller: s.controller,
+        ...(s.controller === 'ai' && s.aiDifficulty ? { aiDifficulty: s.aiDifficulty } : {}),
         mmr: s.controller === 'ai' ? DEFAULT_MMR : null,
         isLocal: i === humanSeat,
     }));
@@ -80,8 +83,11 @@ function teamHtml(team: 'player' | 'enemy', entries: IntroRosterEntry[]): string
             const mmrText = e.mmr === null ? '…' : String(e.mmr);
             const mmrClass = e.mmr === null ? 'mr-mmr loading' : 'mr-mmr';
             const localClass = e.isLocal ? ' mr-local' : '';
-            const aiTag =
-                e.controller === 'ai' ? `<span class="mr-ai">${escapeHtml(t('hud:ai'))}</span>` : '';
+            // an AI by its strength when the room set one (Easy, Hard, Learner …)
+            const aiText = e.aiDifficulty
+                ? t(`menu:aiDifficulty.${e.aiDifficulty}`, { defaultValue: t('hud:ai') })
+                : t('hud:ai');
+            const aiTag = e.controller === 'ai' ? `<span class="mr-ai">${escapeHtml(aiText)}</span>` : '';
             return (
                 `<div class="mr-player${localClass}" data-name="${escapeAttr(e.name)}">` +
                 `<div class="mr-portrait ${team}">${portrait}</div>` +
@@ -102,6 +108,8 @@ export function mountIntroRoster(
     cover: HTMLElement,
     entries: readonly IntroRosterEntry[],
     side: 'a' | 'b' = 'a',
+    /** one line under the teams: the kind of match (mode · Komtur · season · terrain) */
+    details?: string,
 ): void {
     unmountIntroRoster(cover);
     const player = SIDE_COLORS[side === 'a' ? 0 : 1]!.css;
@@ -122,7 +130,9 @@ export function mountIntroRoster(
         teamHtml('player', entries.filter((e) => e.team === 'player')) +
         `<div class="mr-vs">${escapeHtml(t('hud:vs'))}</div>` +
         teamHtml('enemy', entries.filter((e) => e.team === 'enemy')) +
-        `</div></div>`;
+        `</div>` +
+        (details ? `<div class="mr-details">${escapeHtml(details)}</div>` : '') +
+        `</div>`;
     cover.appendChild(el);
 }
 
@@ -140,6 +150,14 @@ export function updateIntroRosterMmrs(
             row.textContent = String(mmr);
             row.classList.remove('loading');
         }
+    }
+}
+
+/** a fresh multiplayer start: tick off the players whose game has loaded */
+export function markIntroRosterReady(cover: HTMLElement, readyNames: readonly string[]): void {
+    const ready = new Set(readyNames);
+    for (const row of cover.querySelectorAll<HTMLElement>('.mechili-match-roster .mr-player[data-name]')) {
+        row.classList.toggle('mr-loaded', ready.has(row.dataset.name ?? ''));
     }
 }
 

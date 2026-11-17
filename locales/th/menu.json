@@ -224,5 +224,15 @@
     "defender": "ตั้งรับ"
   },
   "aiDifficultyPick": "เปลี่ยนความยาก",
-  "aiPersonalityPick": "เปลี่ยนบุคลิก"
+  "aiPersonalityPick": "เปลี่ยนบุคลิก",
+  "introLoad": {
+    "prepare": "กำลังเตรียมการแข่งขัน",
+    "board": "กำลังสร้างสนามรบ",
+    "ground": "ทุ่งหญ้ากำลังเติบโต",
+    "shaders": "กองทัพกำลังเตรียมพร้อม",
+    "textures": "กำลังวาดธง",
+    "done": "สู่สนามรบ!",
+    "waiting": "กำลังรอผู้เล่นคนอื่น",
+    "waitingFor": "กำลังรอ {{names}} (พร้อมแล้ว {{ready}} จาก {{total}})"
+  }
 }

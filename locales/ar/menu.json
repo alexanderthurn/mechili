@@ -224,5 +224,15 @@
     "defender": "مدافع"
   },
   "aiDifficultyPick": "تغيير الصعوبة",
-  "aiPersonalityPick": "تغيير الشخصية"
+  "aiPersonalityPick": "تغيير الشخصية",
+  "introLoad": {
+    "prepare": "جارٍ تحضير المباراة",
+    "board": "ساحة المعركة تُشيَّد",
+    "ground": "المرج ينمو",
+    "shaders": "الجيوش تستعد",
+    "textures": "الرايات تُلوَّن",
+    "done": "إلى المعركة!",
+    "waiting": "في انتظار اللاعبين الآخرين",
+    "waitingFor": "في انتظار {{names}} ({{ready}} من {{total}} جاهزون)"
+  }
 }

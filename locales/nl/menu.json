@@ -224,5 +224,15 @@
     "defender": "Verdediger"
   },
   "aiDifficultyPick": "Moeilijkheid wijzigen",
-  "aiPersonalityPick": "Persoonlijkheid wijzigen"
+  "aiPersonalityPick": "Persoonlijkheid wijzigen",
+  "introLoad": {
+    "prepare": "De partij wordt voorbereid",
+    "board": "Het slagveld verrijst",
+    "ground": "De weide groeit",
+    "shaders": "De legers maken zich klaar",
+    "textures": "De banieren worden geverfd",
+    "done": "Ten strijde!",
+    "waiting": "Wachten op de andere spelers",
+    "waitingFor": "Wachten op {{names}} ({{ready}} van {{total}} klaar)"
+  }
 }

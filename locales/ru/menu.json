@@ -224,5 +224,15 @@
     "defender": "Защитник"
   },
   "aiDifficultyPick": "Изменить сложность",
-  "aiPersonalityPick": "Изменить характер"
+  "aiPersonalityPick": "Изменить характер",
+  "introLoad": {
+    "prepare": "Подготовка матча",
+    "board": "Поле битвы поднимается",
+    "ground": "Луг растёт",
+    "shaders": "Армии готовятся",
+    "textures": "Раскрашиваются знамёна",
+    "done": "В бой!",
+    "waiting": "Ожидание других игроков",
+    "waitingFor": "Ожидание: {{names}} (готовы {{ready}} из {{total}})"
+  }
 }
