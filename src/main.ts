@@ -647,22 +647,6 @@ let pendingIntroRosterMmr: Map<string, number> | null = null;
 /** the roster / match card stays on the cover at least this long (a fast load waits) */
 const INTRO_MIN_SHOW_MS = 2500;
 
-/**
- * One line under the intro roster: what kind of match this is — mode, the
- * Komtur if it plays, the season, the terrain.
- */
-function matchDetailsLine(settings: GameSettings): string {
-    const parts: string[] = [];
-    parts.push(isSiege(settings) ? t('menu:presets.siege', { defaultValue: 'Siege' }) : t('menu:modeStandard', { defaultValue: 'Standard' }));
-    const horde = hordeAlgorithmById(settings.hordePreset);
-    if (horde.id !== 'off') {
-        parts.push(`${t('menu:presets.komtur', { defaultValue: 'The Komtur' })}: ${shortSelectLabel(horde.describe())}`);
-    }
-    parts.push(seasonsModeName(seasonsModeOption(settings.seasons)));
-    const text = TERRAIN_SHAPE_TEXT[terrainShapeOption(settings.terrainShape)];
-    parts.push(t(`menu:${text.name[0]}`, { defaultValue: text.name[1] }));
-    return parts.join(' · ');
-}
 
 function clearIntroCover(): void {
     introGen++;
@@ -4020,7 +4004,7 @@ function startGame(
         runBootHandoff();
     } else if (showCoverPanel && introCoverEl && !resume) {
         const entries = introRosterEntries(settings, side, names, star);
-        mountIntroRoster(introCoverEl, entries, side, matchDetailsLine(settings));
+        mountIntroRoster(introCoverEl, entries, side);
         // the ratings fill in on the roster when they come; the match looks its own up
         void prefetchIntroRosterMmrs(introCoverEl, entries);
         startIntroCoverDive();

@@ -2488,17 +2488,6 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
     color: #7fd67a;
     font-weight: 900;
 }
-.mechili-match-roster .mr-details {
-    position: relative;
-    z-index: 1;
-    margin-top: clamp(14px, 2.4vh, 22px);
-    text-align: center;
-    font-size: clamp(13px, 1.5vw, 16px);
-    font-weight: bold;
-    letter-spacing: 1.5px;
-    color: ${u.brassLight};
-    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
-}
 .mechili-match-roster .mr-vs {
     font-size: clamp(22px, 3.2vw, 32px);
     font-weight: 900;
