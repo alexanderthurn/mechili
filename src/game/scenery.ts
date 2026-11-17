@@ -368,6 +368,8 @@ function newCloudLife(rank: number): CloudLife {
  * whatever the lake layout. Absolute (the horde band does not scale with OUTER_SCALE).
  */
 const LAKE_CLEAR_OUT = 64;
+/** a decoration this tall (world units) or taller can hide a pack: the Komtur's clearings take it away */
+const FOREST_CLEARING_MIN_HEIGHT = 1.4;
 
 /** what the mountain cloud banks bleach toward under snow */
 const MIST_SNOW_WHITE = new Color(0xf4f7fb);
@@ -3126,6 +3128,53 @@ export class Scenery {
             }
             visit(mesh);
         });
+    }
+
+    /** trees hidden by {@link setForestClearings}, with the matrices that bring them back */
+    private clearedTrees = new Map<InstancedMesh, Map<number, Matrix4>>();
+
+    /**
+     * Open clearings in the forest for now: every tall decoration (trees, tall
+     * bushes) inside these disks shrinks away, with its shadow — the flowers and
+     * grass stay. The next call puts back what the last one hid, then clears its
+     * own disks (none: everything stands again). Used for the Komtur's camps, so
+     * his packs aren't lost behind the trunks. Render-only.
+     */
+    setForestClearings(circles: readonly { x: number; z: number; r: number }[]): void {
+        const m = this.reseatMat;
+        // first everything back where it stood
+        for (const [mesh, hidden] of this.clearedTrees) {
+            for (const [i, original] of hidden) if (i < mesh.count) mesh.setMatrixAt(i, original);
+            mesh.instanceMatrix.needsUpdate = true;
+        }
+        this.clearedTrees.clear();
+        if (circles.length > 0) {
+            this.forEachDecorationMesh((mesh) => {
+                const geo = mesh.geometry;
+                if (!geo.boundingBox) geo.computeBoundingBox();
+                const tall = geo.boundingBox!.max.y - geo.boundingBox!.min.y;
+                let hidden: Map<number, Matrix4> | undefined;
+                for (let i = 0; i < mesh.count; i++) {
+                    mesh.getMatrixAt(i, m);
+                    m.decompose(this.reseatPos, this.reseatQuat, this.reseatScale);
+                    // only what stands tall enough to hide a pack
+                    if (tall * this.reseatScale.y < FOREST_CLEARING_MIN_HEIGHT) continue;
+                    const { x, z } = this.reseatPos;
+                    if (circles.every((c) => (x - c.x) ** 2 + (z - c.z) ** 2 > c.r * c.r)) continue;
+                    hidden ??= new Map();
+                    hidden.set(i, m.clone());
+                    this.reseatScale.setScalar(1e-4);
+                    m.compose(this.reseatPos, this.reseatQuat, this.reseatScale);
+                    mesh.setMatrixAt(i, m);
+                }
+                if (hidden) {
+                    this.clearedTrees.set(mesh, hidden);
+                    mesh.instanceMatrix.needsUpdate = true;
+                }
+            });
+        }
+        this.treeShadows.setClearings(circles);
+        if (this.sunLight) this.treeShadows.update(this.sunLight.position, this.sunLight.intensity);
     }
 
     /** Drop decoration instances inside a disk (procedural trees/props) and their shadows. */

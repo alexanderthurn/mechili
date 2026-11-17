@@ -10826,6 +10826,8 @@ export class Game {
      * march in (`Unit.marchIn`).
      */
     private spawnHordeWave(): void {
+        // last round's clearings close again (no wave this round: the forest stands whole)
+        this.scenery.setForestClearings([]);
         if (!isHordeRoundActive(this.settings, this.round)) return;
         const plan = hordeWavePlan(this.hordeBuyRound(), hordeIncome(this.settings), this.types, this.settings.leveling);
         if (plan.length === 0) return;
@@ -10846,6 +10848,13 @@ export class Game {
         // number of packs (an odd one over goes to the leader's camp)
         const nBig = Math.ceil(plan.length / 2);
         const nSmall = plan.length - nBig;
+        // clearings in the woods around both camps, as wide as the packs scatter
+        // (hordeCamps findHordeSpotNear) and a little more, so they stand in the open
+        const clearing = (n: number) => Math.min(48, 10 + Math.max(1, n) * 2.4) + 8;
+        this.scenery.setForestClearings([
+            { x: bigCamp!.x, z: bigCamp!.z, r: clearing(nBig) },
+            ...(nSmall > 0 ? [{ x: smallCamp!.x, z: smallCamp!.z, r: clearing(nSmall) }] : []),
+        ]);
         for (let i = 0; i < plan.length; i++) {
             const entry = plan[i]!;
             const camp = (i < nBig ? bigCamp : smallCamp)!;

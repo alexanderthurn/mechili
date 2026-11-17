@@ -135,8 +135,34 @@ export class BillboardTreeShadows {
     /** drop the footprints inside a disk (erased trees) */
     removeWithin(cx: number, cz: number, radius: number): void {
         const r2 = radius * radius;
-        const kept = this.sources.filter((s) => (s.x - cx) ** 2 + (s.z - cz) ** 2 > r2);
-        if (kept.length !== this.sources.length) this.setSources(kept);
+        const kept = this.allSources().filter((s) => (s.x - cx) ** 2 + (s.z - cz) ** 2 > r2);
+        if (kept.length !== this.allSources().length) this.setSources(kept);
+    }
+
+    /** every footprint, the ones a clearing hides included */
+    private master: BlobShadowSource[] | null = null;
+    private clearings: readonly { x: number; z: number; r: number }[] = [];
+
+    private allSources(): BlobShadowSource[] {
+        return this.master ?? this.sources;
+    }
+
+    /**
+     * Hide the footprints inside these disks for now (the forest's clearings
+     * around the Komtur's camps) — the next call with other disks, or none,
+     * brings them back.
+     */
+    setClearings(circles: readonly { x: number; z: number; r: number }[]): void {
+        this.clearings = circles;
+        this.applyClearings();
+    }
+
+    private applyClearings(): void {
+        const all = this.allSources();
+        const shown = all.filter((s) => this.clearings.every((c) => (s.x - c.x) ** 2 + (s.z - c.z) ** 2 > c.r * c.r));
+        this.master = shown.length === all.length ? null : all;
+        this.sources = shown;
+        this.lastKey = '';
     }
 
     /** true when any footprint lies in (or its stretched ellipse reaches into) this world rectangle */
@@ -158,6 +184,7 @@ export class BillboardTreeShadows {
         const next = sources.length > MAX_TREE_BLOBS ? sources.slice(0, MAX_TREE_BLOBS) : sources.slice();
         const need = next.length;
         const cap = this.mesh?.instanceMatrix.count ?? 0;
+        this.master = null;
         if (!this.mesh || need > cap) {
             this.sources = next;
             this.rebuild(Math.max(need, 1));
@@ -165,6 +192,8 @@ export class BillboardTreeShadows {
             this.sources = next;
         }
         this.lastKey = '';
+        // a clearing still open hides the new footprints in it as well
+        if (this.clearings.length > 0) this.applyClearings();
     }
 
     /**
