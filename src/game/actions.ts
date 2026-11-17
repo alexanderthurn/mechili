@@ -1921,7 +1921,7 @@ export class ActionDispatcher {
         const seat = this.actorSeat(action);
         switch (action.kind) {
             case 'buy':
-                placement.removeUnit(e.unit!);
+                placement.discardUnit(e.unit!);
                 economy.credit(seat, e.paid!);
                 if (e.unit!.type.extra) {
                     this.ctx.deployState.extrasSpent[seat] = (this.ctx.deployState.extrasSpent[seat] ?? 0) - e.paid!;
@@ -1968,7 +1968,7 @@ export class ActionDispatcher {
                 break;
             }
             case 'buyStrongholdArcher': {
-                if (e.strongholdArcherUnit) placement.removeUnit(e.strongholdArcherUnit);
+                if (e.strongholdArcherUnit) placement.discardUnit(e.strongholdArcherUnit);
                 economy.credit(seat, e.paid!);
                 if (e.tookBuy !== false) this.ctx.deployState.used[seat] = (this.ctx.deployState.used[seat] ?? 0) - 1;
                 break;
@@ -2002,7 +2002,7 @@ export class ActionDispatcher {
                 break;
             }
             case 'buyWallPost': {
-                if (e.strongholdArcherUnit) placement.removeUnit(e.strongholdArcherUnit);
+                if (e.strongholdArcherUnit) placement.discardUnit(e.strongholdArcherUnit);
                 economy.credit(seat, e.paid!);
                 if (e.tookBuy !== false) this.ctx.deployState.used[seat] = (this.ctx.deployState.used[seat] ?? 0) - 1;
                 break;
@@ -2013,7 +2013,7 @@ export class ActionDispatcher {
                 break;
             }
             case 'makeGate': {
-                placement.removeUnit(e.unit!);
+                placement.discardUnit(e.unit!);
                 for (const u of e.units ?? []) placement.restoreUnit(u);
                 economy.credit(seat, e.paid!);
                 break;

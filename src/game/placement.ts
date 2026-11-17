@@ -1769,7 +1769,18 @@ export class PlacementController {
         this.stampSandUnder(unit);
     }
 
-    /** Removes a unit from the board entirely (buy-action undo). */
+    /**
+     * Removes a unit for good — it never comes back (an undone buy): its slots in
+     * the shared instance pools go too. {@link removeUnit} keeps them, as a sold pack
+     * may return ({@link restoreUnit}). The AI's plan tests buy and undo packs by the
+     * hundred, so a kept slot per undone buy filled a pool (goblins drawn invisible).
+     */
+    discardUnit(unit: Unit): void {
+        getUnitInstanceRenderer()?.unregisterUnit(unit);
+        this.removeUnit(unit);
+    }
+
+    /** Removes a unit from the board (a sell — {@link restoreUnit} may bring it back). */
     removeUnit(unit: Unit): void {
         if (this.isFogged(unit) && this.intelSnapshot.has(unit.id) && !this.intelGhosts.has(unit.id)) {
             this.ensureSoldGhost(this.intelSnapshot.get(unit.id)!);

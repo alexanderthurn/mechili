@@ -11275,8 +11275,9 @@ export class Game {
         }
         // spent extras (broken shields, fired rockets) and battle-only summons
         // leave the board for good
+        // (their instance-pool slots too — they never come back)
         for (const unit of [...this.placement.allUnits()]) {
-            if (unit.consumed || unit.summoned) this.placement.removeUnit(unit);
+            if (unit.consumed || unit.summoned) this.placement.discardUnit(unit);
             else unit.resetFormation();
         }
         this.placement.refaceAll();
@@ -11997,9 +11998,9 @@ export class Game {
                         noStick: !!a.unit.type.wall?.gate,
                         // skinned units: ride the bone under the hit (death clips carry it)
                         // (a ballista bolt asks for the body only — GPU-skinned models know theirs)
-                        boneAt: (world, coreSeat) => {
+                        boneAt: (world, coreSeat, coreOnly) => {
                             const skin = a.mesh.userData.instancedSkin ? instancedSkinOf(a.unit.type.modelId ?? a.unit.type.id) : null;
-                            return skin ? instancedSkinBoneAt(a.mesh, world, skin, coreSeat) : stuckBoltBoneAt(stuckBoltAttachOf(a.mesh), world);
+                            return skin ? instancedSkinBoneAt(a.mesh, world, skin, coreSeat, coreOnly) : stuckBoltBoneAt(stuckBoltAttachOf(a.mesh), world);
                         },
                     };
                 });

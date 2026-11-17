@@ -1580,7 +1580,7 @@ export type StuckAttachRef = {
      * Animated units: the bone under a world point, so the shaft rides the skeleton (death
      * clips). With `coreSeat` only the body counts, and the body point is written there.
      */
-    boneAt?: (world: Vector3, coreSeat?: Vector3) => Object3D | null;
+    boneAt?: (world: Vector3, coreSeat?: Vector3, coreOnly?: boolean) => Object3D | null;
     /**
      * Seat the shaft where the sim says it hit, not on the model's box (a wall:
      * its box spans tower to tower, so a miss fell back to its middle, high up)
@@ -2343,8 +2343,13 @@ export class StuckBoltRenderer {
                     attach = ref.boneAt(this.pos, _coreSeat);
                     // the shaft's middle on the body's skin: half of it in, the fletched half out
                     if (!Number.isNaN(_coreSeat.x)) this.pos.copy(_coreSeat);
-                } else {
-                    attach = ref?.boneAt?.(this.pos) ?? null;
+                } else if (ref?.boneAt) {
+                    // GPU-skinned: the seat above was measured on the rest pose, but the unit
+                    // is drawn running / shooting — snap onto the posed skin nearest it, so
+                    // the shaft sits in the body and not in the air where the body would rest
+                    _coreSeat.set(NaN, NaN, NaN);
+                    attach = ref.boneAt(this.pos, _coreSeat, false);
+                    if (!Number.isNaN(_coreSeat.x)) this.pos.copy(_coreSeat).addScaledVector(this.dir, dig * 0.5);
                 }
                 attach ??= root;
             }

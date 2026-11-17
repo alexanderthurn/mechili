@@ -924,7 +924,14 @@ const PICK_SAMPLES = 1500;
  * so a big bolt that struck a leg sits in the body instead. Without core data
  * `coreSeat` is left untouched.
  */
-export function instancedSkinBoneAt(proxy: Object3D, worldPoint: Vector3, skin: InstancedSkinData, coreSeat?: Vector3): Object3D | null {
+export function instancedSkinBoneAt(
+    proxy: Object3D,
+    worldPoint: Vector3,
+    skin: InstancedSkinData,
+    coreSeat?: Vector3,
+    /** false: any vertex counts (a small arrow), and its posed position still goes to `coreSeat` */
+    coreOnly = true,
+): Object3D | null {
     if (!proxy.userData.instancedSkin) return null;
     const s = stateOf(proxy);
     const pos = skin.geometry.getAttribute('position');
@@ -932,7 +939,7 @@ export function instancedSkinBoneAt(proxy: Object3D, worldPoint: Vector3, skin: 
     const wts = skin.geometry.getAttribute('skinWeight');
     if (!pos || !idx || !wts) return null;
     proxy.updateMatrixWorld(true);
-    const core = coreSeat ? skin.coreVertex : undefined;
+    const core = coreSeat && coreOnly ? skin.coreVertex : undefined;
     const step = Math.max(1, Math.floor(pos.count / PICK_SAMPLES));
     let bestD = Infinity;
     let bestI = -1;
@@ -950,10 +957,10 @@ export function instancedSkinBoneAt(proxy: Object3D, worldPoint: Vector3, skin: 
         if (d < bestD) {
             bestD = d;
             bestI = i;
-            if (core) coreSeat!.copy(_best);
+            if (coreSeat) coreSeat.copy(_best);
         }
     }
-    if (bestI < 0) return core ? instancedSkinBoneAt(proxy, worldPoint, skin) : null;
+    if (bestI < 0) return core ? instancedSkinBoneAt(proxy, worldPoint, skin, coreSeat, false) : null;
     let bone = 0;
     let top = -1;
     for (let k = 0; k < 4; k++) {
