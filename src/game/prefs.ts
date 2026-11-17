@@ -967,6 +967,9 @@ export async function applySteamLanguageDefault(): Promise<LanguageId> {
  * Wipe settings localStorage (prefs + other mechili-* keys) and restore defaults.
  * Keeps identity in user.sav (`mechili-user-*`) and the open-track auth token.
  */
+/** `melodan-` keys that are settings, cleared by "Reset all settings" (see seatChips.ts, matchSettings.ts PRACTICE_KEY) */
+const SETTINGS_KEYS_MELODAN: readonly string[] = ['melodan-seat-chips', 'melodan-practice'];
+
 export function resetSettingsStorage(): void {
     try {
         const doomed: string[] = [];
@@ -975,6 +978,10 @@ export function resetSettingsStorage(): void {
             if (key && key.startsWith('mechili-') && !isUserStorageKey(key) && key !== 'mechili-open-auth') {
                 doomed.push(key);
             }
+            // newer settings under the game's new name — the lobby's remembered seat chips
+            // (AI strength / style, army) and the Practice room; progress, levels and editor
+            // work under the same prefix stay
+            if (key && SETTINGS_KEYS_MELODAN.includes(key)) doomed.push(key);
         }
         for (const key of doomed) localStorage.removeItem(key);
     } catch {
