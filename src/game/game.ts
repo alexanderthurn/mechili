@@ -2061,6 +2061,8 @@ export class Game {
               )
             : null;
         this.scenery.attachSun(sun);
+        // the card pick (round 0) already in round 1's season, not the default spring
+        this.applyRoundScene(1, true);
         this.rngAi = mulberry32(seedFrom(this.seed, 'ai'));
         // specialist streams are keyed by canonical side (different draws)
         this.rngCards = {
@@ -3434,6 +3436,8 @@ export class Game {
                 this.effectToggles,
             );
             if (weatherSnapshot) this.weather.restore(weatherSnapshot);
+            // weather was off until now: the round's own scene, not the default spring
+            else this.applyRoundScene(Math.max(1, this.round), true);
             this.scenery.attachSun(this.sun);
         } else {
             // weather off: no fog and the default calm daylight
@@ -4062,25 +4066,16 @@ export class Game {
         );
     }
 
-    /** A new round: place freely, hidden from the opponent, until timer or button. */
-    private startBuildPhase(): void {
-        // watching: keep whatever playback speed the viewer picked instead
-        // of snapping back to 1x every round — nothing live to reset for
-        // a replay too: every deployment starts at 1×, as in a match
-        this.resetSpeed();
-        this.round++;
-        if (this.watching) this.onReplayRound?.(this.round);
+    /**
+     * The scene (season, weather, time of day) of `round`: the Seasons setting —
+     * random ones drawn from the match seed — or a scenario's fixed atmosphere,
+     * which is set once. Also before round 1 (the card pick), so the match opens
+     * in the season it plays in.
+     */
+    private applyRoundScene(round: number, immediate: boolean): void {
         const atmosphere = this.rules.fixedAtmosphere;
-        // The Year's final stand stays in its last round's winter
-        const sceneRound = roundsVictory(this.settings) ? Math.min(this.round, this.settings.climb!.rounds) : this.round;
-        if (!atmosphere) {
-            // the Seasons setting: which scenes, and (random modes) a pick from the match seed
-            const seasons = { mode: seasonsModeOption(this.settings.seasons), pick: seedFrom(this.seed, 'seasons') };
-            // the match's first scene stands at once — a winter start already lies under its snow;
-            // later rounds ease in (the snow falls and builds slowly)
-            this.weather?.onRound(sceneRound, this.round === 1 || this.hydrating || this.replayFastForward, seasons);
-        }
-        else if (this.round === 1) {
+        if (atmosphere) {
+            if (round > 1) return;
             this.weather?.setScene(
                 {
                     season: atmosphere.season,
@@ -4091,7 +4086,25 @@ export class Game {
                 undefined,
                 true,
             );
+            return;
         }
+        // The Year's final stand stays in its last round's winter
+        const sceneRound = roundsVictory(this.settings) ? Math.min(round, this.settings.climb!.rounds) : round;
+        const seasons = { mode: seasonsModeOption(this.settings.seasons), pick: seedFrom(this.seed, 'seasons') };
+        this.weather?.onRound(sceneRound, immediate, seasons);
+    }
+
+    /** A new round: place freely, hidden from the opponent, until timer or button. */
+    private startBuildPhase(): void {
+        // watching: keep whatever playback speed the viewer picked instead
+        // of snapping back to 1x every round — nothing live to reset for
+        // a replay too: every deployment starts at 1×, as in a match
+        this.resetSpeed();
+        this.round++;
+        if (this.watching) this.onReplayRound?.(this.round);
+        // the match's first scene stands at once — a winter start already lies under its snow;
+        // later rounds ease in (the snow falls and builds slowly)
+        this.applyRoundScene(this.round, this.round === 1 || this.hydrating || this.replayFastForward);
         this.phase = 'build';
         clearAllHoverTips(); // a tip from the last phase must not carry over
         // Gong is attack-phase only — deploy / match reload stay silent
