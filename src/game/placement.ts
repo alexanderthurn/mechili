@@ -85,8 +85,22 @@ const SELECT_LIFT = 2.8;
 const _blobCenter = new Vector3();
 /** green tint for movable packs that are not currently selected */
 const MOVABLE_PLATE_OPACITY = 0.52;
-/** the faint frame under the unit the mouse is over (a hint, well below a selection) */
+/**
+ * How strong a plate's frame is (times SELECT_PLATE.fill): a step up for each
+ * kind of attention — a movable pack at rest, the one under the mouse, the
+ * selected one (which also waves).
+ */
+const PLATE_IDLE = 0.5;
+const PLATE_HOVER = 0.95;
+const PLATE_SELECTED = 1.5;
+/** the frame under a unit at rest that has no plate of its own (a fixed wall, an enemy), while hovered */
 const HOVER_HINT_OPACITY = 0.32;
+
+/** sets a frame plate's strength (placeFootprintPlate applies it) */
+function setPlateStrength(material: MeshBasicMaterial, opacity: number): void {
+    const framed = material.userData.selectPlate as SelectPlateUniforms | undefined;
+    if (framed) framed.opacity = opacity;
+}
 
 /**
  * The selection / hover / carry plate: a soft frame on the ground instead of a flat
@@ -566,6 +580,8 @@ export class PlacementController {
     private readonly hoverMaterial: MeshBasicMaterial;
     /** the faint frame under the unit the mouse is over */
     private readonly hoverHintMesh: Mesh;
+    /** the unit under the mouse (paintHoverHint, last frame) */
+    private hoveredUnit: Unit | null = null;
     private readonly selectMesh: Mesh;
     private readonly rangeMesh: Mesh;
     /** open wall ends / the carried wall's tower tiles while a wall rides the cursor */
@@ -685,7 +701,7 @@ export class PlacementController {
         this.hoverMesh = makeMarker(VALID_COLOR, 0.72);
         this.hoverMesh.position.y = 0.04;
         this.hoverMaterial = this.hoverMesh.material as MeshBasicMaterial;
-        attachSelectPlateShader(this.hoverMaterial);
+        attachSelectPlateShader(this.hoverMaterial, { opacity: PLATE_SELECTED });
         this.selectMesh = makeMarker(SELECT_COLOR, 0.22);
         this.selectMesh.position.y = 0.03;
         this.hoverHintMesh = makeMarker(VALID_COLOR, HOVER_HINT_OPACITY);
@@ -2496,7 +2512,7 @@ export class PlacementController {
                     // the selection's frame, without its wave and fainter (one material per
                     // plate: the frame shader needs each footprint's size)
                     const material = this.plateMaterial.clone();
-                    attachSelectPlateShader(material, { still: true, opacity: Math.min(1, MOVABLE_PLATE_OPACITY / SELECT_PLATE.fill) });
+                    attachSelectPlateShader(material, { still: true, opacity: PLATE_IDLE });
                     plate = new Mesh(this.plateGeometry.clone(), material);
                     plate.renderOrder = 10;
                     this.scene.add(plate);
@@ -2504,6 +2520,8 @@ export class PlacementController {
                 }
                 const fp = this.footprintOf(unit.type, unit.rotated);
                 const center = this.map.areaCenter(unit.cell, fp.cols, fp.rows);
+                // the one under the mouse a step brighter (the hover hint leaves movable packs to this)
+                setPlateStrength(plate.material as MeshBasicMaterial, unit === this.hoveredUnit ? PLATE_HOVER : PLATE_IDLE);
                 this.placeFootprintPlate(plate, plate.material as MeshBasicMaterial, center, fp, VALID_COLOR, 0, false, 0.025, undefined, unit);
                 used++;
             }
@@ -3303,12 +3321,16 @@ export class PlacementController {
      */
     private paintHoverHint(timeSeconds: number): void {
         this.hoverHintMesh.visible = false;
+        this.hoveredUnit = null;
         if (!this.enabled || !this.pointer || this.rectActive || this.pointerCarries || this.itemArmed?.()) return;
-        const picked = this.pickUnitAt(this.pointer.x, this.pointer.y);
-        // an archer posted on a wall: the wall is what a click takes
-        const over = picked && picked.hostUnitId !== null ? this.unitById(picked.hostUnitId) ?? picked : picked;
+        // an archer on a tower / wall only comes back while his building is selected
+        // (garrisonPickable) — then he is what a click takes, so he gets the frame
+        const over = this.pickUnitAt(this.pointer.x, this.pointer.y);
         if (!over || over.destroyed || this.isHighlighted(over)) return;
         if (over.team !== 'player' && !this.enemyIntelVisible(over)) return;
+        this.hoveredUnit = over;
+        // a movable pack has its plate already: updateMovablePlates brightens that one
+        if (this.isMovable(over)) return;
         const fp = this.footprintOf(over.type, over.rotated);
         const center = over.gridless
             ? new Vector3(over.world.x, over.world.y, over.world.z)
@@ -3418,7 +3440,7 @@ export class PlacementController {
 
         // while rubber-banding: highlight what the rect would select
         if (this.rectActive) {
-            this.showGroupPlates(this.rectPreview, null, false, timeSeconds);
+            this.showGroupPlates(this.rectPreview, null, false, timeSeconds, PLATE_HOVER);
             this.targetPreview.clear();
             return;
         }
@@ -3720,6 +3742,8 @@ export class PlacementController {
         delta: { dc: number; dr: number } | null,
         lift: boolean,
         timeSeconds: number,
+        /** selected (default), or PLATE_HOVER for the rubber band's preview */
+        strength = PLATE_SELECTED,
     ): void {
         for (let i = 0; i < units.length; i++) {
             const unit = units[i]!;
@@ -3732,12 +3756,13 @@ export class PlacementController {
                     ...GROUND_DECAL_OFFSET,
                 });
                 // the same frame as a single selection
-                attachSelectPlateShader(material);
+                attachSelectPlateShader(material, { opacity: PLATE_SELECTED });
                 plate = new Mesh(this.plateGeometry.clone(), material);
                 plate.renderOrder = 10;
                 this.scene.add(plate);
                 this.groupPlates.push(plate);
             }
+            setPlateStrength(plate.material as MeshBasicMaterial, strength);
             const fp = this.footprintOf(unit.type, unit.rotated);
             const anchor = delta
                 ? { col: unit.cell.col + delta.dc, row: unit.cell.row + delta.dr }
