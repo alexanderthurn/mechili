@@ -113,15 +113,18 @@ export function climbAttackerTeam(climb: ClimbSettings, localSide = 0): 'player'
 }
 
 /**
- * Board extras a side may buy: The Year's attacker (the Tent) gets Fire Bolt
- * (`rocket`) and Ward Stone (`shield`); everyone else — The Year's defender
- * and every other mode (practice, multiplayer, …) — the Stone Wall (`wall`) and the Gate (`gate`).
+ * Board extras a side may buy. In a Siege (`climbAttacker` set) the attacker
+ * (the Tent) gets Fire Bolt (`rocket`) and Ward Stone (`shield`), the defender
+ * the Stone Wall (`wall`, which turns into a Gate by a button). Everywhere else
+ * (not a Siege: practice, multiplayer, …) both sides get the Wall and the Ward Stone.
  */
 export const ATTACKER_BOARD_EXTRAS: readonly string[] = ['rocket', 'shield'];
-export const DEFAULT_BOARD_EXTRAS: readonly string[] = ['wall'];
+export const DEFENDER_BOARD_EXTRAS: readonly string[] = ['wall'];
+export const DEFAULT_BOARD_EXTRAS: readonly string[] = ['wall', 'shield'];
 
 export function boardExtrasFor(climbAttacker: 'player' | 'enemy' | null, team: 'player' | 'enemy'): readonly string[] {
-    return climbAttacker !== null && team === climbAttacker ? ATTACKER_BOARD_EXTRAS : DEFAULT_BOARD_EXTRAS;
+    if (climbAttacker === null) return DEFAULT_BOARD_EXTRAS;
+    return team === climbAttacker ? ATTACKER_BOARD_EXTRAS : DEFENDER_BOARD_EXTRAS;
 }
 
 export function yearBoardExtraAllowed(

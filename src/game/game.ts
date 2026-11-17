@@ -9682,7 +9682,7 @@ export class Game {
 
     /**
      * Board extras the local player may buy: none in tutorials; The Year's
-     * attacker Fire Bolt + Ward Stone; everyone else the Stone Wall (boardExtrasFor).
+     * attacker Fire Bolt + Ward Stone, its defender the Wall, otherwise Wall + Ward Stone (boardExtrasFor).
      */
     private humanBoardExtraIds(): readonly string[] | null {
         if (this.settings.scenario?.mode === 'author') return null; // the editor places anything
