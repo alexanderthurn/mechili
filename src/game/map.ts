@@ -214,6 +214,42 @@ export function makeValueNoise(seed: number): (x: number, y: number) => number {
     };
 }
 
+/**
+ * The Rolling hills terrain (BattleMap.hillsHeightAt). Tweak here; heights and
+ * waves in world units. Real rolling hills are ~10–20× as wide as they are tall.
+ */
+const HILLS = {
+    /** top height (the tallest hills reach ~12 after the valley cut) */
+    height: 15,
+    /** the largest layer's wave length (world units: a larger board gets more hills, not bigger ones) */
+    wave: 32,
+    /** fBm layers */
+    octaves: 5,
+    /** how far the warp bends the ground, and its own wave length */
+    warp: 14,
+    warpWave: 70,
+    /** the share of the noise that stays valley floor */
+    valley: 0.15,
+    /**
+     * where the hills stand: full height towards the left and right of the deployment
+     * zones, only `centerWeight` of it in the middle — blending from `sideFrom` × the
+     * zone's half-width over `sideOver` × it. Measured on the zone (not the whole
+     * board), so any board size, the 2v2 widening and a map's own size all keep the
+     * hills on the playable flanks.
+     */
+    centerWeight: 0.08,
+    sideFrom: 0.1,
+    sideOver: 0.28,
+    /** the angle of repose (rise per run) erosion wears slopes down to — a little over SLOPE_BLOCK_GRADE 0.72 */
+    talus: 0.8,
+    erosionPasses: 30,
+    /** grid spacing the hills are built and eroded on */
+    gridStep: 1,
+} as const;
+/** cos / sin of the turn between two fBm layers (0.47 rad), as constants */
+const HILLS_TURN_COS = 0.8915683;
+const HILLS_TURN_SIN = 0.4528863;
+
 /** how far a building pad blends into the surrounding shape (wu) */
 /**
  * The strongest acid stain can get (rim, core), as a stain weight. Overlapping puddle cells do
@@ -746,10 +782,8 @@ export class BattleMap {
         const zoneDepth = this.size.zoneRows * CELL;
         const zoneWidth = this.size.zoneCols * CELL;
         if (this.shape === 'hills') {
-            // taller, steeper hills than standard over about a quarter of the board: most slopes walkable, some too steep
-            const n = this.symNoise(x, z, 30, 37.2, 11.7) * 0.65 + this.symNoise(x, z, 13, 5.1, 91.3) * 0.35;
-            const hill = smooth01((n - 0.49) / 0.5);
-            return 8 * hill * smooth01((edge - rimW * 0.5) / 22);
+            // rolling hills (see hillsHeightAt) out to the flanks, easing to the meadow only near the edge
+            return this.hillsHeightAt(x, z) * smooth01((edge - rimW * 0.5) / 10);
         }
         if (this.shape === 'highlands') {
             // each Stronghold on a small, high plateau with an uneven cliff
@@ -816,6 +850,112 @@ export class BattleMap {
         const low = smooth01((this.symNoise(x, z, 40, 2.2, 66.6) - 0.5) / 0.4);
         const h = Math.max(wall * (0.15 + 0.85 * gaps), bumps * gaps) + low;
         return h * smooth01((edge - rimW * 0.5) / 22);
+    }
+
+    /**
+     * Rolling hills, built like real ground (once per board, on a grid):
+     * - fractal noise (fBm): {@link HILLS}.octaves layers, each half the size and half
+     *   as strong — detail at every scale, as in nature — each layer turned a little
+     *   so the noise's square lattice doesn't show;
+     * - domain warping: the coordinates bent by a second noise, so the hills run in
+     *   flowing ridges and valleys instead of round blobs;
+     * - redistribution (h^1.5): wide, gentle valleys and narrower tops — at full height
+ *   towards the deployment zones' left and right, low in the middle;
+     * - thermal erosion: a few passes in which every slope steeper than the angle of
+     *   repose sheds to its lower neighbours — weathered, even slopes; only a few
+     *   spots stay steeper than units can climb (SLOPE_BLOCK_GRADE).
+     * Point symmetric (the noise is evened over (x, z) and (−x, −z), the warp is odd),
+     * and plain arithmetic + sqrt only: the sim walks this ground, every peer must
+     * get the same bits.
+     */
+    private hillsHeightAt(x: number, z: number): number {
+        const g = (this.hillsGrid ??= this.buildHillsGrid());
+        const fx = Math.min(g.nx - 1.000001, Math.max(0, (x + this.halfW) / g.step));
+        const fz = Math.min(g.nz - 1.000001, Math.max(0, (z + this.halfH) / g.step));
+        const ix = Math.floor(fx);
+        const iz = Math.floor(fz);
+        const tx = fx - ix;
+        const tz = fz - iz;
+        const i = iz * g.nx + ix;
+        const h = g.h;
+        const a = h[i]! + (h[i + 1]! - h[i]!) * tx;
+        const b = h[i + g.nx]! + (h[i + g.nx + 1]! - h[i + g.nx]!) * tx;
+        return a + (b - a) * tz;
+    }
+
+    private hillsGrid: { nx: number; nz: number; step: number; h: Float64Array } | null = null;
+
+    private buildHillsGrid(): { nx: number; nz: number; step: number; h: Float64Array } {
+        // nodes from edge to edge: node i and node (n−1−i) mirror each other
+        const cellsX = Math.max(2, Math.round((2 * this.halfW) / HILLS.gridStep));
+        const step = (2 * this.halfW) / cellsX;
+        const nx = cellsX + 1;
+        const nz = Math.max(2, Math.round((2 * this.halfH) / step)) + 1;
+        const stepZ = (2 * this.halfH) / (nz - 1);
+        const h = new Float64Array(nx * nz);
+        for (let iz = 0; iz < nz; iz++) {
+            for (let ix = 0; ix < nx; ix++) h[iz * nx + ix] = this.hillsRaw(-this.halfW + ix * step, -this.halfH + iz * stepZ);
+        }
+        // thermal erosion, all nodes at once from the last pass (so neither side goes first)
+        const talus = HILLS.talus * step;
+        const delta = new Float64Array(nx * nz);
+        for (let pass = 0; pass < HILLS.erosionPasses; pass++) {
+            delta.fill(0);
+            for (let iz = 1; iz < nz - 1; iz++) {
+                for (let ix = 1; ix < nx - 1; ix++) {
+                    const i = iz * nx + ix;
+                    const hi = h[i]!;
+                    for (const j of [i - 1, i + 1, i - nx, i + nx]) {
+                        const excess = hi - h[j]! - talus;
+                        if (excess <= 0) continue;
+                        // a quarter of the excess per neighbour, halved: stable however many it sheds to
+                        const move = excess * 0.125;
+                        delta[i]! -= move;
+                        delta[j]! += move;
+                    }
+                }
+            }
+            for (let i = 0; i < h.length; i++) h[i]! += delta[i]!;
+        }
+        return { nx, nz, step, h };
+    }
+
+    /** the hills before erosion: warped, redistributed fractal noise (see hillsHeightAt) */
+    private hillsRaw(x: number, z: number): number {
+        // the warp: an odd function of (x, z), so the bent board stays point symmetric
+        const wx = (this.hillsFbm(x, z, 71.3, 12.9, HILLS.warpWave, 2) - this.hillsFbm(-x, -z, 71.3, 12.9, HILLS.warpWave, 2)) * HILLS.warp;
+        const wz = (this.hillsFbm(x, z, 18.4, 55.2, HILLS.warpWave, 2) - this.hillsFbm(-x, -z, 18.4, 55.2, HILLS.warpWave, 2)) * HILLS.warp;
+        const px = x + wx;
+        const pz = z + wz;
+        // even: the same from both sides; averaging narrows the spread — stretched back around 0.5
+        const avg = (this.hillsFbm(px, pz, 37.2, 11.7, HILLS.wave, HILLS.octaves) + this.hillsFbm(-px, -pz, 37.2, 11.7, HILLS.wave, HILLS.octaves)) * 0.5;
+        const n = 0.5 + (avg - 0.5) * 1.9;
+        // above the valley floor the ground rises as v^1.5 ...
+        const v = Math.min(1, Math.max(0, (n - HILLS.valley) / (1 - HILLS.valley)));
+        // ... at full height towards the zone's left and right, low in the middle (|x|: the same on both sides)
+        const zoneHalf = (this.size.zoneCols * CELL) / 2;
+        const side = smooth01((Math.abs(x) - HILLS.sideFrom * zoneHalf) / (HILLS.sideOver * zoneHalf));
+        return HILLS.height * v * Math.sqrt(v) * (HILLS.centerWeight + (1 - HILLS.centerWeight) * side);
+    }
+
+    /** fractal noise in 0…1: `octaves` layers of the relief noise, each half the size and weight, each turned ~27° */
+    private hillsFbm(x: number, z: number, ox: number, oz: number, wave: number, octaves: number): number {
+        let sum = 0;
+        let norm = 0;
+        let amp = 1;
+        let fx = x / wave;
+        let fz = z / wave;
+        for (let o = 0; o < octaves; o++) {
+            sum += amp * this.reliefNoise(fx + ox + o * 17.31, fz + oz + o * 9.73);
+            norm += amp;
+            amp *= 0.5;
+            // the next layer: twice the frequency, turned (cos / sin of 0.47 rad as constants — no Math.sin in the sim's ground)
+            const rx = (fx * HILLS_TURN_COS - fz * HILLS_TURN_SIN) * 2;
+            const rz = (fx * HILLS_TURN_SIN + fz * HILLS_TURN_COS) * 2;
+            fx = rx;
+            fz = rz;
+        }
+        return sum / norm;
     }
 
     /** the classic relief: sparse low mounds, flat around every building */

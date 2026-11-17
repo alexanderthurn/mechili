@@ -19,6 +19,7 @@ import {
     wallsModeOption,
 } from '../game/settings';
 import { seasonsModeOption } from '../game/seasons';
+import { terrainShapeOption } from '../game/terrainShapes';
 
 export type RoomPresetId = 'standard' | 'siege' | 'komtur';
 
@@ -36,6 +37,7 @@ export type RoomPresetValues = Required<
         | 'walls'
         | 'postedUnits'
         | 'seasons'
+        | 'terrainShape'
     >
 >;
 
@@ -59,6 +61,7 @@ export const ROOM_PRESETS: readonly RoomPreset[] = [
             walls: 'normal',
             postedUnits: 'normal',
             seasons: 'randomSeason',
+            terrainShape: 'standard',
         },
     },
     {
@@ -76,23 +79,25 @@ export const ROOM_PRESETS: readonly RoomPreset[] = [
             walls: 'prebuilt',
             postedUnits: 'passive',
             seasons: 'year',
+            terrainShape: 'standard',
         },
     },
     {
-        // a standard match against the strongest Komtur: double money, double HP, a head start,
-        // and cheap archers on the walls that only defend
+        // a standard match against the strongest Komtur on rolling hills: double HP, a head
+        // start, and cheap archers on the walls that only defend
         id: 'komtur',
         values: {
             siege: false,
             victory: 'hp',
             hordePreset: 'ultra',
-            moneyFactor: 2,
+            moneyFactor: 1,
             startMoney: 300,
             commanderHpFactor: 2,
             fixedSideHp: null,
             walls: 'normal',
             postedUnits: 'passiveCheap',
             seasons: 'randomYear',
+            terrainShape: 'hills',
         },
     },
 ];
@@ -112,6 +117,7 @@ function presetValuesOf(cfg: Partial<CustomGameConfig>): RoomPresetValues {
         walls: wallsModeOption(cfg.walls),
         postedUnits: postedUnitsModeOption(cfg.postedUnits),
         seasons: seasonsModeOption(cfg.seasons),
+        terrainShape: terrainShapeOption(cfg.terrainShape),
     };
 }
 

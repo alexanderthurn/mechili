@@ -90,9 +90,9 @@ const MOVABLE_PLATE_OPACITY = 0.52;
  * kind of attention — a movable pack at rest, the one under the mouse, the
  * selected one (which also waves).
  */
-const PLATE_IDLE = 0.5;
-const PLATE_HOVER = 0.95;
-const PLATE_SELECTED = 1.5;
+const PLATE_IDLE = 0.75;
+const PLATE_HOVER = 1.15;
+const PLATE_SELECTED = 1.6;
 /** the frame under a unit at rest that has no plate of its own (a fixed wall, an enemy), while hovered */
 const HOVER_HINT_OPACITY = 0.32;
 
@@ -135,17 +135,42 @@ interface SelectPlateUniforms {
     wave: { value: number };
     /** never waves (the unselected movable plates) */
     still: boolean;
+    /** a rim of its own colour (attachSelectPlateShader's `edge`): the owner's colour leaves it alone */
+    fixedRim: boolean;
 }
+
+/**
+ * The idle plate under a movable pack: a thin dark green edge around the light
+ * fill, so it stands out on any ground — on snow and sand the fill alone pales away.
+ */
+const IDLE_PLATE_EDGE = { width: 0.16, color: 0x0a5a24 } as const;
 
 /**
  * The frame look for a plate material (see SELECT_PLATE). placeFootprintPlate
  * drives it (time, footprint size) for every material that has it.
  */
-function attachSelectPlateShader(material: MeshBasicMaterial, opts: { still?: boolean; opacity?: number } = {}): void {
-    const { still = false, opacity = 1 } = opts;
-    const uniforms: SelectPlateUniforms = { time: { value: 0 }, size: { value: new Vector2(1, 1) }, rim: { value: new Color() }, opacity, wave: { value: 0 }, still };
+function attachSelectPlateShader(
+    material: MeshBasicMaterial,
+    opts: {
+        still?: boolean;
+        opacity?: number;
+        /** a rim of this width and colour instead of the plate look's (none) — see IDLE_PLATE_EDGE */
+        edge?: { width: number; color: number };
+    } = {},
+): void {
+    const { still = false, opacity = 1, edge } = opts;
+    const uniforms: SelectPlateUniforms = {
+        time: { value: 0 },
+        size: { value: new Vector2(1, 1) },
+        rim: { value: new Color(edge?.color ?? 0) },
+        opacity,
+        wave: { value: 0 },
+        still,
+        fixedRim: !!edge,
+    };
     material.userData.selectPlate = uniforms;
-    const p = SELECT_PLATE;
+    // the edge replaces the rim's width and keeps its colour unwhitened
+    const p = edge ? { ...SELECT_PLATE, rim: edge.width, rimGlow: 0 } : SELECT_PLATE;
     const f = (v: number) => v.toFixed(3);
     material.defines = { ...material.defines, USE_UV: '' };
     material.onBeforeCompile = (shader) => {
@@ -2025,7 +2050,7 @@ export class PlacementController {
             material.opacity = framed.opacity;
             framed.time.value = timeSeconds;
             framed.size.value.set(fp.cols * CELL * edge, fp.rows * CELL * edge);
-            framed.rim.value.setHex(this.ownerHex(owner ?? null));
+            if (!framed.fixedRim) framed.rim.value.setHex(this.ownerHex(owner ?? null));
             // the wave says "you can move this": not under enemies, the horde or locked packs
             // (no owner: a new pack riding the cursor, the editor's plate)
             framed.wave.value = !framed.still && (!owner || this.isMovable(owner)) ? 1 : 0;
@@ -2514,7 +2539,7 @@ export class PlacementController {
                     // the selection's frame, without its wave and fainter (one material per
                     // plate: the frame shader needs each footprint's size)
                     const material = this.plateMaterial.clone();
-                    attachSelectPlateShader(material, { still: true, opacity: PLATE_IDLE });
+                    attachSelectPlateShader(material, { still: true, opacity: PLATE_IDLE, edge: IDLE_PLATE_EDGE });
                     plate = new Mesh(this.plateGeometry.clone(), material);
                     plate.renderOrder = 10;
                     this.scene.add(plate);
