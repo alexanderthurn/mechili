@@ -228,8 +228,8 @@ const HILLS = {
     /** how far the warp bends the ground, and its own wave length */
     warp: 14,
     warpWave: 70,
-    /** the share of the noise that stays valley floor */
-    valley: 0.28,
+    /** the share of the noise that stays valley floor (higher = fewer hills, more open ground) */
+    valley: 0.5,
     /**
      * where the hills stand: full height towards the left and right of the deployment
      * zones, only `centerWeight` of it in the middle — blending from `sideFrom` × the
