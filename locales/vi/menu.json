@@ -93,6 +93,7 @@
   "errBadImage": "Không thể sử dụng hình ảnh đó — hãy thử định dạng PNG hoặc JPEG nhỏ hơn.",
   "errBadName": "Tên phải có từ 2 đến 16 chữ cái, số, dấu gạch dưới (_) hoặc dấu gạch ngang (-).",
   "rosterTeam": "Đội {{n}}",
+  "siegeSwapSides": "Đổi bên công và bên thủ",
   "rosterYou": " (Bạn)",
   "rosterAi": "Trí tuệ nhân tạo",
   "rosterWaiting": "Đang chờ…",

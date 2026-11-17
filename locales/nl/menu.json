@@ -93,6 +93,7 @@
   "errBadImage": "Deze afbeelding kon niet worden gebruikt — probeer een kleinere PNG- of JPEG-afbeelding.",
   "errBadName": "De naam moet 2 tot en met 16 letters, cijfers, _ of - bevatten.",
   "rosterTeam": "Team {{n}}",
+  "siegeSwapSides": "Aanvaller en verdediger wisselen",
   "rosterYou": " (Jij)",
   "rosterAi": "AI",
   "rosterWaiting": "Wachten…",

@@ -93,6 +93,7 @@
   "errBadImage": "Nem sikerült használni a képet – próbáljon meg egy kisebb PNG vagy JPEG fájlt.",
   "errBadName": "A névnek 2–16 betűből, számból, _ vagy - jelből kell állnia.",
   "rosterTeam": "{{n}} csapat",
+  "siegeSwapSides": "Támadó és védő cseréje",
   "rosterYou": "(te)",
   "rosterAi": "MI",
   "rosterWaiting": "Várakozás…",

@@ -34,7 +34,6 @@ import {
     resolveFixedSideHp,
     resolveMoneyFactor,
     resolveStartMoney,
-    yearAttackerFromSeats,
     type GameSettings,
 } from '../game/settings';
 import { applyTutorialMode } from '../game/tutorial';
@@ -402,7 +401,7 @@ export function lobbyMatchSettings(
         applyClimbMode(settings, {
             role: 'attacker',
             // a Standard Rounds match has no attacker: its first side stands in for one on the tally
-            attackerSide: siege ? resolveYearAttackerSide(roster, seed) : 0,
+            attackerSide: siege ? (room.siegeAttackerSide === 1 ? 1 : 0) : 0,
             keepHorde: true,
         });
         if (!siege) settings.climb!.siege = false;
@@ -412,17 +411,6 @@ export function lobbyMatchSettings(
     // 2v2 / duo only — 1v1 must keep the standard map width; a map keeps the board it was made for
     if (roster.length > 2 && !onMap) widenMapForDuo(settings);
     return { ...settings, seed };
-}
-
-/**
- * Who attacks in a Siege room: from the roles its seats asked for (players
- * pick their own, the host any seat's) — each side's wishes are weighed, and
- * sides left without a clear attacker or defender toss for it on the match
- * seed, so every client that receives the settings agrees.
- */
-export function resolveYearAttackerSide(roster: readonly CanonicalSeatDef[], seed: number): number {
-    const wishes = (side: 'a' | 'b') => roster.filter((s) => s.side === side).map((s) => s.yearRole);
-    return yearAttackerFromSeats(wishes('a'), wishes('b'), seed);
 }
 
 export const PRACTICE_KEY = 'melodan-practice';

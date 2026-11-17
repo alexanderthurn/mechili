@@ -93,6 +93,7 @@
   "errBadImage": "Kuvaa ei voitu käyttää – kokeile pienempää PNG- tai JPEG-kuvaa.",
   "errBadName": "Nimen on oltava 2–16 kirjainta, numeroa, _ tai -.",
   "rosterTeam": "Tiimi {{n}}",
+  "siegeSwapSides": "Vaihda hyökkääjä ja puolustaja",
   "rosterYou": "(sinä)",
   "rosterAi": "Tekoäly",
   "rosterWaiting": "Odotetaan…",

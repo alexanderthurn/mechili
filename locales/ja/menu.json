@@ -93,6 +93,7 @@
   "errBadImage": "その画像は使えません — 小さめの PNG または JPEG を試してください。",
   "errBadName": "名前は 2–16 文字の英数字、_ または - のみ。",
   "rosterTeam": "チーム {{n}}",
+  "siegeSwapSides": "攻撃側と防衛側を入れ替える",
   "rosterYou": "（あなた）",
   "rosterAi": "AI",
   "rosterWaiting": "待機中…",

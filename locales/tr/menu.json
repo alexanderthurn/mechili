@@ -93,6 +93,7 @@
   "errBadImage": "Bu görsel kullanılamadı — daha küçük boyutlu bir PNG veya JPEG dosyası deneyin.",
   "errBadName": "İsim 2 ila 16 harf, rakam, _ veya - karakterinden oluşmalıdır.",
   "rosterTeam": "Takım �PH0⟧ {{n}}",
+  "siegeSwapSides": "Saldıran ve savunanı değiştir",
   "rosterYou": " (Sen)",
   "rosterAi": "Yapay zeka",
   "rosterWaiting": "Bekleniyor…",

@@ -93,6 +93,7 @@
   "errBadImage": "그 이미지를 쓸 수 없습니다 — 더 작은 PNG 또는 JPEG를 시도하세요.",
   "errBadName": "이름은 2–16자의 글자, 숫자, _ 또는 -여야 합니다.",
   "rosterTeam": "팀 {{n}}",
+  "siegeSwapSides": "공격과 수비 바꾸기",
   "rosterYou": " (나)",
   "rosterAi": "AI",
   "rosterWaiting": "대기 중…",

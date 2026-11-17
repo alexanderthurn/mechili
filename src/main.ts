@@ -2916,16 +2916,19 @@ function allSeatsReady(roster: CanonicalSeatDef[]): boolean {
  * always about the LOCAL viewer's own seat.
  */
 /**
- * The room on screen (host or guest) is a Siege: its seats show the role they
- * ask for (see lobbyArmy.pickRole for who may change it and how).
+ * The room on screen (host or guest) is a Siege: the team headers name the
+ * attacking and the defending side (the host swaps them with a click).
  */
 let lobbySiege = false;
+/** a Siege: the canonical side that attacks (0 = Team 1) — the team headers say who is who */
+let lobbyAttackerSide: 0 | 1 = 0;
 /** the roster table as last drawn — redrawn when the room's Siege setting arrives */
 let lastRosterRender: Parameters<typeof renderRosterTable> | null = null;
 
-function setLobbySiege(siege: boolean): void {
-    if (siege === lobbySiege) return;
+function setLobbySiege(siege: boolean, attackerSide: 0 | 1 = 0): void {
+    if (siege === lobbySiege && attackerSide === lobbyAttackerSide) return;
     lobbySiege = siege;
+    lobbyAttackerSide = attackerSide;
     if (lastRosterRender) renderRosterTable(...lastRosterRender);
 }
 
@@ -3011,9 +3014,24 @@ function renderRosterTable(
         const col = document.createElement('div');
         const teamNum = side === 'a' ? 1 : side === 'b' ? 2 : sideIndex + 1;
         col.className = `m-roster-col m-roster-col-${side}`;
-        const header = document.createElement('div');
-        header.className = 'm-roster-col-header';
-        header.textContent = t('menu:rosterTeam', { n: teamNum });
+        // a Siege: the side's role instead of its number — the host swaps the two with a click
+        const siegeRole: 'attacker' | 'defender' | null = lobbySiege ? (teamNum - 1 === lobbyAttackerSide ? 'attacker' : 'defender') : null;
+        const swappable = !!siegeRole && !!activeLobbyHost;
+        const header = document.createElement(swappable ? 'button' : 'div');
+        header.className = `m-roster-col-header${siegeRole ? ` is-${siegeRole}` : ''}${swappable ? ' is-editable' : ''}`;
+        header.textContent = siegeRole ? roleName(siegeRole) : t('menu:rosterTeam', { n: teamNum });
+        if (swappable) {
+            (header as HTMLButtonElement).type = 'button';
+            header.title = t('menu:siegeSwapSides', { defaultValue: 'Swap attacker and defender' });
+            header.addEventListener('click', () => {
+                const host = activeLobbyHost;
+                if (!host) return;
+                host.config.siegeAttackerSide = lobbyAttackerSide === 0 ? 1 : 0;
+                (host.save ?? saveCustomGameConfig)(host.config);
+                setLobbySiege(lobbySiege, host.config.siegeAttackerSide);
+                host.onChange();
+            });
+        }
         col.appendChild(header);
         for (const seat of bySide.get(side)!) {
             const filled = roster[seat]!.name !== OPEN_SEAT_NAME;
@@ -3099,25 +3117,6 @@ function renderRosterTable(
                 }
                 tags.appendChild(chip);
             }
-            // a Siege: the role this seat asks for — every player picks its own, the host
-            // any seat's; sides left without a clear attacker / defender are tossed at Start
-            if (lobbySiege) {
-                const role = roster[seat]!.yearRole;
-                const editable = !!(lobbyArmy?.canEditRole ?? lobbyArmy?.canEdit)?.(seat);
-                const badge = document.createElement(editable ? 'button' : 'span');
-                badge.className = `m-roster-role${role ? ` is-${role}` : ''}${editable ? ' is-editable' : ''}`;
-                badge.textContent = roleName(role);
-                if (editable) {
-                    (badge as HTMLButtonElement).type = 'button';
-                    badge.title = t('menu:rolePick');
-                    badge.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        const next = role === undefined ? 'attacker' : role === 'attacker' ? 'defender' : null;
-                        lobbyArmy?.pickRole(seat, next);
-                    });
-                }
-                tags.appendChild(badge);
-            }
             // an AI seat (or an open one a bot will fill, where this client sets the bots): its strength and style
             if (lobbyArmy && seat !== mySeat && (entry.controller === 'ai' || guaranteedAi || (!filled && !!lobbyArmy.pickAi))) {
                 const editable = !!lobbyArmy.pickAi && lobbyArmy.canEdit(seat);
@@ -3141,13 +3140,8 @@ function renderRosterTable(
                 );
                 // the style chip only in debug mode: players see the strength, the style stays Random
                 if (debugEnabled()) {
-                    // only the styles that fit the seat's Siege role (a stored one that doesn't shows as Random);
-                    // a role still open is settled at Start, so only the styles that fit either
-                    const fits = !lobbySiege
-                        ? personalitiesFor(null)
-                        : entry.yearRole
-                          ? personalitiesFor(entry.yearRole)
-                          : personalitiesFor('attacker').filter((p) => personalitiesFor('defender').includes(p));
+                    // only the styles that fit the seat's side in a Siege (a stored one that doesn't shows as Random)
+                    const fits = personalitiesFor(siegeRole);
                     const stored = entry.aiPersonality ?? DEFAULT_AI_PERSONALITY;
                     const personality = fits.includes(stored) ? stored : 'random';
                     chip(`is-${personality}`, t(`menu:aiPersonality.${personality}`), t('menu:aiPersonalityPick'), () =>
@@ -4975,6 +4969,7 @@ function wireHostedHub(
                 : {}),
         };
         lobbySiege = !!customConfig?.siege;
+        lobbyAttackerSide = customConfig?.siegeAttackerSide === 1 ? 1 : 0;
         renderRosterTable(
             roster,
             0,
@@ -5255,6 +5250,7 @@ function openPracticeLobby(mode: CustomGameMode): void {
     // every seat is yours to set: your own army, and the AI's
     const redraw = () => {
         lobbySiege = !!config.siege;
+        lobbyAttackerSide = config.siegeAttackerSide === 1 ? 1 : 0;
         renderRosterTable(roster, 0, 1);
     };
     const set = (seat: SeatId, patch: Partial<CanonicalSeatDef>) => {
@@ -5557,7 +5553,7 @@ function bindGuestSession(session: GuestSession, first?: NetMessage): void {
                 pendingReady = ready;
                 session.send({ type: 'lobbyReady', ready });
             });
-            setLobbySiege(!!config.siege);
+            setLobbySiege(!!config.siege, config.siegeAttackerSide === 1 ? 1 : 0);
             return;
         }
         // Anything besides the handshake message types below is only ever

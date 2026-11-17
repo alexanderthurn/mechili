@@ -93,6 +93,7 @@
   "errBadImage": "無法使用該圖片 — 請換更小的 PNG 或 JPEG。",
   "errBadName": "名字須為 2–16 個字母、數字、_ 或 -。",
   "rosterTeam": "隊伍 {{n}}",
+  "siegeSwapSides": "交換進攻方和防守方",
   "rosterYou": "（你）",
   "rosterAi": "AI",
   "rosterWaiting": "等待中…",

@@ -93,6 +93,7 @@
   "errBadImage": "Nu s-a putut folosi acea imagine — încearcă un fișier PNG sau JPEG mai mic.",
   "errBadName": "Numele trebuie să conțină între 2 și 16 litere, cifre, _ sau -.",
   "rosterTeam": "Echipa {{n}}",
+  "siegeSwapSides": "Schimbă atacatorul cu apărătorul",
   "rosterYou": "(tu)",
   "rosterAi": "IA",
   "rosterWaiting": "Așteptare…",

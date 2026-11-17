@@ -93,6 +93,7 @@
   "errBadImage": "تعذر استخدام تلك الصورة — جرّب PNG أو JPEG أصغر.",
   "errBadName": "يجب أن يكون الاسم من 2–16 حرفًا أو رقمًا أو _ أو -.",
   "rosterTeam": "الفريق {{n}}",
+  "siegeSwapSides": "تبديل المهاجم والمدافع",
   "rosterYou": " (أنت)",
   "rosterAi": "ذكاء اصطناعي",
   "rosterWaiting": "انتظار…",

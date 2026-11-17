@@ -93,6 +93,7 @@
   "errBadImage": "No se pudo utilizar esa imagen; pruebe con un archivo PNG o JPEG más pequeño.",
   "errBadName": "El nombre debe tener entre 2 y 16 letras, números, _ o -.",
   "rosterTeam": "Equipo {{n}}",
+  "siegeSwapSides": "Intercambiar atacante y defensor",
   "rosterYou": " (tú)",
   "rosterAi": "AI",
   "rosterWaiting": "Esperando…",

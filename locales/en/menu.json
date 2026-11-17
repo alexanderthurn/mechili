@@ -104,6 +104,7 @@
   "errBadImage": "Could not use that image — try a smaller PNG or JPEG.",
   "errBadName": "Name must be 2–16 letters, numbers, _ or -.",
   "rosterTeam": "Team {{n}}",
+  "siegeSwapSides": "Swap attacker and defender",
   "rosterYou": " (you)",
   "rosterAi": "AI",
   "rosterWaiting": "Waiting…",

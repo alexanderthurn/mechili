@@ -333,6 +333,8 @@ export interface CustomGameConfig {
     mode: CustomGameMode;
     /** Siege: an attacker against a defender (see ClimbSettings.siege); omit = Standard, both sides equal */
     siege?: boolean;
+    /** Siege: the canonical side that attacks (0 = Team 1, the host's) — the host swaps it on the team headers; omit = 0 */
+    siegeAttackerSide?: 0 | 1;
     /** how the match is won: side HP worn down, or a Year of rounds; omit = 'hp' */
     victory?: 'hp' | 'rounds';
     /** false = no fog of war; omit = fog */

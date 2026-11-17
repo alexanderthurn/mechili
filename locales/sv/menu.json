@@ -93,6 +93,7 @@
   "errBadImage": "Kunde inte använda bilden — prova en mindre PNG- eller JPEG-fil.",
   "errBadName": "Namnet måste vara 2–16 bokstäver, siffror, _ eller -.",
   "rosterTeam": "Lag {{n}}",
+  "siegeSwapSides": "Byt anfallare och försvarare",
   "rosterYou": "(du)",
   "rosterAi": "AI",
   "rosterWaiting": "Väntar…",

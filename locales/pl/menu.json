@@ -93,6 +93,7 @@
   "errBadImage": "Nie udało się użyć tego obrazu — spróbuj użyć mniejszego pliku PNG lub JPEG.",
   "errBadName": "Nazwa musi zawierać od 2 do 16 liter, cyfr lub znaku _ lub -.",
   "rosterTeam": "Zespół {{n}}",
+  "siegeSwapSides": "Zamień atakującego i obrońcę",
   "rosterYou": " (Ty)",
   "rosterAi": "Sztuczna inteligencja",
   "rosterWaiting": "Oczekiwanie…",

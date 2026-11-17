@@ -1068,16 +1068,35 @@ ${chatFloatStyles(u, pc, ec)}
 }
 .mechili-menu .m-roster-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .mechili-menu .m-roster-col-header {
-    font-size: 12px;
+    box-sizing: border-box;
+    /* straight on the parchment: deep team colours (the light ones were lost on it), a line under */
+    padding: 2px 6px 3px;
+    border: none;
+    border-bottom: 2px solid currentColor;
+    font-size: 16px;
     font-weight: 800;
     letter-spacing: 1.2px;
     text-transform: uppercase;
     text-align: center;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+    text-shadow: none;
 }
-/* Canonical team colors (side a = blue, side b = red) — lightened for dark panel. */
-.mechili-menu .m-roster-col-a .m-roster-col-header { color: #8ec8f8; }
-.mechili-menu .m-roster-col-b .m-roster-col-header { color: #ff8a7a; }
+/* Canonical team colors (side a = blue, side b = red) — deep, for the parchment */
+.mechili-menu .m-roster-col-a .m-roster-col-header { color: #1d5a94; }
+.mechili-menu .m-roster-col-b .m-roster-col-header { color: #9c2f22; }
+/* a Siege: the host's headers are buttons that swap attacker and defender — the header's look,
+   a light frame and a swap mark so it reads as clickable */
+.mechili-menu button.m-roster-col-header {
+    display: block;
+    width: 100%;
+    margin: 0;
+    background: none;
+    border-radius: 0;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+.mechili-menu button.m-roster-col-header::after { content: ' ⇄'; opacity: 0.7; }
+.mechili-menu button.m-roster-col-header:hover { background: rgba(120, 90, 40, 0.12); }
 .mechili-menu .m-roster-vs {
     font-size: 13px;
     font-weight: 900;

@@ -93,6 +93,7 @@
   "errBadImage": "Tidak dapat menggunakan imej itu — cuba PNG atau JPEG yang lebih kecil.",
   "errBadName": "Nama mestilah terdiri daripada 2–16 huruf, nombor, _ atau -.",
   "rosterTeam": "Pasukan {{n}}",
+  "siegeSwapSides": "Tukar penyerang dan pertahanan",
   "rosterYou": "(awak)",
   "rosterAi": "AI",
   "rosterWaiting": "Menunggu…",
