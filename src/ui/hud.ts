@@ -1721,7 +1721,7 @@ export class Hud {
                         icon: 'spec-archer',
                         title: t('hud:groupArchers', { n: g.count, defaultValue: 'Wall archers ({{n}})' }),
                         desc: t('hud:groupArchersDesc', {
-                            defaultValue: 'One archer onto each selected walkway with a free post. Each one is one of the round\'s buys.',
+                            defaultValue: 'One archer onto each selected walkway with a free post.',
                         }),
                     };
                 case 'gate':

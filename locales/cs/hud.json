@@ -239,7 +239,7 @@
   "buyRallyDesc": "Přidejte si jeden poplatek za sraz k vašemu {{tactics}}. Jednou za zápas.",
   "buyMovePackDesc": "Přidejte si k {{tactics}} jeden náboj Packu pohybu: znovu otevřete jeden Pack z předchozího kola pro změnu pozice. Jednou za zápas.",
   "strongholdArchersFull": "Každé cimbuří je obsazeno.",
-  "strongholdArchersDesc": "Postavte na hradby lučištníka. Střílí jako každý jiný lučištník a nikdy neopustí své místo – nic se na něj nemůže vystřelit zpět, ale padá s věží. Stojí jako jeden lučištník a počítá se jako jeden z nákupů kola.",
+  "strongholdArchersDesc": "Postavte na hradby lučištníka. Střílí jako každý jiný lučištník a nikdy neopustí své místo – nic se na něj nemůže vystřelit zpět, ale padá s věží.",
   "forgeChargeSuffix": "Přidá jeden náboj k vašemu {{tactics}} — jednou za zápas.",
   "ifDestroyed": "Pokud bude zničeno",
   "splash": "Cákání",
