@@ -530,9 +530,11 @@ const BOMB_STRENGTH = 0.25;
  * showed as plus- and cross-shaped blots. Gradient noise has round features.
  */
 export const SLOPE_GROUND_FNS = `
+// the direction from ONE hash and no cos / sin — as cheap per lattice point as the value
+// noise was (one sin); a gradient needn't be unit length, its length only sways the bump a little
 vec2 slopeGrad( vec2 i ) {
-	float a = fract( sin( dot( i, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ) * 6.2831853;
-	return vec2( cos( a ), sin( a ) );
+	float h = fract( sin( dot( i, vec2( 127.1, 311.7 ) ) ) * 43758.5453 );
+	return vec2( h, fract( h * 63.71 + 0.13 ) ) * 2.0 - 1.0;
 }
 float slopeNoise( vec2 p ) {
 	vec2 i = floor( p );
@@ -542,8 +544,9 @@ float slopeNoise( vec2 p ) {
 	float b = dot( slopeGrad( i + vec2( 1.0, 0.0 ) ), f - vec2( 1.0, 0.0 ) );
 	float c = dot( slopeGrad( i + vec2( 0.0, 1.0 ) ), f - vec2( 0.0, 1.0 ) );
 	float d = dot( slopeGrad( i + vec2( 1.0, 1.0 ) ), f - vec2( 1.0, 1.0 ) );
-	// about ±0.7 around 0 → 0…1 with roughly the spread the value noise had
-	return clamp( mix( mix( a, b, u.x ), mix( c, d, u.x ), u.y ) + 0.5, 0.0, 1.0 );
+	// around 0 → 0…1 with roughly the spread the value noise had (× 1.23: the
+	// one-hash gradients are a little shorter on average than unit ones)
+	return clamp( mix( mix( a, b, u.x ), mix( c, d, u.x ), u.y ) * 1.23 + 0.5, 0.0, 1.0 );
 }
 `;
 
