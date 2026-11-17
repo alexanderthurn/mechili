@@ -93,7 +93,7 @@
     }
   },
   "commanders": {
-    "sub": "Antes de la primera ronda, cada jugador elige un {{commander}}. Este define su ejército inicial, la cantidad de puntos de vida, una especialidad permanente y tres forjas de fortaleza {{tactics}} (débil / media / fuerte). Los compañeros de equipo comparten la unión de sus forjas {{tactics}}.",
+    "sub": "Antes de la primera ronda, cada jugador elige un {{commander}}. Este define su ejército inicial, la cantidad de puntos de vida, una especialidad permanente y tres {{tactics}} que se compran en la Guarnición (débil / media / fuerte). Los compañeros de equipo comparten la unión de sus forjas {{tactics}}.",
     "select": "Elige un {{commander}}"
   },
   "runes": {
@@ -110,7 +110,7 @@
     "mixed": "Mezclada"
   },
   "tactics": {
-    "sub": "Estas son las habilidades de tu barra de {{tactics}} {{sep}} rutas de Rally, derrames, invocaciones y hechizos de batalla como el aliento de fuego del dragón. Los hechizos de batalla se compran en tu Fortaleza, una vez cada uno, y solo los tres que conoce tu comandante. Los iconos coinciden con los del juego.",
+    "sub": "Estas son las habilidades de tu barra de {{tactics}} {{sep}} rutas de Rally, derrames, invocaciones y hechizos de batalla como el aliento de fuego del dragón. Los hechizos de batalla se compran en tu Guarnición, una vez cada uno, y solo los tres que conoce tu comandante. Los iconos coinciden con los del juego.",
     "select": "Elige un {{tactic}}",
     "placement": "Colocación",
     "oneShot": "One-shot",
@@ -126,7 +126,7 @@
   },
   "roundCards": {
     "title": "Cartas de ronda",
-    "sub": "A partir de la segunda ronda, elige una de las varias cartas {{items}} ofrecidas, extraídas del conjunto de cartas disponibles. Los hechizos de batalla se compran en la Fortaleza, no se eligen de las cartas.",
+    "sub": "A partir de la segunda ronda, elige una de las varias cartas {{items}} ofrecidas, extraídas del conjunto de cartas disponibles. Los hechizos de batalla se compran en la Guarnición, no se eligen de las cartas.",
     "select": "Elige una carta de ronda"
   },
   "music": {

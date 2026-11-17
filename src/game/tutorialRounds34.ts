@@ -23,6 +23,7 @@ import {
     tutorialDwarfFootprint,
     tutorialMortarFootprint,
     unitMatchesTutorialSlot,
+    TUTORIAL_3_BOOST_MAX_TIERS,
     TUTORIAL_4_ARCHER_RANGE_TECH,
     TUTORIAL_4_ARCHERS,
     TUTORIAL_4_FORGE_PRODUCT,
@@ -86,7 +87,7 @@ export function spawnBuilding(
     rowFrac: number,
     side: 'player' | 'enemy',
 ): Unit | null {
-    return host.placement.spawn(
+    const unit = host.placement.spawn(
         type,
         tutorialBaseCell(host.map, xFrac, rowFrac, type.footprint, side),
         side,
@@ -94,6 +95,10 @@ export function spawnBuilding(
         false,
         primarySeatOf(host.seats, side),
     );
+    // a lesson's buildings stand where it puts them, like a match's base: placed
+    // mid-match they would otherwise count as bought this round, so movable
+    if (unit) unit.baseAnchored = true;
+    return unit;
 }
 
 /** Garrison + Vanguard for one or both sides. */
@@ -337,6 +342,8 @@ export function boardState3(
     placeSlots: TutorialPlaceSlot[],
     garrisonType: UnitType,
     vanguardType: UnitType,
+    /** round 3's Stronghold: Recruit at Level 2 and +1 Deploy are bought there */
+    strongholdType: UnitType,
 ): Tutorial3BoardState {
     const own = host.placement
         .allUnits()
@@ -351,6 +358,9 @@ export function boardState3(
     const vanguard = host.placement
         .allUnits()
         .find((u) => u.type === vanguardType && u.team === 'player' && !u.destroyed);
+    const keep = host.placement
+        .allUnits()
+        .find((u) => u.type === strongholdType && u.team === 'player' && !u.destroyed);
     const dwarfSlot = placeSlots[0];
     const ballistaSlot = placeSlots[1];
     let r3PadsFilled = 0;
@@ -382,9 +392,11 @@ export function boardState3(
             !!placeSlots[1] && mortars.some((u) => cellEq(u.cell, placeSlots[1]!.anchor)),
         vanguardSelected: !!vanguard && selected?.id === vanguard.id,
         garrisonSelected: !!garrison && selected?.id === garrison.id,
+        strongholdSelected: !!keep && selected?.id === keep.id,
         boostAttack: host.boostState.attack[host.humanSeat]!,
         boostHp: host.boostState.hp[host.humanSeat]!,
-        boostMax: host.settings.boosts.costs.length,
+        // the lesson buys two levels each, however many the match has
+        boostMax: Math.min(TUTORIAL_3_BOOST_MAX_TIERS, host.settings.boosts.costs.length),
         recruitActive: (host.recruitLevel?.[host.humanSeat] ?? 1) > 1,
         deployExtra: host.deployState.extra[host.humanSeat]!,
         towerLevel: garrison?.level ?? 1,

@@ -93,7 +93,7 @@
     }
   },
   "commanders": {
-    "sub": "Sebelum pusingan pertama, setiap pemain memilih {{commander}}. Ia menetapkan tentera permulaan anda, kumpulan HP, kepakaran kekal dan tiga forge Stronghold {{tactics}} (lemah / sederhana / kuat). Rakan sepasukan berkongsi kesatuan forge mereka {{tactics}}.",
+    "sub": "Sebelum pusingan pertama, setiap pemain memilih {{commander}}. Ia menetapkan tentera permulaan anda, kumpulan HP, kepakaran kekal dan tiga {{tactics}} yang dibeli di Garrison (lemah / sederhana / kuat). Rakan sepasukan berkongsi kesatuan forge mereka {{tactics}}.",
     "select": "Pilih {{commander}}"
   },
   "runes": {
@@ -110,7 +110,7 @@
     "mixed": "Campuran"
   },
   "tactics": {
-    "sub": "Ini adalah kemahiran pada jalur {{tactics}} {{sep}} anda, rali, tumpahan, saman dan lontaran pertempuran seperti nafas api naga. Jampi pertempuran dibeli di Kubu kuat anda, sekali setiap satu, dan hanya tiga komander anda yang tahu. Ikon sepadan dengan apa yang anda lihat dalam permainan.",
+    "sub": "Ini adalah kemahiran pada jalur {{tactics}} {{sep}} anda, rali, tumpahan, saman dan lontaran pertempuran seperti nafas api naga. Jampi pertempuran dibeli di Garrison anda, sekali setiap satu, dan hanya tiga komander anda yang tahu. Ikon sepadan dengan apa yang anda lihat dalam permainan.",
     "select": "Pilih {{tactic}}",
     "placement": "Penempatan",
     "oneShot": "Satu tembakan",
@@ -126,7 +126,7 @@
   },
   "roundCards": {
     "title": "Kad pusingan",
-    "sub": "Dari pusingan kedua dan seterusnya, draf salah satu daripada beberapa kad {{items}} yang ditawarkan yang diambil dari kolam perlawanan. Jampi pertempuran dibeli di Stronghold, bukan didraf daripada kad.",
+    "sub": "Dari pusingan kedua dan seterusnya, draf salah satu daripada beberapa kad {{items}} yang ditawarkan yang diambil dari kolam perlawanan. Jampi pertempuran dibeli di Garrison, bukan didraf daripada kad.",
     "select": "Pilih kad pusingan"
   },
   "music": {

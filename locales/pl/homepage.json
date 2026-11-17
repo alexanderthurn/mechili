@@ -93,7 +93,7 @@
     }
   },
   "commanders": {
-    "sub": "Przed pierwszą rundą każdy gracz wybiera {{commander}}. Ustawia on twoją armię początkową, pulę punktów zdrowia, stałą specjalizację oraz trzy kuźnie Twierdzy {{tactics}} (słabe / średnie / silne). Członkowie drużyny dzielą się swoją kuźnią {{tactics}}.",
+    "sub": "Przed pierwszą rundą każdy gracz wybiera {{commander}}. Ustawia on twoją armię początkową, pulę punktów zdrowia, stałą specjalizację oraz trzy {{tactics}} do kupienia w Garnizonie (słabe / średnie / silne). Członkowie drużyny dzielą się swoją kuźnią {{tactics}}.",
     "select": "Wybierz {{commander}}"
   },
   "runes": {
@@ -110,7 +110,7 @@
     "mixed": "Mieszane"
   },
   "tactics": {
-    "sub": "To umiejętności z twojego paska {{tactics}} {{sep}} zbiórki, kałuże, przywołania i zaklęcia bojowe jak oddech smoka. Zaklęcia bojowe kupujesz w Fortecy, każde raz, i tylko te trzy, które zna twój dowódca. Ikony odpowiadają tym w grze.",
+    "sub": "To umiejętności z twojego paska {{tactics}} {{sep}} zbiórki, kałuże, przywołania i zaklęcia bojowe jak oddech smoka. Zaklęcia bojowe kupujesz w Garnizonie, każde raz, i tylko te trzy, które zna twój dowódca. Ikony odpowiadają tym w grze.",
     "select": "Wybierz {{tactic}}",
     "placement": "Umieszczenie",
     "oneShot": "Jednorazowy",
@@ -126,7 +126,7 @@
   },
   "roundCards": {
     "title": "Karty rundy",
-    "sub": "Od drugiej rundy dobieraj jedną z kilku oferowanych kart {{items}} z puli meczowej. Zaklęcia bojowe kupuje się w Twierdzy, a nie dobiera z kart.",
+    "sub": "Od drugiej rundy dobieraj jedną z kilku oferowanych kart {{items}} z puli meczowej. Zaklęcia bojowe kupuje się w Garnizonie, a nie dobiera z kart.",
     "select": "Wybierz kartę rundy"
   },
   "music": {

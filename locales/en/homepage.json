@@ -93,7 +93,7 @@
     }
   },
   "commanders": {
-    "sub": "Before round one, each player picks a {{commander}}. It sets your starting army, HP pool, a permanent speciality, and three Stronghold forge {{tactics}} (weak / mid / strong). Teammates share the union of their forge {{tactics}}.",
+    "sub": "Before round one, each player picks a {{commander}}. It sets your starting army, HP pool, a permanent speciality, and three {{tactics}} to buy at the Garrison (weak / mid / strong). Teammates share the union of their forge {{tactics}}.",
     "select": "Choose a {{commander}}"
   },
   "runes": {
@@ -110,7 +110,7 @@
     "forgeLabel": "Card price"
   },
   "tactics": {
-    "sub": "These are the skills on your {{tactics}} strip {{sep}} rallies, spills, summons, and battle casts like the dragon’s fire breath. Battle spells are bought at your Stronghold, once each, and only the three your commander knows. Icons match what you see in-game.",
+    "sub": "These are the skills on your {{tactics}} strip {{sep}} rallies, spills, summons, and battle casts like the dragon’s fire breath. Battle spells are bought at your Garrison, once each, and only the three your commander knows. Icons match what you see in-game.",
     "select": "Choose a {{tactic}}",
     "placement": "Placement",
     "oneShot": "One-shot",
@@ -126,7 +126,7 @@
   },
   "roundCards": {
     "title": "Round cards",
-    "sub": "From round two onward, draft one of several offered {{items}} cards drawn from the match pool. Battle spells are bought at the Stronghold, not drafted from cards.",
+    "sub": "From round two onward, draft one of several offered {{items}} cards drawn from the match pool. Battle spells are bought at the Garrison, not drafted from cards.",
     "select": "Choose a round card"
   },
   "music": {

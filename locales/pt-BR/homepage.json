@@ -93,7 +93,7 @@
     }
   },
   "commanders": {
-    "sub": "Antes da primeira rodada, cada jogador escolhe um {{commander}}. Ele define seu exército inicial, a quantidade de pontos de vida, uma especialidade permanente e três forjas de fortaleza {{tactics}} (fraca/média/forte). Os companheiros de equipe compartilham a união de suas forjas {{tactics}}.",
+    "sub": "Antes da primeira rodada, cada jogador escolhe um {{commander}}. Ele define seu exército inicial, a quantidade de pontos de vida, uma especialidade permanente e três {{tactics}} que se compram na Guarnição (fraca/média/forte). Os companheiros de equipe compartilham a união de suas forjas {{tactics}}.",
     "select": "Escolha um {{commander}}"
   },
   "runes": {
@@ -110,7 +110,7 @@
     "mixed": "Mista"
   },
   "tactics": {
-    "sub": "Essas são as habilidades da sua faixa {{tactics}} {{sep}} rotas de Rally, derramamentos, invocações e feitiços de batalha como o sopro de fogo do dragão. Feitiços de batalha são comprados na Fortaleza, uma vez cada, e só os três que seu comandante conhece. Os ícones batem com os do jogo.",
+    "sub": "Essas são as habilidades da sua faixa {{tactics}} {{sep}} rotas de Rally, derramamentos, invocações e feitiços de batalha como o sopro de fogo do dragão. Feitiços de batalha são comprados na Guarnição, uma vez cada, e só os três que seu comandante conhece. Os ícones batem com os do jogo.",
     "select": "Escolha um {{tactic}}",
     "placement": "Colocação",
     "oneShot": "One-shot",
@@ -126,7 +126,7 @@
   },
   "roundCards": {
     "title": "Cartas de rodada",
-    "sub": "A partir da segunda rodada, escolha uma das várias cartas {{items}} oferecidas, sorteadas do conjunto de cartas da partida. Feitiços de batalha são comprados na Fortaleza, não sorteados de cartas.",
+    "sub": "A partir da segunda rodada, escolha uma das várias cartas {{items}} oferecidas, sorteadas do conjunto de cartas da partida. Feitiços de batalha são comprados na Guarnição, não sorteados de cartas.",
     "select": "Escolha uma carta de rodada"
   },
   "music": {

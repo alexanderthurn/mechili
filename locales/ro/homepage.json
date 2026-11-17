@@ -93,7 +93,7 @@
     }
   },
   "commanders": {
-    "sub": "Înainte de prima rundă, fiecare jucător alege un {{commander}}. Acesta stabilește armata de pornire, rezerva de HP, o specialitate permanentă și trei forje Stronghold {{tactics}} (slab / mediu / puternic). Coechipierii împart uniunea forjei lor {{tactics}}.",
+    "sub": "Înainte de prima rundă, fiecare jucător alege un {{commander}}. Acesta stabilește armata de pornire, rezerva de HP, o specialitate permanentă și trei {{tactics}} de cumpărat din Garnizoană (slab / mediu / puternic). Coechipierii împart uniunea forjei lor {{tactics}}.",
     "select": "Alege un {{commander}}"
   },
   "runes": {
@@ -110,7 +110,7 @@
     "mixed": "Amestecat"
   },
   "tactics": {
-    "sub": "Acestea sunt abilitățile de pe banda ta {{tactics}} {{sep}}: adunări, revărsări, invocări și folosiri de luptă, cum ar fi respirația de foc a dragonului. Vrăjile de luptă se cumpără la Fortăreața ta, o singură dată, și doar cele trei pe care le cunoaște comandantul tău. Pictogramele se potrivesc cu ceea ce vezi în joc.",
+    "sub": "Acestea sunt abilitățile de pe banda ta {{tactics}} {{sep}}: adunări, revărsări, invocări și folosiri de luptă, cum ar fi respirația de foc a dragonului. Vrăjile de luptă se cumpără la Garnizoana ta, o singură dată, și doar cele trei pe care le cunoaște comandantul tău. Pictogramele se potrivesc cu ceea ce vezi în joc.",
     "select": "Alege un {{tactic}}",
     "placement": "Plasament",
     "oneShot": "O singură lovitură",
@@ -126,7 +126,7 @@
   },
   "roundCards": {
     "title": "Cărți de rundă",
-    "sub": "Din runda a doua încolo, alege una dintre cărțile {{items}} oferite, trase din rezerva de potrivire. Vrăjile de luptă se cumpără la Fortăreață, nu se draftează din cărți.",
+    "sub": "Din runda a doua încolo, alege una dintre cărțile {{items}} oferite, trase din rezerva de potrivire. Vrăjile de luptă se cumpără la Garnizoană, nu se draftează din cărți.",
     "select": "Alege o carte de rundă"
   },
   "music": {

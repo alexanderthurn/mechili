@@ -67,6 +67,7 @@ import {
     TUTORIAL_2_ID,
     TUTORIAL_2_ROUNDS,
     TUTORIAL_2_STRONGHOLD_ROW_FRAC,
+    TUTORIAL_3_BOOST_MAX_TIERS,
     TUTORIAL_3_ID,
     TUTORIAL_3_ROUNDS,
     TUTORIAL_3_R3_DWARVES,
@@ -95,6 +96,8 @@ import {
     setupTutorial3Round,
     setupTutorial4Round,
     setupTutorial5Round,
+    spawnBuilding,
+    spawnPlayerStronghold,
 } from './tutorialRounds34';
 import type { TypeRegistry } from './content/typeRegistry';
 
@@ -328,11 +331,13 @@ export class TutorialRuntime {
         return new TutorialGuide2(mount, (target, spellId) => {
             // Panel / phone-bar tiles must exist before the callout binds —
             // paint Stronghold selection first (same pattern as Tutorial 3).
-            if (
-                target === 'stronghold-archers' ||
-                target === 'upgrade' ||
-                target === 'forge-spell'
-            ) {
+            if (target === 'forge-spell') {
+                // the commander spells are sold at the Garrison
+                this.ensurePlayerGarrisonSelected();
+                const g = this.playerGarrison();
+                if (g) this.host.hud.setSelection(this.host.unitInfo(g));
+                this.host.updateSelectionUi();
+            } else if (target === 'stronghold-archers' || target === 'upgrade') {
                 this.ensurePlayerStrongholdSelected();
                 const keep = this.playerStronghold();
                 if (keep) this.host.hud.setSelection(this.host.unitInfo(keep));
@@ -366,11 +371,12 @@ export class TutorialRuntime {
             this.ensurePlayerCommandTowerSelected();
             const tower = this.playerCommandTower();
             if (tower) host.hud.setSelection(host.unitInfo(tower));
-        } else if (
-            target === 'deploy-slot' ||
-            target === 'recruit-l2' ||
-            target === 'tower-upgrade'
-        ) {
+        } else if (target === 'deploy-slot' || target === 'recruit-l2') {
+            // Recruit at Level 2 and +1 Deploy are the Stronghold's
+            this.ensurePlayerStrongholdSelected();
+            const keep = this.playerStronghold();
+            if (keep) host.hud.setSelection(host.unitInfo(keep));
+        } else if (target === 'tower-upgrade') {
             this.ensurePlayerGarrisonSelected();
             const g = this.playerGarrison();
             if (g) host.hud.setSelection(host.unitInfo(g));
@@ -787,7 +793,7 @@ export class TutorialRuntime {
             this.STRONGHOLD.footprint,
             'player',
         );
-        host.placement.spawn(
+        const keep = host.placement.spawn(
             this.STRONGHOLD,
             cell,
             'player',
@@ -795,6 +801,7 @@ export class TutorialRuntime {
             false,
             primarySeatOf(host.seats, 'player'),
         );
+        if (keep) keep.baseAnchored = true; // placed by the lesson, not movable
     }
 
     private spawnEnemyStronghold(): void {
@@ -811,7 +818,7 @@ export class TutorialRuntime {
             this.STRONGHOLD.footprint,
             'enemy',
         );
-        host.placement.spawn(
+        const keep = host.placement.spawn(
             this.STRONGHOLD,
             cell,
             'enemy',
@@ -819,6 +826,7 @@ export class TutorialRuntime {
             false,
             primarySeatOf(host.seats, 'enemy'),
         );
+        if (keep) keep.baseAnchored = true; // placed by the lesson, not movable
     }
 
     private setupRound2(round: number): void {
@@ -865,6 +873,12 @@ export class TutorialRuntime {
             // archer is one of the round's buys, like a pack)
             host.deployState.limit[host.humanSeat] = round === 1 ? TUTORIAL_2_ARCHER_COUNT : 0;
             host.hud.setShopColumnVisible(false);
+        }
+
+        // the commander spells are the Garrison's: it stands from round 2 on (again, if
+        // the last battle broke it — round 3 buys Summon there too)
+        if (round >= 2 && !this.playerGarrison()) {
+            spawnBuilding(host, this.RESEARCH_CENTER, BASE_ANCHORS.research.xFrac, TUTORIAL_2_STRONGHOLD_ROW_FRAC, 'player');
         }
 
         if (round >= 2) {
@@ -929,6 +943,10 @@ export class TutorialRuntime {
             keepLevel: keep?.level ?? 1,
             keepMaxLevel: host.settings.towers.upgrade.maxLevel,
             keepSelected: !!keep && host.placement.selectedUnit?.id === keep.id,
+            garrisonSelected: (() => {
+                const g = this.playerGarrison();
+                return !!g && host.placement.selectedUnit?.id === g.id;
+            })(),
             forgeOwned: host.forgeSpellOwned[host.humanSeat] ?? [],
             oilArmed: host.armedTactic === OIL_SPILL_ID,
             oilStartDrafted,
@@ -1092,6 +1110,16 @@ export class TutorialRuntime {
         return this.lesson === TUTORIAL_2_ID && this.host.round < 2;
     }
 
+    /** Tutorial 2 never uses the forge: the Stronghold panel leaves it out */
+    get forgeHidden(): boolean {
+        return this.lesson === TUTORIAL_2_ID;
+    }
+
+    /** Tutorial 2 upgrades the Stronghold only: the Garrison's upgrade tile stays out */
+    hidesTowerUpgrade(u: Unit): boolean {
+        return this.lesson === TUTORIAL_2_ID && u.type !== this.STRONGHOLD;
+    }
+
     /** Forge spells buyable this round (Tutorial 2 gates oil/dragon vs summon by round). */
     forgeSpellsOf(seat: SeatId): readonly string[] | undefined {
         const spells = this.host.starterForgeSpellsOf(seat);
@@ -1113,6 +1141,14 @@ export class TutorialRuntime {
             garrison: this.RESEARCH_CENTER,
             vanguard: this.COMMAND_TOWER,
         });
+        // round 3 buys Recruit at Level 2 and +1 Deploy, which are the Stronghold's: it
+        // stands for that round only (a plain building — the lesson has no lifeline),
+        // round 4 is the Garrison's own again
+        if (round === 3) spawnPlayerStronghold(host, this.STRONGHOLD);
+        else if (round === 4) {
+            const keep = this.playerStronghold();
+            if (keep) host.placement.removeUnit(keep);
+        }
         if (round === 1) {
             this.placeSlots3 = [tutorial3DwarfSlot(host.map), tutorial3BallistaSlot(host.map)];
         } else {
@@ -1154,6 +1190,7 @@ export class TutorialRuntime {
             this.placeSlots3,
             this.RESEARCH_CENTER,
             this.COMMAND_TOWER,
+            this.STRONGHOLD,
         );
     }
 
@@ -1165,18 +1202,18 @@ export class TutorialRuntime {
         if (!this.guide3 || this.lesson !== TUTORIAL_3_ID) return;
         const prev = this.guide3.currentStep;
         this.guide3.syncFromBoard(this.board3());
-        // After the first two L2 dwarves, force a fresh Garrison click for +1 slot.
+        // After the first two L2 dwarves, force a fresh Stronghold click for +1 slot.
         if (prev === 'r3BuyTwo' && this.guide3.currentStep === 'r3SelectGarrisonAgain') {
             this.host.placement.deselect();
         }
         const step = this.guide3.currentStep;
+        // the building each step works in — the same one its highlight opens
+        // (onGuide3Highlight), or the two would select each other forever
         if (step === 'r2BoostAttack' || step === 'r2BoostHp' || step === 'r2End') {
             this.ensurePlayerCommandTowerSelected();
-        } else if (
-            step === 'r3Recruit' ||
-            step === 'r3DeploySlot' ||
-            step === 'r4Upgrade'
-        ) {
+        } else if (step === 'r3Recruit' || step === 'r3DeploySlot') {
+            this.ensurePlayerStrongholdSelected();
+        } else if (step === 'r4Upgrade') {
             this.ensurePlayerGarrisonSelected();
         }
         this.refresh3Zones();
@@ -1348,6 +1385,11 @@ export class TutorialRuntime {
      * Tutorial 3 R2: which Vanguard boost rows are live. `null` = unrestricted.
      * Attack first, then HP — never both at once.
      */
+    /** Tutorial 3 buys two levels of each boost: the panel and the buy stop there */
+    boostTierCap(): number | null {
+        return this.lesson === TUTORIAL_3_ID ? TUTORIAL_3_BOOST_MAX_TIERS : null;
+    }
+
     allowedBoostIds(): ('attack' | 'hp')[] | null {
         if (this.lesson !== TUTORIAL_3_ID || this.host.round !== 2) return null;
         const step = this.guide3?.currentStep;
@@ -1358,6 +1400,8 @@ export class TutorialRuntime {
     }
 
     blocksBuyBoost(boost: 'attack' | 'hp'): boolean {
+        const cap = this.boostTierCap();
+        if (cap !== null && (this.host.boostState[boost][this.host.humanSeat] ?? 0) >= cap) return true;
         const allowed = this.allowedBoostIds();
         if (allowed === null) {
             if (this.lesson === TUTORIAL_3_ID && this.host.round !== 2) {
@@ -1385,6 +1429,9 @@ export class TutorialRuntime {
         extras: boolean;
         upgrade: boolean;
     } | null {
+        // Tutorial 2 teaches spells, battlement archers and the keep's upgrade only:
+        // Recruit, +1 Deploy, Credit and the round boosts stay out of its panels
+        if (this.lesson === TUTORIAL_2_ID) return { recruit: false, deploySlot: false, extras: false, upgrade: true };
         if (this.lesson !== TUTORIAL_3_ID) return null;
         const round = this.host.round;
         const step = this.guide3?.currentStep;
@@ -1599,7 +1646,7 @@ export class TutorialRuntime {
                     step === 'r3SelectGarrisonAgain' ||
                     step === 'r3DeploySlot'
                 ) {
-                    this.guide3?.nudge(t('tutorial:tutorial3NudgeGarrison'));
+                    this.guide3?.nudge(t('tutorial:tutorial3NudgeStronghold'));
                     return true;
                 }
                 if (step === 'r3BuyTwo' || step === 'r3BuyThird' || step === 'r3End') {

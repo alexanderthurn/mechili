@@ -135,7 +135,7 @@
     "movePackTitle": "移动编队",
     "movePackNote": "先锋 — 给予一次移动编队 {{tactic}} 充能",
     "commanderSpellsTitle": "指挥官法术",
-    "commanderSpellNote": "要塞 — 仅限知晓该法术的指挥官",
+    "commanderSpellNote": "守备营 — 仅限知晓该法术的指挥官",
     "vanguardSpellsTitle": "先锋法术",
     "vanguardSpellNote": "先锋 — 任何指挥官均可,每场一次",
     "boostsTitle": "强化",

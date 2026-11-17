@@ -93,7 +93,7 @@
     }
   },
   "commanders": {
-    "sub": "Voor de eerste ronde kiest elke speler een {{commander}}. Deze bepaalt je startleger, je HP-pool, een permanente specialiteit en drie Stronghold-smederijen {{tactics}} (zwak / gemiddeld / sterk). Teamgenoten delen de combinatie van hun smederijen {{tactics}}.",
+    "sub": "Voor de eerste ronde kiest elke speler een {{commander}}. Deze bepaalt je startleger, je HP-pool, een permanente specialiteit en drie {{tactics}} die je in het Garnizoen koopt (zwak / gemiddeld / sterk). Teamgenoten delen de combinatie van hun smederijen {{tactics}}.",
     "select": "Kies een {{commander}}"
   },
   "runes": {
@@ -110,7 +110,7 @@
     "mixed": "Gemengd"
   },
   "tactics": {
-    "sub": "Dit zijn de vaardigheden op je {{tactics}}-strip: {{sep}}-oproepen, spreuken, summons en gevechtsspreuken zoals de vuuradem van de draak. Gevechtsspreuken worden in je vesting gekocht, één keer per stuk, en alleen de drie die je commandant kent. De pictogrammen komen overeen met wat je in het spel ziet.",
+    "sub": "Dit zijn de vaardigheden op je {{tactics}}-strip: {{sep}}-oproepen, spreuken, summons en gevechtsspreuken zoals de vuuradem van de draak. Gevechtsspreuken worden in je Garnizoen gekocht, één keer per stuk, en alleen de drie die je commandant kent. De pictogrammen komen overeen met wat je in het spel ziet.",
     "select": "Kies een {{tactic}}",
     "placement": "Plaatsing",
     "oneShot": "Eenmalig",
@@ -126,7 +126,7 @@
   },
   "roundCards": {
     "title": "Rondekaarten",
-    "sub": "Vanaf ronde twee kies je één van de verschillende aangeboden {{items}}-kaarten uit de wedstrijdpool. Gevechtsspreuken worden gekocht in de Stronghold, niet gekozen uit kaarten.",
+    "sub": "Vanaf ronde twee kies je één van de verschillende aangeboden {{items}}-kaarten uit de wedstrijdpool. Gevechtsspreuken worden gekocht in het Garnizoen, niet gekozen uit kaarten.",
     "select": "Kies een rondekaart"
   },
   "music": {

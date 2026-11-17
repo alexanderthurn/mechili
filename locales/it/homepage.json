@@ -93,7 +93,7 @@
     }
   },
   "commanders": {
-    "sub": "Prima del primo round, ogni giocatore sceglie un {{commander}}. Questo determina il tuo esercito iniziale, i tuoi punti vita, una specializzazione permanente e tre forgia della Fortezza {{tactics}} (debole / media / forte). I compagni di squadra condividono l'unione della loro forgia {{tactics}}.",
+    "sub": "Prima del primo round, ogni giocatore sceglie un {{commander}}. Questo determina il tuo esercito iniziale, i tuoi punti vita, una specializzazione permanente e tre {{tactics}} da comprare alla Guarnigione (debole / media / forte). I compagni di squadra condividono l'unione della loro forgia {{tactics}}.",
     "select": "Scegli un {{commander}}"
   },
   "runes": {
@@ -110,7 +110,7 @@
     "mixed": "Mista"
   },
   "tactics": {
-    "sub": "Queste sono le abilità della tua barra {{tactics}} {{sep}} raduni, pozze, evocazioni e incantesimi di battaglia come il soffio di fuoco del drago. Gli incantesimi di battaglia si comprano alla Roccaforte, una volta ciascuno, e solo i tre che conosce il tuo comandante. Le icone corrispondono a quelle di gioco.",
+    "sub": "Queste sono le abilità della tua barra {{tactics}} {{sep}} raduni, pozze, evocazioni e incantesimi di battaglia come il soffio di fuoco del drago. Gli incantesimi di battaglia si comprano alla Guarnigione, una volta ciascuno, e solo i tre che conosce il tuo comandante. Le icone corrispondono a quelle di gioco.",
     "select": "Scegli un {{tactic}}",
     "placement": "Posizionamento",
     "oneShot": "Un colpo solo",
@@ -126,7 +126,7 @@
   },
   "roundCards": {
     "title": "Carte del round",
-    "sub": "Dal secondo round in poi, scegli una delle diverse carte {{items}} offerte, pescate dal pool di carte della partita. Gli incantesimi di battaglia si acquistano alla Fortezza, non si scelgono dalle carte.",
+    "sub": "Dal secondo round in poi, scegli una delle diverse carte {{items}} offerte, pescate dal pool di carte della partita. Gli incantesimi di battaglia si acquistano alla Guarnigione, non si scelgono dalle carte.",
     "select": "Scegli una carta del round"
   },
   "music": {

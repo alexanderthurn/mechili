@@ -197,6 +197,7 @@ export class SelectionInfoBuilder {
             towerUpgrade: (() => {
                 if (!ownInteractive || !u.type.structure || (u.type.extra && !u.type.wall) || this.host.tutorial?.boostLessonOnly) return undefined;
                 if (this.host.tutorial?.allowedGarrisonOffers()?.upgrade === false) return undefined;
+                if (this.host.tutorial?.hidesTowerUpgrade(u)) return undefined;
                 const up = buildingUpgradeFor(u, this.host.humanSeat, this.host.settings.towers);
                 if (!up) return undefined; // an ally's own tower
                 return {
@@ -449,7 +450,9 @@ export class SelectionInfoBuilder {
             const tiers =
                 id === 'attack' ? this.host.settings.boosts.attackTiers : this.host.settings.boosts.hpTiers;
             const tier = id === 'attack' ? intel.boostAttack : intel.boostHp;
-            const maxed = tier >= tiers.length;
+            // a lesson may stop short of the match's top level (Tutorial 3: two)
+            const top = Math.min(tiers.length, this.host.tutorial?.boostTierCap() ?? tiers.length);
+            const maxed = tier >= top;
             const pct = Math.round(tiers[maxed ? tier - 1 : tier]! * 100);
             const cost = maxed ? 0 : this.host.settings.boosts.costs[tier]!;
             const allowed = this.host.tutorial?.allowedBoostIds();
@@ -468,12 +471,8 @@ export class SelectionInfoBuilder {
         // Tutorial 3 round 2 is the boost lesson — the other tracks would only
         // drain the supply its End Deployment gate needs.
         if (this.host.tutorial?.boostLessonOnly) {
-            const allowed = this.host.tutorial.allowedBoostIds();
-            const shown =
-                allowed === null
-                    ? boosts
-                    : boosts?.filter((b) => allowed.includes(b.id) || b.maxed);
-            return { boosts: has('armyBoosts') ? shown : undefined };
+            // both rows from the start; the one not taught yet stays locked (allowedBoostIds)
+            return { boosts: has('armyBoosts') ? boosts : undefined };
         }
         // Later Tutorial 3 rounds: hide Vanguard buys entirely (Garrison lesson).
         if (this.host.tutorial?.allowedGarrisonOffers()) {
@@ -639,7 +638,7 @@ export class SelectionInfoBuilder {
               })
             : [];
 
-        if (!has('forge')) return out;
+        if (!has('forge') || this.host.tutorial?.forgeHidden) return out;
 
         const snapIds =
             fogged && this.host.buildingIntelSnapshot

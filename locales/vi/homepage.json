@@ -93,7 +93,7 @@
     }
   },
   "commanders": {
-    "sub": "Trước vòng một, mỗi người chơi chọn một {{commander}}. Nó sẽ thiết lập đội quân khởi đầu, lượng HP, một chuyên môn vĩnh viễn và ba lò rèn Thành trì {{tactics}} (yếu / trung bình / mạnh). Đồng đội chia sẻ liên minh lò rèn {{tactics}} của họ.",
+    "sub": "Trước vòng một, mỗi người chơi chọn một {{commander}}. Nó sẽ thiết lập đội quân khởi đầu, lượng HP, một chuyên môn vĩnh viễn và ba {{tactics}} mua tại Đồn trú (yếu / trung bình / mạnh). Đồng đội chia sẻ liên minh lò rèn {{tactics}} của họ.",
     "select": "Chọn một {{commander}}"
   },
   "runes": {
@@ -110,7 +110,7 @@
     "mixed": "Pha trộn"
   },
   "tactics": {
-    "sub": "Đây là các kỹ năng trên dải {{tactics}} của bạn, bao gồm các đòn tấn công, hiệu ứng tràn lan, triệu hồi và các phép thuật chiến đấu như hơi thở lửa của rồng. Các phép thuật chiến đấu được mua tại Thành trì của bạn, mỗi loại một lần và chỉ có ba phép thuật mà chỉ huy của bạn biết. Các biểu tượng khớp với những gì bạn thấy trong trò chơi. {{sep}}",
+    "sub": "Đây là các kỹ năng trên dải {{tactics}} của bạn, bao gồm các đòn tấn công, hiệu ứng tràn lan, triệu hồi và các phép thuật chiến đấu như hơi thở lửa của rồng. Các phép thuật chiến đấu được mua tại Đồn trú của bạn, mỗi loại một lần và chỉ có ba phép thuật mà chỉ huy của bạn biết. Các biểu tượng khớp với những gì bạn thấy trong trò chơi. {{sep}}",
     "select": "Chọn một {{tactic}}",
     "placement": "Vị trí",
     "oneShot": "Một lần",
@@ -126,7 +126,7 @@
   },
   "roundCards": {
     "title": "Thẻ vòng",
-    "sub": "Từ vòng hai trở đi, hãy chọn một trong số các lá bài {{items}} được cung cấp từ bộ bài của trận đấu. Các lá bài phép thuật chiến đấu được mua tại Pháo đài, chứ không phải được chọn từ các lá bài.",
+    "sub": "Từ vòng hai trở đi, hãy chọn một trong số các lá bài {{items}} được cung cấp từ bộ bài của trận đấu. Các lá bài phép thuật chiến đấu được mua tại Đồn trú, chứ không phải được chọn từ các lá bài.",
     "select": "Chọn một thẻ vòng"
   },
   "music": {

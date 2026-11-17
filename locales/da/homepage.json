@@ -93,7 +93,7 @@
     }
   },
   "commanders": {
-    "sub": "Før første runde vælger hver spiller en {{commander}}. Den bestemmer din starthær, HP-pulje, en permanent specialitet og tre stærke smedjer {{tactics}} (svag / mellem / stærk). Holdkammerater deler foreningen af deres smedjer {{tactics}}.",
+    "sub": "Før første runde vælger hver spiller en {{commander}}. Den bestemmer din starthær, HP-pulje, en permanent specialitet og tre {{tactics}}, der købes i Garnisonen (svag / mellem / stærk). Holdkammerater deler foreningen af deres smedjer {{tactics}}.",
     "select": "Vælg en {{commander}}"
   },
   "runes": {
@@ -110,7 +110,7 @@
     "mixed": "Blandet"
   },
   "tactics": {
-    "sub": "Disse er færdighederne på din {{tactics}} stribe {{sep}} samlinger, spild, indkaldelser og kampkast som dragens ildånde. Kampbesværgelser købes i din Fæstning, én gang hver, og kun de tre, din kommandør kender. Ikonerne matcher det, du ser i spillet.",
+    "sub": "Disse er færdighederne på din {{tactics}} stribe {{sep}} samlinger, spild, indkaldelser og kampkast som dragens ildånde. Kampbesværgelser købes i din Garnison, én gang hver, og kun de tre, din kommandør kender. Ikonerne matcher det, du ser i spillet.",
     "select": "Vælg en {{tactic}}",
     "placement": "Placering",
     "oneShot": "One-shot",
@@ -126,7 +126,7 @@
   },
   "roundCards": {
     "title": "Rundekort",
-    "sub": "Fra runde to og fremefter skal du udvælge et af flere tilbudte {{items}}-kort, der trækkes fra kamppuljen. Kampbesværgelser købes i Fæstningen, ikke udvælges fra kort.",
+    "sub": "Fra runde to og fremefter skal du udvælge et af flere tilbudte {{items}}-kort, der trækkes fra kamppuljen. Kampbesværgelser købes i Garnisonen, ikke udvælges fra kort.",
     "select": "Vælg et rundekort"
   },
   "music": {
