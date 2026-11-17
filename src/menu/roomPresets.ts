@@ -92,7 +92,7 @@ export const ROOM_PRESETS: readonly RoomPreset[] = [
             fixedSideHp: null,
             walls: 'normal',
             postedUnits: 'passiveCheap',
-            seasons: 'randomSeason',
+            seasons: 'randomYear',
         },
     },
 ];

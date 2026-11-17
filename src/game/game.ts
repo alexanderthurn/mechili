@@ -4076,7 +4076,9 @@ export class Game {
         if (!atmosphere) {
             // the Seasons setting: which scenes, and (random modes) a pick from the match seed
             const seasons = { mode: seasonsModeOption(this.settings.seasons), pick: seedFrom(this.seed, 'seasons') };
-            this.weather?.onRound(sceneRound, this.hydrating || this.replayFastForward, seasons);
+            // the match's first scene stands at once — a winter start already lies under its snow;
+            // later rounds ease in (the snow falls and builds slowly)
+            this.weather?.onRound(sceneRound, this.round === 1 || this.hydrating || this.replayFastForward, seasons);
         }
         else if (this.round === 1) {
             this.weather?.setScene(
