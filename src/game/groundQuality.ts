@@ -523,18 +523,27 @@ export function textureBombGlsl(sample: (uv: string) => string): string {
 const BOMB_STRENGTH = 0.25;
 
 /**
- * GLSL (global scope): smooth value noise for the slope look's ragged edges.
+ * GLSL (global scope): smooth noise for the slope look's ragged edges, in 0…1.
+ * Gradient (Perlin) noise: a random DIRECTION per lattice point, not a random
+ * value — value noise interpolated row by row stretched every lone high or low
+ * point along the lattice axes, and cut at a threshold (snow, patches) that
+ * showed as plus- and cross-shaped blots. Gradient noise has round features.
  */
 export const SLOPE_GROUND_FNS = `
+vec2 slopeGrad( vec2 i ) {
+	float a = fract( sin( dot( i, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ) * 6.2831853;
+	return vec2( cos( a ), sin( a ) );
+}
 float slopeNoise( vec2 p ) {
 	vec2 i = floor( p );
 	vec2 f = fract( p );
-	f = f * f * ( 3.0 - 2.0 * f );
-	float a = fract( sin( dot( i, vec2( 127.1, 311.7 ) ) ) * 43758.5453 );
-	float b = fract( sin( dot( i + vec2( 1.0, 0.0 ), vec2( 127.1, 311.7 ) ) ) * 43758.5453 );
-	float c = fract( sin( dot( i + vec2( 0.0, 1.0 ), vec2( 127.1, 311.7 ) ) ) * 43758.5453 );
-	float d = fract( sin( dot( i + vec2( 1.0, 1.0 ), vec2( 127.1, 311.7 ) ) ) * 43758.5453 );
-	return mix( mix( a, b, f.x ), mix( c, d, f.x ), f.y );
+	vec2 u = f * f * f * ( f * ( f * 6.0 - 15.0 ) + 10.0 );
+	float a = dot( slopeGrad( i ), f );
+	float b = dot( slopeGrad( i + vec2( 1.0, 0.0 ) ), f - vec2( 1.0, 0.0 ) );
+	float c = dot( slopeGrad( i + vec2( 0.0, 1.0 ) ), f - vec2( 0.0, 1.0 ) );
+	float d = dot( slopeGrad( i + vec2( 1.0, 1.0 ) ), f - vec2( 1.0, 1.0 ) );
+	// about ±0.7 around 0 → 0…1 with roughly the spread the value noise had
+	return clamp( mix( mix( a, b, u.x ), mix( c, d, u.x ), u.y ) + 0.5, 0.0, 1.0 );
 }
 `;
 
@@ -731,9 +740,28 @@ export const SLOPE_ROCK_NORMAL_APPLY_GLSL = `
  * stay readable in winter; loose drifts break up the edges. Needs
  * {	link slopeGroundGlsl} earlier in the same shader (slopeGrade, slopeVar, slopeP).
  */
+/**
+ * How much of the weather snow a slope holds: snow LIES or it doesn't — a narrow
+ * edge around a grade of ~0.65 (about 33°), broken up by noise like wind-blown
+ * snow — instead of fading over 0.3…0.85, which left every hillside a see-through
+ * blend of white and the ground under it.
+ */
 export const SNOW_SLOPE_HOLD_GLSL = `
-	float snowSlopeHold = 1.0 - smoothstep( 0.3, 0.85, slopeGrade + slopeVar * 0.3 );
-	snowSlopeHold *= mix( 1.0, smoothstep( 0.2, 0.55, slopeNoise( slopeP.xz / 13.0 + 71.9 ) ), 0.3 );
+	float snowSlopeHold = 1.0 - smoothstep( 0.6, 0.68, slopeGrade + slopeVar * 0.35 + ( slopeNoise( slopeP.xz / 13.0 + 71.9 ) - 0.5 ) * 0.3 );
+`;
+
+/**
+ * Winter on the ground the snow leaves bare (steep flanks, before it settles):
+ * the summer tones — dry straw, the sandy hillside earth — go cold, grey-brown
+ * and a little darker, as frozen ground does, with the snow cover. Before the
+ * snow is painted; reads `uSnowCover`.
+ */
+export const WINTER_BARE_GROUND_GLSL = `
+	{
+		float winterK = smoothstep( 0.05, 0.4, uSnowCover );
+		float winterLum = dot( diffuseColor.rgb, vec3( 0.299, 0.587, 0.114 ) );
+		diffuseColor.rgb = mix( diffuseColor.rgb, vec3( winterLum ) * vec3( 0.80, 0.79, 0.84 ) * 0.85, winterK * 0.65 );
+	}
 `;
 
 /** weather snow colour on the lawn — a touch below pure white so light and shade still shape the hills */

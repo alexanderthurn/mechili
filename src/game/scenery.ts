@@ -61,7 +61,7 @@ import {
     worldHeightAt,
     type BattleMap,
 } from './map';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, HEX_MAP_FRAGMENT_GLSL, HEX_TILE_FNS, HEX_TILE_UNIFORM_DECL, hexNormalFragmentMapsGlsl, texRGB, GRASS_VARIANTS, grassVariantsGlsl, grassVariantsMapFragment, grassVariantsMeadowEdge, LAWN_SNOW_COLOR_GLSL, OUTER_LAWN_EDGE, OUTER_LAWN_FADE, OUTER_LAWN_TINT_GLSL, SLOPE_GROUND_FNS, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, HEX_MAP_FRAGMENT_GLSL, HEX_TILE_FNS, HEX_TILE_UNIFORM_DECL, hexNormalFragmentMapsGlsl, texRGB, GRASS_VARIANTS, grassVariantsGlsl, grassVariantsMapFragment, grassVariantsMeadowEdge, LAWN_SNOW_COLOR_GLSL, OUTER_LAWN_EDGE, OUTER_LAWN_FADE, OUTER_LAWN_TINT_GLSL, SLOPE_GROUND_FNS, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl, WINTER_BARE_GROUND_GLSL } from './groundQuality';
 import {
     barkUrl,
     foliageUrl,
@@ -3631,6 +3631,7 @@ ${pgClose}`;
                 rock: null,
                 fade: '1.0 - smoothstep( 10.0, 30.0, vTerrainH )',
             });
+            inject += WINTER_BARE_GROUND_GLSL;
             inject += `${SNOW_SLOPE_HOLD_GLSL}
     float meadowSnowHold = snowSlopeHold;
 ${OUTER_MOUNTAIN_SNOW_GLSL}
@@ -4839,7 +4840,7 @@ vec3 mossDetail( vec2 uv ) {
 `;
 
 /**
- * Shared outer snow. Meadow (low) matches the board (`map.ts`: snowMask * 0.82
+ * Shared outer snow. Meadow (low) matches the board (`map.ts`: snowMask * 0.95
  * toward 0.92/0.95/0.98). Mountains keep extra winter density + rock ribs.
  */
 const OUTER_MOUNTAIN_SNOW_GLSL = `
@@ -4857,7 +4858,7 @@ const OUTER_MOUNTAIN_SNOW_GLSL = `
     float alpineSnow = smoothstep(148.0, 215.0, vTerrainH) * snowHold * uAlpineCap;
     float snowLine = mix(220.0, -15.0, uSnowCover);
     float weatherSnow = smoothstep(snowLine - 40.0, snowLine + 15.0, vTerrainH);
-    float meadowSnow = weatherSnow * 0.82 * meadowSnowHold;
+    float meadowSnow = weatherSnow * 0.95 * meadowSnowHold;
     float winterAmp = mix(1.05, 1.68, smoothstep(0.72, 1.0, uSnowCover));
     float mountainLift = smoothstep(40.0, 170.0, vTerrainH) * deepWinter * 0.48 * (0.25 + 0.75 * slopeHold);
     float mountainSnow = min(1.0, max(alpineSnow, weatherSnow * snowHold * 0.92) * winterAmp + mountainLift);

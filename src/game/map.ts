@@ -15,7 +15,7 @@ import {
 import { hypot } from './detMath';
 import { TerrainGrid } from './terrainGrid';
 import { DEFAULT_TERRAIN_SHAPE, type TerrainShape } from './terrainShapes';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, HEX_MAP_FRAGMENT_GLSL, HEX_TILE_FNS, HEX_TILE_UNIFORM_DECL, hexNormalFragmentMapsGlsl, LAWN_SNOW_COLOR_GLSL, SLOPE_ROCK_NORMAL, SLOPE_ROCK_NORMAL_APPLY_GLSL, texRGB, GRASS_VARIANTS, GRASS_VARIANTS_MAP_FRAGMENT_GLSL, grassVariantsGlsl, SLOPE_GROUND_FNS, groundZonesGlsl, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, HEX_MAP_FRAGMENT_GLSL, HEX_TILE_FNS, HEX_TILE_UNIFORM_DECL, hexNormalFragmentMapsGlsl, LAWN_SNOW_COLOR_GLSL, SLOPE_ROCK_NORMAL, SLOPE_ROCK_NORMAL_APPLY_GLSL, texRGB, GRASS_VARIANTS, GRASS_VARIANTS_MAP_FRAGMENT_GLSL, grassVariantsGlsl, SLOPE_GROUND_FNS, groundZonesGlsl, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl, WINTER_BARE_GROUND_GLSL } from './groundQuality';
 import {
     grassAlbedoUrl,
     grassNormalUrl,
@@ -229,7 +229,7 @@ const HILLS = {
     warp: 14,
     warpWave: 70,
     /** the share of the noise that stays valley floor */
-    valley: 0.15,
+    valley: 0.28,
     /**
      * where the hills stand: full height towards the left and right of the deployment
      * zones, only `centerWeight` of it in the middle — blending from `sideFrom` × the
@@ -249,6 +249,53 @@ const HILLS = {
 /** cos / sin of the turn between two fBm layers (0.47 rad), as constants */
 const HILLS_TURN_COS = 0.8915683;
 const HILLS_TURN_SIN = 0.4528863;
+
+/** the eight gradient directions (unit vectors as constants: no trig where the sim reads the ground) */
+const GRADIENTS: readonly (readonly [number, number])[] = [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+    [0.70710678, 0.70710678],
+    [-0.70710678, 0.70710678],
+    [0.70710678, -0.70710678],
+    [-0.70710678, -0.70710678],
+];
+
+/**
+ * Gradient (Perlin) noise in 0…1: a random direction per lattice point instead
+ * of {@link makeValueNoise}'s random value, so its bumps are round — value noise
+ * stretches each lone high point along the lattice axes into a plus / cross.
+ * Integer hash and plain arithmetic only: the same bits on every peer.
+ * `spread` scales its ±0.7 swing around 0.5.
+ */
+export function makeGradientNoise(seed: number, spread = 1): (x: number, y: number) => number {
+    const grad = (ix: number, iy: number): readonly [number, number] => {
+        let h = (Math.imul(ix, 374761393) + Math.imul(iy, 668265263) + Math.imul(seed, 69069)) | 0;
+        h = Math.imul(h ^ (h >>> 13), 1274126177);
+        return GRADIENTS[((h ^ (h >>> 16)) >>> 0) & 7]!;
+    };
+    // quintic fade: no seams in the slope at the cell edges
+    const fade = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
+    return (x, y) => {
+        const ix = Math.floor(x);
+        const iy = Math.floor(y);
+        const fx = x - ix;
+        const fy = y - iy;
+        const u = fade(fx);
+        const v = fade(fy);
+        const ga = grad(ix, iy);
+        const gb = grad(ix + 1, iy);
+        const gc = grad(ix, iy + 1);
+        const gd = grad(ix + 1, iy + 1);
+        const a = ga[0] * fx + ga[1] * fy;
+        const b = gb[0] * (fx - 1) + gb[1] * fy;
+        const c = gc[0] * fx + gc[1] * (fy - 1);
+        const d = gd[0] * (fx - 1) + gd[1] * (fy - 1);
+        const n = a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+        return Math.min(1, Math.max(0, n * spread + 0.5));
+    };
+}
 
 /** how far a building pad blends into the surrounding shape (wu) */
 /**
@@ -703,6 +750,8 @@ export class BattleMap {
     }
 
     private readonly reliefNoise = makeValueNoise(9241);
+    /** the Rolling hills' noise: gradient noise (round hills; value noise made plus-shaped ones), spread to the old one's height */
+    private readonly hillsNoise = makeGradientNoise(9241, 0.6);
 
     /**
      * Board relief under a world XZ. Sim locomotion samples slope from this;
@@ -854,9 +903,9 @@ export class BattleMap {
 
     /**
      * Rolling hills, built like real ground (once per board, on a grid):
-     * - fractal noise (fBm): {@link HILLS}.octaves layers, each half the size and half
-     *   as strong — detail at every scale, as in nature — each layer turned a little
-     *   so the noise's square lattice doesn't show;
+     * - fractal noise (fBm): {@link HILLS}.octaves layers of gradient noise (round
+     *   features), each half the size and half as strong — detail at every scale, as
+     *   in nature — each layer turned a little so the noise's square lattice doesn't show;
      * - domain warping: the coordinates bent by a second noise, so the hills run in
      *   flowing ridges and valleys instead of round blobs;
      * - redistribution (h^1.5): wide, gentle valleys and narrower tops — at full height
@@ -946,7 +995,7 @@ export class BattleMap {
         let fx = x / wave;
         let fz = z / wave;
         for (let o = 0; o < octaves; o++) {
-            sum += amp * this.reliefNoise(fx + ox + o * 17.31, fz + oz + o * 9.73);
+            sum += amp * this.hillsNoise(fx + ox + o * 17.31, fz + oz + o * 9.73);
             norm += amp;
             amp *= 0.5;
             // the next layer: twice the frequency, turned (cos / sin of 0.47 rad as constants — no Math.sin in the sim's ground)
@@ -2202,6 +2251,7 @@ export class BattleMap {
                 rockNormal: slopeRock && slopeRockNormal ? 'uSlopeRockNormal' : null,
                 hex: hexDetail,
             });
+            inject += WINTER_BARE_GROUND_GLSL;
             if (sandBound) {
                 shader.uniforms.uSand = { value: sand };
                 extraUniforms += 'uniform sampler2D uSand;\n';
@@ -2247,7 +2297,7 @@ export class BattleMap {
                 '\tvec3 charGround = mix( vec3( 0.06, 0.05, 0.04 ), diffuseColor.rgb * 0.24, 0.4 );\n' +
                 '\tdiffuseColor.rgb = mix( diffuseColor.rgb, charGround, fireCore * 0.92 + fireHalo * 0.22 );\n' +
                 '\tsnowMask *= 1.0 - clamp( fireCore * 0.95 + fireHalo * 0.5, 0.0, 1.0 );\n' +
-                `\tdiffuseColor.rgb = mix( diffuseColor.rgb, ${LAWN_SNOW_COLOR_GLSL}, snowMask * 0.82 );\n` +
+                `\tdiffuseColor.rgb = mix( diffuseColor.rgb, ${LAWN_SNOW_COLOR_GLSL}, snowMask * 0.95 );\n` +
                 // wet, dark snow at the ring where it has half-thawed
                 '\tdiffuseColor.rgb *= 1.0 - 0.16 * fireHalo * snowRaw;\n';
             if (sand && sandMask) {
