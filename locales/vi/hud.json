@@ -131,6 +131,8 @@
   "noticeVersionMismatch": "Lỗi không khớp phiên bản — phiên bản này chạy {{host}}, trong khi bạn có {{you}}.",
   "tacticReadyAgain": "Sẵn sàng trở lại trong các vòng {{n}}.",
   "tacticReadyAgainNext": "Sẵn sàng cho vòng tiếp theo.",
+  "tacticForging": "{{name}} — đang rèn tại Đồn trú của bạn. Sẵn sàng vòng sau.",
+  "tacticForgingEnemy": "{{name}} — đang rèn tại Đồn trú của đối phương. Sẵn sàng vòng sau.",
   "tacticCoolingDown": "{{name}} — làm mát.\n{{ready}}",
   "tacticUsedThisRound": "{{name}} — đã được sử dụng trong vòng này.\n\nHoàn tác sẽ trả lại. {{ready}}",
   "tacticPlaced": "{{name}} — đã đặt",

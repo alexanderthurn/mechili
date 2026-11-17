@@ -124,6 +124,7 @@ import { AcidFx } from './acidFx';
 import { FireFx, fireUsesTongues } from './fireFx';
 import { clearWardDomes, updateWardDomes, wardDomeSpawnFromEvents } from './wardDomeFx';
 import { ForgeFx, forgeGlowMode } from './forgeFx';
+import { GarrisonFx } from './garrisonFx';
 import { hasFlagNode, StrongholdFlags } from './strongholdFlags';
 import { StrongholdCommanders } from './strongholdCommander';
 import { HordeMarkers, type HordeMarkerSpot } from './hordeMarkers';
@@ -497,6 +498,7 @@ export class Game {
     private readonly fireFx: FireFx;
     private readonly acidFx: AcidFx;
     private readonly forgeFx = new ForgeFx();
+    private readonly garrisonFx = new GarrisonFx();
     private readonly strongholdFlags = new StrongholdFlags();
     private readonly strongholdCommanders: StrongholdCommanders;
     private readonly hordeMarkers: HordeMarkers;
@@ -2485,6 +2487,8 @@ export class Game {
             playerUnlockable: this.rules.playerUnlockable,
             climbAttacker: isSiege(settings) ? this.yearAttackerTeam() : null,
             wallsMode: wallsModeOption(settings.walls),
+            // commander spells charge for a round after purchase — not in a lesson
+            forgeSpellDelay: !isTutorial(settings),
             clock: () => ({
                 round: this.round,
                 t: Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining),
@@ -9425,13 +9429,36 @@ export class Game {
     }
 
     /** world strip over the Stronghold: predicted bake product (deploy only; battle = sparks) */
+    /**
+     * The commander spells charging at this Garrison (bought this round, usable
+     * next), as icons — only what the viewer may know: the other side's purchase
+     * stays hidden through the deployment it was made in, like any purchase.
+     */
+    private garrisonForgingIcons(unit: Unit): string[] {
+        if (!hasAbility(unit.type, 'forgeSpells') || unit.destroyed) return [];
+        if (this.phase === 'build' && this.placement.isIntelFogged(unit)) return [];
+        const icons: string[] = [];
+        for (const tactic of this.types.tactics) {
+            const n = this.dispatcher.chargingSpells(unit.seat, tactic.id, this.round);
+            for (let i = 0; i < n; i++) icons.push(tactic.icon);
+        }
+        return icons;
+    }
+
     private forgeWorldBadges(
         unit: Unit,
     ): {
         runes: string[];
         spellIcon: string | null;
+        spellIcons?: string[];
         productItemId?: string | null;
     } | null {
+        // the Garrison: the spells charging there, over the tower — in the battle too,
+        // that is when the other side first sees them
+        if (hasAbility(unit.type, 'forgeSpells')) {
+            const icons = this.garrisonForgingIcons(unit);
+            return icons.length > 0 ? { runes: [], spellIcon: null, spellIcons: icons } : null;
+        }
         if (!hasAbility(unit.type, 'forge')) return null;
         // battle: chimney sparks only — spell badge is deploy intel / loading UI
         if (this.phase !== 'build') return null;
@@ -9494,6 +9521,11 @@ export class Game {
             });
         }
         this.forgeFx.update(dt, this.time, targets, this.scene);
+        // the Garrison's magic plume while a spell charges there
+        const forging = this.placement
+            .allUnits()
+            .filter((u) => hasAbility(u.type, 'forgeSpells') && this.garrisonForgingIcons(u).length > 0);
+        this.garrisonFx.update(dt, forging, this.scene);
     }
 
     /** Player/enemy avatar flags on each living Stronghold rooftop. */

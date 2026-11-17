@@ -511,6 +511,8 @@ export class PlacementController {
     ) => {
         runes: string[];
         spellIcon: string | null;
+        /** several spell icons (the Garrison's charging spells) — shown instead of `spellIcon` */
+        spellIcons?: string[];
         productItemId?: string | null;
     } | null) | null = null;
     /**
@@ -2166,7 +2168,7 @@ export class PlacementController {
                         unit,
                         world,
                         forge.runes,
-                        forge.spellIcon ? [forge.spellIcon] : [],
+                        forge.spellIcons ?? (forge.spellIcon ? [forge.spellIcon] : []),
                     );
                 }
                 continue;

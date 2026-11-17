@@ -131,6 +131,8 @@
   "noticeVersionMismatch": "Verzióeltérés — ez a találat {{host}}-ként fut, neked {{you}}-od van.",
   "tacticReadyAgain": "{{n}} körök múlva újra készen állok.",
   "tacticReadyAgainNext": "A következő körre újra készen áll.",
+  "tacticForging": "{{name}} — kovácsolódik a Helyőrségedben. A következő körben kész.",
+  "tacticForgingEnemy": "{{name}} — kovácsolódik a Helyőrségükben. A következő körben kész.",
   "tacticCoolingDown": "{{name}} — lehűlés.\n{{ready}}",
   "tacticUsedThisRound": "{{name}} — ebben a körben használt.\nA Visszavonás visszaadja. {{ready}}",
   "tacticPlaced": "{{name}} — helyezett",

@@ -131,6 +131,8 @@
   "noticeVersionMismatch": "Sürüm uyuşmazlığı — bu maç {{host}} kullanıyor, sende {{you}} var.",
   "tacticReadyAgain": "{{n}} turda tekrar hazır.",
   "tacticReadyAgainNext": "Bir sonraki turda tekrar hazırız.",
+  "tacticForging": "{{name}} — Garnizonunda dövülüyor. Sonraki turda hazır.",
+  "tacticForgingEnemy": "{{name}} — Garnizonlarında dövülüyor. Sonraki turda hazır.",
   "tacticCoolingDown": "{{name}} — soğuyor.\n\n{{ready}}",
   "tacticUsedThisRound": "{{name}} — bu turda kullanıldı.\n\nGeri al, değeri geri getirir. {{ready}}",
   "tacticPlaced": "{{name}} — yerleştirildi",

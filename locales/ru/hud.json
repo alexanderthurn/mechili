@@ -131,6 +131,8 @@
   "noticeVersionMismatch": "Разные версии — в матче {{host}}, у вас {{you}}.",
   "tacticReadyAgain": "Снова через {{n}} раунд(ов).",
   "tacticReadyAgainNext": "Снова в следующем раунде.",
+  "tacticForging": "{{name}} — куётся в твоём Гарнизоне. Готово в следующем раунде.",
+  "tacticForgingEnemy": "{{name}} — куётся в их Гарнизоне. Готово в следующем раунде.",
   "tacticCoolingDown": "{{name}} — перезарядка.\n{{ready}}",
   "tacticUsedThisRound": "{{name}} — использовано в этом раунде.\nОтмена вернёт. {{ready}}",
   "tacticPlaced": "{{name}} — размещено",

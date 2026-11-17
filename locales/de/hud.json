@@ -132,6 +132,8 @@
   "noticeVersionMismatch": "Versionskonflikt – dieses Spiel läuft mit {{host}}, du hast {{you}}.",
   "tacticReadyAgain": "In {{n}} Runden wieder bereit.",
   "tacticReadyAgainNext": "Nächste Runde wieder bereit.",
+  "tacticForging": "{{name}} — wird in deiner Garnison geschmiedet. Nächste Runde bereit.",
+  "tacticForgingEnemy": "{{name}} — wird in ihrer Garnison geschmiedet. Nächste Runde bereit.",
   "tacticCoolingDown": "{{name}} — Abkühlung.\n\n{{ready}}",
   "tacticUsedThisRound": "{{name}} – wurde in dieser Runde verwendet. Rückgängig machen stellt es wieder her. {{ready}}",
   "tacticPlaced": "{{name}} — platziert",

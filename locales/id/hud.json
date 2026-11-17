@@ -131,6 +131,8 @@
   "noticeVersionMismatch": "Ketidakcocokan versi — pertandingan ini berjalan pada {{host}}, sedangkan Anda memiliki {{you}}.",
   "tacticReadyAgain": "Siap lagi dalam {{n}} ronde.",
   "tacticReadyAgainNext": "Siap lagi di ronde berikutnya.",
+  "tacticForging": "{{name}} — sedang ditempa di Garnisun-mu. Siap ronde berikutnya.",
+  "tacticForgingEnemy": "{{name}} — sedang ditempa di Garnisun mereka. Siap ronde berikutnya.",
   "tacticCoolingDown": "{{name}} — pendinginan.\n{{ready}}",
   "tacticUsedThisRound": "{{name}} — digunakan pada putaran ini.\nBatalkan (Undo) mengembalikannya. {{ready}}",
   "tacticPlaced": "{{name}} — ditempatkan",

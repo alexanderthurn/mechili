@@ -131,6 +131,8 @@
   "noticeVersionMismatch": "버전 불일치 — 이 매치는 {{host}}, 당신은 {{you}}입니다.",
   "tacticReadyAgain": "{{n}}라운드 후 다시 준비됩니다.",
   "tacticReadyAgainNext": "다음 라운드에 다시 준비됩니다.",
+  "tacticForging": "{{name}} — 주둔지에서 제작 중. 다음 라운드에 준비됩니다.",
+  "tacticForgingEnemy": "{{name}} — 적 주둔지에서 제작 중. 다음 라운드에 준비됩니다.",
   "tacticCoolingDown": "{{name}} — 쿨다운 중.\n{{ready}}",
   "tacticUsedThisRound": "{{name}} — 이번 라운드에 사용함.\n실행 취소하면 되돌아옵니다. {{ready}}",
   "tacticPlaced": "{{name}} — 배치됨",

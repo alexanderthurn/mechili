@@ -131,6 +131,8 @@
   "noticeVersionMismatch": "版本不一致 — 對局為 {{host}}，你是 {{you}}。",
   "tacticReadyAgain": "{{n}} 回合後可用。",
   "tacticReadyAgainNext": "下回合可用。",
+  "tacticForging": "{{name}} — 正在你的守備營中鍛造。下一回合可用。",
+  "tacticForgingEnemy": "{{name}} — 正在敵方守備營中鍛造。下一回合可用。",
   "tacticCoolingDown": "{{name}} — 冷卻中。\n{{ready}}",
   "tacticUsedThisRound": "{{name}} — 本回合已使用。\n撤銷可收回。{{ready}}",
   "tacticPlaced": "{{name}} — 已放置",

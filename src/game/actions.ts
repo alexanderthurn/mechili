@@ -521,6 +521,8 @@ interface LogEntry extends LoggedAction {
     grantedTactics?: string[];
     /** the one-shot tactic charge this action consumed, if any (see consumeTacticCharge) */
     usedTactic?: string;
+    /** buyForgeSpell: the spell charges at the Garrison through this round, usable from the next (forgeSpellDelay) */
+    forgeCharging?: boolean;
     /** mobilizeUnit: the pack's deployedRound before the stamp (for undo) */
     deployedRoundBefore?: number;
     /** applyItem / removeItem / forgeInsert: slot index on the pack or oven */
@@ -682,6 +684,12 @@ export interface ActionContext {
      * (attacker → Fire Bolt, defender → Ward Stone).
      */
     climbAttacker: Team | null;
+    /**
+     * A commander spell bought at the Garrison is usable from the NEXT round
+     * (the other side gets a deployment to see it coming); tutorials buy it
+     * ready at once.
+     */
+    forgeSpellDelay?: boolean;
     /** the match's walls setting (GameSettings.walls): `off` = no Wall in any shop */
     wallsMode?: WallsMode;
     /** current round + seconds into its build phase, stamped onto log entries */
@@ -835,12 +843,26 @@ export class ActionDispatcher {
             .map((e) => e.round);
     }
 
-    /** free one-shot charges of `tacticId` in `round`: inventory − cooling uses */
+    /** free one-shot charges of `tacticId` in `round`: inventory − still charging − cooling uses */
     availableTacticCharges(seat: SeatId, tacticId: string, round: number): number {
         const cooldown = this.ctx.types.tactic(tacticId)?.cooldownRounds ?? 0;
         const inventory = this.ctx.tactics[seat]!.filter((id) => id === tacticId).length;
         const cooling = this.tacticUseRounds(seat, tacticId, round - cooldown).length;
-        return inventory - cooling;
+        return inventory - this.chargingSpells(seat, tacticId, round) - cooling;
+    }
+
+    /**
+     * Commander spells `seat` bought at the Garrison in `round` — still
+     * charging, so not usable before the next round (see forgeSpellDelay).
+     * Derived from the log like a cooldown: undo and replay need no state.
+     */
+    chargingSpells(seat: SeatId, tacticId: string, round: number): number {
+        let n = 0;
+        for (const e of this.log) {
+            if (!e.forgeCharging || e.round !== round || e.action.kind !== 'buyForgeSpell') continue;
+            if (e.action.tacticId === tacticId && this.actorSeat(e.action) === seat) n++;
+        }
+        return n;
     }
 
     /**
@@ -1285,6 +1307,8 @@ export class ActionDispatcher {
                 owned.push(action.tacticId);
                 this.ctx.tactics[seat]!.push(action.tacticId);
                 entry.grantedTactics = [action.tacticId];
+                // usable from the next round on (the log entry is the charge's timer)
+                if (this.ctx.forgeSpellDelay) entry.forgeCharging = true;
                 return true;
             }
             case 'sellUnit': {
@@ -1814,9 +1838,9 @@ export class ActionDispatcher {
                 const { round } = this.ctx.clock();
                 // charges: inventory minus stamps still pending or cooling down
                 // — per seat now, own charges never shared with an ally
-                const inventory = this.ctx.tactics[seat]!.filter(
-                    (id) => id === action.tacticId,
-                ).length;
+                const inventory =
+                    this.ctx.tactics[seat]!.filter((id) => id === action.tacticId).length -
+                    this.chargingSpells(seat, action.tacticId, round);
                 const blocking = this.ctx.spellStamps.filter(
                     (s) =>
                         s.seat === seat &&

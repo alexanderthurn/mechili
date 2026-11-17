@@ -131,6 +131,8 @@
   "noticeVersionMismatch": "Ketidakpadanan versi — padanan ini dijalankan pada {{host}}, anda mempunyai {{you}}.",
   "tacticReadyAgain": "Bersedia lagi dalam pusingan {{n}}.",
   "tacticReadyAgainNext": "Bersedia lagi untuk pusingan seterusnya.",
+  "tacticForging": "{{name}} — sedang ditempa di Garrison anda. Sedia pusingan seterusnya.",
+  "tacticForgingEnemy": "{{name}} — sedang ditempa di Garrison mereka. Sedia pusingan seterusnya.",
   "tacticCoolingDown": "{{name}} — menyejukkan badan.\n{{ready}}",
   "tacticUsedThisRound": "{{name}} — menggunakan pusingan ini.\nBuat asal mengembalikannya. {{ready}}",
   "tacticPlaced": "{{name}} — diletakkan",

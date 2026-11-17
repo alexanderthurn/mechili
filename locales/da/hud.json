@@ -131,6 +131,8 @@
   "noticeVersionMismatch": "Versionsuoverensstemmelse — dette match kører {{host}}, du har {{you}}.",
   "tacticReadyAgain": "Klar igen om {{n}} runder.",
   "tacticReadyAgainNext": "Klar igen i næste runde.",
+  "tacticForging": "{{name}} — smedes i din Garnison. Klar næste runde.",
+  "tacticForgingEnemy": "{{name}} — smedes i deres Garnison. Klar næste runde.",
   "tacticCoolingDown": "{{name}} — nedkøling.\n{{ready}}",
   "tacticUsedThisRound": "{{name}} — brugte denne runde. Fortryd giver det tilbage. {{ready}}",
   "tacticPlaced": "{{name}} — placeret",

@@ -131,6 +131,8 @@
   "noticeVersionMismatch": "Versioristiriita — tämä osuma suoritetaan {{host}}, sinulla on {{you}}.",
   "tacticReadyAgain": "Valmiina taas {{n}} kierroksen kuluttua.",
   "tacticReadyAgainNext": "Valmiina taas seuraavaan kierrokseen.",
+  "tacticForging": "{{name}} — taotaan Varuskunnassasi. Valmis seuraavalla kierroksella.",
+  "tacticForgingEnemy": "{{name}} — taotaan heidän Varuskunnassaan. Valmis seuraavalla kierroksella.",
   "tacticCoolingDown": "{{name}} — jäähtyminen.\n{{ready}}",
   "tacticUsedThisRound": "{{name}} — käytetty tällä kierroksella.\nKumoa antaa sen takaisin. {{ready}}",
   "tacticPlaced": "{{name}} — sijoitettu",

@@ -147,9 +147,11 @@ export class HudViews {
 
         for (const tactic of this.host.types.tactics) {
             if (this.host.tutorial?.hidesTacticCharge(tactic.id)) continue;
-            const inventory = this.host.tacticInventory[this.host.humanSeat]!.filter(
-                (id) => id === tactic.id,
-            ).length;
+            // a commander spell bought this round still charges at the Garrison: in the
+            // strip, greyed with its round to go, not one of the usable charges
+            const charging = this.host.dispatcher.chargingSpells(this.host.humanSeat, tactic.id, this.host.round);
+            const inventory =
+                this.host.tacticInventory[this.host.humanSeat]!.filter((id) => id === tactic.id).length - charging;
             const ability = abilityChargesOf(tactic.id);
             // greyed and available entries are counted from separate sources,
             // so using a charge turns an entry grey instead of removing it
@@ -259,6 +261,15 @@ export class HudViews {
                     }),
                 ];
                 avail = ability.max - ability.used + Math.max(0, inventory - useRounds.length);
+            }
+            for (let i = 0; i < charging; i++) {
+                placedEntries.push({
+                    badge: 1,
+                    hint: t('hud:tacticForging', {
+                        name: tacticName(tactic.id, tactic.name),
+                        defaultValue: '{{name}} — forging at your Garrison. Ready next round.',
+                    }),
+                });
             }
             for (const p of placedEntries) {
                 const name = tacticName(tactic.id, tactic.name);
@@ -422,6 +433,19 @@ export class HudViews {
                         });
                     }
                 }
+            }
+            // bought this round: charging at their Garrison (shown once the round is revealed)
+            const charging = revealThisRound
+                ? enemySeats.reduce((n, seat) => n + this.host.dispatcher.chargingSpells(seat, tactic.id, this.host.round), 0)
+                : 0;
+            for (let i = 0; i < charging; i++) {
+                cooling.push({
+                    badge: 1,
+                    hint: t('hud:tacticForgingEnemy', {
+                        name: tacticName(tactic.id, tactic.name),
+                        defaultValue: '{{name}} — forging at their Garrison. Ready next round.',
+                    }),
+                });
             }
             const readyCount = Math.max(0, inventory - cooling.length);
             for (let i = 0; i < readyCount; i++) {

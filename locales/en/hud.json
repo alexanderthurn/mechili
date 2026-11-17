@@ -134,6 +134,8 @@
   "noticeVersionMismatch": "Version mismatch — this match runs {{host}}, you have {{you}}.",
   "tacticReadyAgain": "Ready again in {{n}} rounds.",
   "tacticReadyAgainNext": "Ready again next round.",
+  "tacticForging": "{{name}} — forging at your Garrison. Ready next round.",
+  "tacticForgingEnemy": "{{name}} — forging at their Garrison. Ready next round.",
   "tacticCoolingDown": "{{name}} — cooling down.\n{{ready}}",
   "tacticUsedThisRound": "{{name}} — used this round.\nUndo gives it back. {{ready}}",
   "tacticPlaced": "{{name}} — placed",
