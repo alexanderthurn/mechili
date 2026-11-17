@@ -146,11 +146,9 @@ export interface GroupTileInfo {
 
 /** the panel for several selected units */
 export interface GroupSelectionInfo {
-    /** e.g. "6× Stone Wall · 2× Gate" */
-    summary: string;
+    /** what is selected, by type, e.g. 6× Stone Wall, 2× Gate */
+    kinds: { name: string; count: number }[];
     count: number;
-    /** the group can't move: one of its pieces stands for good */
-    fixed: boolean;
     tiles: GroupTileInfo[];
     /** the gate's portrait for the gate tile */
     gateTypeId?: string;
@@ -1730,15 +1728,22 @@ export class Hud {
                     };
             }
         });
+        // level up sits top right, next to the name — where a single unit has it
+        const levelTiles = tiles.filter((tile) => tile.data === 'data-group="level"');
+        const otherTiles = tiles.filter((tile) => tile.data !== 'data-group="level"');
         this.panel.innerHTML =
             `<div class="panel-head">` +
             `<div class="lvl-big"><span class="lvl-cap">${escapeHtml(t('hud:groupCap', { defaultValue: 'Sel' }))}</span><span class="lvl-num">${info.count}</span></div>` +
-            `<div class="head-main"><div class="head-names"><span class="title">${escapeHtml(info.summary)}</span></div></div>` +
+            // one type: it is the title; several: no title, a line each below
+            `<div class="head-main"><div class="head-names"><span class="title">${
+                info.kinds.length === 1 ? escapeHtml(`${info.kinds[0]!.count}× ${info.kinds[0]!.name}`) : ''
+            }</span></div></div>` +
+            this.renderActionTiles(levelTiles, 'level-actions') +
             `</div>` +
-            (info.fixed
-                ? `<div class="row"><span class="v">${escapeHtml(t('hud:groupFixed', { defaultValue: 'Some of these stand for good — the group can\'t be moved.' }))}</span></div>`
+            (info.kinds.length > 1
+                ? info.kinds.map((k) => `<div class="row"><span class="v">${escapeHtml(`${k.count}× ${k.name}`)}</span></div>`).join('')
                 : '') +
-            this.renderActionTiles(tiles) +
+            this.renderActionTiles(otherTiles) +
             `<div class="action-info" style="display:none"></div>`;
     }
 

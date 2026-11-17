@@ -9862,9 +9862,8 @@ export class Game {
         const buysLeft = (d.limit[this.humanSeat] ?? 0) + (d.extra[this.humanSeat] ?? 0) - (d.used[this.humanSeat] ?? 0);
         const gateWall = units.find((u) => u.type.wall?.makeGate);
         return {
-            summary: [...counts.values()].map((c) => `${c.n}× ${c.name}`).join(' · '),
+            kinds: [...counts.values()].map((c) => ({ name: c.name, count: c.n })),
             count: units.length,
-            fixed: units.some((u) => !this.placement.isMovable(u)),
             tiles: this.groupStepsFor(units).map((step) => {
                 const money = balance >= step.cost;
                 const buys = buysLeft >= step.buys;
