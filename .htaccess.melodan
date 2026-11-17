@@ -1,6 +1,6 @@
-# Host-based front door for Melodan on Feuerware.
-# Upload this next to index.html / web.html (production folder).
-# The FTP deploy excludes .htaccess so redeploys should leave it alone.
+# Host-based front door for Melodan (melodan.com, www, play all point at branches/main).
+# Upload this once as .htaccess next to index.html / web.html in branches/main.
+# The deploy excludes .htaccess, so redeploys leave it alone.
 
 RewriteEngine On
 

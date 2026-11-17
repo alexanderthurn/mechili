@@ -162,7 +162,7 @@ export const STAR_RECONNECT_GRACE_MS = 60_000;
 /**
  * The quick-match endpoint (backend/matchmaking.php, bundled in dist).
  * On localhost / Electron (`file://`), `?branch=` or the Vite-baked git branch
- * picks the feuerware deploy; melodan/main/master use play.melodan.com.
+ * picks that branch's deploy on dev.melodan.com; main/master use play.melodan.com.
  * Packaged web hosts use a relative `./backend/` next to the page.
  */
 export function isLocalhost(): boolean {
@@ -195,9 +195,12 @@ export function isMelodanPlayHost(): boolean {
 
 /**
  * Branches that use production play.melodan.com when developing on localhost.
- * Everything else (including `melodan`) hits feuerware.com/2025/mechili/<branch>/.
+ * Everything else (including `melodan`) hits dev.melodan.com/<branch>/.
  */
 const PLAY_HOST_DEV_BRANCHES = new Set(['main', 'master']);
+
+/** where every branch is deployed, one folder each (.github/workflows/deploy.yml) */
+const BRANCH_DEPLOY_ROOT = 'https://dev.melodan.com/';
 
 /**
  * Dev backend branch: `?branch=` wins, else the git branch baked in by Vite.
@@ -214,19 +217,19 @@ export function resolvedDevBranch(): string | null {
 
 /**
  * Site / deploy URL for a branch name (git or Steam beta).
- * `main`/`master` → melodan.com; other branches (incl. `melodan`) → feuerware preview.
+ * `main`/`master` → melodan.com; other branches (incl. `melodan`) → dev.melodan.com/<branch>/.
  */
 export function branchSiteUrl(branch?: string | null): string {
     const b = (branch?.trim() || resolvedDevBranch() || '').trim();
     if (!b || PLAY_HOST_DEV_BRANCHES.has(b)) return 'https://melodan.com/';
-    return `https://feuerware.com/2025/mechili/${encodeURIComponent(b)}/`;
+    return `${BRANCH_DEPLOY_ROOT}${encodeURIComponent(b)}/`;
 }
 
 /** Base URL for PHP endpoints under /backend/ (trailing slash). */
 function localhostBackendDir(): string {
     const branch = resolvedDevBranch();
     if (!branch) return 'https://play.melodan.com/backend/';
-    return `https://feuerware.com/2025/mechili/${encodeURIComponent(branch)}/backend/`;
+    return `${BRANCH_DEPLOY_ROOT}${encodeURIComponent(branch)}/backend/`;
 }
 
 export function matchUrl(): string {
