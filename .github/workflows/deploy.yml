@@ -1,4 +1,4 @@
-name: Build & Deploy (Feuerware)
+name: Build & Deploy (melodan.com)
 
 on:
   push:
@@ -13,9 +13,27 @@ concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: true
 
-# FTP folder names used by the live PHP highscore API — never mirror game dist/ here.
-# Do not create git branches with these names (branch previews deploy to /<branch>/).
-# Job-level `if` cannot use workflow env; keep this list in sync with RESERVED_FTP_FOLDERS below.
+# Every branch lands in its own folder on the Melodan All-Inkl account (KAS_ACCOUNT),
+# over rsync + SSH: <root>/branches/<branch>/, served as https://dev.melodan.com/<branch>/.
+# melodan.com, www and play.melodan.com point at branches/main; its hand-placed
+# .htaccess (the repo's .htaccess.melodan) picks web.html or index.html by host —
+# excluded below, so a deploy never touches it.
+#
+# The SSH user is locked into its own view (chroot); DEPLOY_ROOT is that view's path.
+#
+# Secrets: SSH_DEPLOY_KEY (private ed25519 key; its public half is in KAS for the
+# SSH user) and SSH_KNOWN_HOSTS (`ssh-keyscan -t ed25519,rsa KAS_ACCOUNT.kasserver.com`).
+#
+# rsync compares by checksum, not by timestamp: a fresh build has new timestamps on
+# every file, and FTP's lftp mirror re-sent all 205 MB / 3,200 files each time.
+#
+# Never create git branches named like the folders the PHP backend keeps its data in
+# (see the excludes) — and `backend` is reserved, as before.
+env:
+  DEPLOY_HOST: KAS_ACCOUNT.kasserver.com
+  DEPLOY_USER: ssh-KAS_ACCOUNT
+  DEPLOY_ROOT: /www/htdocs/KAS_ACCOUNT/melodan.com/branches
+
 jobs:
   build:
     name: Build site
@@ -49,8 +67,8 @@ jobs:
           path: dist
           retention-days: 1
 
-  deploy-feuerware:
-    name: Deploy to Feuerware (FTP)
+  deploy:
+    name: Deploy to melodan.com (rsync)
     needs: build
     if: |
       github.event_name != 'delete' &&
@@ -91,43 +109,44 @@ jobs:
           PY
           fi
 
-      # All-Inkl allows 10 FTP connections per user in total. Three branches pushed
-      # together used to open 3 × 10 and two deploys died with "530 maximum number of
-      # clients". 3 connections each leaves room for three deploys at once; a refused
-      # login (e.g. a fourth) waits and retries instead of failing. (A GitHub concurrency
-      # queue is no option: it keeps only one waiting run and cancels any older one.)
-      - name: Deploy to FTP
+      - name: Set up SSH
+        env:
+          SSH_DEPLOY_KEY: ${{ secrets.SSH_DEPLOY_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
         run: |
-          sudo apt-get update && sudo apt-get install -y lftp
+          if [ -z "$SSH_DEPLOY_KEY" ] || [ -z "$SSH_KNOWN_HOSTS" ]; then
+            echo "SSH_DEPLOY_KEY / SSH_KNOWN_HOSTS secret missing" >&2
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
 
+      # --checksum: content decides, not the build's fresh timestamps.
+      # --delete keeps the folder exactly the build, but never touches the
+      # excluded data folders (rsync leaves excluded files alone).
+      - name: Deploy with rsync
+        run: |
           folder="${{ github.ref_name }}"
-          echo "Deploying to Feuerware folder: /$folder/"
+          echo "Deploying to https://dev.melodan.com/$folder/"
+          rsync -rlz --checksum --delete --mkpath \
+            --chmod=D755,F644 \
+            --exclude '.htaccess' \
+            --exclude '.htpasswd' \
+            --exclude 'stats/' \
+            --exclude 'backend/stats/' \
+            --exclude 'players/' \
+            --exclude 'backend/players/' \
+            --exclude 'suggestions/' \
+            --exclude 'backend/suggestions/' \
+            --stats \
+            -e "ssh -i $HOME/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o BatchMode=yes" \
+            ./dist/ "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_ROOT/$folder/"
 
-          lftp -u "${{ secrets.FTP_USERNAME }}","${{ secrets.FTP_PASSWORD }}" "${{ secrets.FTP_SERVER }}" <<EOF
-          set ftp:ssl-allow no
-          set ftp:passive-mode true
-          set net:timeout 30
-          set net:max-retries 10
-          set net:reconnect-interval-base 15
-          mkdir -p "/$folder"
-
-          mirror -R "./dist/" "/$folder" \
-            --delete \
-            --parallel=3 \
-            --exclude-glob .htaccess \
-            --exclude-glob .htpasswd \
-            --exclude-glob "stats/" \
-            --exclude-glob "backend/stats/" \
-            --exclude-glob "players/" \
-            --exclude-glob "backend/players/" \
-            --exclude-glob "suggestions/" \
-            --exclude-glob "backend/suggestions/" \
-            --verbose
-          quit
-          EOF
-
-  cleanup-feuerware:
-    name: Remove Feuerware preview folder
+  cleanup:
+    name: Remove branch preview folder
     if: |
       github.event_name == 'delete' &&
       github.event.ref_type == 'branch' &&
@@ -136,13 +155,24 @@ jobs:
       !contains(fromJSON('["backend"]'), github.event.ref)
     runs-on: ubuntu-latest
     steps:
-      - name: Remove branch folder from FTP
+      - name: Set up SSH
+        env:
+          SSH_DEPLOY_KEY: ${{ secrets.SSH_DEPLOY_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
         run: |
-          sudo apt-get update && sudo apt-get install -y lftp
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
 
-          lftp -u "${{ secrets.FTP_USERNAME }}","${{ secrets.FTP_PASSWORD }}" "${{ secrets.FTP_SERVER }}" <<EOF
-          set ftp:ssl-allow no
-          set ftp:passive-mode true
-          rm -rf "/${{ github.event.ref }}"
-          quit
-          EOF
+      - name: Remove the branch folder
+        env:
+          FOLDER: ${{ github.event.ref }}
+        run: |
+          # one plain folder name only — never an empty name, a path or a dot name
+          case "$FOLDER" in
+            ''|*/*|.*) echo "refusing to remove '$FOLDER'" >&2; exit 1 ;;
+          esac
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            "$DEPLOY_USER@$DEPLOY_HOST" "rm -rf -- '$DEPLOY_ROOT/$FOLDER'"
