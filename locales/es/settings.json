@@ -275,5 +275,10 @@
     "bloomHint": "brillo del fuego y la magia · batalla",
     "vignette": "Viñeta",
     "vignetteHint": "bordes más oscuros en batalla"
+  },
+  "walls": {
+    "off": "Desactivadas",
+    "normal": "Normal",
+    "prebuilt": "Preconstruidas"
   }
 }

@@ -275,5 +275,10 @@
     "ao": "Umgebungsverdeckung",
     "aoHint": "erdet Einheiten auf dem Spielfeld"
   },
-  "mpHintMatchmaking": "Online-Räume über PeerJS + Serverliste. Internetverbindung erforderlich."
+  "mpHintMatchmaking": "Online-Räume über PeerJS + Serverliste. Internetverbindung erforderlich.",
+  "walls": {
+    "off": "Aus",
+    "normal": "Normal",
+    "prebuilt": "Vorgebaut"
+  }
 }

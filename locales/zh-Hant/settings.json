@@ -275,5 +275,10 @@
     "bloomHint": "火焰與魔法的光暈 · 戰鬥",
     "vignette": "暗角",
     "vignetteHint": "戰鬥中邊緣變暗"
+  },
+  "walls": {
+    "off": "關閉",
+    "normal": "普通",
+    "prebuilt": "預先建好"
   }
 }

@@ -275,5 +275,10 @@
     "bloomHint": "炎と魔法の輝き · 戦闘",
     "vignette": "ビネット",
     "vignetteHint": "戦闘中は画面の端を暗く"
+  },
+  "walls": {
+    "off": "オフ",
+    "normal": "通常",
+    "prebuilt": "建設済み"
   }
 }

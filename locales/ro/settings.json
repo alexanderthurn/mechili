@@ -275,5 +275,10 @@
     "bloomHint": "strălucirea focului și a magiei · luptă",
     "vignette": "Vignetă",
     "vignetteHint": "margini mai întunecate în luptă"
+  },
+  "walls": {
+    "off": "Oprite",
+    "normal": "Normal",
+    "prebuilt": "Preconstruite"
   }
 }

@@ -275,5 +275,10 @@
     "bloomHint": "brilho do fogo e da magia · batalha",
     "vignette": "Vinheta",
     "vignetteHint": "margens mais escuras em batalha"
+  },
+  "walls": {
+    "off": "Desligadas",
+    "normal": "Normal",
+    "prebuilt": "Pré-construídas"
   }
 }

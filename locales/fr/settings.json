@@ -275,5 +275,10 @@
     "bloomHint": "lueur du feu et de la magie · bataille",
     "vignette": "Vignette",
     "vignetteHint": "bords plus sombres en bataille"
+  },
+  "walls": {
+    "off": "Désactivés",
+    "normal": "Normal",
+    "prebuilt": "Préconstruits"
   }
 }

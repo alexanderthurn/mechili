@@ -275,5 +275,10 @@
     "bloomHint": "blask ognia i magii · bitwa",
     "vignette": "Winieta",
     "vignetteHint": "ciemniejsze brzegi w bitwie"
+  },
+  "walls": {
+    "off": "Wył.",
+    "normal": "Normalne",
+    "prebuilt": "Zbudowane"
   }
 }

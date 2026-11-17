@@ -275,5 +275,10 @@
     "bloomHint": "glød fra ild og magi · kamp",
     "vignette": "Vignett",
     "vignetteHint": "mørkere kanter i kamp"
+  },
+  "walls": {
+    "off": "Av",
+    "normal": "Normal",
+    "prebuilt": "Ferdigbygd"
   }
 }

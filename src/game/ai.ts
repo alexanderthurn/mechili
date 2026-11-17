@@ -22,7 +22,7 @@ import { NO_STANCE, YearBrain, type PackPick, type Stance } from './aiYear';
 import { AI_ROLES, readFlankNeeds, readNeeds, readWeakPoints, STRONG_FROM, strongHelpless, THIRD_PACK_FREE_FROM, type LossKind, type Need, type Roster, type WeakPoint } from './aiRoles';
 import { CELL } from './map';
 import { isChaff } from './aiCounters';
-import { AI_WALL_ID, orderedWallPlan, placeWallPlan, sideFrontline, wallInSlot, wallPlanCells, type PlanSlot } from './aiWalls';
+import { AI_WALL_ID, orderedWallPlan, placeWallPlan, planGateSlots, sideFrontline, wallInSlot, wallPlanCells, type PlanSlot } from './aiWalls';
 import type { LevelingSettings } from './settings';
 import { AI_SUPPLY_SHARE, DEFENDER_WALL_SHARE, personalitiesFor, type AiDifficulty, type AiStyle } from './aiProfile';
 import { AiThinkSession, type AiThinkHost, type PlanDraft, type ThinkingAi } from './aiThink';
@@ -782,20 +782,12 @@ export class AiOpponent implements Opponent, ThinkingAi {
         const make = wall.wall?.makeGate;
         if (!make) return;
         const plan = orderedWallPlan(placement, this.team, this.seat, wall);
-        const { colMin, colMax } = sideFrontline(placement, this.team);
-        const mid = (colMin + colMax + 1) / 2;
         // packs that walk: not the archers posted on its walls and keep
         const packs = this.ownPacks().filter((u) => u.hostUnitId === null);
-        const want: PlanSlot[] = plan.filter((s) => s.phase === 1 && s.half === 0); // closes the corridor
+        // the fixed ones (corridor's back, front, the flanks' ways out), then a corner where packs need it
+        const want: PlanSlot[] = planGateSlots(placement, this.team, plan);
         for (const half of [-1, 1]) {
-            // one wall out from the hole (the piece at the hole would only duplicate it)
-            const front = plan.filter((s) => s.phase === 0 && s.half === half).sort((a, b) => Math.abs(a.col - mid) - Math.abs(b.col - mid))[1];
             const flank = plan.filter((s) => s.phase === 2 && s.half === half);
-            if (front) want.push(front);
-            // the flank's second-last piece: with the back closed, the way out at each side
-            const flankSteps = flank.map((s) => s.step);
-            const sideGate = flank.find((s) => s.step === Math.max(...flankSteps) - 1);
-            if (sideGate) want.push(sideGate);
             const corner = [...flank].sort((a, b) => a.step - b.step)[0];
             if (corner) {
                 // the rows the flank wall runs over, and its column: own packs beyond it want a way through

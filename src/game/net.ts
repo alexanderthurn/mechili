@@ -11,7 +11,7 @@ import type { Loadout } from './techCatalog';
 import type { CanonicalSeatDef, SeatId } from './seats';
 import type { LevelRef } from './level';
 import { answerLevelMessage, LevelDownload, matchLevelOffer } from './levelSync';
-import type { GameSettings, StrongholdMode } from './settings';
+import type { GameSettings, StrongholdMode, WallsMode } from './settings';
 import type { MapSize } from './map';
 import type { TerrainShape } from './terrainShapes';
 
@@ -353,6 +353,8 @@ export interface CustomGameConfig {
     startMoney: number;
     /** unit packs each player may buy per round, 0 = no limit (BUYS_PER_ROUND_OPTIONS); omit = 2 */
     buysPerRound?: number;
+    /** Stone Walls: off / normal / prebuilt (see GameSettings.walls); omit = normal */
+    walls?: WallsMode;
     /** what the Stronghold is worth this match; see GameSettings.strongholdMode */
     strongholdMode: StrongholdMode;
     /**

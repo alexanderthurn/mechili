@@ -50,7 +50,7 @@ import type {
     SellSettings,
     TowerSettings,
 } from './settings';
-import { yearBoardExtraAllowed, rallyRouteBuyMax } from './settings';
+import { yearBoardExtraAllowed, rallyRouteBuyMax, type WallsMode } from './settings';
 import type { TechTree } from './tech';
 import { isSecondarySeat, primarySeatOf, seatIdsOf, type SeatDef, type SeatId } from './seats';
 import { colorForUnit } from './colors';
@@ -672,6 +672,8 @@ export interface ActionContext {
      * (attacker → Fire Bolt, defender → Ward Stone).
      */
     climbAttacker: Team | null;
+    /** the match's walls setting (GameSettings.walls): `off` = no Wall in any shop */
+    wallsMode?: WallsMode;
     /** current round + seconds into its build phase, stamped onto log entries */
     clock: () => { round: number; t: number };
     /** phase transition lives in the Game — the dispatcher only reports it */
@@ -927,7 +929,7 @@ export class ActionDispatcher {
                 if (!sandbox && (type.extra ? !isPlayerBuyable(type) : !shop.includes(type.id))) return false;
                 // board extras by side (boardExtrasFor): Siege attacker Fire Bolt + Ward Stone,
                 // defender the Wall, else Wall + Ward Stone — the editor's sandbox places anything
-                if (!sandbox && type.extra && !yearBoardExtraAllowed(this.ctx.climbAttacker, action.team, type.id)) {
+                if (!sandbox && type.extra && !yearBoardExtraAllowed(this.ctx.climbAttacker, action.team, type.id, this.ctx.wallsMode)) {
                     return false;
                 }
                 if (

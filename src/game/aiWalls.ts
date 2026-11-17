@@ -243,6 +243,28 @@ export function orderedWallPlan(placement: PlacementController, team: Team, seat
     );
 }
 
+/**
+ * The plan's fixed gates (AI_PLAN.md, "Gates"): the piece across the
+ * corridor's back; per half of the front, the second piece out from the hole
+ * and the flank's second-last piece (a way out once the back is walled). The
+ * AI adds the front-most flank piece itself when its packs stand outside.
+ */
+export function planGateSlots(placement: PlacementController, team: Team, plan: readonly PlanSlot[]): PlanSlot[] {
+    const { colMin, colMax } = sideFrontline(placement, team);
+    const mid = (colMin + colMax + 1) / 2;
+    const want: PlanSlot[] = plan.filter((s) => s.phase === 1 && s.half === 0); // closes the corridor
+    for (const half of [-1, 1]) {
+        // one wall out from the hole (the piece at the hole would only duplicate it)
+        const front = plan.filter((s) => s.phase === 0 && s.half === half).sort((a, b) => Math.abs(a.col - mid) - Math.abs(b.col - mid))[1];
+        if (front) want.push(front);
+        const flank = plan.filter((s) => s.phase === 2 && s.half === half);
+        const flankSteps = flank.map((s) => s.step);
+        const sideGate = flank.find((s) => s.step === Math.max(...flankSteps) - 1);
+        if (sideGate) want.push(sideGate);
+    }
+    return want;
+}
+
 /** the seat's wall standing in this slot, if it stands — a gate made of it too */
 export function wallInSlot(placement: PlacementController, seat: SeatId, wall: UnitType, slot: WallSlot): Unit | null {
     return (

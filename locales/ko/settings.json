@@ -275,5 +275,10 @@
     "bloomHint": "불과 마법의 빛 · 전투",
     "vignette": "비네트",
     "vignetteHint": "전투 중 가장자리 어둡게"
+  },
+  "walls": {
+    "off": "끄기",
+    "normal": "보통",
+    "prebuilt": "미리 건설"
   }
 }

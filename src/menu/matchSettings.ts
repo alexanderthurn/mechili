@@ -20,6 +20,8 @@ import {
     DEFAULT_MONEY_FACTOR,
     DEFAULT_START_MONEY,
     DEFAULT_BUYS_PER_ROUND,
+    DEFAULT_WALLS_MODE,
+    wallsModeOption,
     buysPerRoundOption,
     resolveBuysPerRound,
     DEFAULT_SETTINGS,
@@ -115,6 +117,7 @@ export const DEFAULT_CUSTOM_GAME: CustomGameConfig = {
     moneyFactor: DEFAULT_MONEY_FACTOR,
     startMoney: DEFAULT_START_MONEY,
     buysPerRound: DEFAULT_BUYS_PER_ROUND,
+    walls: DEFAULT_WALLS_MODE,
     strongholdMode: DEFAULT_STRONGHOLD_MODE,
     terrainShape: DEFAULT_TERRAIN_SHAPE,
 };
@@ -182,6 +185,7 @@ export function loadCustomGameConfig(): CustomGameConfig {
             moneyFactor: moneyFactorOption(parsed.moneyFactor),
             startMoney: startMoneyOption(parsed.startMoney),
             buysPerRound: buysPerRoundOption(parsed.buysPerRound),
+            walls: wallsModeOption(parsed.walls),
             strongholdMode: strongholdModeOption(parsed.strongholdMode),
             map: mapOption(parsed.map),
             boardSize: boardSizeOption(parsed.boardSize),
@@ -217,6 +221,7 @@ export function applyCustomGameConfig(settings: GameSettings, cfg: CustomGameCon
     settings.moneyFactor = resolveMoneyFactor(cfg.moneyFactor);
     settings.startMoney = resolveStartMoney(cfg.startMoney);
     settings.deploy = { ...settings.deploy, unitsPerRound: resolveBuysPerRound(cfg.buysPerRound) };
+    settings.walls = wallsModeOption(cfg.walls);
     settings.strongholdMode = strongholdModeOption(cfg.strongholdMode);
     settings.terrainShape = terrainShapeOption(cfg.terrainShape);
     // the generated terrain's board size (a saved map replaces it with its own, see lobbyMatchSettings)
@@ -311,7 +316,7 @@ export function localMatchSettings(opts: LocalMatchOpts = {}): GameSettings {
 
 export function defaultLobbySettings(): Pick<
     CustomGameConfig,
-    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'fixedSideHp' | 'moneyFactor' | 'startMoney' | 'buysPerRound' | 'strongholdMode' | 'terrainShape' | 'map' | 'boardSize'
+    'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'fixedSideHp' | 'moneyFactor' | 'startMoney' | 'buysPerRound' | 'walls' | 'strongholdMode' | 'terrainShape' | 'map' | 'boardSize'
 > {
     return {
         map: undefined,
@@ -324,6 +329,7 @@ export function defaultLobbySettings(): Pick<
         moneyFactor: DEFAULT_MONEY_FACTOR,
         startMoney: DEFAULT_START_MONEY,
         buysPerRound: DEFAULT_BUYS_PER_ROUND,
+        walls: DEFAULT_WALLS_MODE,
         strongholdMode: DEFAULT_STRONGHOLD_MODE,
         terrainShape: DEFAULT_TERRAIN_SHAPE,
     };
@@ -339,6 +345,7 @@ export function isNonDefaultLobbySettings(cfg: CustomGameConfig, defaults = defa
         cfg.moneyFactor !== defaults.moneyFactor ||
         cfg.startMoney !== defaults.startMoney ||
         buysPerRoundOption(cfg.buysPerRound) !== defaults.buysPerRound ||
+        wallsModeOption(cfg.walls) !== defaults.walls ||
         cfg.strongholdMode !== defaults.strongholdMode ||
         terrainShapeOption(cfg.terrainShape) !== defaults.terrainShape ||
         mapValue(cfg.map) !== mapValue(defaults.map) ||
@@ -427,6 +434,7 @@ export function loadPracticeConfig(): CustomGameConfig {
             moneyFactor: moneyFactorOption(parsed.moneyFactor ?? defaults.moneyFactor),
             startMoney: startMoneyOption(parsed.startMoney ?? defaults.startMoney),
             buysPerRound: buysPerRoundOption(parsed.buysPerRound ?? defaults.buysPerRound),
+            walls: wallsModeOption(parsed.walls ?? defaults.walls),
             strongholdMode: strongholdModeOption(parsed.strongholdMode ?? defaults.strongholdMode),
             map: mapOption(parsed.map),
             boardSize: boardSizeOption(parsed.boardSize ?? defaults.boardSize),

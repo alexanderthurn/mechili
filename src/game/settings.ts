@@ -122,17 +122,23 @@ export const ATTACKER_BOARD_EXTRAS: readonly string[] = ['rocket', 'shield'];
 export const DEFENDER_BOARD_EXTRAS: readonly string[] = ['wall'];
 export const DEFAULT_BOARD_EXTRAS: readonly string[] = ['wall', 'shield'];
 
-export function boardExtrasFor(climbAttacker: 'player' | 'enemy' | null, team: 'player' | 'enemy'): readonly string[] {
-    if (climbAttacker === null) return DEFAULT_BOARD_EXTRAS;
-    return team === climbAttacker ? ATTACKER_BOARD_EXTRAS : DEFENDER_BOARD_EXTRAS;
+export function boardExtrasFor(
+    climbAttacker: 'player' | 'enemy' | null,
+    team: 'player' | 'enemy',
+    /** the match's walls setting: `off` takes the Wall out of every list */
+    walls: WallsMode = DEFAULT_WALLS_MODE,
+): readonly string[] {
+    const list = climbAttacker === null ? DEFAULT_BOARD_EXTRAS : team === climbAttacker ? ATTACKER_BOARD_EXTRAS : DEFENDER_BOARD_EXTRAS;
+    return walls === 'off' ? list.filter((id) => id !== 'wall') : list;
 }
 
 export function yearBoardExtraAllowed(
     climbAttacker: 'player' | 'enemy' | null,
     team: 'player' | 'enemy',
     typeId: string,
+    walls: WallsMode = DEFAULT_WALLS_MODE,
 ): boolean {
-    return boardExtrasFor(climbAttacker, team).includes(typeId);
+    return boardExtrasFor(climbAttacker, team, walls).includes(typeId);
 }
 
 /**
@@ -246,6 +252,8 @@ export interface GameSettings {
     startMoney: number;
     /** what the Stronghold is worth this match (see {@link StrongholdMode}) */
     strongholdMode: StrongholdMode;
+    /** Stone Walls this match (see {@link WallsMode}); omit = 'normal' */
+    walls?: WallsMode;
     economy: EconomySettings;
     towers: TowerSettings;
     leveling: LevelingSettings;
@@ -581,6 +589,31 @@ export function formatStrongholdModeOption(o: StrongholdModeOption): string {
     });
 }
 
+/**
+ * Stone Walls in a match.
+ *
+ * - `normal`   — the default: a side that gets walls (boardExtrasFor) buys them.
+ * - `off`      — nobody can build a wall (nor, so, a gate).
+ * - `prebuilt` — as normal, and each seat that gets walls starts with the full
+ *                fortress the AI builds (aiWalls' plan, gates included). In a
+ *                Siege only the defender gets it; the attacker gets what it is
+ *                worth as start money instead.
+ */
+export type WallsMode = 'off' | 'normal' | 'prebuilt';
+export const WALLS_MODES: readonly WallsMode[] = ['off', 'normal', 'prebuilt'];
+export const DEFAULT_WALLS_MODE: WallsMode = 'normal';
+
+/** Snap anything off the wire, a save or a URL onto a known mode. */
+export function wallsModeOption(raw: unknown): WallsMode {
+    return WALLS_MODES.includes(raw as WallsMode) ? (raw as WallsMode) : DEFAULT_WALLS_MODE;
+}
+
+/** the mode's name in the current language */
+export function wallsModeName(mode: WallsMode): string {
+    const fallback = { off: 'Off', normal: 'Normal', prebuilt: 'Prebuilt' }[mode];
+    return t(`settings:walls.${mode}`, { defaultValue: fallback });
+}
+
 /** Custom Game commander-HP options — multipliers, or an absolute side HP. */
 export interface CommanderHpFactorOption {
     /** `<option value>` — stable id for the lobby select */
@@ -891,6 +924,7 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         moneyFactor: resolveMoneyFactor(settings.moneyFactor),
         startMoney: resolveStartMoney(settings.startMoney),
         strongholdMode: strongholdModeOption(settings.strongholdMode),
+        walls: wallsModeOption(settings.walls),
         climb: settings.climb
             ? {
                   // older saves: roundsToWin was the wins needed, as long as a Year lasts now

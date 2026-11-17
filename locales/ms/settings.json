@@ -275,5 +275,10 @@
     "bloomHint": "cahaya api & sihir · pertempuran",
     "vignette": "Vinyet",
     "vignetteHint": "tepi lebih gelap semasa bertempur"
+  },
+  "walls": {
+    "off": "Mati",
+    "normal": "Biasa",
+    "prebuilt": "Sudah dibina"
   }
 }

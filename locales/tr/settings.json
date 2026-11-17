@@ -275,5 +275,10 @@
     "bloomHint": "ateş ve büyü parıltısı · savaş",
     "vignette": "Vinyet",
     "vignetteHint": "savaşta daha koyu kenarlar"
+  },
+  "walls": {
+    "off": "Kapalı",
+    "normal": "Normal",
+    "prebuilt": "Hazır kurulu"
   }
 }

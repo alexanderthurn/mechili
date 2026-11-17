@@ -42,6 +42,7 @@ import {
     type ForgeSlot,
 } from './forgeRecipes';
 import { AiOpponent, type Opponent } from './ai';
+import { AI_WALL_ID, orderedWallPlan, planGateSlots } from './aiWalls';
 import type { AiThinkHost } from './aiThink';
 import { AiThinkMatch } from './aiThinkMatch';
 import { DEFAULT_AI_DIFFICULTY, DEFAULT_AI_PERSONALITY, resolvePersonality, type AiDifficulty, type AiStyle } from './aiProfile';
@@ -232,6 +233,7 @@ import {
     climbAttackerTeam,
     yearBoardExtraAllowed,
     boardExtrasFor,
+    wallsModeOption,
     yearWinner,
     isSiege,
     roundsVictory,
@@ -2481,6 +2483,7 @@ export class Game {
             playerUnlocks: this.rules.playerUnlocks,
             playerUnlockable: this.rules.playerUnlockable,
             climbAttacker: isSiege(settings) ? this.yearAttackerTeam() : null,
+            wallsMode: wallsModeOption(settings.walls),
             clock: () => ({
                 round: this.round,
                 t: Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining),
@@ -3638,6 +3641,51 @@ export class Game {
             return;
         }
         this.spawnBaseBuildings(() => true);
+        if (wallsModeOption(this.settings.walls) === 'prebuilt') this.spawnPrebuiltWalls();
+    }
+
+    /**
+     * Walls: Prebuilt — every seat whose side gets walls starts with the AI's
+     * full fortress (aiWalls' plan, its fixed gates made), free and standing
+     * from round 0, so it can't be moved like a pack bought this round. In a
+     * Siege only the defender gets walls; each attacker seat gets what one
+     * defender seat's fortress is worth as start money instead. Same order on
+     * every client (seats, then the plan), so unit ids agree.
+     */
+    private spawnPrebuiltWalls(): void {
+        const wall = this.types.byId(AI_WALL_ID);
+        const gateType = wall?.wall?.makeGate ? this.types.byId(wall.wall.makeGate.typeId) : null;
+        if (!wall) return;
+        const attacker = isSiege(this.settings) ? this.yearAttackerTeam() : null;
+        let defenderWorth = 0;
+        let defenderSeats = 0;
+        for (const team of ['player', 'enemy'] as const) {
+            if (!yearBoardExtraAllowed(attacker, team, wall.id, 'prebuilt')) continue;
+            for (const seat of seatIdsOf(this.seats, team)) {
+                const plan = orderedWallPlan(this.placement, team, seat, wall);
+                const gates = new Set(gateType?.wall ? planGateSlots(this.placement, team, plan) : []);
+                let worth = 0;
+                for (const slot of plan) {
+                    if (!this.placement.canPlaceAt(team, seat, wall, slot.anchor, slot.rotated)) continue;
+                    const gate = gates.has(slot) && gateType ? gateType : null;
+                    const unit = this.placement.spawn(gate ?? wall, slot.anchor, team, slot.rotated, true, seat);
+                    if (!unit) continue;
+                    unit.setWallTurn(slot.rotated, slot.flipped);
+                    worth += this.economy.costOf(wall) + (gate ? wall.wall!.makeGate!.cost : 0);
+                    if (gate) {
+                        unit.upgradePaid = wall.wall!.makeGate!.cost;
+                        unit.refreshLevelBadge();
+                    }
+                }
+                if (team !== attacker) {
+                    defenderWorth += worth;
+                    defenderSeats++;
+                }
+            }
+        }
+        if (attacker === null || defenderSeats === 0) return;
+        const bonus = Math.round(defenderWorth / defenderSeats);
+        for (const seat of seatIdsOf(this.seats, attacker)) this.economy.credit(seat, bonus);
     }
 
     /**
@@ -4786,7 +4834,7 @@ export class Game {
         const wall = this.types.byId('wall');
         const team = this.seats[seat]?.team;
         if (!wall || (team !== 'player' && team !== 'enemy')) return 0;
-        if (!yearBoardExtraAllowed(isSiege(this.settings) ? this.yearAttackerTeam() : null, team, wall.id)) return 0;
+        if (!yearBoardExtraAllowed(isSiege(this.settings) ? this.yearAttackerTeam() : null, team, wall.id, wallsModeOption(this.settings.walls))) return 0;
         const left = this.settings.deploy.extrasBudgetPerRound - (this.deployState.extrasSpent[seat] ?? 0);
         return Math.max(0, Math.floor(left / Math.max(1, this.economy.costOf(wall))));
     }
@@ -9687,7 +9735,7 @@ export class Game {
     private humanBoardExtraIds(): readonly string[] | null {
         if (this.settings.scenario?.mode === 'author') return null; // the editor places anything
         if (isTutorial(this.settings)) return [];
-        return boardExtrasFor(isSiege(this.settings) ? this.yearAttackerTeam() : null, 'player');
+        return boardExtrasFor(isSiege(this.settings) ? this.yearAttackerTeam() : null, 'player', wallsModeOption(this.settings.walls));
     }
 
     private humanMayBuyExtra(type: UnitType): boolean {
@@ -9698,6 +9746,7 @@ export class Game {
             isSiege(this.settings) ? this.yearAttackerTeam() : null,
             'player',
             type.id,
+            wallsModeOption(this.settings.walls),
         );
     }
 

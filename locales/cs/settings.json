@@ -275,5 +275,10 @@
     "bloomHint": "záře ohně a magie · bitva",
     "vignette": "Vinětace",
     "vignetteHint": "tmavší okraje v bitvě"
+  },
+  "walls": {
+    "off": "Vypnuto",
+    "normal": "Normální",
+    "prebuilt": "Předem postavené"
   }
 }

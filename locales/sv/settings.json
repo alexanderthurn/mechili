@@ -275,5 +275,10 @@
     "bloomHint": "glöd från eld och magi · strid",
     "vignette": "Vinjett",
     "vignetteHint": "mörkare kanter i strid"
+  },
+  "walls": {
+    "off": "Av",
+    "normal": "Normal",
+    "prebuilt": "Förbyggda"
   }
 }

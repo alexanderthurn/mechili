@@ -275,5 +275,10 @@
     "bloomHint": "gloed van vuur en magie · gevecht",
     "vignette": "Vignet",
     "vignetteHint": "donkerdere randen in gevecht"
+  },
+  "walls": {
+    "off": "Uit",
+    "normal": "Normaal",
+    "prebuilt": "Vooraf gebouwd"
   }
 }

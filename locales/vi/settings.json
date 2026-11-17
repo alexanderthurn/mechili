@@ -275,5 +275,10 @@
     "bloomHint": "ánh sáng của lửa và phép thuật · trận đánh",
     "vignette": "Làm tối viền",
     "vignetteHint": "viền tối hơn khi giao tranh"
+  },
+  "walls": {
+    "off": "Tắt",
+    "normal": "Bình thường",
+    "prebuilt": "Dựng sẵn"
   }
 }

@@ -275,5 +275,10 @@
     "bloomHint": "bagliore di fuoco e magia · battaglia",
     "vignette": "Vignettatura",
     "vignetteHint": "bordi più scuri in battaglia"
+  },
+  "walls": {
+    "off": "Disattivate",
+    "normal": "Normale",
+    "prebuilt": "Già costruite"
   }
 }

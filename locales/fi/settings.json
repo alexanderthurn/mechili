@@ -275,5 +275,10 @@
     "bloomHint": "tulen ja taikuuden hehku · taistelu",
     "vignette": "Vinjetti",
     "vignetteHint": "tummemmat reunat taistelussa"
+  },
+  "walls": {
+    "off": "Pois",
+    "normal": "Normaali",
+    "prebuilt": "Valmiina"
   }
 }

@@ -195,6 +195,7 @@
   "money": "補給",
   "startMoney": "初始補給",
   "buysPerRound": "每回合購買次數",
+  "walls": "城牆",
   "armies": {
     "standard": "標準軍隊",
     "komtur": "孔圖爾軍隊"
