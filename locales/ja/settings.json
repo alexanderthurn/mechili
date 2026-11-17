@@ -279,6 +279,7 @@
   "walls": {
     "off": "オフ",
     "normal": "通常",
-    "prebuilt": "建設済み"
+    "prebuilt": "建設済み",
+    "prebuiltArchers": "建設済み + 弓兵"
   }
 }

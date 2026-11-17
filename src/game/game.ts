@@ -32,7 +32,7 @@ import { CameraControls } from '../engine/cameraControls';
 import { BattleCamera } from './battleCamera';
 import { GamepadCursor } from '../engine/gamepadCursor';
 import { disposeScene } from '../engine/disposeScene';
-import { ActionDispatcher, buildingUpgradeFor, type ActionContext, garrisonFovYaw, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, xpThresholdFor, type Action, type LoggedAction, type TacticIdSource } from './actions';
+import { ActionDispatcher, buildingUpgradeFor, spawnGarrisonPost, type ActionContext, garrisonFovYaw, prepareHazardPours, resetOilFieldToBaseline, levelCost, quantizeWorld, quantizeYaw, xpThresholdFor, type Action, type LoggedAction, type TacticIdSource } from './actions';
 import {
     emptyForgeSlots,
     forgeSeatCanInsert,
@@ -3644,25 +3644,33 @@ export class Game {
             return;
         }
         this.spawnBaseBuildings(() => true);
-        if (wallsModeOption(this.settings.walls) === 'prebuilt') this.spawnPrebuiltWalls();
+        const walls = wallsModeOption(this.settings.walls);
+        if (walls === 'prebuilt' || walls === 'prebuiltArchers') this.spawnPrebuilt(walls === 'prebuiltArchers');
     }
 
     /**
      * Walls: Prebuilt — every seat whose side gets walls starts with the AI's
      * full fortress (aiWalls' plan, its fixed gates made), free and standing
-     * from round 0, so it can't be moved like a pack bought this round. In a
-     * Siege only the defender gets walls; each attacker seat gets what one
-     * defender seat's fortress is worth as start money instead. Same order on
-     * every client (seats, then the plan), so unit ids agree.
+     * from round 0, so it can't be moved like a pack bought this round.
+     * Prebuilt + archers also mans every archer post its seat may take on the
+     * side's Stronghold and Vanguard (garrisonSeatSlots). In a Siege only the
+     * defender gets them.
+     *
+     * Whatever a seat got for free is added up, and every seat that got less
+     * than the one with the most (a Siege's attacker: no walls, no Stronghold
+     * to man; a lane where fewer pieces fit) gets the difference as start
+     * money — so the prebuilt start is even, whichever buildings a mode hands
+     * out. Same order on every client (seats, then the plan), so unit ids agree.
      */
-    private spawnPrebuiltWalls(): void {
+    private spawnPrebuilt(withArchers: boolean): void {
         const wall = this.types.byId(AI_WALL_ID);
         const gateType = wall?.wall?.makeGate ? this.types.byId(wall.wall.makeGate.typeId) : null;
         if (!wall) return;
         const attacker = isSiege(this.settings) ? this.yearAttackerTeam() : null;
-        let defenderWorth = 0;
-        let defenderSeats = 0;
+        /** what each seat got for free */
+        const worthOf = new Map<SeatId, number>();
         for (const team of ['player', 'enemy'] as const) {
+            for (const seat of seatIdsOf(this.seats, team)) worthOf.set(seat, 0);
             if (!yearBoardExtraAllowed(attacker, team, wall.id, 'prebuilt')) continue;
             for (const seat of seatIdsOf(this.seats, team)) {
                 const plan = orderedWallPlan(this.placement, team, seat, wall);
@@ -3680,15 +3688,29 @@ export class Game {
                         unit.refreshLevelBadge();
                     }
                 }
-                if (team !== attacker) {
-                    defenderWorth += worth;
-                    defenderSeats++;
-                }
+                if (withArchers) worth += this.spawnPrebuiltGarrisons(team, seat);
+                worthOf.set(seat, worth);
             }
         }
-        if (attacker === null || defenderSeats === 0) return;
-        const bonus = Math.round(defenderWorth / defenderSeats);
-        for (const seat of seatIdsOf(this.seats, attacker)) this.economy.credit(seat, bonus);
+        // even it out: the difference to the best-off seat, as money
+        const most = Math.max(0, ...worthOf.values());
+        for (const [seat, worth] of worthOf) {
+            if (worth < most) this.economy.credit(seat, Math.round(most - worth));
+        }
+    }
+
+    /** mans every archer post `seat` may take on its side's garrisoned buildings; returns what they are worth */
+    private spawnPrebuiltGarrisons(team: Team, seat: SeatId): number {
+        let worth = 0;
+        for (const keep of this.placement.allUnits().filter((u) => u.team === team && !u.destroyed && !!u.type.garrison)) {
+            const posted = this.types.byId(keep.type.garrison!.unitTypeId);
+            if (!posted) continue;
+            // until the seat's own block of pads on it is full
+            for (let guard = 0; guard < 32 && spawnGarrisonPost(this.placement, posted, keep, team, seat); guard++) {
+                worth += this.types.postCost(keep.type);
+            }
+        }
+        return worth;
     }
 
     /**

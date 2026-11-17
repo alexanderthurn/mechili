@@ -279,6 +279,7 @@
   "walls": {
     "off": "Kapalı",
     "normal": "Normal",
-    "prebuilt": "Hazır kurulu"
+    "prebuilt": "Hazır kurulu",
+    "prebuiltArchers": "Hazır kurulu + okçular"
   }
 }

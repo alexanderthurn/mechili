@@ -279,6 +279,7 @@
   "walls": {
     "off": "Wył.",
     "normal": "Normalne",
-    "prebuilt": "Zbudowane"
+    "prebuilt": "Zbudowane",
+    "prebuiltArchers": "Zbudowane + łucznicy"
   }
 }

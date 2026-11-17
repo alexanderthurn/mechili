@@ -279,6 +279,7 @@
   "walls": {
     "off": "끄기",
     "normal": "보통",
-    "prebuilt": "미리 건설"
+    "prebuilt": "미리 건설",
+    "prebuiltArchers": "미리 건설 + 궁수"
   }
 }

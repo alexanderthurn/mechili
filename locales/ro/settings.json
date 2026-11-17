@@ -279,6 +279,7 @@
   "walls": {
     "off": "Oprite",
     "normal": "Normal",
-    "prebuilt": "Preconstruite"
+    "prebuilt": "Preconstruite",
+    "prebuiltArchers": "Preconstruite + arcași"
   }
 }

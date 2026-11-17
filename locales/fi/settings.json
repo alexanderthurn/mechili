@@ -279,6 +279,7 @@
   "walls": {
     "off": "Pois",
     "normal": "Normaali",
-    "prebuilt": "Valmiina"
+    "prebuilt": "Valmiina",
+    "prebuiltArchers": "Valmiina + jousimiehet"
   }
 }

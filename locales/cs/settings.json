@@ -279,6 +279,7 @@
   "walls": {
     "off": "Vypnuto",
     "normal": "Normální",
-    "prebuilt": "Předem postavené"
+    "prebuilt": "Předem postavené",
+    "prebuiltArchers": "Předem postavené + lučištníci"
   }
 }

@@ -279,6 +279,7 @@
   "walls": {
     "off": "Tắt",
     "normal": "Bình thường",
-    "prebuilt": "Dựng sẵn"
+    "prebuilt": "Dựng sẵn",
+    "prebuiltArchers": "Dựng sẵn + cung thủ"
   }
 }

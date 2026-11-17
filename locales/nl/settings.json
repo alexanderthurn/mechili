@@ -279,6 +279,7 @@
   "walls": {
     "off": "Uit",
     "normal": "Normaal",
-    "prebuilt": "Vooraf gebouwd"
+    "prebuilt": "Vooraf gebouwd",
+    "prebuiltArchers": "Vooraf gebouwd + boogschutters"
   }
 }

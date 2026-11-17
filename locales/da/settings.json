@@ -279,6 +279,7 @@
   "walls": {
     "off": "Fra",
     "normal": "Normal",
-    "prebuilt": "Forudbygget"
+    "prebuilt": "Forudbygget",
+    "prebuiltArchers": "Forudbygget + bueskytter"
   }
 }

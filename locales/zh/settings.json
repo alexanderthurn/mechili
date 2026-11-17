@@ -279,6 +279,7 @@
   "walls": {
     "off": "关闭",
     "normal": "普通",
-    "prebuilt": "预先建好"
+    "prebuilt": "预先建好",
+    "prebuiltArchers": "预先建好 + 弓箭手"
   }
 }

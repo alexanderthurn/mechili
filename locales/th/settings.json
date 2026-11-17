@@ -279,6 +279,7 @@
   "walls": {
     "off": "ปิด",
     "normal": "ปกติ",
-    "prebuilt": "สร้างไว้แล้ว"
+    "prebuilt": "สร้างไว้แล้ว",
+    "prebuiltArchers": "สร้างไว้แล้ว + นักธนู"
   }
 }

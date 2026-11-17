@@ -279,6 +279,7 @@
   "walls": {
     "off": "Off",
     "normal": "Normal",
-    "prebuilt": "Prebuilt"
+    "prebuilt": "Prebuilt",
+    "prebuiltArchers": "Prebuilt + archers"
   }
 }

@@ -279,6 +279,7 @@
   "walls": {
     "off": "Ki",
     "normal": "Normál",
-    "prebuilt": "Előre megépítve"
+    "prebuilt": "Előre megépítve",
+    "prebuiltArchers": "Előre megépítve + íjászok"
   }
 }

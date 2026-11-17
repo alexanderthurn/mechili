@@ -279,6 +279,7 @@
   "walls": {
     "off": "Mati",
     "normal": "Biasa",
-    "prebuilt": "Sudah dibina"
+    "prebuilt": "Sudah dibina",
+    "prebuiltArchers": "Sudah dibina + pemanah"
   }
 }

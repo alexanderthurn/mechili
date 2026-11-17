@@ -598,9 +598,12 @@ export function formatStrongholdModeOption(o: StrongholdModeOption): string {
  *                fortress the AI builds (aiWalls' plan, gates included). In a
  *                Siege only the defender gets it; the attacker gets what it is
  *                worth as start money instead.
+ * - `prebuiltArchers` — as prebuilt, and every archer post of the Stronghold
+ *                and the Vanguard is manned too (for the same sides, with the
+ *                same start money for a Siege's attacker).
  */
-export type WallsMode = 'off' | 'normal' | 'prebuilt';
-export const WALLS_MODES: readonly WallsMode[] = ['off', 'normal', 'prebuilt'];
+export type WallsMode = 'off' | 'normal' | 'prebuilt' | 'prebuiltArchers';
+export const WALLS_MODES: readonly WallsMode[] = ['off', 'normal', 'prebuilt', 'prebuiltArchers'];
 export const DEFAULT_WALLS_MODE: WallsMode = 'normal';
 
 /** Snap anything off the wire, a save or a URL onto a known mode. */
@@ -610,7 +613,7 @@ export function wallsModeOption(raw: unknown): WallsMode {
 
 /** the mode's name in the current language */
 export function wallsModeName(mode: WallsMode): string {
-    const fallback = { off: 'Off', normal: 'Normal', prebuilt: 'Prebuilt' }[mode];
+    const fallback = { off: 'Off', normal: 'Normal', prebuilt: 'Prebuilt', prebuiltArchers: 'Prebuilt + archers' }[mode];
     return t(`settings:walls.${mode}`, { defaultValue: fallback });
 }
 

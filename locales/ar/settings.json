@@ -279,6 +279,7 @@
   "walls": {
     "off": "إيقاف",
     "normal": "عادي",
-    "prebuilt": "مبنية مسبقًا"
+    "prebuilt": "مبنية مسبقًا",
+    "prebuiltArchers": "مبنية مسبقًا + رماة"
   }
 }

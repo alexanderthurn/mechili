@@ -279,6 +279,7 @@
   "walls": {
     "off": "Av",
     "normal": "Normal",
-    "prebuilt": "Förbyggda"
+    "prebuilt": "Förbyggda",
+    "prebuiltArchers": "Förbyggda + bågskyttar"
   }
 }
