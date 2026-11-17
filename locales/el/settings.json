@@ -2,6 +2,13 @@
   "title": "Ρυθμίσεις",
   "general": "Γενικά",
   "look": "Εμφάνιση",
+  "cameraShake": "Κούνημα κάμερας",
+  "shake": {
+    "off": "Ανενεργό",
+    "subtle": "Ήπιο",
+    "normal": "Κανονικό",
+    "strong": "Έντονο"
+  },
   "controls": "Χειριστήρια",
   "controlsHelp": "Βοήθεια",
   "chat": "Chat",

@@ -2,6 +2,13 @@
   "title": "Nastavení",
   "general": "Obecné",
   "look": "Vzhled",
+  "cameraShake": "Otřesy kamery",
+  "shake": {
+    "off": "Vypnuto",
+    "subtle": "Slabé",
+    "normal": "Normální",
+    "strong": "Silné"
+  },
   "controls": "Ovládací prvky",
   "controlsHelp": "Pomoc",
   "chat": "Povídání",

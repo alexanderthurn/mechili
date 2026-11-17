@@ -46,6 +46,9 @@ export type AoQuality = 'off' | 'low' | 'medium' | 'high' | 'ultra';
  * Sim oil/fire hitboxes are always the same — quality is visual only.
  */
 
+export const CAMERA_SHAKE_LEVELS = ['off', 'subtle', 'normal', 'strong'] as const;
+export type CameraShake = (typeof CAMERA_SHAKE_LEVELS)[number];
+
 export interface Prefs {
     /** show the in-match (combat) chat at all: bar, bubbles, messages */
     combatChat: boolean;
@@ -53,6 +56,8 @@ export interface Prefs {
     audioMuted: boolean;
     /** replays (and their films): the camera follows the fighting by itself (battleCamera.ts) */
     autoBattleCamera: boolean;
+    /** camera shake on big hits (stronghold collapse, tower blasts, …) — scales its strength (screenShake.ts) */
+    cameraShake: CameraShake;
     /** Master gain 0..1 (applied after mute). */
     masterVolume: number;
     /** Combat / world SFX group gain 0..1. */
@@ -356,6 +361,7 @@ const DEFAULTS: Prefs = {
     combatChat: true,
     audioMuted: false,
     autoBattleCamera: true,
+    cameraShake: 'normal',
     masterVolume: 1,
     sfxVolume: 1,
     musicVolume: 0.7,
@@ -741,6 +747,7 @@ const SANITIZERS: Partial<Record<keyof Prefs, Sanitizer>> = {
     combatChat: asBool,
     audioMuted: asBool,
     autoBattleCamera: asBool,
+    cameraShake: asWord(CAMERA_SHAKE_LEVELS),
     masterVolume: asUnitInterval(),
     sfxVolume: asUnitInterval(),
     musicVolume: asUnitInterval(),

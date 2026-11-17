@@ -2,6 +2,13 @@
   "title": "Tetapan",
   "general": "Umum",
   "look": "Penampilan",
+  "cameraShake": "Gegaran kamera",
+  "shake": {
+    "off": "Mati",
+    "subtle": "Lembut",
+    "normal": "Biasa",
+    "strong": "Kuat"
+  },
   "controls": "Kawalan",
   "controlsHelp": "Bantuan",
   "chat": "Sembang",

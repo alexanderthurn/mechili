@@ -2,6 +2,13 @@
   "title": "Einstellungen",
   "general": "Allgemein",
   "look": "Aussehen",
+  "cameraShake": "Kamerawackeln",
+  "shake": {
+    "off": "Aus",
+    "subtle": "Schwach",
+    "normal": "Normal",
+    "strong": "Stark"
+  },
   "controls": "Steuerung",
   "controlsHelp": "Hilfe",
   "chat": "Chat",

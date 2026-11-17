@@ -2,6 +2,13 @@
   "title": "設定",
   "general": "一般",
   "look": "見た目",
+  "cameraShake": "画面の揺れ",
+  "shake": {
+    "off": "オフ",
+    "subtle": "弱",
+    "normal": "標準",
+    "strong": "強"
+  },
   "controls": "操作",
   "controlsHelp": "ヘルプ",
   "chat": "チャット",

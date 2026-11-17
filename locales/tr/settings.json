@@ -2,6 +2,13 @@
   "title": "Ayarlar",
   "general": "Genel",
   "look": "Görünüm",
+  "cameraShake": "Kamera sarsıntısı",
+  "shake": {
+    "off": "Kapalı",
+    "subtle": "Hafif",
+    "normal": "Normal",
+    "strong": "Güçlü"
+  },
   "controls": "Kontroller",
   "controlsHelp": "Yardım",
   "chat": "Sohbet",

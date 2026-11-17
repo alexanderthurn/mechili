@@ -2,6 +2,13 @@
   "title": "Definições",
   "general": "Geral",
   "look": "Aparência",
+  "cameraShake": "Tremor da câmara",
+  "shake": {
+    "off": "Desligado",
+    "subtle": "Suave",
+    "normal": "Normal",
+    "strong": "Forte"
+  },
   "controls": "Controles",
   "controlsHelp": "Ajuda",
   "chat": "Bater papo",

@@ -2,6 +2,13 @@
   "title": "Pengaturan",
   "general": "Umum",
   "look": "Tampilan",
+  "cameraShake": "Guncangan kamera",
+  "shake": {
+    "off": "Mati",
+    "subtle": "Halus",
+    "normal": "Normal",
+    "strong": "Kuat"
+  },
   "controls": "Kontrol",
   "controlsHelp": "Membantu",
   "chat": "Mengobrol",

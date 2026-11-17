@@ -2,6 +2,13 @@
   "title": "Indstillinger",
   "general": "Generelt",
   "look": "Udseende",
+  "cameraShake": "Kamerarystelse",
+  "shake": {
+    "off": "Fra",
+    "subtle": "Svag",
+    "normal": "Normal",
+    "strong": "Kraftig"
+  },
   "controls": "Kontroller",
   "controlsHelp": "Hjælp",
   "chat": "Snak",

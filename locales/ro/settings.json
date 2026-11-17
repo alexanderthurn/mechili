@@ -2,6 +2,13 @@
   "title": "Setări",
   "general": "General",
   "look": "Aspect",
+  "cameraShake": "Tremurul camerei",
+  "shake": {
+    "off": "Oprit",
+    "subtle": "Slab",
+    "normal": "Normal",
+    "strong": "Puternic"
+  },
   "controls": "Controale",
   "controlsHelp": "Ajutor",
   "chat": "Chat",

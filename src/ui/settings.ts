@@ -1,6 +1,7 @@
 import {
     applyGraphicsPreset,
     applySteamLanguageDefault,
+    CAMERA_SHAKE_LEVELS,
     detectGraphicsPreset,
     GRAPHICS_PRESET_IDS,
     prefs,
@@ -81,6 +82,10 @@ export function openSettings(parent: HTMLElement): void {
         }
         overlay.querySelector('.s-look-head')!.textContent = t('settings:look');
         overlay.querySelector('.s-lang-label')!.textContent = t('common:language');
+        overlay.querySelector('.s-shake-label')!.textContent = t('settings:cameraShake');
+        for (const opt of overlay.querySelectorAll<HTMLOptionElement>('.s-shake option')) {
+            opt.textContent = t(`settings:shake.${opt.value}`);
+        }
         overlay.querySelector('.s-controls-head')!.textContent = t('settings:controls');
         overlay.querySelector('[data-act="controls-help"]')!.textContent = t('settings:controlsHelp');
         overlay.querySelector('.s-chat-head')!.textContent = t('settings:chat');
@@ -223,6 +228,9 @@ export function openSettings(parent: HTMLElement): void {
         `<path d="M2.1 8h11.8M3.2 4.8h9.6M3.2 11.2h9.6" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>` +
         `</svg>` +
         `<span class="s-lang-label"></span> <select class="s-lang">${langOptions}</select></label>` +
+        `<label class="s-row"><span class="s-shake-label"></span> <select class="s-shake">` +
+        CAMERA_SHAKE_LEVELS.map((id) => `<option value="${id}"></option>`).join('') +
+        `</select></label>` +
         `</section>` +
         `<section class="s-section">` +
         `<div class="s-section-head s-controls-head"></div>` +
@@ -400,6 +408,7 @@ export function openSettings(parent: HTMLElement): void {
     const mpSel = overlay.querySelector<HTMLSelectElement>('.s-mp')!;
     const mpHint = overlay.querySelector<HTMLElement>('.s-mp-hint')!;
     const langSel = overlay.querySelector<HTMLSelectElement>('.s-lang')!;
+    const shakeSel = overlay.querySelector<HTMLSelectElement>('.s-shake')!;
     const scenery = overlay.querySelector<HTMLSelectElement>('.s-scenery')!;
     const ground = overlay.querySelector<HTMLSelectElement>('.s-ground')!;
     const fire = overlay.querySelector<HTMLSelectElement>('.s-fire')!;
@@ -439,6 +448,7 @@ export function openSettings(parent: HTMLElement): void {
         mpSel.value = p.multiplayerTransport;
         mpHint.textContent = t(mpHintKeys[p.multiplayerTransport]);
         langSel.value = p.language;
+        shakeSel.value = p.cameraShake;
         scenery.value = p.scenery;
         ground.value = p.groundEffects;
         fire.value = p.fireVfx;
@@ -521,6 +531,9 @@ export function openSettings(parent: HTMLElement): void {
 
     debugToggle.addEventListener('change', () => updatePrefs({ debugOverlay: debugToggle.checked }));
     combat.addEventListener('change', () => updatePrefs({ combatChat: combat.checked }));
+    shakeSel.addEventListener('change', () => {
+        updatePrefs({ cameraShake: shakeSel.value as Prefs['cameraShake'] });
+    });
     audioMute.addEventListener('change', () => updatePrefs({ audioMuted: audioMute.checked }));
     voicesToggle.addEventListener('change', () => {
         updatePrefs({ voicesEnabled: voicesToggle.checked });

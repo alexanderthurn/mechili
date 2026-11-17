@@ -2,6 +2,13 @@
   "title": "الإعدادات",
   "general": "عام",
   "look": "المظهر",
+  "cameraShake": "اهتزاز الكاميرا",
+  "shake": {
+    "off": "إيقاف",
+    "subtle": "خفيف",
+    "normal": "عادي",
+    "strong": "قوي"
+  },
   "controls": "التحكم",
   "controlsHelp": "مساعدة",
   "chat": "دردشة",

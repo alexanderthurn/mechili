@@ -2,6 +2,13 @@
   "title": "Ajustes",
   "general": "General",
   "look": "Apariencia",
+  "cameraShake": "Vibración de cámara",
+  "shake": {
+    "off": "Desactivada",
+    "subtle": "Suave",
+    "normal": "Normal",
+    "strong": "Fuerte"
+  },
   "controls": "Controles",
   "controlsHelp": "Ayuda",
   "chat": "Charlar",

@@ -2,6 +2,13 @@
   "title": "Beállítások",
   "general": "Általános",
   "look": "Megjelenés",
+  "cameraShake": "Kamerarázkódás",
+  "shake": {
+    "off": "Ki",
+    "subtle": "Gyenge",
+    "normal": "Normál",
+    "strong": "Erős"
+  },
   "controls": "Vezérlők",
   "controlsHelp": "Segítség",
   "chat": "Csevegés",

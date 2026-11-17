@@ -2,6 +2,13 @@
   "title": "Settings",
   "general": "General",
   "look": "Look",
+  "cameraShake": "Camera shake",
+  "shake": {
+    "off": "Off",
+    "subtle": "Subtle",
+    "normal": "Normal",
+    "strong": "Strong"
+  },
   "controls": "Controls",
   "controlsHelp": "Help",
   "chat": "Chat",

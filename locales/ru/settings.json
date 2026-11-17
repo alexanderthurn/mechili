@@ -2,6 +2,13 @@
   "title": "Настройки",
   "general": "Общие",
   "look": "Вид",
+  "cameraShake": "Тряска камеры",
+  "shake": {
+    "off": "Выкл.",
+    "subtle": "Слабая",
+    "normal": "Обычная",
+    "strong": "Сильная"
+  },
   "controls": "Управление",
   "controlsHelp": "Справка",
   "chat": "Чат",

@@ -2,6 +2,13 @@
   "title": "Cài đặt",
   "general": "Chung",
   "look": "Giao diện",
+  "cameraShake": "Rung máy quay",
+  "shake": {
+    "off": "Tắt",
+    "subtle": "Nhẹ",
+    "normal": "Bình thường",
+    "strong": "Mạnh"
+  },
   "controls": "Điều khiển",
   "controlsHelp": "Giúp đỡ",
   "chat": "Trò chuyện",

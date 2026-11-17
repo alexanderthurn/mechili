@@ -2,6 +2,13 @@
   "title": "설정",
   "general": "일반",
   "look": "외형",
+  "cameraShake": "화면 흔들림",
+  "shake": {
+    "off": "끄기",
+    "subtle": "약하게",
+    "normal": "보통",
+    "strong": "강하게"
+  },
   "controls": "조작",
   "controlsHelp": "도움말",
   "chat": "채팅",

@@ -2,6 +2,13 @@
   "title": "Inställningar",
   "general": "Allmänt",
   "look": "Utseende",
+  "cameraShake": "Kameraskakning",
+  "shake": {
+    "off": "Av",
+    "subtle": "Svag",
+    "normal": "Normal",
+    "strong": "Kraftig"
+  },
   "controls": "Kontroller",
   "controlsHelp": "Hjälp",
   "chat": "Chatt",

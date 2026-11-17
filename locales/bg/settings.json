@@ -2,6 +2,13 @@
   "title": "Настройки",
   "general": "Общи",
   "look": "Изглед",
+  "cameraShake": "Тресене на камерата",
+  "shake": {
+    "off": "Изкл.",
+    "subtle": "Слабо",
+    "normal": "Нормално",
+    "strong": "Силно"
+  },
   "controls": "Контроли",
   "controlsHelp": "Помощ",
   "chat": "Чат",

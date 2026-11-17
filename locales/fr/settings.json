@@ -2,6 +2,13 @@
   "title": "Paramètres",
   "general": "Général",
   "look": "Apparence",
+  "cameraShake": "Tremblement de caméra",
+  "shake": {
+    "off": "Désactivé",
+    "subtle": "Léger",
+    "normal": "Normal",
+    "strong": "Fort"
+  },
   "controls": "Commandes",
   "controlsHelp": "Aide",
   "chat": "Chat",

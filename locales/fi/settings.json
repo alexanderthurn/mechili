@@ -2,6 +2,13 @@
   "title": "Asetukset",
   "general": "Yleiset",
   "look": "Ulkoasu",
+  "cameraShake": "Kameran tärinä",
+  "shake": {
+    "off": "Pois",
+    "subtle": "Heikko",
+    "normal": "Normaali",
+    "strong": "Voimakas"
+  },
   "controls": "Ohjauslaitteet",
   "controlsHelp": "Auttaa",
   "chat": "Chat",

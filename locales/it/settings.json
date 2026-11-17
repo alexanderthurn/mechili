@@ -2,6 +2,13 @@
   "title": "Impostazioni",
   "general": "Generale",
   "look": "Aspetto",
+  "cameraShake": "Tremolio della telecamera",
+  "shake": {
+    "off": "Disattivato",
+    "subtle": "Leggero",
+    "normal": "Normale",
+    "strong": "Forte"
+  },
   "controls": "Comandi",
   "controlsHelp": "Aiuto",
   "chat": "Chiacchierata",

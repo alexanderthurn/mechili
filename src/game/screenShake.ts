@@ -1,4 +1,10 @@
 import { MathUtils, PerspectiveCamera, Vector3 } from 'three';
+import { prefs, type CameraShake } from './prefs';
+
+/** the player's "Camera shake" setting: a factor on every shake's strength */
+const STRENGTH: Record<CameraShake, number> = { off: 0, subtle: 0.5, normal: 1, strong: 1.5 };
+/** every shake runs this share of the duration its caller asks for (feedback: too long) */
+const DURATION_SCALE = 0.5;
 
 export type ScreenShakeOpts = {
     /** Peak positional offset in world units */
@@ -29,7 +35,14 @@ export function installScreenShake(cam: PerspectiveCamera, lookTarget: () => Vec
  * Multiple calls stack and decay independently.
  */
 export function screenShake(opts: ScreenShakeOpts): void {
-    active.push({ ...opts, elapsed: 0 });
+    const strength = STRENGTH[prefs().cameraShake] ?? 1;
+    if (strength <= 0 || opts.duration <= 0) return;
+    active.push({
+        ...opts,
+        intensity: opts.intensity * strength,
+        duration: opts.duration * DURATION_SCALE,
+        elapsed: 0,
+    });
 }
 
 /** Advance shake decay and apply jitter to the bound camera. */

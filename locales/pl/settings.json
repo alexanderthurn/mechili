@@ -2,6 +2,13 @@
   "title": "Ustawienia",
   "general": "Ogólne",
   "look": "Wygląd",
+  "cameraShake": "Wstrząsy kamery",
+  "shake": {
+    "off": "Wył.",
+    "subtle": "Słabe",
+    "normal": "Normalne",
+    "strong": "Silne"
+  },
   "controls": "Sterowanie",
   "controlsHelp": "Pomoc",
   "chat": "Pogawędzić",

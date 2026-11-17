@@ -2,6 +2,13 @@
   "title": "設定",
   "general": "一般",
   "look": "外觀",
+  "cameraShake": "鏡頭震動",
+  "shake": {
+    "off": "關閉",
+    "subtle": "輕微",
+    "normal": "正常",
+    "strong": "強烈"
+  },
   "controls": "操作",
   "controlsHelp": "幫助",
   "chat": "聊天",

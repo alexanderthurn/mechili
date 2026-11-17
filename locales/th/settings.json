@@ -2,6 +2,13 @@
   "title": "ตั้งค่า",
   "general": "ทั่วไป",
   "look": "รูปลักษณ์",
+  "cameraShake": "กล้องสั่น",
+  "shake": {
+    "off": "ปิด",
+    "subtle": "เบา",
+    "normal": "ปกติ",
+    "strong": "แรง"
+  },
   "controls": "การควบคุม",
   "controlsHelp": "ช่วยเหลือ",
   "chat": "แชท",
