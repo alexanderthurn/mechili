@@ -445,6 +445,8 @@ export class Hud {
     onUnlockPick: ((typeId: string) => void) | null = null;
     /** shop: buy an always-available base rune (no per-round buy-slot limit) */
     onBuyRune: ((itemId: string) => boolean) | null = null;
+    /** shop rune, right click: bought straight into the forge */
+    onBuyRuneToForge: ((itemId: string) => boolean) | null = null;
     onQuitToMenu: (() => void) | null = null;
     /** SP defeat only — rebuild the lost round (see Game.requestRetryLastRound) */
     onRetryLastRound: (() => void) | null = null;
@@ -997,6 +999,11 @@ export class Hud {
             btn.addEventListener('click', () => {
                 if (btn.classList.contains('unaffordable')) return;
                 if (this.onBuyRune?.(itemId)) this.setPhoneTab(null);
+            });
+            // right click: straight into the Stronghold's forge, selected or not
+            btn.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                this.onBuyRuneToForge?.(itemId);
             });
             this.shopRuneButtons.push({ el: btn, itemId });
             this.shopRuneRow.appendChild(btn);
@@ -1555,7 +1562,8 @@ export class Hud {
         el.dataset.runeId = itemId;
         el.dataset.ttitle = itemName(itemId, def.name);
         const desc = itemDescription(itemId, def.description, def.mods);
-        el.dataset.tdesc = extra ? `${desc}\n${extra}` : desc;
+        const forgeHint = t('hud:runeRightClickForge', { defaultValue: 'Right click: straight into the forge.' });
+        el.dataset.tdesc = [desc, extra, el.classList.contains('shop-rune') ? forgeHint : ''].filter(Boolean).join('\n');
         el.dataset.ticon = def.icon;
         el.removeAttribute('title');
     }
@@ -2753,12 +2761,19 @@ export class Hud {
         this.shopGrid.classList.toggle('compact', compact);
     }
 
-    setShopRuneCost(cost: number, balance: number): void {
+    /**
+     * The shop rune's price: `cost` is what one click pays (affordability);
+     * `label` what the tile shows — "4×50" while a group of packs is selected
+     * (one rune for each, see Game.buyRuneForGroup).
+     */
+    setShopRuneCost(cost: number, balance: number, label = String(cost)): void {
         this.shopRuneCost = cost;
         this.shopRuneBalance = balance;
         for (const { el, itemId } of this.shopRuneButtons) {
             const costEl = el.querySelector('.cost');
-            if (costEl) costEl.textContent = String(cost);
+            if (costEl) costEl.textContent = label;
+            // "4×50": a square tile, so the price fits (the round one cuts it off)
+            el.classList.toggle('is-group', label !== String(cost));
             this.writeRuneTip(el, itemId);
         }
         this.refreshShopRuneAffordability();

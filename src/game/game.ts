@@ -2560,6 +2560,7 @@ export class Game {
         this.hud.unlockCostOf = (typeId) =>
             unlockCostFor(typeId, this.starterCardOfSeat(this.humanSeat), this.types);
         this.hud.onBuyRune = (itemId) => this.buyRune(itemId);
+        this.hud.onBuyRuneToForge = (itemId) => this.buyRuneIntoForge(itemId, true);
         this.hud.onQuitToMenu = () => this.voluntaryQuit();
         this.hud.onRetryLastRound = () => this.requestRetryLastRound();
         this.hud.onRematch = () => this.requestRematch();
@@ -9794,10 +9795,93 @@ export class Game {
         return ok;
     }
 
+    /** the next base rune's price, `ahead` purchases from now (the price may step per purchase) */
+    private runeCost(ahead: number): number {
+        const d = this.settings.deploy;
+        return d.baseRuneCost + ((this.deployState.runesBought[this.humanSeat] ?? 0) + ahead) * d.runeCostStep;
+    }
+
+    /** what the next `n` base runes cost together */
+    private runeCostFor(n: number): number {
+        let sum = 0;
+        for (let i = 0; i < n; i++) sum += this.runeCost(i);
+        return sum;
+    }
+
+    /**
+     * The selected packs of mine with a free rune slot — a group's, or the one
+     * selected pack — a shop rune then goes onto each of them in one click.
+     * Empty otherwise (and in tutorials), so the shop buys one into the bag
+     * as ever.
+     */
+    private groupRuneTargets(): Unit[] {
+        if (this.tutorial || this.phase !== 'build' || !this.playerCanAct) return [];
+        const group = this.placement.selectionGroup;
+        const sel = this.placement.selectedUnit;
+        const picked = group.length > 0 ? group : sel ? [sel] : [];
+        return picked.filter(
+            (u) => !u.destroyed && u.seat === this.humanSeat && !u.type.structure && u.items.length < itemSlotLimit(u.type),
+        );
+    }
+
+    /**
+     * One rune for each pack of the selected group: bought and placed, pack by
+     * pack, under one batch number (one Undo takes all back) — only when all
+     * of them can be paid.
+     */
+    private buyRuneForGroup(itemId: string, packs: readonly Unit[]): boolean {
+        if (this.economy.balance(this.humanSeat) < this.runeCostFor(packs.length)) return false;
+        const batch = this.dispatcher.length + 1;
+        let placed = 0;
+        for (const unit of packs) {
+            if (!this.dispatchPlayer({ kind: 'buyRune', team: 'player', itemId, batch })) break;
+            if (this.dispatchPlayer({ kind: 'applyItem', team: 'player', unitId: unit.id, itemId, batch })) placed++;
+        }
+        this.tutorial?.sync4();
+        return placed > 0;
+    }
+
+    /** the Stronghold (with its forge) is the one selected unit: shop runes go into the forge */
+    private forgeSelectedForRunes(): boolean {
+        const sel = this.placement.selectedUnit;
+        return !!sel && this.placement.selectionGroup.length === 0 && sel.team === 'player' && hasAbility(sel.type, 'forge');
+    }
+
+    /**
+     * A shop rune bought straight into the forge (the Stronghold selected, or
+     * a right click on the rune): buy and insert under one batch number, so
+     * one Undo takes back both. Not when the forge has no free slot for me.
+     */
+    private buyRuneIntoForge(itemId: string, showForge = false): boolean {
+        if (!this.playerCanAct || this.phase !== 'build') return false;
+        if (this.tutorial?.blocksBuyRune(itemId)) return false;
+        const forge = this.placement.allUnits().find((u) => u.team === 'player' && !u.destroyed && hasAbility(u.type, 'forge'));
+        if (!forge || !forgeSeatCanInsert(this.forgeSlots.player, this.humanSeat, seatIdsOf(this.seats, 'player'))) {
+            audio.playPlayerAction('forgeInsert', false);
+            return false;
+        }
+        if (this.economy.balance(this.humanSeat) < this.runeCost(0)) return false;
+        const batch = this.dispatcher.length + 1;
+        if (!this.dispatchPlayer({ kind: 'buyRune', team: 'player', itemId, batch })) return false;
+        if (!this.dispatchPlayer({ kind: 'forgeInsert', team: 'player', itemId, batch })) {
+            // no slot after all: the rune stays in the bag, ready to place
+            this.armedItem = itemId;
+            this.armedItemIndex = this.itemInventory[this.humanSeat]!.length - 1;
+        }
+        // the right click: the Stronghold's panel opens, to show the forge it went into
+        if (showForge && !this.armedItem) this.placement.selectUnit(forge);
+        this.tutorial?.sync4();
+        return true;
+    }
+
     /** HUD: buy a base rune into the bag — no per-round purchase-slot limit. */
     private buyRune(itemId: string): boolean {
         if (!this.playerCanAct) return false;
         if (this.tutorial?.blocksBuyRune(itemId)) return false;
+        const packs = this.groupRuneTargets();
+        if (packs.length > 0) return this.buyRuneForGroup(itemId, packs);
+        // the Stronghold selected: the rune goes into its forge, not the bag
+        if (this.forgeSelectedForRunes()) return this.buyRuneIntoForge(itemId);
         const ok = this.dispatchPlayer({
             kind: 'buyRune',
             team: 'player',
@@ -12133,11 +12217,24 @@ export class Game {
             this.deployState.limit[this.humanSeat]! + this.deployState.extra[this.humanSeat]!,
             this.settings.deploy.extrasBudgetPerRound - this.deployState.extrasSpent[this.humanSeat]!,
         );
-        this.hud.setShopRuneCost(
-            this.settings.deploy.baseRuneCost +
-                this.deployState.runesBought[this.humanSeat]! * this.settings.deploy.runeCostStep,
-            this.economy.balance(this.humanSeat),
-        );
+        {
+            const balance = this.economy.balance(this.humanSeat);
+            const packs = this.groupRuneTargets();
+            if (packs.length > 0) {
+                const each = this.runeCost(0);
+                const total = this.runeCostFor(packs.length);
+                // a step per purchase would make the runes differ in price: then the sum
+                // "1×50" too: the × says the rune goes straight onto the selection
+                // (a price that steps per purchase: the sum instead)
+                const label = total === each * packs.length ? `${packs.length}×${each}` : String(total);
+                this.hud.setShopRuneCost(total, balance, label);
+            } else if (this.forgeSelectedForRunes()) {
+                // the Stronghold selected: the rune goes straight into its forge
+                this.hud.setShopRuneCost(this.runeCost(0), balance, `1×${this.runeCost(0)}`);
+            } else {
+                this.hud.setShopRuneCost(this.runeCost(0), balance);
+            }
+        }
         {
             const oven = this.forgeSlots.player ?? [];
             const pool = this.teamForgePool('player');

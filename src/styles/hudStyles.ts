@@ -610,6 +610,8 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-shop .shop-rune:active { transform: scale(0.94); }
 .mechili-shop .shop-rune:focus-visible { outline: none; border-color: ${u.bronzeLight}; box-shadow: 0 0 0 3px rgba(184, 146, 74, 0.4); }
 .mechili-shop .shop-rune.unaffordable { opacity: 0.35; }
+/* a rune for each selected pack ("4×50"): square, so the price fits */
+.mechili-shop .shop-rune.is-group { border-radius: 6px; }
 .mechili-shop .shop-rune.unaffordable:hover { border-color: ${u.bronzeLight}; transform: none; }
 .mechili-shop .shop-rune .shop-rune-ico,
 .mechili-shop .shop-rune .shop-rune-ico.m-icon {
