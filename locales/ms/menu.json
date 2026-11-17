@@ -194,6 +194,7 @@
   "terrainWallDesc": "tembok berbukit dengan celah di tengah, selebihnya rata",
   "money": "Bekalan",
   "startMoney": "Bekalan permulaan",
+  "buysPerRound": "Pembelian setiap pusingan",
   "armies": {
     "standard": "Tentera standard",
     "komtur": "Tentera Komtur"

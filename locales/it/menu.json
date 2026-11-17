@@ -194,6 +194,7 @@
   "terrainWallDesc": "una muraglia collinosa con varchi al centro, il resto piatto",
   "money": "Scorte",
   "startMoney": "Scorte iniziali",
+  "buysPerRound": "Acquisti per round",
   "armies": {
     "standard": "Esercito standard",
     "komtur": "Esercito del Komtur"

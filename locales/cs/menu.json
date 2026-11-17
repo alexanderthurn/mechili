@@ -194,6 +194,7 @@
   "terrainWallDesc": "kopcovitý val s průchody uprostřed, jinde rovina",
   "money": "Zásoby",
   "startMoney": "Počáteční zásoby",
+  "buysPerRound": "Nákupy za kolo",
   "armies": {
     "standard": "Standardní armáda",
     "komtur": "Komturova armáda"

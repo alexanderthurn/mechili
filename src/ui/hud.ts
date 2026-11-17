@@ -36,7 +36,7 @@ import { roundCardFaceHtml } from './roundCardFace';
 import { speedKeyHint } from './speedKeys';
 import { hudStyles } from '../styles/hudStyles';
 import { yearMarksHtml, yearProgressHtml, yearRoleName, type YearProgress } from './yearTally';
-import { yearWinner } from '../game/settings';
+import { isUnlimitedBuys, yearWinner } from '../game/settings';
 import { audio } from '../game/audio';
 
 export type Phase = 'build' | 'battle' | 'hpDraw';
@@ -2584,7 +2584,7 @@ export class Hud {
     setDeploys(used: number, limit: number, extrasBudgetLeft: number): void {
         this.deploysLeft = limit - used;
         this.extrasBudgetLeft = extrasBudgetLeft;
-        const label = `${used}/${limit}`;
+        const label = isUnlimitedBuys(limit) ? `${used}/∞` : `${used}/${limit}`;
         const labelEl = this.deploysEl.querySelector<HTMLSpanElement>('.unit-cap-label');
         if (labelEl && labelEl.textContent !== label) labelEl.textContent = label;
         this.deploysEl.title = t('hud:deploysTitleExtras', { n: extrasBudgetLeft });

@@ -194,6 +194,7 @@
   "terrainWallDesc": "en bakket vold med huller i midten, resten fladt",
   "money": "Forsyninger",
   "startMoney": "Startforsyninger",
+  "buysPerRound": "Køb pr. runde",
   "armies": {
     "standard": "Standardhær",
     "komtur": "Komturs hær"

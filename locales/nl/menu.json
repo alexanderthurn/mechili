@@ -194,6 +194,7 @@
   "terrainWallDesc": "een heuvelachtige wal met gaten in het midden, de rest vlak",
   "money": "Voorraad",
   "startMoney": "Startvoorraad",
+  "buysPerRound": "Aankopen per ronde",
   "armies": {
     "standard": "Standaardleger",
     "komtur": "Komturleger"

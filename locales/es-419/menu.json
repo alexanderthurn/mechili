@@ -194,6 +194,7 @@
   "terrainWallDesc": "una muralla de colinas con huecos en el centro, el resto plano",
   "money": "Suministros",
   "startMoney": "Suministros iniciales",
+  "buysPerRound": "Compras por ronda",
   "armies": {
     "standard": "Ejército estándar",
     "komtur": "Ejército del Komtur"

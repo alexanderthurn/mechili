@@ -194,6 +194,7 @@
   "terrainWallDesc": "un rempart vallonné avec des brèches au centre, le reste plat",
   "money": "Ravitaillement",
   "startMoney": "Ravitaillement de départ",
+  "buysPerRound": "Achats par manche",
   "armies": {
     "standard": "Armée standard",
     "komtur": "Armée du Komtur"

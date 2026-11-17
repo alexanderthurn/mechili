@@ -194,6 +194,7 @@
   "terrainWallDesc": "en kuperad vall med luckor i mitten, resten platt",
   "money": "Förråd",
   "startMoney": "Startförråd",
+  "buysPerRound": "Köp per runda",
   "armies": {
     "standard": "Standardarmé",
     "komtur": "Komturs armé"

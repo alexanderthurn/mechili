@@ -194,6 +194,7 @@
   "terrainWallDesc": "中央一道帶缺口的丘陵牆，其餘平坦",
   "money": "補給",
   "startMoney": "初始補給",
+  "buysPerRound": "每回合購買次數",
   "armies": {
     "standard": "標準軍隊",
     "komtur": "孔圖爾軍隊"

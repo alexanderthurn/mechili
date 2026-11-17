@@ -63,6 +63,7 @@
   "hp": "HP",
   "money": "Supply",
   "startMoney": "Start money",
+  "buysPerRound": "Buys per round",
   "stronghold": "Stronghold",
   "resetDefaults": "Reset to defaults",
   "unitLoadout": "Unit loadout",

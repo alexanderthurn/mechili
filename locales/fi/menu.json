@@ -194,6 +194,7 @@
   "terrainWallDesc": "mäkinen valli keskellä aukkoineen, muuten tasaista",
   "money": "Tarvikkeet",
   "startMoney": "Aloitustarvikkeet",
+  "buysPerRound": "Ostoja per kierros",
   "armies": {
     "standard": "Tavallinen armeija",
     "komtur": "Komturin armeija"

@@ -194,6 +194,7 @@
   "terrainWallDesc": "중앙에 틈이 있는 언덕 방벽, 나머지는 평지",
   "money": "보급",
   "startMoney": "시작 보급",
+  "buysPerRound": "라운드당 구매",
   "armies": {
     "standard": "표준 군대",
     "komtur": "콤투어 군대"

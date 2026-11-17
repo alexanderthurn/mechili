@@ -717,6 +717,32 @@ export function resolveStartMoney(raw: unknown): number {
     return DEFAULT_START_MONEY;
 }
 
+/**
+ * Custom Game: how many unit packs each player may buy per round
+ * (deploy.unitsPerRound at the start; specials can still add slots). 0 = no limit.
+ */
+export const BUYS_PER_ROUND_OPTIONS = [2, 3, 4, 0] as const;
+export const DEFAULT_BUYS_PER_ROUND = 2;
+/** "no limit" as a count the deploy counters can hold — Infinity does not survive JSON (wire, replays) */
+export const UNLIMITED_BUYS_PER_ROUND = 999;
+
+/** Snap unknown / legacy values onto a lobby option (default 2). */
+export function buysPerRoundOption(raw: unknown): number {
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    return (BUYS_PER_ROUND_OPTIONS as readonly number[]).includes(n) ? n : DEFAULT_BUYS_PER_ROUND;
+}
+
+/** the lobby option as the match's starting per-round buy limit */
+export function resolveBuysPerRound(raw: unknown): number {
+    const n = buysPerRoundOption(raw);
+    return n === 0 ? UNLIMITED_BUYS_PER_ROUND : n;
+}
+
+/** a buy limit that means "no limit" (shown as ∞) */
+export function isUnlimitedBuys(limit: number): boolean {
+    return limit >= UNLIMITED_BUYS_PER_ROUND;
+}
+
 export const DEFAULT_SETTINGS: GameSettings = {
     map: STANDARD_MAP,
     buildTimeSeconds: 90,
@@ -1259,7 +1285,7 @@ export function describeGameSettings(settings: GameSettings): SettingGroup[] {
             rows: [
                 {
                     label: t('settings:sheet.buysPerRound', { defaultValue: 'Buys per round' }),
-                    value: `${settings.deploy.unitsPerRound}`,
+                    value: isUnlimitedBuys(settings.deploy.unitsPerRound) ? '∞' : `${settings.deploy.unitsPerRound}`,
                     note: t('settings:sheet.buysPerRoundNote', {
                         defaultValue: 'unit packs only',
                     }),

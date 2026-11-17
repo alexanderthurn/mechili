@@ -194,6 +194,7 @@
   "terrainWallDesc": "một dải đồi chắn ngang giữa có khe hở, còn lại bằng phẳng",
   "money": "Tiếp tế",
   "startMoney": "Tiếp tế ban đầu",
+  "buysPerRound": "Lượt mua mỗi vòng",
   "armies": {
     "standard": "Quân tiêu chuẩn",
     "komtur": "Quân Komtur"

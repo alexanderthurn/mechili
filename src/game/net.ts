@@ -351,6 +351,8 @@ export interface CustomGameConfig {
     moneyFactor: number;
     /** one-time supply at match start (both teams); see GameSettings.startMoney */
     startMoney: number;
+    /** unit packs each player may buy per round, 0 = no limit (BUYS_PER_ROUND_OPTIONS); omit = 2 */
+    buysPerRound?: number;
     /** what the Stronghold is worth this match; see GameSettings.strongholdMode */
     strongholdMode: StrongholdMode;
     /**

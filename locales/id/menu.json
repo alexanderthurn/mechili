@@ -194,6 +194,7 @@
   "terrainWallDesc": "tembok perbukitan bercelah di tengah, sisanya datar",
   "money": "Persediaan",
   "startMoney": "Persediaan awal",
+  "buysPerRound": "Pembelian per ronde",
   "armies": {
     "standard": "Pasukan standar",
     "komtur": "Pasukan Komtur"

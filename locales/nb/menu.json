@@ -194,6 +194,7 @@
   "terrainWallDesc": "en kupert voll med åpninger i midten, resten flatt",
   "money": "Forsyninger",
   "startMoney": "Startforsyninger",
+  "buysPerRound": "Kjøp per runde",
   "armies": {
     "standard": "Standardhær",
     "komtur": "Komturs hær"

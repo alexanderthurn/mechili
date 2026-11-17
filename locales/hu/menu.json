@@ -194,6 +194,7 @@
   "terrainWallDesc": "dombos sánc réseken át középen, a többi sík",
   "money": "Ellátmány",
   "startMoney": "Kezdő ellátmány",
+  "buysPerRound": "Vásárlás körönként",
   "armies": {
     "standard": "Normál sereg",
     "komtur": "A Komtur serege"

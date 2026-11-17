@@ -198,6 +198,7 @@
   "terrainWallDesc": "ein hügeliger Wall mit Lücken in der Mitte, sonst flach",
   "money": "Vorrat",
   "startMoney": "Startvorrat",
+  "buysPerRound": "Käufe pro Runde",
   "armies": {
     "standard": "Standardarmee",
     "komtur": "Komtur-Armee"

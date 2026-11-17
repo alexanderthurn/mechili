@@ -194,6 +194,7 @@
   "terrainWallDesc": "pagórkowaty wał z przerwami pośrodku, reszta płaska",
   "money": "Zapasy",
   "startMoney": "Zapasy początkowe",
+  "buysPerRound": "Zakupy na rundę",
   "armies": {
     "standard": "Armia standardowa",
     "komtur": "Armia Komtura"
