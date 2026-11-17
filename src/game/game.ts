@@ -341,6 +341,11 @@ import { getUnitInstanceRenderer } from './unitInstances';
 /** scratch for hoofprint foot positions */
 const _hoof = new Vector3();
 
+/** Siege: the attacker's extra buys per round, on top of the room's buy limit */
+const SIEGE_ATTACKER_EXTRA_BUYS = 1;
+/** Siege: the share of the defender's prebuilt walls' worth the attacker gets as start money */
+const SIEGE_ATTACKER_MONEY_SHARE = 1 / 3;
+
 /** the match-start warm-up's steps, as the intro cover's loading bar names them */
 export type MatchLoadStep = 'ground' | 'shaders' | 'textures' | 'waiting' | 'done';
 /** while a multiplayer start waits: who is in, who isn't yet */
@@ -2111,8 +2116,12 @@ export class Game {
         // order/index on every client, star mode or not) — each seat's own
         // independent draw, matching how extraAis' own starter-card pick works
         this.rngRoundCards = this.seats.map((_, seat) => mulberry32(seedFrom(this.seed, `round-cards-${seat}`)));
+        // Siege: the attacker buys one more pack a round (in place of most of the walls' worth in money)
+        const siegeAttacker = isSiege(settings) ? this.yearAttackerTeam() : null;
         this.deployState = {
-            limit: this.seats.map(() => settings.deploy.unitsPerRound),
+            limit: this.seats.map(
+                (def) => settings.deploy.unitsPerRound + (def.team === siegeAttacker ? SIEGE_ATTACKER_EXTRA_BUYS : 0),
+            ),
             extra: this.seats.map(() => 0),
             used: this.seats.map(() => 0),
             extrasSpent: this.seats.map(() => 0),
@@ -3870,10 +3879,16 @@ export class Game {
                 worthOf.set(seat, worth);
             }
         }
-        // even it out: the difference to the best-off seat, as money
+        // even it out: the difference to the best-off seat, as money — in a Siege only a
+        // share of it, the attacker's extra buy each round is the rest (SIEGE_ATTACKER_EXTRA_BUYS)
+        const share = attacker ? SIEGE_ATTACKER_MONEY_SHARE : 1;
         const most = Math.max(0, ...worthOf.values());
         for (const [seat, worth] of worthOf) {
-            if (worth < most) this.economy.credit(seat, Math.round(most - worth));
+            // a Siege share rounds down to a step of 25 (213 → 200, 228 → 225); the full difference stays exact
+            if (worth < most) {
+                const owed = share < 1 ? Math.floor(((most - worth) * share) / 25) * 25 : Math.round(most - worth);
+                if (owed > 0) this.economy.credit(seat, owed);
+            }
         }
     }
 
