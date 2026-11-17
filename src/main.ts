@@ -153,6 +153,9 @@ import {
     WALLS_MODES,
     wallsModeName,
     wallsModeOption,
+    POSTED_UNITS_MODES,
+    postedUnitsModeName,
+    postedUnitsModeOption,
     commanderHpOptionById,
     commanderHpSelectId,
     customGamePaceById,
@@ -1122,6 +1125,9 @@ menu.innerHTML = `
                     <label class="m-field"><span class="m-field-label" data-i18n="menu:walls"></span>
                         <select class="cg-walls"></select>
                     </label>
+                    <label class="m-field"><span class="m-field-label" data-i18n="menu:postedUnits"></span>
+                        <select class="cg-posted"></select>
+                    </label>
                     <label class="m-field"><span class="m-field-label" data-i18n="menu:stronghold"></span>
                         <select class="cg-stronghold"></select>
                     </label>
@@ -1507,6 +1513,7 @@ const cgMoneyEl = menu.querySelector<HTMLSelectElement>('.cg-money')!;
 const cgStartMoneyEl = menu.querySelector<HTMLSelectElement>('.cg-start-money')!;
 const cgBuysEl = menu.querySelector<HTMLSelectElement>('.cg-buys')!;
 const cgWallsEl = menu.querySelector<HTMLSelectElement>('.cg-walls')!;
+const cgPostedEl = menu.querySelector<HTMLSelectElement>('.cg-posted')!;
 const cgStrongholdEl = menu.querySelector<HTMLSelectElement>('.cg-stronghold')!;
 const cgLandscapeEl = menu.querySelector<HTMLSelectElement>('.cg-landscape')!;
 const cgTerrainEl = menu.querySelector<HTMLSelectElement>('.cg-terrain')!;
@@ -1884,7 +1891,7 @@ function wireSelectShortLabels(select: HTMLSelectElement): void {
 }
 
 /** the advanced selects whose options carry a short label and a full blurb */
-const LOBBY_BLURB_SELECTS = [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl, cgMoneyEl, cgStartMoneyEl, cgBuysEl, cgWallsEl, cgStrongholdEl];
+const LOBBY_BLURB_SELECTS = [cgPaceEl, cgHordeEl, cgRoundCardsEl, cgCommanderHpEl, cgMoneyEl, cgStartMoneyEl, cgBuysEl, cgWallsEl, cgPostedEl, cgStrongholdEl];
 
 /** the room's preset options in the current language (rebuilt on a language change) */
 function fillLobbySettingOptions(): void {
@@ -1917,6 +1924,7 @@ function fillLobbySettingOptions(): void {
         return [String(n), label, label];
     }));
     fill(cgWallsEl, WALLS_MODES.map((m) => [m, wallsModeName(m), wallsModeName(m)]));
+    fill(cgPostedEl, POSTED_UNITS_MODES.map((m) => [m, postedUnitsModeName(m), postedUnitsModeName(m)]));
     fill(cgStrongholdEl, STRONGHOLD_MODE_OPTIONS.map((o) => [o.mode, strongholdModeName(o), formatStrongholdModeOption(o)]));
 }
 fillLobbySettingOptions();
@@ -1968,6 +1976,7 @@ function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     cgStartMoneyEl.value = String(startMoneyOption(cfg.startMoney));
     cgBuysEl.value = String(buysPerRoundOption(cfg.buysPerRound));
     cgWallsEl.value = wallsModeOption(cfg.walls);
+    cgPostedEl.value = postedUnitsModeOption(cfg.postedUnits);
     cgStrongholdEl.value = strongholdModeOption(cfg.strongholdMode);
     mapChoice.refresh(cfg.map, boardSizeOption(cfg.boardSize));
     refreshTerrainOptions();
@@ -2014,6 +2023,7 @@ function changedLobbySettings(cfg: CustomGameConfig): [HTMLSelectElement, boolea
         [cgStartMoneyEl, cfg.startMoney !== d.startMoney],
         [cgBuysEl, buysPerRoundOption(cfg.buysPerRound) !== d.buysPerRound],
         [cgWallsEl, wallsModeOption(cfg.walls) !== d.walls],
+        [cgPostedEl, postedUnitsModeOption(cfg.postedUnits) !== d.postedUnits],
         [cgStrongholdEl, cfg.strongholdMode !== d.strongholdMode],
         [cgTerrainEl, terrainShapeOption(cfg.terrainShape) !== d.terrainShape],
         [cgLandscapeEl, mapValue(cfg.map) !== mapValue(d.map) || (!cfg.map && boardSizeOption(cfg.boardSize) !== d.boardSize)],
@@ -2120,7 +2130,7 @@ registerHoverTipClearer(() => hideLobbySettingTip());
 
 function readLobbySettingsForm(): Pick<
     CustomGameConfig,
-    | 'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'fixedSideHp' | 'moneyFactor' | 'startMoney' | 'buysPerRound' | 'walls' | 'strongholdMode'
+    | 'pace' | 'hordePreset' | 'roundCardPreset' | 'commanderHpFactor' | 'fixedSideHp' | 'moneyFactor' | 'startMoney' | 'buysPerRound' | 'walls' | 'postedUnits' | 'strongholdMode'
     | 'map' | 'boardSize' | 'terrainShape' | 'siege' | 'victory' | 'fog'
 > {
     const hpOpt = commanderHpOptionById(cgCommanderHpEl.value);
@@ -2140,6 +2150,7 @@ function readLobbySettingsForm(): Pick<
         startMoney: startMoneyOption(Number(cgStartMoneyEl.value)),
         buysPerRound: buysPerRoundOption(Number(cgBuysEl.value)),
         walls: wallsModeOption(cgWallsEl.value),
+        postedUnits: postedUnitsModeOption(cgPostedEl.value),
         strongholdMode: strongholdModeOption(cgStrongholdEl.value),
     };
 }
@@ -2657,6 +2668,7 @@ let activeLobbyHost: { config: CustomGameConfig; onChange: () => void; save?: (c
     cgStartMoneyEl.addEventListener('change', onChange);
     cgBuysEl.addEventListener('change', onChange);
     cgWallsEl.addEventListener('change', onChange);
+    cgPostedEl.addEventListener('change', onChange);
     cgStrongholdEl.addEventListener('change', onChange);
     cgLandscapeEl.addEventListener('change', onChange);
     cgTerrainEl.addEventListener('change', onChange);
@@ -2735,6 +2747,7 @@ function showHostLobbySettings(
     cgStartMoneyEl.disabled = false;
     cgBuysEl.disabled = false;
     cgWallsEl.disabled = false;
+    cgPostedEl.disabled = false;
     cgStrongholdEl.disabled = false;
     cgLandscapeEl.disabled = false;
     cgTerrainEl.disabled = false;
@@ -2770,6 +2783,7 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
     cgStartMoneyEl.disabled = true;
     cgBuysEl.disabled = true;
     cgWallsEl.disabled = true;
+    cgPostedEl.disabled = true;
     cgStrongholdEl.disabled = true;
     cgLandscapeEl.disabled = true;
     cgTerrainEl.disabled = true;

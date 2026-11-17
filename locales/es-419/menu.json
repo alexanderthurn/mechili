@@ -196,6 +196,7 @@
   "startMoney": "Suministros iniciales",
   "buysPerRound": "Compras por ronda",
   "walls": "Murallas",
+  "postedUnits": "Unidades apostadas",
   "armies": {
     "standard": "Ejército estándar",
     "komtur": "Ejército del Komtur"

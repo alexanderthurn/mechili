@@ -11,7 +11,7 @@ import type { Loadout } from './techCatalog';
 import type { CanonicalSeatDef, SeatId } from './seats';
 import type { LevelRef } from './level';
 import { answerLevelMessage, LevelDownload, matchLevelOffer } from './levelSync';
-import type { GameSettings, StrongholdMode, WallsMode } from './settings';
+import type { GameSettings, PostedUnitsMode, StrongholdMode, WallsMode } from './settings';
 import type { MapSize } from './map';
 import type { TerrainShape } from './terrainShapes';
 
@@ -355,6 +355,8 @@ export interface CustomGameConfig {
     buysPerRound?: number;
     /** Stone Walls: off / normal / prebuilt (see GameSettings.walls); omit = normal */
     walls?: WallsMode;
+    /** units posted on walls and buildings: normal / passive / passiveCheap (GameSettings.postedUnits); omit = normal */
+    postedUnits?: PostedUnitsMode;
     /** what the Stronghold is worth this match; see GameSettings.strongholdMode */
     strongholdMode: StrongholdMode;
     /**

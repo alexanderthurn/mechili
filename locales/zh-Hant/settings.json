@@ -281,5 +281,10 @@
     "normal": "普通",
     "prebuilt": "預先建好",
     "prebuiltArchers": "預先建好 + 弓箭手"
+  },
+  "postedUnits": {
+    "normal": "普通",
+    "passive": "被動",
+    "passiveCheap": "被動，半價"
   }
 }

@@ -50,7 +50,7 @@ import type {
     SellSettings,
     TowerSettings,
 } from './settings';
-import { yearBoardExtraAllowed, rallyRouteBuyMax, type WallsMode } from './settings';
+import { postPrice, postedUnitsRules, yearBoardExtraAllowed, rallyRouteBuyMax, type PostedUnitsMode, type WallsMode } from './settings';
 import type { TechTree } from './tech';
 import { isSecondarySeat, primarySeatOf, seatIdsOf, type SeatDef, type SeatId } from './seats';
 import { colorForUnit } from './colors';
@@ -521,6 +521,8 @@ interface LogEntry extends LoggedAction {
     grantedTactics?: string[];
     /** the one-shot tactic charge this action consumed, if any (see consumeTacticCharge) */
     usedTactic?: string;
+    /** buyStrongholdArcher / buyWallPost: it took one of the round's buys (Posted units: Normal) */
+    tookBuy?: boolean;
     /** buyForgeSpell: the spell charges at the Garrison through this round, usable from the next (forgeSpellDelay) */
     forgeCharging?: boolean;
     /** mobilizeUnit: the pack's deployedRound before the stamp (for undo) */
@@ -690,6 +692,8 @@ export interface ActionContext {
      * ready at once.
      */
     forgeSpellDelay?: boolean;
+    /** the match's Posted units setting (GameSettings.postedUnits): buys, price */
+    postedUnits?: PostedUnitsMode;
     /** the match's walls setting (GameSettings.walls): `off` = no Wall in any shop */
     wallsMode?: WallsMode;
     /** current round + seconds into its build phase, stamped onto log entries */
@@ -1131,13 +1135,16 @@ export class ActionDispatcher {
                 const post = nextGarrisonPost(placement, keep, seat);
                 if (!post) return false; // own block full, or the model lacks the pad
                 // a posted unit is a bought pack: one of the round's buys, at its own price
-                if (!this.deploySlotFree(seat)) return false;
-                const cost = this.ctx.types.postCost(keep.type);
+                // — unless the match's Posted units setting makes them passive
+                const rules = postedUnitsRules(this.ctx.postedUnits);
+                if (rules.takesBuy && !this.deploySlotFree(seat)) return false;
+                const cost = postPrice(this.ctx.types, keep.type, this.ctx.postedUnits);
                 if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;
                 const archer = spawnGarrisonPost(placement, postedType, keep, action.team, seat)!;
                 entry.strongholdArcherUnit = archer;
-                this.ctx.deployState.used[seat] = (this.ctx.deployState.used[seat] ?? 0) + 1;
+                entry.tookBuy = rules.takesBuy;
+                if (rules.takesBuy) this.ctx.deployState.used[seat] = (this.ctx.deployState.used[seat] ?? 0) + 1;
                 return true;
             }
             case 'buyLevelBatch': {
@@ -1196,8 +1203,10 @@ export class ActionDispatcher {
                 const postedType = this.ctx.types.byId(posts.unitTypeId);
                 if (!postedType || freeWallPost(placement, wall) < 0) return false;
                 // a posted unit is a bought pack: one of the round's buys, at its own price
-                if (!this.deploySlotFree(seat)) return false;
-                const cost = this.ctx.types.postCost(wall.type);
+                // — unless the match's Posted units setting makes them passive
+                const rules = postedUnitsRules(this.ctx.postedUnits);
+                if (rules.takesBuy && !this.deploySlotFree(seat)) return false;
+                const cost = postPrice(this.ctx.types, wall.type, this.ctx.postedUnits);
                 if (!economy.spend(seat, cost)) return false;
                 const archer = spawnWallPost(placement, postedType, wall, action.team, seat);
                 if (!archer) {
@@ -1206,7 +1215,8 @@ export class ActionDispatcher {
                 }
                 entry.paid = cost;
                 entry.strongholdArcherUnit = archer;
-                this.ctx.deployState.used[seat] = (this.ctx.deployState.used[seat] ?? 0) + 1;
+                entry.tookBuy = rules.takesBuy;
+                if (rules.takesBuy) this.ctx.deployState.used[seat] = (this.ctx.deployState.used[seat] ?? 0) + 1;
                 return true;
             }
             case 'setTargetMark': {
@@ -1960,7 +1970,7 @@ export class ActionDispatcher {
             case 'buyStrongholdArcher': {
                 if (e.strongholdArcherUnit) placement.removeUnit(e.strongholdArcherUnit);
                 economy.credit(seat, e.paid!);
-                this.ctx.deployState.used[seat] = (this.ctx.deployState.used[seat] ?? 0) - 1;
+                if (e.tookBuy !== false) this.ctx.deployState.used[seat] = (this.ctx.deployState.used[seat] ?? 0) - 1;
                 break;
             }
             case 'buyLevelBatch': {
@@ -1994,7 +2004,7 @@ export class ActionDispatcher {
             case 'buyWallPost': {
                 if (e.strongholdArcherUnit) placement.removeUnit(e.strongholdArcherUnit);
                 economy.credit(seat, e.paid!);
-                this.ctx.deployState.used[seat] = (this.ctx.deployState.used[seat] ?? 0) - 1;
+                if (e.tookBuy !== false) this.ctx.deployState.used[seat] = (this.ctx.deployState.used[seat] ?? 0) - 1;
                 break;
             }
             case 'setTargetMark': {

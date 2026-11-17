@@ -281,5 +281,10 @@
     "normal": "通常",
     "prebuilt": "建設済み",
     "prebuiltArchers": "建設済み + 弓兵"
+  },
+  "postedUnits": {
+    "normal": "通常",
+    "passive": "パッシブ",
+    "passiveCheap": "パッシブ・半額"
   }
 }

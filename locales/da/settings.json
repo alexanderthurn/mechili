@@ -281,5 +281,10 @@
     "normal": "Normal",
     "prebuilt": "Forudbygget",
     "prebuiltArchers": "Forudbygget + bueskytter"
+  },
+  "postedUnits": {
+    "normal": "Normal",
+    "passive": "Passive",
+    "passiveCheap": "Passive, halv pris"
   }
 }

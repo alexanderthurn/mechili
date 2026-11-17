@@ -196,6 +196,7 @@
   "startMoney": "Zapasy początkowe",
   "buysPerRound": "Zakupy na rundę",
   "walls": "Mury",
+  "postedUnits": "Jednostki na posterunkach",
   "armies": {
     "standard": "Armia standardowa",
     "komtur": "Armia Komtura"

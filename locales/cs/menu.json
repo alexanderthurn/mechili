@@ -196,6 +196,7 @@
   "startMoney": "Počáteční zásoby",
   "buysPerRound": "Nákupy za kolo",
   "walls": "Hradby",
+  "postedUnits": "Jednotky na stanovištích",
   "armies": {
     "standard": "Standardní armáda",
     "komtur": "Komturova armáda"

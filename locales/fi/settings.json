@@ -281,5 +281,10 @@
     "normal": "Normaali",
     "prebuilt": "Valmiina",
     "prebuiltArchers": "Valmiina + jousimiehet"
+  },
+  "postedUnits": {
+    "normal": "Normaali",
+    "passive": "Passiiviset",
+    "passiveCheap": "Passiiviset, puoleen hintaan"
   }
 }

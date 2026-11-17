@@ -75,7 +75,11 @@ const FLIGHT_FRACTION = 0.75;
  * same rules as {@link Game.applyBattleResult}. Each living non-structure
  * mech withdraws {@link hpWithdrawOf} HP; wave tier is computed from that.
  */
-export function buildHpDrawSources(sim: BattleSim): {
+export function buildHpDrawSources(
+    sim: BattleSim,
+    /** units posted on walls / buildings score (Posted units: Normal); false = they only defend */
+    postedScore = true,
+): {
     sources: HpDrawSource[];
     damageToPlayer: number;
     damageToEnemy: number;
@@ -97,6 +101,8 @@ export function buildHpDrawSources(sim: BattleSim): {
         // fighting force, and a Stronghold-only defense must still be able to
         // win (or chip) the opponent's life bar.
         if (a.unit.type.structure || !a.alive) continue;
+        // passive posted units (Posted units setting) neither score nor count as a survivor
+        if (!postedScore && a.unit.hostUnitId !== null) continue;
         const value = hpWithdrawOf(a.unit.type);
         const team = actorTeam(a);
         const withdraw = value;

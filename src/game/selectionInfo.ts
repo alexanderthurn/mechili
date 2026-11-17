@@ -16,7 +16,7 @@ import { loadoutShowsAll } from './loadouts';
 import type { MatchRules } from './matchRules';
 import type { PlacementController } from './placement';
 import { type SeatDef, type SeatId, seatIdsOf } from './seats';
-import { isSiege, rallyRouteBuyMax, type Economy, type GameSettings } from './settings';
+import { isSiege, postPrice, postedUnitsRules, rallyRouteBuyMax, type Economy, type GameSettings } from './settings';
 import { actorSeat, actorTeam, type Actor, type BattleSim } from './sim';
 import { TechTree, effectiveTargets, type ResolvedStats } from './tech';
 import { type Loadout, allowedTechIds, techSlotLimit, techsForUnit } from './techCatalog';
@@ -221,11 +221,13 @@ export class SelectionInfoBuilder {
                 if (!ownInteractive || !posts || !u.wallWalk) return undefined;
                 const owned = this.host.placement.allUnits().filter((p) => p.hostUnitId === u.id).length;
                 return {
-                    cost: this.host.types.postCost(u.type),
+                    cost: postPrice(this.host.types, u.type, this.host.settings.postedUnits),
                     owned,
                     max: posts.count,
                     // a posted archer is one of the round's buys, like a pack
-                    affordable: this.host.deployLeft() > 0 && this.host.economy.balance(this.host.humanSeat) >= this.host.types.postCost(u.type),
+                    affordable:
+                        (!postedUnitsRules(this.host.settings.postedUnits).takesBuy || this.host.deployLeft() > 0) &&
+                        this.host.economy.balance(this.host.humanSeat) >= postPrice(this.host.types, u.type, this.host.settings.postedUnits),
                 };
             })(),
             // a wall of mine: turn it into a gate (one way)
@@ -584,7 +586,7 @@ export class SelectionInfoBuilder {
                 : fogged && this.host.buildingIntelSnapshot && u.type.baseAnchor === 'stronghold'
                   ? (this.host.buildingIntelSnapshot.strongholdArchers[team] ?? 0)
                   : this.postedOn(u);
-            const nextCost = this.host.types.postCost(u.type);
+            const nextCost = postPrice(this.host.types, u.type, this.host.settings.postedUnits);
             const slotMax = own
                 ? garrisonSeatSlots(u, this.host.seats, this.host.humanSeat).length
                 : garrison.ownerOnly
@@ -598,8 +600,8 @@ export class SelectionInfoBuilder {
                 affordable:
                     canBuy &&
                     manned < slotMax &&
-                    // a posted archer is one of the round's buys, like a pack
-                    this.host.deployLeft() > 0 &&
+                    // a posted archer is one of the round's buys, like a pack (Posted units: Normal)
+                    (!postedUnitsRules(this.host.settings.postedUnits).takesBuy || this.host.deployLeft() > 0) &&
                     this.host.economy.balance(this.host.humanSeat) >= nextCost,
             };
         }

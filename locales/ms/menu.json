@@ -196,6 +196,7 @@
   "startMoney": "Bekalan permulaan",
   "buysPerRound": "Pembelian setiap pusingan",
   "walls": "Tembok",
+  "postedUnits": "Unit pos",
   "armies": {
     "standard": "Tentera standard",
     "komtur": "Tentera Komtur"

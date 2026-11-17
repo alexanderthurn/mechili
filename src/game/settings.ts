@@ -254,6 +254,8 @@ export interface GameSettings {
     strongholdMode: StrongholdMode;
     /** Stone Walls this match (see {@link WallsMode}); omit = 'normal' */
     walls?: WallsMode;
+    /** units posted on walls and buildings (see {@link PostedUnitsMode}); omit = 'normal' */
+    postedUnits?: PostedUnitsMode;
     economy: EconomySettings;
     towers: TowerSettings;
     leveling: LevelingSettings;
@@ -617,6 +619,41 @@ export function wallsModeName(mode: WallsMode): string {
     return t(`settings:walls.${mode}`, { defaultValue: fallback });
 }
 
+/**
+ * Units posted on walls and buildings (the archers on a walkway, on the
+ * Stronghold's battlements, on the Vanguard — later maybe other kinds).
+ *
+ * - `normal`       — the default: each is one of the round's buys, and one
+ *                    left standing at the round's end scores against the other
+ *                    side's HP like any pack.
+ * - `passive`      — no buy of the round, and no score: they only defend.
+ * - `passiveCheap` — as passive, at half the price.
+ */
+export type PostedUnitsMode = 'normal' | 'passive' | 'passiveCheap';
+export const POSTED_UNITS_MODES: readonly PostedUnitsMode[] = ['normal', 'passive', 'passiveCheap'];
+export const DEFAULT_POSTED_UNITS_MODE: PostedUnitsMode = 'normal';
+
+export function postedUnitsModeOption(raw: unknown): PostedUnitsMode {
+    return POSTED_UNITS_MODES.includes(raw as PostedUnitsMode) ? (raw as PostedUnitsMode) : DEFAULT_POSTED_UNITS_MODE;
+}
+
+export function postedUnitsModeName(mode: PostedUnitsMode): string {
+    const fallback = { normal: 'Normal', passive: 'Passive', passiveCheap: 'Passive, half price' }[mode];
+    return t(`settings:postedUnits.${mode}`, { defaultValue: fallback });
+}
+
+/** what a mode means: a buy of the round each, a score at the round's end, the price factor */
+export function postedUnitsRules(raw: unknown): { takesBuy: boolean; scores: boolean; priceFactor: number } {
+    const mode = postedUnitsModeOption(raw);
+    return { takesBuy: mode === 'normal', scores: mode === 'normal', priceFactor: mode === 'passiveCheap' ? 0.5 : 1 };
+}
+
+/** a post's price on `host` (a wall, a garrisoned building) under the match's mode */
+export function postPrice(types: { postCost(host: UnitType): number }, host: UnitType, mode: unknown): number {
+    const base = types.postCost(host);
+    return Number.isFinite(base) ? Math.round(base * postedUnitsRules(mode).priceFactor) : base;
+}
+
 /** Custom Game commander-HP options — multipliers, or an absolute side HP. */
 export interface CommanderHpFactorOption {
     /** `<option value>` — stable id for the lobby select */
@@ -929,6 +966,7 @@ export function normalizeGameSettings(settings: GameSettings): GameSettings {
         startMoney: resolveStartMoney(settings.startMoney),
         strongholdMode: strongholdModeOption(settings.strongholdMode),
         walls: wallsModeOption(settings.walls),
+        postedUnits: postedUnitsModeOption(settings.postedUnits),
         climb: settings.climb
             ? {
                   // older saves: roundsToWin was the wins needed, as long as a Year lasts now

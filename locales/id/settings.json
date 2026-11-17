@@ -281,5 +281,10 @@
     "normal": "Normal",
     "prebuilt": "Sudah dibangun",
     "prebuiltArchers": "Sudah dibangun + pemanah"
+  },
+  "postedUnits": {
+    "normal": "Normal",
+    "passive": "Pasif",
+    "passiveCheap": "Pasif, setengah harga"
   }
 }

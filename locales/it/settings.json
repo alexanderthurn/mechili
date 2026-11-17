@@ -281,5 +281,10 @@
     "normal": "Normale",
     "prebuilt": "Già costruite",
     "prebuiltArchers": "Già costruite + arcieri"
+  },
+  "postedUnits": {
+    "normal": "Normale",
+    "passive": "Passive",
+    "passiveCheap": "Passive, metà prezzo"
   }
 }

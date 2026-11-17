@@ -196,6 +196,7 @@
   "startMoney": "Başlangıç tedariki",
   "buysPerRound": "Tur başına alım",
   "walls": "Surlar",
+  "postedUnits": "Mevzi birimleri",
   "armies": {
     "standard": "Standart ordu",
     "komtur": "Komtur ordusu"

@@ -281,5 +281,10 @@
     "normal": "Normál",
     "prebuilt": "Előre megépítve",
     "prebuiltArchers": "Előre megépítve + íjászok"
+  },
+  "postedUnits": {
+    "normal": "Normál",
+    "passive": "Passzív",
+    "passiveCheap": "Passzív, fél áron"
   }
 }

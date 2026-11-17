@@ -196,6 +196,7 @@
   "startMoney": "Ravitaillement de départ",
   "buysPerRound": "Achats par manche",
   "walls": "Murs",
+  "postedUnits": "Unités postées",
   "armies": {
     "standard": "Armée standard",
     "komtur": "Armée du Komtur"

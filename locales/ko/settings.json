@@ -281,5 +281,10 @@
     "normal": "보통",
     "prebuilt": "미리 건설",
     "prebuiltArchers": "미리 건설 + 궁수"
+  },
+  "postedUnits": {
+    "normal": "보통",
+    "passive": "수동",
+    "passiveCheap": "수동, 반값"
   }
 }

@@ -196,6 +196,7 @@
   "startMoney": "開始時の補給",
   "buysPerRound": "ラウンドごとの購入数",
   "walls": "城壁",
+  "postedUnits": "配置ユニット",
   "armies": {
     "standard": "標準軍",
     "komtur": "コムトゥール軍"

@@ -281,5 +281,10 @@
     "normal": "Normal",
     "prebuilt": "Preconstruite",
     "prebuiltArchers": "Preconstruite + arcași"
+  },
+  "postedUnits": {
+    "normal": "Normal",
+    "passive": "Pasive",
+    "passiveCheap": "Pasive, la jumătate de preț"
   }
 }

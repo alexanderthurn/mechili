@@ -42,6 +42,8 @@ export interface GroupContext {
     levelCost(u: Unit): number;
     /** what one archer on this wall costs */
     postCost(type: UnitType): number;
+    /** a posted archer is one of the round's buys (Posted units: Normal) */
+    postTakesBuy: boolean;
 }
 
 /** each action the selection could take now, with what it touches and costs (none that touch nothing) */
@@ -85,7 +87,7 @@ export function groupSteps(units: readonly Unit[], ctx: GroupContext): GroupStep
         'archers',
         walls
             .filter((w) => !!w.type.wall!.posts && w.wallWalk && posted(w) < w.type.wall!.posts!.count)
-            .map((w) => ({ action: { kind: 'buyWallPost', team: 'player', unitId: w.id } as Action, cost: ctx.postCost(w.type), buys: 1 })),
+            .map((w) => ({ action: { kind: 'buyWallPost', team: 'player', unitId: w.id } as Action, cost: ctx.postCost(w.type), buys: ctx.postTakesBuy ? 1 : 0 })),
     );
     // a wall carrying archers stays a wall: the gate would cost them
     add(

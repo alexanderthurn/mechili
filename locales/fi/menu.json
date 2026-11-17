@@ -196,6 +196,7 @@
   "startMoney": "Aloitustarvikkeet",
   "buysPerRound": "Ostoja per kierros",
   "walls": "Muurit",
+  "postedUnits": "Vartioyksiköt",
   "armies": {
     "standard": "Tavallinen armeija",
     "komtur": "Komturin armeija"

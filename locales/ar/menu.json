@@ -196,6 +196,7 @@
   "startMoney": "إمداد البداية",
   "buysPerRound": "مشتريات كل جولة",
   "walls": "الأسوار",
+  "postedUnits": "وحدات المواقع",
   "armies": {
     "standard": "الجيش القياسي",
     "komtur": "جيش الكومتور"

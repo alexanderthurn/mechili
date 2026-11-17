@@ -281,5 +281,10 @@
     "normal": "Звичайні",
     "prebuilt": "Уже збудовані",
     "prebuiltArchers": "Збудовані + лучники"
+  },
+  "postedUnits": {
+    "normal": "Звичайні",
+    "passive": "Пасивні",
+    "passiveCheap": "Пасивні, за пів ціни"
   }
 }

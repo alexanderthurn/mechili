@@ -196,6 +196,7 @@
   "startMoney": "Стартовые припасы",
   "buysPerRound": "Покупок за раунд",
   "walls": "Стены",
+  "postedUnits": "Юниты на постах",
   "armies": {
     "standard": "Стандартная армия",
     "komtur": "Армия Комтура"

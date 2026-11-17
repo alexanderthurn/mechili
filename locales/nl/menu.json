@@ -196,6 +196,7 @@
   "startMoney": "Startvoorraad",
   "buysPerRound": "Aankopen per ronde",
   "walls": "Muren",
+  "postedUnits": "Geposte eenheden",
   "armies": {
     "standard": "Standaardleger",
     "komtur": "Komturleger"

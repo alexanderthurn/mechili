@@ -153,6 +153,10 @@ export class AiOpponent implements Opponent, ThinkingAi {
             plannerOverrides?: Record<string, number>;
             /** Stone Walls this seat may still place this round (0 / unset: none) */
             wallsLeft?: () => number;
+            /** a post's price under the match's Posted units setting (unset: the posted type's cost) */
+            postCost?: (host: UnitType) => number;
+            /** a posted unit is one of the round's buys (Posted units: Normal; unset: yes) */
+            postTakesBuy?: boolean;
             /** how the towers did in the last battle (null before the first) */
             lastBattle?: () => BattleRecord | null;
             /** its side's HP, and whether it carries over (not in a Rounds match) — for the loan */
@@ -725,6 +729,9 @@ export class AiOpponent implements Opponent, ThinkingAi {
         const left = () => budget - (start - economy.balance(this.seat));
         // a posted archer is one of the round's buys: after its packs, whatever is left is spare
         const spareBuy = () => this.ctx.deployCap() > 0;
+        // a post needs a buy of the round only when the match says so (Posted units)
+        const postBuy = () => this.ctx.postTakesBuy === false || spareBuy();
+        const postCost = (host: UnitType) => this.ctx.postCost?.(host) ?? this.ctx.types.postCost(host);
         // a tower the last battle hurt: a level up — more HP, a shorter debuff when it falls —
         // and an archer on its top where it has a pad
         for (const t of towers) {
@@ -732,7 +739,7 @@ export class AiOpponent implements Opponent, ThinkingAi {
             const level = this.ctx.upgradeCostOf?.(t) ?? null;
             if (level !== null && left() >= level) dispatch({ kind: 'upgradeTower', team: this.team, seat: this.seat, unitId: t.id });
             if (t.type.garrison) {
-                if (spareBuy() && left() >= this.ctx.types.postCost(t.type)) dispatch({ kind: 'buyStrongholdArcher', team: this.team, seat: this.seat, unitId: t.id });
+                if (postBuy() && left() >= postCost(t.type)) dispatch({ kind: 'buyStrongholdArcher', team: this.team, seat: this.seat, unitId: t.id });
             }
         }
         if (!wall || slots.length === 0 || defence.share <= 0) {
@@ -753,7 +760,7 @@ export class AiOpponent implements Opponent, ThinkingAi {
             for (const w of walls) {
                 const posts = w.type.wall?.posts;
                 if (!posts) continue;
-                while (spareBuy() && left() >= this.ctx.types.postCost(w.type) && dispatch({ kind: 'buyWallPost', team: this.team, seat: this.seat, unitId: w.id }));
+                while (postBuy() && left() >= postCost(w.type) && dispatch({ kind: 'buyWallPost', team: this.team, seat: this.seat, unitId: w.id }));
             }
             for (const w of walls) {
                 if (left() >= (w.type.wall?.upgradeCost ?? Infinity)) dispatch({ kind: 'upgradeTower', team: this.team, seat: this.seat, unitId: w.id });
@@ -763,7 +770,7 @@ export class AiOpponent implements Opponent, ThinkingAi {
         if (style === 'defender') {
             const keep = placement.allUnits().find((u) => u.team === this.team && !u.destroyed && u.type.baseAnchor === 'stronghold' && !!u.type.garrison);
             for (let guard = 0; keep && guard < 5; guard++) {
-                if (!spareBuy() || left() < this.ctx.types.postCost(keep.type)) break;
+                if (!postBuy() || left() < postCost(keep.type)) break;
                 if (!dispatch({ kind: 'buyStrongholdArcher', team: this.team, seat: this.seat })) break;
             }
         }

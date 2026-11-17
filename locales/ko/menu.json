@@ -196,6 +196,7 @@
   "startMoney": "시작 보급",
   "buysPerRound": "라운드당 구매",
   "walls": "성벽",
+  "postedUnits": "배치 유닛",
   "armies": {
     "standard": "표준 군대",
     "komtur": "콤투어 군대"

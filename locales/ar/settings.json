@@ -281,5 +281,10 @@
     "normal": "عادي",
     "prebuilt": "مبنية مسبقًا",
     "prebuiltArchers": "مبنية مسبقًا + رماة"
+  },
+  "postedUnits": {
+    "normal": "عادي",
+    "passive": "سلبية",
+    "passiveCheap": "سلبية، بنصف السعر"
   }
 }

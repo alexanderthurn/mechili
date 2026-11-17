@@ -281,5 +281,10 @@
     "normal": "Normaal",
     "prebuilt": "Vooraf gebouwd",
     "prebuiltArchers": "Vooraf gebouwd + boogschutters"
+  },
+  "postedUnits": {
+    "normal": "Normaal",
+    "passive": "Passief",
+    "passiveCheap": "Passief, halve prijs"
   }
 }

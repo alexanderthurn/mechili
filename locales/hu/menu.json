@@ -196,6 +196,7 @@
   "startMoney": "Kezdő ellátmány",
   "buysPerRound": "Vásárlás körönként",
   "walls": "Falak",
+  "postedUnits": "Őrhelyi egységek",
   "armies": {
     "standard": "Normál sereg",
     "komtur": "A Komtur serege"

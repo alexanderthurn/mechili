@@ -200,6 +200,7 @@
   "startMoney": "Startvorrat",
   "buysPerRound": "Käufe pro Runde",
   "walls": "Mauern",
+  "postedUnits": "Posten-Einheiten",
   "armies": {
     "standard": "Standardarmee",
     "komtur": "Komtur-Armee"

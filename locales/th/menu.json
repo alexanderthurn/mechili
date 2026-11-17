@@ -196,6 +196,7 @@
   "startMoney": "เสบียงเริ่มต้น",
   "buysPerRound": "ซื้อต่อรอบ",
   "walls": "กำแพง",
+  "postedUnits": "หน่วยประจำจุด",
   "armies": {
     "standard": "กองทัพมาตรฐาน",
     "komtur": "กองทัพคอมทัวร์"

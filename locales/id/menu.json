@@ -196,6 +196,7 @@
   "startMoney": "Persediaan awal",
   "buysPerRound": "Pembelian per ronde",
   "walls": "Tembok",
+  "postedUnits": "Unit pos",
   "armies": {
     "standard": "Pasukan standar",
     "komtur": "Pasukan Komtur"

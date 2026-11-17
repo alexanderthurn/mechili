@@ -235,6 +235,8 @@ import {
     yearBoardExtraAllowed,
     boardExtrasFor,
     wallsModeOption,
+    postPrice,
+    postedUnitsRules,
     yearWinner,
     isSiege,
     roundsVictory,
@@ -2489,6 +2491,7 @@ export class Game {
             wallsMode: wallsModeOption(settings.walls),
             // commander spells charge for a round after purchase — not in a lesson
             forgeSpellDelay: !isTutorial(settings),
+            postedUnits: settings.postedUnits,
             clock: () => ({
                 round: this.round,
                 t: Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining),
@@ -3711,7 +3714,7 @@ export class Game {
             if (!posted) continue;
             // until the seat's own block of pads on it is full
             for (let guard = 0; guard < 32 && spawnGarrisonPost(this.placement, posted, keep, team, seat); guard++) {
-                worth += this.types.postCost(keep.type);
+                worth += postPrice(this.types, keep.type, this.settings.postedUnits);
             }
         }
         return worth;
@@ -3839,7 +3842,7 @@ export class Game {
         const playerLeft = packs.player.standing > 0;
         const enemyLeft = packs.enemy.standing > 0;
         const outcome = playerLeft && enemyLeft ? 'timeout' : playerLeft ? 'player' : enemyLeft ? 'enemy' : 'draw';
-        const hp = buildHpDrawSources(sim);
+        const hp = buildHpDrawSources(sim, postedUnitsRules(this.settings.postedUnits).scores);
         return { outcome, seconds: sim.elapsed, packs, members, damage: { player: hp.damageToPlayer, enemy: hp.damageToEnemy } };
     }
 
@@ -4964,6 +4967,8 @@ export class Game {
         yearRole?: 'attacker' | 'defender';
         deployCap: () => number;
         wallsLeft: () => number;
+        postCost: (host: UnitType) => number;
+        postTakesBuy: boolean;
         lastBattle: () => BattleRecord | null;
         sideHp: () => number;
         hpCarriesOver: boolean;
@@ -5020,6 +5025,8 @@ export class Game {
                 : {}),
             deployCap: () => (this.deployState.limit[seat] ?? 0) + (this.deployState.extra[seat] ?? 0) - (this.deployState.used[seat] ?? 0),
             wallsLeft: () => this.wallsLeftFor(seat),
+            postCost: (host) => postPrice(this.types, host, this.settings.postedUnits),
+            postTakesBuy: postedUnitsRules(this.settings.postedUnits).takesBuy,
             // set on the seat in the lobby; a seat taken over (or a scenario's bot) plays the defaults
             lastBattle: () => this.lastBattle,
             sideHp: () => (this.seats[seat]?.team === 'player' ? this.playerHp : this.enemyHp),
@@ -9984,7 +9991,8 @@ export class Game {
             allUnits: () => this.placement.allUnits(),
             packReady: (u) => this.canLevel(u),
             levelCost: (u) => levelCost(u.type, this.economy, this.settings.leveling),
-            postCost: (type) => this.types.postCost(type),
+            postCost: (type) => postPrice(this.types, type, this.settings.postedUnits),
+            postTakesBuy: postedUnitsRules(this.settings.postedUnits).takesBuy,
         });
     }
 
@@ -10925,7 +10933,7 @@ export class Game {
         const testSummary = this.editorMode === 'test' && this.sim ? this.testBattleSummary(this.sim) : null;
         if (this.sim) {
             const preHp = { player: this.playerHp, enemy: this.enemyHp };
-            const built = buildHpDrawSources(this.sim);
+            const built = buildHpDrawSources(this.sim, postedUnitsRules(this.settings.postedUnits).scores);
             // flames die with the battle; remaining oil (unburned) carries over
             this.oilField.adoptOilFrom(this.sim.hazards);
             this.applyBattleResult(this.sim);
@@ -11738,7 +11746,7 @@ export class Game {
      */
     private applyBattleResult(sim: BattleSim): void {
         accumulateBattleDamage(this.matchDamageByType, sim.damageByType);
-        const built = buildHpDrawSources(sim);
+        const built = buildHpDrawSources(sim, postedUnitsRules(this.settings.postedUnits).scores);
         const damageToPlayer = built.damageToPlayer;
         const damageToEnemy = built.damageToEnemy;
         this.playerHp = this.playerHp - damageToPlayer;

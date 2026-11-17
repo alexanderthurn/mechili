@@ -281,5 +281,10 @@
     "normal": "Нормално",
     "prebuilt": "Предварително построени",
     "prebuiltArchers": "Построени + стрелци"
+  },
+  "postedUnits": {
+    "normal": "Нормални",
+    "passive": "Пасивни",
+    "passiveCheap": "Пасивни, на половин цена"
   }
 }
