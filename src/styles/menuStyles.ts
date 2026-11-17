@@ -1125,7 +1125,6 @@ ${chatFloatStyles(u, pc, ec)}
     border: 1.5px solid ${u.border};
     color: ${u.text};
 }
-.mechili-menu .m-roster-seat:has(.m-roster-tags) { flex-wrap: wrap; row-gap: 4px; }
 /* the player's face and MMR beside the name */
 .mechili-menu .m-roster-avatar {
     flex: none;
@@ -1142,18 +1141,18 @@ ${chatFloatStyles(u, pc, ec)}
 .mechili-menu .m-roster-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .mechili-menu .m-roster-avatar-ico { width: 14px; height: 14px; }
 .mechili-menu .m-roster-mmr { flex: none; font-weight: normal; font-size: 12px; color: ${u.textMuted}; }
-/* the seat's army / role chips: their own line under the name, the name keeps the full width */
+/* the seat's chips (army, AI strength / style): on the name's line, at its end — the name
+   takes what is left and shortens with "…"; one line keeps every seat box the same, low height */
 .mechili-menu .m-roster-tags {
     order: 10;
-    flex: 0 0 100%;
-    /* one chip's height even when empty: every seat box the same height */
-    min-height: 18px;
+    flex: none;
     display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-start;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
     gap: 4px;
     font-style: normal;
 }
+.mechili-menu .m-roster-tags:empty { display: none; }
 .mechili-menu .m-roster-seat-name {
     flex: 1;
     min-width: 0;
