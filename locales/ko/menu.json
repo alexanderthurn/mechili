@@ -44,6 +44,12 @@
   "cancel": "취소",
   "ok": "확인",
   "roomMode": "모드",
+  "preset": "프리셋",
+  "presets": {
+    "standard": "표준",
+    "siege": "공성전",
+    "komtur": "기사단장"
+  },
   "modeStandard": "표준",
   "modeSiege": "공성전",
   "victory": "승리 조건",

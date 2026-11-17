@@ -1324,6 +1324,49 @@ ${chatFloatStyles(u, pc, ec)}
     font-size: 15px;
 }
 .mechili-menu .m-lobby-settings .m-field { min-width: 0; }
+/* the preset bar: next to Players, across the rest of the row (the whole row on phones) */
+.mechili-menu .m-lobby-basic .m-preset-field { grid-column: span 3; }
+@media (max-width: 719px) {
+    .mechili-menu .m-lobby-basic .m-preset-field { grid-column: 1 / -1; }
+}
+.mechili-menu .m-segmented {
+    display: flex;
+    width: 100%;
+    box-sizing: border-box;
+    border: 1.5px solid ${u.border};
+    border-radius: 3px;
+    background: rgba(28, 22, 16, 0.85);
+    overflow: hidden;
+}
+.mechili-menu .m-segmented > button {
+    flex: 1 1 0;
+    min-width: 0;
+    margin: 0;
+    padding: 10px 8px;
+    background: none;
+    border: none;
+    border-radius: 0;
+    color: ${u.text};
+    font-size: 14px;
+    font-weight: normal;
+    text-transform: none;
+    letter-spacing: normal;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease;
+}
+.mechili-menu .m-segmented > button + button { border-left: 1.5px solid ${u.border}; }
+.mechili-menu .m-segmented > button:hover:not(:disabled):not(.is-active) { background: rgba(184, 146, 74, 0.15); }
+.mechili-menu .m-segmented > button.is-active {
+    background: linear-gradient(180deg, #6a4f22 0%, #4a3616 100%);
+    color: #ffe7b0;
+    font-weight: bold;
+}
+.mechili-menu .m-segmented > button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px ${u.brassLight}; }
+.mechili-menu .m-segmented > button:disabled { cursor: inherit; }
+.mechili-menu .m-segmented > button:disabled:not(.is-active) { opacity: 0.85; }
 .mechili-menu .m-lobby-settings .m-field[hidden] { display: none; }
 /* a room setting off its default: a brass box, so a changed match reads at a glance */
 .mechili-menu .m-lobby-settings select.is-changed {

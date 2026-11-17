@@ -44,6 +44,12 @@
   "cancel": "Отказ",
   "ok": "Добре",
   "roomMode": "Режим",
+  "preset": "Шаблон",
+  "presets": {
+    "standard": "Стандартен",
+    "siege": "Обсада",
+    "komtur": "Комтурът"
+  },
   "modeStandard": "Стандартен",
   "modeSiege": "Обсада",
   "victory": "Победа",

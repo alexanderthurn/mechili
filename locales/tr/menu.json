@@ -44,6 +44,12 @@
   "cancel": "İptal etmek",
   "ok": "TAMAM",
   "roomMode": "Mod",
+  "preset": "Hazır ayar",
+  "presets": {
+    "standard": "Standart",
+    "siege": "Kuşatma",
+    "komtur": "Komtur"
+  },
   "modeStandard": "Standart",
   "modeSiege": "Kuşatma",
   "victory": "Zafer",

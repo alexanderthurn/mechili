@@ -44,6 +44,12 @@
   "cancel": "Ophæve",
   "ok": "Okay",
   "roomMode": "Tilstand",
+  "preset": "Forudindstilling",
+  "presets": {
+    "standard": "Standard",
+    "siege": "Belejring",
+    "komtur": "Komturen"
+  },
   "modeStandard": "Standard",
   "modeSiege": "Belejring",
   "victory": "Sejr",

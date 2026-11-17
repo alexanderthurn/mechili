@@ -44,6 +44,12 @@
   "cancel": "Скасувати",
   "ok": "Гаразд",
   "roomMode": "Режим",
+  "preset": "Пресет",
+  "presets": {
+    "standard": "Стандарт",
+    "siege": "Облога",
+    "komtur": "Комтур"
+  },
   "modeStandard": "Стандарт",
   "modeSiege": "Облога",
   "victory": "Перемога",

@@ -44,6 +44,12 @@
   "cancel": "Cancelar",
   "ok": "OK",
   "roomMode": "Modo",
+  "preset": "Predefinição",
+  "presets": {
+    "standard": "Padrão",
+    "siege": "Cerco",
+    "komtur": "O Komtur"
+  },
   "modeStandard": "Padrão",
   "modeSiege": "Cerco",
   "victory": "Vitória",

@@ -44,6 +44,12 @@
   "cancel": "Abbrechen",
   "ok": "OK",
   "roomMode": "Modus",
+  "preset": "Vorlage",
+  "presets": {
+    "standard": "Standard",
+    "siege": "Belagerung",
+    "komtur": "Der Komtur"
+  },
   "modeStandard": "Standard",
   "modeSiege": "Belagerung",
   "victory": "Sieg",

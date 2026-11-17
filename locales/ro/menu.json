@@ -44,6 +44,12 @@
   "cancel": "Anula",
   "ok": "Bine",
   "roomMode": "Mod",
+  "preset": "Presetare",
+  "presets": {
+    "standard": "Standard",
+    "siege": "Asediu",
+    "komtur": "Komturul"
+  },
   "modeStandard": "Standard",
   "modeSiege": "Asediu",
   "victory": "Victorie",

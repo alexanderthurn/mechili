@@ -44,6 +44,12 @@
   "cancel": "取消",
   "ok": "確定",
   "roomMode": "模式",
+  "preset": "預設",
+  "presets": {
+    "standard": "標準",
+    "siege": "攻城",
+    "komtur": "騎士團長"
+  },
   "modeStandard": "標準",
   "modeSiege": "攻城",
   "victory": "勝利條件",

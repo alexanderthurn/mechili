@@ -44,6 +44,12 @@
   "cancel": "Zrušit",
   "ok": "OK",
   "roomMode": "Režim",
+  "preset": "Předvolba",
+  "presets": {
+    "standard": "Standardní",
+    "siege": "Obléhání",
+    "komtur": "Komtur"
+  },
   "modeStandard": "Standardní",
   "modeSiege": "Obléhání",
   "victory": "Vítězství",

@@ -44,6 +44,12 @@
   "cancel": "Annuleren",
   "ok": "OK",
   "roomMode": "Modus",
+  "preset": "Voorinstelling",
+  "presets": {
+    "standard": "Standaard",
+    "siege": "Belegering",
+    "komtur": "De Komtur"
+  },
   "modeStandard": "Standaard",
   "modeSiege": "Belegering",
   "victory": "Overwinning",

@@ -44,6 +44,12 @@
   "cancel": "Avboka",
   "ok": "OK",
   "roomMode": "Läge",
+  "preset": "Förval",
+  "presets": {
+    "standard": "Standard",
+    "siege": "Belägring",
+    "komtur": "Komturen"
+  },
   "modeStandard": "Standard",
   "modeSiege": "Belägring",
   "victory": "Seger",

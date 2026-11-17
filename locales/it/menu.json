@@ -44,6 +44,12 @@
   "cancel": "Annulla",
   "ok": "OK",
   "roomMode": "Modalità",
+  "preset": "Preimpostazione",
+  "presets": {
+    "standard": "Standard",
+    "siege": "Assedio",
+    "komtur": "Il Komtur"
+  },
   "modeStandard": "Standard",
   "modeSiege": "Assedio",
   "victory": "Vittoria",

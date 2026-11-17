@@ -169,6 +169,7 @@ import {
     type GameSettings,
 } from './game/settings';
 import { SEASONS_MODES, seasonsModeOption } from './game/seasons';
+import { DEFAULT_ROOM_PRESET, matchingRoomPreset, ROOM_PRESETS } from './menu/roomPresets';
 import {
     ROUND_CARD_ALGORITHMS,
     roundCardAlgorithmById,
@@ -1089,6 +1090,20 @@ menu.innerHTML = `
                     <label class="m-field"><span class="m-field-label" data-i18n="menu:players"></span>
                         <select class="cg-players"></select>
                     </label>
+                    <!-- the kind of match: a preset writes its values over the settings below -->
+                    <div class="m-field m-preset-field"><span class="m-field-label" data-i18n="menu:preset"></span>
+                        <div class="m-segmented cg-preset" role="radiogroup">
+                            ${ROOM_PRESETS.map((p) => `<button type="button" role="radio" data-preset="${p.id}"></button>`).join('')}
+                        </div>
+                    </div>
+                </div>
+                <!-- the advanced toggle, and Reset whenever any setting (basic or advanced) is gold -->
+                <div class="m-lobby-settings-row">
+                    <button class="m-lobby-settings-toggle" style="display:none" type="button"></button>
+                    <button type="button" class="m-lobby-settings-reset" hidden data-i18n="menu:resetDefaults"></button>
+                </div>
+                <!-- the rest, behind the toggle, under the basics -->
+                <div class="m-lobby-settings m-lobby-advanced">
                     <label class="m-field"><span class="m-field-label" data-i18n="menu:roomMode"></span>
                         <select class="cg-siege"></select>
                     </label>
@@ -1098,14 +1113,6 @@ menu.innerHTML = `
                     <label class="m-field"><span class="m-field-label" data-i18n="menu:horde"></span>
                         <select class="cg-horde"></select>
                     </label>
-                </div>
-                <!-- the advanced toggle, and Reset whenever any setting (basic or advanced) is gold -->
-                <div class="m-lobby-settings-row">
-                    <button class="m-lobby-settings-toggle" style="display:none" type="button"></button>
-                    <button type="button" class="m-lobby-settings-reset" hidden data-i18n="menu:resetDefaults"></button>
-                </div>
-                <!-- the rest, behind the toggle, under the basics -->
-                <div class="m-lobby-settings m-lobby-advanced">
                     <label class="m-field"><span class="m-field-label" data-i18n="menu:pace"></span>
                         <select class="cg-pace"></select>
                     </label>
@@ -1527,6 +1534,7 @@ const cgSiegeEl = menu.querySelector<HTMLSelectElement>('.cg-siege')!;
 const cgVictoryEl = menu.querySelector<HTMLSelectElement>('.cg-victory')!;
 const cgPlayersEl = menu.querySelector<HTMLSelectElement>('.cg-players')!;
 const cgFogEl = menu.querySelector<HTMLSelectElement>('.cg-fog')!;
+const cgPresetButtons = [...menu.querySelectorAll<HTMLButtonElement>('.cg-preset [data-preset]')];
 
 /** the room's Mode / Victory / Players / Fog choices, in the current language */
 function fillRoomShapeOptions(): void {
@@ -1560,9 +1568,25 @@ function fillRoomShapeOptions(): void {
     ]);
 }
 
-/** a setting behind the advanced toggle is off its default (the waves sit in the basic part) */
+/** a setting behind the advanced toggle is off what the room's preset says (or off the defaults, without one) */
 function isNonDefaultAdvanced(cfg: CustomGameConfig, defaults = defaultLobbySettings()): boolean {
-    return isNonDefaultLobbySettings({ ...cfg, hordePreset: defaults.hordePreset }, defaults);
+    return isNonDefaultLobbySettings(cfg, { ...defaults, ...(matchingRoomPreset(cfg)?.values ?? {}) });
+}
+
+/** the preset bar shows the preset the room's settings match (none lit: a custom mix) */
+function syncPresetButtons(cfg: CustomGameConfig): void {
+    const active = matchingRoomPreset(cfg)?.id ?? null;
+    for (const b of cgPresetButtons) {
+        const on = b.dataset.preset === active;
+        b.classList.toggle('is-active', on);
+        b.setAttribute('aria-checked', on ? 'true' : 'false');
+    }
+}
+
+function fillPresetButtons(): void {
+    for (const b of cgPresetButtons) {
+        b.textContent = t(`menu:presets.${b.dataset.preset}`);
+    }
 }
 
 const cgResetEl = menu.querySelector<HTMLButtonElement>('.m-lobby-settings-reset')!;
@@ -1936,6 +1960,8 @@ function fillLobbySettingOptions(): void {
 }
 fillLobbySettingOptions();
 onLanguageChange(fillLobbySettingOptions);
+fillPresetButtons();
+onLanguageChange(fillPresetButtons);
 for (const sel of LOBBY_BLURB_SELECTS) wireSelectShortLabels(sel);
 
 const TERRAIN_SHAPE_TEXT: Record<TerrainShape, { name: [string, string]; desc: [string, string] }> = {
@@ -1971,6 +1997,7 @@ const mapChoice = new MapChoice(cgLandscapeEl);
  *  changed ones gold and syncs Reset — host and guest alike */
 function populateLobbySettingsForm(cfg: CustomGameConfig): void {
     syncSilentLobbySettings(cfg);
+    syncPresetButtons(cfg);
     cgSiegeEl.value = cfg.siege ? 'siege' : 'standard';
     cgVictoryEl.value = cfg.victory === 'rounds' ? 'rounds' : 'hp';
     cgPlayersEl.value = cfg.mode === '2v2' ? '2v2' : '1v1';
@@ -2017,11 +2044,12 @@ function markChangedLobbySettings(cfg: CustomGameConfig): void {
 
 /** each room setting's box and whether it is off the room's default (the gold ones) */
 function changedLobbySettings(cfg: CustomGameConfig): [HTMLSelectElement, boolean][] {
-    const d = activeLobbyHost?.save ? defaultPracticeSettings() : defaultLobbySettings();
+    const preset = matchingRoomPreset(cfg)?.values ?? DEFAULT_ROOM_PRESET.values;
+    const d = { ...(activeLobbyHost?.save ? defaultPracticeSettings() : defaultLobbySettings()), ...preset };
     return [
         [cgPlayersEl, cfg.mode === '2v2'],
-        [cgSiegeEl, !!cfg.siege],
-        [cgVictoryEl, cfg.victory === 'rounds'],
+        [cgSiegeEl, !!cfg.siege !== preset.siege],
+        [cgVictoryEl, (cfg.victory === 'rounds' ? 'rounds' : 'hp') !== preset.victory],
         [cgFogEl, cfg.fog === false],
         [cgPaceEl, cfg.pace !== d.pace],
         [cgHordeEl, cfg.hordePreset !== d.hordePreset],
@@ -2679,6 +2707,17 @@ let activeLobbyHost: { config: CustomGameConfig; onChange: () => void; save?: (c
     cgBuysEl.addEventListener('change', onChange);
     cgWallsEl.addEventListener('change', onChange);
     cgPostedEl.addEventListener('change', onChange);
+    // a preset writes its values over the room's settings, then goes the way of any change
+    for (const b of cgPresetButtons) {
+        b.addEventListener('click', () => {
+            if (!activeLobbyHost) return;
+            const preset = ROOM_PRESETS.find((p) => p.id === b.dataset.preset);
+            if (!preset) return;
+            Object.assign(activeLobbyHost.config, preset.values);
+            populateLobbySettingsForm(activeLobbyHost.config);
+            onChange();
+        });
+    }
     cgSeasonsEl.addEventListener('change', onChange);
     cgStrongholdEl.addEventListener('change', onChange);
     cgLandscapeEl.addEventListener('change', onChange);
@@ -2709,10 +2748,8 @@ let activeLobbyHost: { config: CustomGameConfig; onChange: () => void; save?: (c
     cgResetEl.addEventListener('click', () => {
         if (!activeLobbyHost) return;
         Object.assign(activeLobbyHost.config, activeLobbyHost.save ? defaultPracticeSettings() : defaultLobbySettings(), {
-            siege: false,
-            victory: 'hp' as const,
             fog: true,
-        });
+        }, DEFAULT_ROOM_PRESET.values);
         populateLobbySettingsForm(activeLobbyHost.config);
         (activeLobbyHost.save ?? saveCustomGameConfig)(activeLobbyHost.config);
         activeLobbyHost.onChange();
@@ -2759,6 +2796,7 @@ function showHostLobbySettings(
     cgBuysEl.disabled = false;
     cgWallsEl.disabled = false;
     cgPostedEl.disabled = false;
+    for (const b of cgPresetButtons) b.disabled = false;
     cgSeasonsEl.disabled = false;
     cgStrongholdEl.disabled = false;
     cgLandscapeEl.disabled = false;
@@ -2796,6 +2834,7 @@ function showGuestLobbySettings(config: CustomGameConfig, onReady: (ready: boole
     cgBuysEl.disabled = true;
     cgWallsEl.disabled = true;
     cgPostedEl.disabled = true;
+    for (const b of cgPresetButtons) b.disabled = true;
     cgSeasonsEl.disabled = true;
     cgStrongholdEl.disabled = true;
     cgLandscapeEl.disabled = true;

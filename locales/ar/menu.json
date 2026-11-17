@@ -44,6 +44,12 @@
   "cancel": "إلغاء",
   "ok": "موافق",
   "roomMode": "الوضع",
+  "preset": "إعداد مسبق",
+  "presets": {
+    "standard": "قياسي",
+    "siege": "حصار",
+    "komtur": "الكومتور"
+  },
   "modeStandard": "قياسي",
   "modeSiege": "حصار",
   "victory": "الفوز",

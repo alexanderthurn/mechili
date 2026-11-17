@@ -44,6 +44,12 @@
   "cancel": "Peruuttaa",
   "ok": "OK",
   "roomMode": "Tila",
+  "preset": "Esiasetus",
+  "presets": {
+    "standard": "Tavallinen",
+    "siege": "Piiritys",
+    "komtur": "Komtur"
+  },
   "modeStandard": "Tavallinen",
   "modeSiege": "Piiritys",
   "victory": "Voitto",

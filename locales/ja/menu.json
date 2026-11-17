@@ -44,6 +44,12 @@
   "cancel": "キャンセル",
   "ok": "OK",
   "roomMode": "モード",
+  "preset": "プリセット",
+  "presets": {
+    "standard": "スタンダード",
+    "siege": "攻城戦",
+    "komtur": "コムトゥール"
+  },
   "modeStandard": "スタンダード",
   "modeSiege": "攻城戦",
   "victory": "勝利条件",

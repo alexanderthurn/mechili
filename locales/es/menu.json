@@ -44,6 +44,12 @@
   "cancel": "Cancelar",
   "ok": "DE ACUERDO",
   "roomMode": "Modo",
+  "preset": "Ajuste",
+  "presets": {
+    "standard": "Estándar",
+    "siege": "Asedio",
+    "komtur": "El Komtur"
+  },
   "modeStandard": "Estándar",
   "modeSiege": "Asedio",
   "victory": "Victoria",

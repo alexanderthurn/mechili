@@ -44,6 +44,12 @@
   "cancel": "Hủy bỏ",
   "ok": "ĐƯỢC RỒI",
   "roomMode": "Chế độ",
+  "preset": "Thiết lập sẵn",
+  "presets": {
+    "standard": "Tiêu chuẩn",
+    "siege": "Vây hãm",
+    "komtur": "Komtur"
+  },
   "modeStandard": "Tiêu chuẩn",
   "modeSiege": "Vây hãm",
   "victory": "Chiến thắng",

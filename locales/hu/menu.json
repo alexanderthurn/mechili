@@ -44,6 +44,12 @@
   "cancel": "Mégsem",
   "ok": "RENDBEN",
   "roomMode": "Mód",
+  "preset": "Előbeállítás",
+  "presets": {
+    "standard": "Normál",
+    "siege": "Ostrom",
+    "komtur": "A Komtur"
+  },
   "modeStandard": "Normál",
   "modeSiege": "Ostrom",
   "victory": "Győzelem",

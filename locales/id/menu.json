@@ -44,6 +44,12 @@
   "cancel": "Membatalkan",
   "ok": "OKE",
   "roomMode": "Mode",
+  "preset": "Prasetel",
+  "presets": {
+    "standard": "Standar",
+    "siege": "Pengepungan",
+    "komtur": "Komtur"
+  },
   "modeStandard": "Standar",
   "modeSiege": "Pengepungan",
   "victory": "Kemenangan",

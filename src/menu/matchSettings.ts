@@ -16,11 +16,8 @@ import {
     type ClimbRole,
     DEFAULT_COMMANDER_HP_FACTOR,
     DEFAULT_CUSTOM_GAME_PACE_ID,
-    DEFAULT_HORDE_PRESET_ID,
-    DEFAULT_MONEY_FACTOR,
     DEFAULT_START_MONEY,
     DEFAULT_BUYS_PER_ROUND,
-    DEFAULT_WALLS_MODE,
     wallsModeOption,
     DEFAULT_POSTED_UNITS_MODE,
     postedUnitsModeOption,
@@ -41,7 +38,9 @@ import {
     type GameSettings,
 } from '../game/settings';
 import { applyTutorialMode } from '../game/tutorial';
-import { DEFAULT_SEASONS_MODE, seasonsModeOption } from '../game/seasons';
+import { seasonsModeOption } from '../game/seasons';
+// a room's defaults are the Standard preset's (roomPresets.ts)
+import { DEFAULT_ROOM_PRESET } from './roomPresets';
 import { DEFAULT_ROUND_CARD_PRESET_ID, roundCardAlgorithmById } from '../game/roundCardAlgorithms';
 import { isLevelAvailable } from '../game/level';
 import { duoSeats, type CanonicalSeatDef } from '../game/seats';
@@ -113,16 +112,16 @@ export function applyDuoMode(settings: GameSettings): void {
 export const DEFAULT_CUSTOM_GAME: CustomGameConfig = {
     mode: '1v1',
     pace: DEFAULT_CUSTOM_GAME_PACE_ID,
-    hordePreset: DEFAULT_HORDE_PRESET_ID,
+    hordePreset: DEFAULT_ROOM_PRESET.values.hordePreset,
     roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
     commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
     fixedSideHp: null,
-    moneyFactor: DEFAULT_MONEY_FACTOR,
+    moneyFactor: DEFAULT_ROOM_PRESET.values.moneyFactor,
     startMoney: DEFAULT_START_MONEY,
     buysPerRound: DEFAULT_BUYS_PER_ROUND,
-    walls: DEFAULT_WALLS_MODE,
+    walls: DEFAULT_ROOM_PRESET.values.walls,
     postedUnits: DEFAULT_POSTED_UNITS_MODE,
-    seasons: DEFAULT_SEASONS_MODE,
+    seasons: DEFAULT_ROOM_PRESET.values.seasons,
     strongholdMode: DEFAULT_STRONGHOLD_MODE,
     terrainShape: DEFAULT_TERRAIN_SHAPE,
 };
@@ -335,16 +334,16 @@ export function defaultLobbySettings(): Pick<
         map: undefined,
         boardSize: 'standard',
         pace: DEFAULT_CUSTOM_GAME_PACE_ID,
-        hordePreset: DEFAULT_HORDE_PRESET_ID,
+        hordePreset: DEFAULT_ROOM_PRESET.values.hordePreset,
         roundCardPreset: DEFAULT_ROUND_CARD_PRESET_ID,
         commanderHpFactor: DEFAULT_COMMANDER_HP_FACTOR,
         fixedSideHp: null,
-        moneyFactor: DEFAULT_MONEY_FACTOR,
+        moneyFactor: DEFAULT_ROOM_PRESET.values.moneyFactor,
         startMoney: DEFAULT_START_MONEY,
         buysPerRound: DEFAULT_BUYS_PER_ROUND,
-        walls: DEFAULT_WALLS_MODE,
+        walls: DEFAULT_ROOM_PRESET.values.walls,
         postedUnits: DEFAULT_POSTED_UNITS_MODE,
-        seasons: DEFAULT_SEASONS_MODE,
+        seasons: DEFAULT_ROOM_PRESET.values.seasons,
         strongholdMode: DEFAULT_STRONGHOLD_MODE,
         terrainShape: DEFAULT_TERRAIN_SHAPE,
     };

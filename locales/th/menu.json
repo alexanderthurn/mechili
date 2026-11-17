@@ -44,6 +44,12 @@
   "cancel": "ยกเลิก",
   "ok": "ตกลง",
   "roomMode": "โหมด",
+  "preset": "ค่าที่ตั้งไว้",
+  "presets": {
+    "standard": "มาตรฐาน",
+    "siege": "ปิดล้อม",
+    "komtur": "คอมตูร์"
+  },
   "modeStandard": "มาตรฐาน",
   "modeSiege": "ปิดล้อม",
   "victory": "ชัยชนะ",

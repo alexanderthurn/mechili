@@ -44,6 +44,12 @@
   "cancel": "Batal",
   "ok": "OK",
   "roomMode": "Mod",
+  "preset": "Praset",
+  "presets": {
+    "standard": "Standard",
+    "siege": "Kepungan",
+    "komtur": "Komtur"
+  },
   "modeStandard": "Standard",
   "modeSiege": "Kepungan",
   "victory": "Kemenangan",

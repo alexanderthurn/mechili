@@ -49,6 +49,12 @@
   "cancel": "Cancel",
   "ok": "OK",
   "roomMode": "Mode",
+  "preset": "Preset",
+  "presets": {
+    "standard": "Standard",
+    "siege": "Siege",
+    "komtur": "The Komtur"
+  },
   "modeStandard": "Standard",
   "modeSiege": "Siege",
   "victory": "Victory",

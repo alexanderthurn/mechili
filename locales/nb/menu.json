@@ -44,6 +44,12 @@
   "cancel": "Kansellere",
   "ok": "OK",
   "roomMode": "Modus",
+  "preset": "Forhåndsvalg",
+  "presets": {
+    "standard": "Standard",
+    "siege": "Beleiring",
+    "komtur": "Komturen"
+  },
   "modeStandard": "Standard",
   "modeSiege": "Beleiring",
   "victory": "Seier",

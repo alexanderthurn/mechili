@@ -44,6 +44,12 @@
   "cancel": "Anuluj",
   "ok": "OK",
   "roomMode": "Tryb",
+  "preset": "Ustawienie",
+  "presets": {
+    "standard": "Standard",
+    "siege": "Oblężenie",
+    "komtur": "Komtur"
+  },
   "modeStandard": "Standard",
   "modeSiege": "Oblężenie",
   "victory": "Zwycięstwo",

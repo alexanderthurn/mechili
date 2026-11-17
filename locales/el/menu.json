@@ -44,6 +44,12 @@
   "cancel": "Ακύρωση",
   "ok": "OK",
   "roomMode": "Λειτουργία",
+  "preset": "Προρύθμιση",
+  "presets": {
+    "standard": "Κανονικό",
+    "siege": "Πολιορκία",
+    "komtur": "Ο Κόμτουρ"
+  },
   "modeStandard": "Κανονικό",
   "modeSiege": "Πολιορκία",
   "victory": "Νίκη",

@@ -44,6 +44,12 @@
   "cancel": "Annuler",
   "ok": "D'ACCORD",
   "roomMode": "Mode",
+  "preset": "Préréglage",
+  "presets": {
+    "standard": "Standard",
+    "siege": "Siège",
+    "komtur": "Le Komtur"
+  },
   "modeStandard": "Standard",
   "modeSiege": "Siège",
   "victory": "Victoire",
