@@ -25,7 +25,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { setAerialHazeBoard, setDeployShade, setHeightFogStrength } from '../engine/heightFog'; // patches three's fog chunks on import
 import { EffectToggles } from './effectToggles';
 import { DISPLAY } from './displayNames';
-import { t, techName } from '../i18n';
+import { t, techName, unitName } from '../i18n';
 import { THEME } from '../theme';
 import { CameraRig, type RigState } from '../engine/cameraRig';
 import { CameraControls } from '../engine/cameraControls';
@@ -315,7 +315,8 @@ import {
 } from './seats';
 import { getAvatarDataUrl } from './avatar';
 import { HpBars } from '../ui/hpBars';
-import { editorShopTypes, Hud, isCompactChrome, type GameOverDetails, type Phase, type SelectionInfo } from '../ui/hud';
+import { editorShopTypes, Hud, isCompactChrome, type GameOverDetails, type GroupSelectionInfo, type Phase, type SelectionInfo } from '../ui/hud';
+import { groupSteps, type GroupActionId, type GroupStep } from './groupActions';
 import type { YearProgress } from '../ui/yearTally';
 import { renderAllUnitIcons } from '../ui/unitIcons';
 import { reportDiagnostic, setDiagnosticsMatch } from './diagnostics';
@@ -2735,6 +2736,7 @@ export class Game {
             if (!unit || this.phase !== 'build' || unit.team !== 'player' || !unit.type.wall) return;
             this.dispatchPlayer({ kind: 'buyWallPost', team: 'player', unitId: unit.id });
         };
+        this.hud.onGroupAction = (id) => this.runGroupAction(id);
         this.hud.onMakeGate = () => {
             const unit = this.placement.selectedUnit;
             if (!unit || this.phase !== 'build' || unit.team !== 'player' || !unit.type.wall?.makeGate) return;
@@ -4637,8 +4639,11 @@ export class Game {
             return false;
         }
         // chooseCard voice is fired from the card-click path before dispatch
-        // so it isn't delayed by army spawn / board setup.
-        if (stamped.kind !== 'chooseCard') {
+        // so it isn't delayed by army spawn / board setup. A batch (the group
+        // panel) sounds once, not once per wall.
+        const firstOfBatch = stamped.batch === undefined || stamped.batch !== this.soundedBatch;
+        if (stamped.batch !== undefined) this.soundedBatch = stamped.batch;
+        if (stamped.kind !== 'chooseCard' && firstOfBatch) {
             audio.playPlayerAction(stamped.kind, true);
         }
         if (stamped.kind === 'buy') {
@@ -9829,6 +9834,86 @@ export class Game {
      * running build phase — click repeatedly to peel back further. Enemy
      * actions and earlier rounds are never touched.
      */
+    /** the batch whose sound already played (dispatchPlayer) */
+    private soundedBatch: number | undefined;
+
+    /** what the selected group can do now, step by step (groupActions.ts) */
+    private groupStepsFor(units: readonly Unit[]): GroupStep[] {
+        if (this.phase !== 'build' || !this.playerCanAct || this.tutorial) return [];
+        return groupSteps(units, {
+            seat: this.humanSeat,
+            towers: this.settings.towers,
+            allUnits: () => this.placement.allUnits(),
+            packReady: (u) => this.canLevel(u),
+            levelCost: (u) => levelCost(u.type, this.economy, this.settings.leveling),
+            postCost: (type) => this.types.postCost(type),
+        });
+    }
+
+    private groupSelectionInfo(units: readonly Unit[]): GroupSelectionInfo {
+        const counts = new Map<string, { name: string; n: number }>();
+        for (const u of units) {
+            const c = counts.get(u.type.id) ?? { name: unitName(u.type.id, u.type.name), n: 0 };
+            c.n++;
+            counts.set(u.type.id, c);
+        }
+        const balance = this.economy.balance(this.humanSeat);
+        const d = this.deployState;
+        const buysLeft = (d.limit[this.humanSeat] ?? 0) + (d.extra[this.humanSeat] ?? 0) - (d.used[this.humanSeat] ?? 0);
+        const gateWall = units.find((u) => u.type.wall?.makeGate);
+        return {
+            summary: [...counts.values()].map((c) => `${c.n}× ${c.name}`).join(' · '),
+            count: units.length,
+            fixed: units.some((u) => !this.placement.isMovable(u)),
+            tiles: this.groupStepsFor(units).map((step) => {
+                const money = balance >= step.cost;
+                const buys = buysLeft >= step.buys;
+                return {
+                    id: step.id,
+                    count: step.count,
+                    cost: step.cost,
+                    affordable: money && buys,
+                    ...(!money
+                        ? { note: t('hud:groupNeedsSupply', { n: step.cost, defaultValue: 'Needs {{n}} supply' }) }
+                        : !buys
+                          ? { note: t('hud:groupNeedsBuys', { n: step.buys, defaultValue: 'Needs {{n}} buys this round' }) }
+                          : {}),
+                };
+            }),
+            ...(gateWall?.type.wall?.makeGate ? { gateTypeId: gateWall.type.wall.makeGate.typeId } : {}),
+        };
+    }
+
+    /**
+     * A group panel tile: the step's actions, one by one under one batch
+     * number (one Undo takes all of them back) — only when all of it can be
+     * paid. Walls that became gates stay selected as their gates.
+     */
+    private runGroupAction(id: GroupActionId): void {
+        const units = this.placement.selectionGroup;
+        const step = this.groupStepsFor(units).find((s) => s.id === id);
+        if (!step) return;
+        const d = this.deployState;
+        const buysLeft = (d.limit[this.humanSeat] ?? 0) + (d.extra[this.humanSeat] ?? 0) - (d.used[this.humanSeat] ?? 0);
+        if (this.economy.balance(this.humanSeat) < step.cost || buysLeft < step.buys) return;
+        // unique among the log's entries: a batch still in it started at a shorter log
+        const batch = this.dispatcher.length + 1;
+        const spots = units.map((u) => ({ unit: u, col: u.cell.col, row: u.cell.row, rotated: u.rotated, seat: u.seat }));
+        for (const action of step.actions) this.dispatchPlayer({ ...action, batch });
+        if (id === 'gate') {
+            const live = this.placement.allUnits();
+            const kept = spots.map(
+                (s) =>
+                    (live.includes(s.unit) ? s.unit : null) ??
+                    live.find((u) => u.type.wall?.gate && u.seat === s.seat && u.rotated === s.rotated && u.cell.col === s.col && u.cell.row === s.row) ??
+                    null,
+            );
+            this.placement.setSelectionGroup(kept.filter((u): u is Unit => !!u));
+        }
+        this.hud.refreshCosts();
+        this.refreshShopHud();
+    }
+
     private undoLast(): void {
         if (!this.canUndo()) return;
         // Deselect FIRST: the undo may be removing the very unit that is open,
@@ -12541,8 +12626,13 @@ export class Game {
         let buildInfo: SelectionInfo | null = null;
         if (this.phase !== 'battle' || !this.sim) {
             // formations are move-only — no shared details across mixed packs
-            if (this.placement.hasSelectedGroup) {
-                this.hud.setFormationSelection();
+            // the group panel for two or more; a lone boxed pack shows its own
+            const group = this.placement.selectionGroup;
+            if (group.length > 1) {
+                // nothing the group can do together: no panel at all
+                const info = this.groupSelectionInfo(group);
+                if (info.tiles.length > 0) this.hud.setGroupSelection(info);
+                else this.hud.setSelection(null);
             } else {
                 const unit = this.placement.selectedUnit;
                 buildInfo = unit ? this.selectionInfo.unitInfo(unit) : null;

@@ -457,7 +457,17 @@ type ActionVariant =
  * seat = the side's primary seat (classic 1v1 wire compatibility — remote
  * 1v1 actions arrive seatless and resolve to the enemy's only seat).
  */
-export type Action = ActionVariant & { seat?: SeatId };
+export type Action = ActionVariant & {
+    seat?: SeatId;
+    /**
+     * One click that did several things (the group panel: upgrade every
+     * selected wall, …) sends its actions one by one with the same number —
+     * each an ordinary action, applied and logged as usual — and one Undo
+     * takes back all of them (undoLast). Set by the sender, so every client
+     * and replay groups alike; unset = an action of its own.
+     */
+    batch?: number;
+};
 
 /** per-seat counters behind the ids of rally routes, oil stamps and spell stamps */
 export interface TacticIdSource {
@@ -784,7 +794,11 @@ export class ActionDispatcher {
         );
     }
 
-    /** reverts and forgets one SEAT's MOST RECENT undoable action of the given round */
+    /**
+     * Reverts and forgets one SEAT's MOST RECENT undoable action of the given
+     * round — with every other action of that seat and round its click sent
+     * along (the same {@link Action.batch}), newest first.
+     */
     undoLast(round: number, seat: SeatId): boolean {
         for (let i = this.log.length - 1; i >= 0; i--) {
             const e = this.log[i]!;
@@ -792,6 +806,15 @@ export class ActionDispatcher {
             if (!ActionDispatcher.isUndoable(e.action)) continue;
             this.revert(e);
             this.log.splice(i, 1);
+            const batch = e.action.batch;
+            if (batch === undefined) return true;
+            for (let j = i - 1; j >= 0; j--) {
+                const o = this.log[j]!;
+                if (o.round !== round || this.actorSeat(o.action) !== seat || o.action.batch !== batch) continue;
+                if (!ActionDispatcher.isUndoable(o.action)) continue;
+                this.revert(o);
+                this.log.splice(j, 1);
+            }
             return true;
         }
         return false;

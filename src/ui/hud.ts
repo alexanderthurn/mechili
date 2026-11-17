@@ -133,6 +133,29 @@ interface ActionTile {
     on?: boolean;
 }
 
+/** one step the group panel offers (see groupActions.ts): count pieces, the whole price */
+export interface GroupTileInfo {
+    id: 'level' | 'gate' | 'archers' | 'walkway';
+    count: number;
+    cost: number;
+    /** all of it can be paid now (supply, and buys for archers) */
+    affordable: boolean;
+    /** why not, when not */
+    note?: string;
+}
+
+/** the panel for several selected units */
+export interface GroupSelectionInfo {
+    /** e.g. "6× Stone Wall · 2× Gate" */
+    summary: string;
+    count: number;
+    /** the group can't move: one of its pieces stands for good */
+    fixed: boolean;
+    tiles: GroupTileInfo[];
+    /** the gate's portrait for the gate tile */
+    gateTypeId?: string;
+}
+
 /** what the stats panel shows for a selected pack or single mech */
 export interface SelectionInfo {
     name: string;
@@ -359,6 +382,8 @@ export class Hud {
     onBuildWallWalk: (() => void) | null = null;
     onBuyWallPost: (() => void) | null = null;
     onMakeGate: (() => void) | null = null;
+    /** a group panel tile (groupActions.ts) */
+    onGroupAction: ((id: GroupTileInfo['id']) => void) | null = null;
     /** the selected enemy wall's Target switch */
     onToggleTargetMark: (() => void) | null = null;
     onBuySellAbility: (() => void) | null = null;
@@ -1128,6 +1153,7 @@ export class Hud {
             else if (button.dataset.wallwalk) this.onBuildWallWalk?.();
             else if (button.dataset.wallpost) this.onBuyWallPost?.();
             else if (button.dataset.makegate) this.onMakeGate?.();
+            else if (button.dataset.group) this.onGroupAction?.(button.dataset.group as GroupTileInfo['id']);
             else if (button.dataset.targetmark) this.onToggleTargetMark?.();
             else if (button.dataset.sellability) this.onBuySellAbility?.();
             else if (button.dataset.rallyroute) this.onBuyRallyRouteAbility?.();
@@ -1645,15 +1671,75 @@ export class Hud {
     }
 
     /**
-     * Rect-selected formation (1+ packs via rubber-band): shop stays closed,
-     * no unit sheet — packs may differ, so there are no shared details to show.
+     * Several units selected: what they are, and one tile per step they can
+     * take together (each piece one step; the tile shows the count and the
+     * whole price, and stays locked unless all of it can be paid).
      */
-    setFormationSelection(): void {
+    setGroupSelection(info: GroupSelectionInfo): void {
         this.phoneBar.classList.add('has-unit');
-        this.hidePanelAnimated();
-        this.lastPanelKey = '';
-        this.unitSheetAutoKey = null;
-        if (this.phoneTab === 'unit') this.setPhoneTab(null);
+        this.showPanelAnimated();
+        const key = JSON.stringify({ group: info });
+        if (key === this.lastPanelKey) return;
+        this.lastPanelKey = key;
+        this.actionInfoFor = null;
+        this.onTechHover?.(null);
+        this.hidePanelForgeHoverPreview();
+        this.setPanelItemDropReady(false);
+        const tiles: ActionTile[] = info.tiles.map((g) => {
+            const base = {
+                data: `data-group="${g.id}"`,
+                cost: g.cost,
+                state: g.affordable ? ('buy' as const) : ('locked' as const),
+                ...(g.note ? { note: g.note } : {}),
+            };
+            switch (g.id) {
+                case 'level':
+                    return {
+                        ...base,
+                        icon: 'ability-level',
+                        title: t('hud:groupLevel', { n: g.count, defaultValue: 'Level up ({{n}})' }),
+                        desc: t('hud:groupLevelDesc', {
+                            defaultValue: 'One level for each selected piece that can take one: packs with their XP banked, walls and buildings below their top level.',
+                        }),
+                    };
+                case 'walkway':
+                    return {
+                        ...base,
+                        icon: 'ability-plus-deploy',
+                        title: t('hud:groupWalkway', { n: g.count, defaultValue: 'Walkway ({{n}})' }),
+                        desc: t('hud:groupWalkwayDesc', { defaultValue: 'A walkway behind each selected wall that has none yet.' }),
+                    };
+                case 'archers':
+                    return {
+                        ...base,
+                        icon: 'spec-archer',
+                        title: t('hud:groupArchers', { n: g.count, defaultValue: 'Wall archers ({{n}})' }),
+                        desc: t('hud:groupArchersDesc', {
+                            defaultValue: 'One archer onto each selected walkway with a free post. Each one is one of the round\'s buys.',
+                        }),
+                    };
+                case 'gate':
+                    return {
+                        ...base,
+                        icon: 'ability-plus-deploy',
+                        ...(info.gateTypeId && this.unitIcons.get(info.gateTypeId) ? { art: this.unitIcons.get(info.gateTypeId) } : {}),
+                        title: t('hud:groupGate', { n: g.count, defaultValue: 'Make gates ({{n}})' }),
+                        desc: t('hud:groupGateDesc', {
+                            defaultValue: 'Turn each selected wall without archers into a gate your own units walk through. It can\'t be turned back into a wall.',
+                        }),
+                    };
+            }
+        });
+        this.panel.innerHTML =
+            `<div class="panel-head">` +
+            `<div class="lvl-big"><span class="lvl-cap">${escapeHtml(t('hud:groupCap', { defaultValue: 'Sel' }))}</span><span class="lvl-num">${info.count}</span></div>` +
+            `<div class="head-main"><div class="head-names"><span class="title">${escapeHtml(info.summary)}</span></div></div>` +
+            `</div>` +
+            (info.fixed
+                ? `<div class="row"><span class="v">${escapeHtml(t('hud:groupFixed', { defaultValue: 'Some of these stand for good — the group can\'t be moved.' }))}</span></div>`
+                : '') +
+            this.renderActionTiles(tiles) +
+            `<div class="action-info" style="display:none"></div>`;
     }
 
     /** opens the Unit details sheet (auto-shown for buildings); phone-only visual */

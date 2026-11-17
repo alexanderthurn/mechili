@@ -600,11 +600,16 @@ export class PlacementController {
      * spot and turn together), and a cancel turns it back.
      */
     private carryTurnFrom: { rotated: boolean; flipped: boolean } | null = null;
-    /** rect-selected movable packs; a lone pack here still uses formation drop */
+    /**
+     * Several own units selected at once (the rubber band, Shift+click). Every
+     * member still movable: a formation that rides the cursor ({@link rectFormation});
+     * any member fixed (an older wall, a tower): a group for the group panel only.
+     * A lone pack here still uses formation drop.
+     */
     private selectedGroup: Unit[] = [];
-    /** true after a rubber-band select (not a plain click-select) */
+    /** the group moves as one: every member movable (rubber band or Shift-built) */
     private rectFormation = false;
-    /** movable packs currently inside the rubber-band, live while dragging */
+    /** what the rubber band would select, live while dragging */
     private rectPreview: Unit[] = [];
     /** per-member marker plates (own material each — validity color differs per pack) */
     private readonly groupPlates: Mesh[] = [];
@@ -788,13 +793,13 @@ export class PlacementController {
             this.pointer = up;
             if (!this.enabled || !down) return;
             if (wasRect) {
-                this.finishRectSelect(down, up);
+                this.finishRectSelect(down, up, e.shiftKey);
                 return;
             }
             // fingers jitter more than mice — allow a wider tap slop on touch
             const slop = e.pointerType === 'touch' ? 12 : 6;
             if (Math.hypot(up.x - down.x, up.y - down.y) > slop) return;
-            this.handleClick(up.x, up.y);
+            this.handleClick(up.x, up.y, e.shiftKey);
         }) as EventListener);
     }
 
@@ -841,7 +846,7 @@ export class PlacementController {
         return (
             this.pendingUnit !== null ||
             this.carryingSelected ||
-            this.selectedGroup.length > 0 ||
+            this.formationActive ||
             this.inputLocked
         );
     }
@@ -893,7 +898,7 @@ export class PlacementController {
      * show only then.
      */
     get repositioning(): boolean {
-        return this.pendingUnit !== null || this.carryingSelected || this.selectedGroup.length > 0;
+        return this.pendingUnit !== null || this.carryingSelected || this.formationActive;
     }
 
     /**
@@ -1276,15 +1281,72 @@ export class PlacementController {
     /** true when {@link rotateSelected} would act: one own still-movable pack selected */
     get selectedRepositionable(): boolean {
         return (
-            !this.formationActive &&
+            this.selectedGroup.length === 0 &&
             this.selectedUnit !== null &&
             this.isMovable(this.selectedUnit)
         );
     }
 
-    /** rect-selected formation — move-only, no shared unit details */
-    get hasSelectedGroup(): boolean {
-        return this.formationActive;
+    /** the units of a multi-selection (formation or fixed group); empty for none or a single one */
+    get selectionGroup(): readonly Unit[] {
+        return this.selectedGroup;
+    }
+
+    /** replaces the multi-selection (e.g. a wall that became a gate stays selected as the gate) */
+    setSelectionGroup(units: readonly Unit[]): void {
+        this.setSelection(units.filter((u) => this.units.includes(u) && this.selectableOwn(u)), false);
+    }
+
+    /** an own unit the rubber band / Shift+click may take: not a fixture (a posted archer is part of its wall) */
+    private selectableOwn(u: Unit): boolean {
+        return (
+            u.team === 'player' &&
+            u.seat === this.localSeat &&
+            !u.destroyed &&
+            !u.gridless &&
+            !isFixture(u) &&
+            u.hostUnitId === null
+        );
+    }
+
+    /**
+     * The new selection: none → deselect; one → selected on its own (its own
+     * panel) unless `formationOfOne` (the rubber band's lone movable pack drops
+     * as a formation, as ever); more → a group, a formation when all can move.
+     */
+    private setSelection(units: readonly Unit[], formationOfOne: boolean): void {
+        const previous = this.selectedUnit;
+        this.restoreSelectedView();
+        this.carryingSelected = false;
+        if (units.length === 0) {
+            this.deselect();
+            return;
+        }
+        const allMovable = units.every((u) => this.isMovable(u));
+        if (units.length === 1 && !(formationOfOne && allMovable)) {
+            this.selectedUnit = units[0]!;
+            this.selectedGroup = [];
+            this.rectFormation = false;
+            if (previous !== units[0]) this.onSelect?.(units[0]!, previous);
+            return;
+        }
+        this.selectedUnit = units[0]!;
+        this.selectedGroup = [...units];
+        this.rectFormation = allMovable;
+    }
+
+    /** Shift+click: the unit joins the selection, or leaves it when already in */
+    private toggleInSelection(unit: Unit): void {
+        const base =
+            this.selectedGroup.length > 0
+                ? [...this.selectedGroup]
+                : this.selectedUnit && this.selectableOwn(this.selectedUnit)
+                  ? [this.selectedUnit]
+                  : [];
+        const i = base.indexOf(unit);
+        if (i >= 0) base.splice(i, 1);
+        else base.push(unit);
+        this.setSelection(base, false);
     }
 
     /** picks up the selected pack so it rides the pointer (the touch Move button) */
@@ -1663,8 +1725,8 @@ export class PlacementController {
         if (this.isFogged(unit) && this.intelSnapshot.has(unit.id) && !this.intelGhosts.has(unit.id)) {
             this.ensureSoldGhost(this.intelSnapshot.get(unit.id)!);
         }
-        if (this.selectedUnit === unit) this.selectedUnit = null;
         this.selectedGroup = this.selectedGroup.filter((u) => u !== unit);
+        if (this.selectedUnit === unit) this.selectedUnit = this.selectedGroup[0] ?? null;
         this.release(unit);
         this.scene.remove(unit.view);
         const i = this.units.indexOf(unit);
@@ -2806,10 +2868,20 @@ export class PlacementController {
         return undefined;
     }
 
-    private handleClick(x: number, y: number): void {
+    private handleClick(x: number, y: number, shift = false): void {
         if (this.groundClickInterceptor?.(x, y)) return;
         const cell = this.cellAt(x, y);
         if (!cell) return;
+        // Shift+click on an own unit: into the selection, or out of it (nothing is bought or dropped)
+        if (shift && !this.pendingType && !this.itemArmed?.()) {
+            const picked = this.pickUnitAt(x, y);
+            // an archer posted on a wall stands for its wall
+            const hit = picked && picked.hostUnitId !== null ? this.unitById(picked.hostUnitId) ?? picked : picked;
+            if (hit && this.selectableOwn(hit)) {
+                this.toggleInSelection(hit);
+                return;
+            }
+        }
         // click-placing an extra: buy it right here (stays pending if invalid)
         if (this.pendingType) {
             const anchor = this.landingAnchor(this.pendingType, this.pendingRotated, cell, null).anchor;
@@ -2849,7 +2921,7 @@ export class PlacementController {
                 this.onSelect?.(clicked, previouslySelected);
                 return;
             }
-            if (clicked === this.selectedUnit) {
+            if (clicked === this.selectedUnit && this.selectedGroup.length === 0) {
                 if (this.isMovable(clicked)) {
                     this.carryingSelected = true; // second click picks it up
                 }
@@ -2910,7 +2982,7 @@ export class PlacementController {
         this.rectEl.style.top = `${Math.min(a.y, b.y)}px`;
         this.rectEl.style.width = `${Math.abs(a.x - b.x)}px`;
         this.rectEl.style.height = `${Math.abs(a.y - b.y)}px`;
-        this.rectPreview = this.movableUnitsInRect(a, b);
+        this.rectPreview = this.unitsInRect(a, b);
     }
 
     private hideRect(): void {
@@ -2919,21 +2991,39 @@ export class PlacementController {
         this.rectPreview = [];
     }
 
-    private finishRectSelect(a: { x: number; y: number }, b: { x: number; y: number }): void {
-        const units = this.movableUnitsInRect(a, b);
-        this.restoreSelectedView();
-        if (units.length === 0) {
-            this.deselect();
+    /**
+     * The rubber band: what it holds becomes the selection. With Shift it adds
+     * to the selection — or, when all of it is selected already, takes it out.
+     */
+    private finishRectSelect(a: { x: number; y: number }, b: { x: number; y: number }, shift = false): void {
+        const units = this.unitsInRect(a, b);
+        if (!shift) {
+            this.setSelection(units, true);
             return;
         }
-        this.selectedUnit = units[0]!;
-        this.selectedGroup = units;
-        this.rectFormation = true;
-        this.carryingSelected = false; // rect select never picks up directly
+        if (units.length === 0) return; // an empty Shift band changes nothing
+        const base =
+            this.selectedGroup.length > 0
+                ? [...this.selectedGroup]
+                : this.selectedUnit && this.selectableOwn(this.selectedUnit)
+                  ? [this.selectedUnit]
+                  : [];
+        const allIn = units.every((u) => base.includes(u));
+        const next = allIn ? base.filter((u) => !units.includes(u)) : [...base, ...units.filter((u) => !base.includes(u))];
+        this.setSelection(next, false);
     }
 
-    /** only packs that can actually be repositioned are rect-selectable */
-    private movableUnitsInRect(
+    /**
+     * What the rubber band takes: the movable packs inside it — or, when none
+     * of them is, every own unit inside (walls, gates, towers, older packs).
+     */
+    private unitsInRect(a: { x: number; y: number }, b: { x: number; y: number }): Unit[] {
+        const inside = this.ownUnitsInRect(a, b);
+        const movable = inside.filter((u) => this.isMovable(u));
+        return movable.length > 0 ? movable : inside;
+    }
+
+    private ownUnitsInRect(
         a: { x: number; y: number },
         b: { x: number; y: number },
     ): Unit[] {
@@ -2944,7 +3034,7 @@ export class PlacementController {
         const maxY = Math.max(a.y, b.y);
         const result: Unit[] = [];
         for (const u of this.units) {
-            if (!this.isMovable(u)) continue;
+            if (!this.selectableOwn(u)) continue;
             const s = this.rig.worldToScreen(u.world.x, 0, u.world.z, rect.width, rect.height);
             if (!s) continue;
             if (s.x >= minX && s.x <= maxX && s.y >= minY && s.y <= maxY) result.push(u);
@@ -3302,6 +3392,12 @@ export class PlacementController {
             this.targetPreview.clear();
             return;
         }
+        // a group that stays put (some member can't move): its frames only
+        if (this.selectedGroup.length > 0 && this.enabled) {
+            this.showGroupPlates(this.selectedGroup, null, false, timeSeconds);
+            this.targetPreview.clear();
+            return;
+        }
         this.showGroupPlates([], null, false, timeSeconds);
         // armed inventory item: green footprint over a pack that can take the drop
         if (this.itemDropValid && this.enabled && this.pointer) {
@@ -3614,8 +3710,10 @@ export class PlacementController {
                 unit.view.position.set(center.x, unit.world.y, center.z);
                 if (unit.type.structure) unit.seatMembers(center.x, center.z);
             }
+            // standing still (selected, or inside the rubber band): the selection colour;
+            // carried: green / red for whether each pack may land there
             const color = !delta
-                ? VALID_COLOR
+                ? SELECT_COLOR
                 : this.groupSpotValid(unit, anchor, units)
                   ? VALID_COLOR
                   : INVALID_COLOR;
