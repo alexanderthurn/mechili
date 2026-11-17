@@ -839,9 +839,10 @@ export const DEFAULT_SETTINGS: GameSettings = {
         flankSpawnSeconds: 5,
     },
     boosts: {
-        costs: [100, 300],
-        attackTiers: [0.1, 0.2],
-        hpTiers: [0.15, 0.3],
+        // 9 levels: +200 supply each, the same step each level (+10% damage, +15% hp)
+        costs: [100, 300, 500, 700, 900, 1100, 1300, 1500, 1700],
+        attackTiers: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
+        hpTiers: [0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1.05, 1.2, 1.35],
     },
     leveling: {
         statBonusPerLevel: 1,
