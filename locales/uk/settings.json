@@ -141,7 +141,7 @@
     "movePackTitle": "Переміщення загону",
     "movePackNote": "Авангард — дає один заряд загону переміщень {{tactic}}",
     "commanderSpellsTitle": "Заклинання командира",
-    "commanderSpellNote": "Гарнізон — лише для командира, який їх знає",
+    "commanderSpellNote": "Твердиня — лише для командира, який її знає",
     "vanguardSpellsTitle": "Заклинання Авангарду",
     "vanguardSpellNote": "Авангард — для будь-якого командира, один раз за матч",
     "boostsTitle": "Підвищує",

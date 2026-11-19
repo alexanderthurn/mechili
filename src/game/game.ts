@@ -9628,23 +9628,41 @@ export class Game {
         );
     }
 
-    /** world strip over the Stronghold: predicted bake product (deploy only; battle = sparks) */
     /**
-     * The commander spells charging at this Garrison (bought this round, usable
+     * The commander spells charging at this Stronghold (bought this round, usable
      * next), as icons — only what the viewer may know: the other side's purchase
      * stays hidden through the deployment it was made in, like any purchase.
      */
-    private garrisonForgingIcons(unit: Unit): string[] {
+    private spellForgingIcons(unit: Unit): string[] {
         if (!hasAbility(unit.type, 'forgeSpells') || unit.destroyed) return [];
         if (this.phase === 'build' && this.placement.isIntelFogged(unit)) return [];
+        // a side's shared Stronghold / Tent forges for every seat of the side that
+        // has no spell building of its own (team modes: one per side, the first seat's)
+        const units = this.placement.allUnits();
+        const seats =
+            unit.team === 'horde'
+                ? [unit.seat]
+                : seatIdsOf(this.seats, unit.team).filter(
+                      (seat) =>
+                          seat === unit.seat ||
+                          !units.some(
+                              (o) => o.seat === seat && o.team === unit.team && !o.destroyed && hasAbility(o.type, 'forgeSpells'),
+                          ),
+                  );
         const icons: string[] = [];
         for (const tactic of this.types.tactics) {
-            const n = this.dispatcher.chargingSpells(unit.seat, tactic.id, this.round);
+            let n = 0;
+            for (const seat of seats) n += this.dispatcher.chargingSpells(seat, tactic.id, this.round);
             for (let i = 0; i < n; i++) icons.push(tactic.icon);
         }
         return icons;
     }
 
+    /**
+     * World strip over the Stronghold: the commander spells charging there (in the
+     * battle too, that is when the other side first sees them), then the oven's
+     * predicted bake product (deploy only; battle = sparks).
+     */
     private forgeWorldBadges(
         unit: Unit,
     ): {
@@ -9653,12 +9671,21 @@ export class Game {
         spellIcons?: string[];
         productItemId?: string | null;
     } | null {
-        // the Garrison: the spells charging there, over the tower — in the battle too,
-        // that is when the other side first sees them
-        if (hasAbility(unit.type, 'forgeSpells')) {
-            const icons = this.garrisonForgingIcons(unit);
-            return icons.length > 0 ? { runes: [], spellIcon: null, spellIcons: icons } : null;
-        }
+        const charging = this.spellForgingIcons(unit);
+        const product = this.forgeProductBadge(unit);
+        if (charging.length === 0) return product;
+        return {
+            runes: [],
+            spellIcon: null,
+            spellIcons: product?.spellIcon ? [...charging, product.spellIcon] : charging,
+            productItemId: product?.productItemId ?? null,
+        };
+    }
+
+    /** the oven's predicted bake product over a forge building (deploy only) */
+    private forgeProductBadge(
+        unit: Unit,
+    ): { runes: string[]; spellIcon: string | null; productItemId?: string | null } | null {
         if (!hasAbility(unit.type, 'forge')) return null;
         // battle: chimney sparks only — spell badge is deploy intel / loading UI
         if (this.phase !== 'build') return null;
@@ -9721,10 +9748,10 @@ export class Game {
             });
         }
         this.forgeFx.update(dt, this.time, targets, this.scene);
-        // the Garrison's magic plume while a spell charges there
+        // the Stronghold's magic plume while a commander spell charges there
         const forging = this.placement
             .allUnits()
-            .filter((u) => hasAbility(u.type, 'forgeSpells') && this.garrisonForgingIcons(u).length > 0);
+            .filter((u) => hasAbility(u.type, 'forgeSpells') && this.spellForgingIcons(u).length > 0);
         this.garrisonFx.update(dt, forging, this.scene);
     }
 

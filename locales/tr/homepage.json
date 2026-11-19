@@ -93,7 +93,7 @@
     }
   },
   "commanders": {
-    "sub": "Birinci turdan önce her oyuncu bir {{commander}} seçer. Bu, başlangıç ordunuzu, can puanınızı, kalıcı bir uzmanlığınızı ve Garnizondan alınan üç {{tactics}} (zayıf / orta / güçlü) belirler. Takım arkadaşları, ocaklarının birleşimini {{tactics}} paylaşırlar.",
+    "sub": "Birinci turdan önce her oyuncu bir {{commander}} seçer. Bu, başlangıç ordunuzu, can puanınızı, kalıcı bir uzmanlığınızı ve üç Kale ocağınızı {{tactics}} (zayıf / orta / güçlü) belirler. Takım arkadaşları, ocaklarının birleşimini {{tactics}} paylaşırlar.",
     "select": "Bir {{commander}} seçin"
   },
   "runes": {
@@ -110,7 +110,7 @@
     "mixed": "Karışık"
   },
   "tactics": {
-    "sub": "Bunlar {{tactics}} şeridindeki beceriler {{sep}} toplanmalar, birikintiler, çağırmalar ve ejderhanın ateş nefesi gibi savaş büyüleri. Savaş büyüleri Garnizonundan birer kez alınır ve yalnızca komutanının bildiği üç tanedir. Simgeler oyundakiyle aynıdır.",
+    "sub": "Bunlar {{tactics}} şeridindeki beceriler {{sep}} toplanmalar, birikintiler, çağırmalar ve ejderhanın ateş nefesi gibi savaş büyüleri. Savaş büyüleri Kalenden birer kez alınır ve yalnızca komutanının bildiği üç tanedir. Simgeler oyundakiyle aynıdır.",
     "select": "Bir {{tactic}} seçin",
     "placement": "Atama",
     "oneShot": "Tek atışlık",
@@ -126,7 +126,7 @@
   },
   "roundCards": {
     "title": "Tur kartları",
-    "sub": "İkinci turdan itibaren, maç havuzundan çekilen çeşitli {{items}} kartlarından birini seçin. Savaş büyüleri Garnizon'dan satın alınır, kartlardan seçilmez.",
+    "sub": "İkinci turdan itibaren, maç havuzundan çekilen çeşitli {{items}} kartlarından birini seçin. Savaş büyüleri Kale'den satın alınır, kartlardan seçilmez.",
     "select": "Bir tur kartı seçin"
   },
   "music": {

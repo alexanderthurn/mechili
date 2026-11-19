@@ -536,7 +536,7 @@ export class PlacementController {
     ) => {
         runes: string[];
         spellIcon: string | null;
-        /** several spell icons (the Garrison's charging spells) — shown instead of `spellIcon` */
+        /** several spell icons (the Stronghold's charging spells) — shown instead of `spellIcon` */
         spellIcons?: string[];
         productItemId?: string | null;
     } | null) | null = null;

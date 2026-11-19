@@ -197,7 +197,6 @@ export class SelectionInfoBuilder {
             towerUpgrade: (() => {
                 if (!ownInteractive || !u.type.structure || (u.type.extra && !u.type.wall) || this.host.tutorial?.boostLessonOnly) return undefined;
                 if (this.host.tutorial?.allowedGarrisonOffers()?.upgrade === false) return undefined;
-                if (this.host.tutorial?.hidesTowerUpgrade(u)) return undefined;
                 const up = buildingUpgradeFor(u, this.host.humanSeat, this.host.settings.towers);
                 if (!up) return undefined; // an ally's own tower
                 return {
@@ -640,7 +639,7 @@ export class SelectionInfoBuilder {
               })
             : [];
 
-        if (!has('forge') || this.host.tutorial?.forgeHidden) return out;
+        if (!has('forge')) return out;
 
         const snapIds =
             fogged && this.host.buildingIntelSnapshot

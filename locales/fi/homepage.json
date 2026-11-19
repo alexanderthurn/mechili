@@ -93,7 +93,7 @@
     }
   },
   "commanders": {
-    "sub": "Ennen ensimmäistä kierrosta jokainen pelaaja valitsee {{commander}}:n. Se asettaa aloitusarmeijasi, HP-poolin, pysyvän erikoisalan ja kolme {{tactics}}, jotka ostetaan Varuskunnasta (heikko / keskivahva / vahva). Tiimikaverit jakavat sepän liiton {{tactics}}.",
+    "sub": "Ennen ensimmäistä kierrosta jokainen pelaaja valitsee {{commander}}:n. Se asettaa aloitusarmeijasi, HP-poolin, pysyvän erikoisalan ja kolme linnoitussepän {{tactics}} (heikko / keskivahva / vahva). Tiimikaverit jakavat sepän liiton {{tactics}}.",
     "select": "Valitse {{commander}}"
   },
   "runes": {
@@ -110,7 +110,7 @@
     "mixed": "Sekoitettu"
   },
   "tactics": {
-    "sub": "Nämä ovat {{tactics}}-nauhallasi {{sep}} olevat taidot: kokoontumiset, leviämiset, kutsumiset ja taistelulahjaukset, kuten lohikäärmeen tulenhenkäys. Taisteluloitsuja ostetaan Varuskunnastasi, kerran kukin, ja vain ne kolme, jotka komentajasi osaa. Kuvakkeet vastaavat pelissä näkemääsi.",
+    "sub": "Nämä ovat {{tactics}}-nauhallasi {{sep}} olevat taidot: kokoontumiset, leviämiset, kutsumiset ja taistelulahjaukset, kuten lohikäärmeen tulenhenkäys. Taisteluloitsuja ostetaan linnoituksestasi, kerran kukin, ja vain ne kolme, jotka komentajasi osaa. Kuvakkeet vastaavat pelissä näkemääsi.",
     "select": "Valitse {{tactic}}",
     "placement": "Sijoittelu",
     "oneShot": "Yhden laukauksen",
@@ -126,7 +126,7 @@
   },
   "roundCards": {
     "title": "Kierroskortit",
-    "sub": "Toisesta kierroksesta eteenpäin nosta yksi useista tarjotuista {{items}}-korteista otteluvarastosta. Taisteluloitsuja ostetaan Varuskunnasta, niitä ei nosteta korteista.",
+    "sub": "Toisesta kierroksesta eteenpäin nosta yksi useista tarjotuista {{items}}-korteista otteluvarastosta. Taisteluloitsuja ostetaan linnoituksesta, niitä ei nosteta korteista.",
     "select": "Valitse kierroskortti"
   },
   "music": {

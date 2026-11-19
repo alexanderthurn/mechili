@@ -523,7 +523,7 @@ interface LogEntry extends LoggedAction {
     usedTactic?: string;
     /** buyStrongholdArcher / buyWallPost: it took one of the round's buys (Posted units: Normal) */
     tookBuy?: boolean;
-    /** buyForgeSpell: the spell charges at the Garrison through this round, usable from the next (forgeSpellDelay) */
+    /** buyForgeSpell: the spell charges at the Stronghold through this round, usable from the next (forgeSpellDelay) */
     forgeCharging?: boolean;
     /** mobilizeUnit: the pack's deployedRound before the stamp (for undo) */
     deployedRoundBefore?: number;
@@ -687,7 +687,7 @@ export interface ActionContext {
      */
     climbAttacker: Team | null;
     /**
-     * A commander spell bought at the Garrison is usable from the NEXT round
+     * A commander spell bought at the Stronghold is usable from the NEXT round
      * (the other side gets a deployment to see it coming); tutorials buy it
      * ready at once.
      */
@@ -856,7 +856,7 @@ export class ActionDispatcher {
     }
 
     /**
-     * Commander spells `seat` bought at the Garrison in `round` — still
+     * Commander spells `seat` bought at the Stronghold in `round` — still
      * charging, so not usable before the next round (see forgeSpellDelay).
      * Derived from the log like a cooldown: undo and replay need no state.
      */

@@ -39,8 +39,6 @@ export interface Tutorial2BoardState {
     keepLevel: number;
     keepMaxLevel: number;
     keepSelected: boolean;
-    /** the Garrison (it sells the commander spells) is the selected unit */
-    garrisonSelected: boolean;
     forgeOwned: readonly string[];
     oilArmed: boolean;
     oilStartDrafted: boolean;
@@ -109,7 +107,7 @@ export class TutorialGuide2 extends TutorialPanel {
                 if (state.strongholdArcherCount >= TUTORIAL_2_ARCHER_COUNT) this.step = 'r1End';
             }
         } else if (state.round === 2) {
-            if (this.step === 'r2Intro' && state.garrisonSelected) {
+            if (this.step === 'r2Intro' && state.keepSelected) {
                 this.step = 'r2BuyOil';
             } else if (this.step === 'r2BuyOil' && state.forgeOwned.includes(OIL_ID)) {
                 this.step = 'r2ArmOil';

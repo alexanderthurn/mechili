@@ -93,7 +93,7 @@
     }
   },
   "commanders": {
-    "sub": "Før runde én velger hver spiller en {{commander}}. Den angir starthæren din, HP-poolen, en permanent spesialitet og tre {{tactics}} som kjøpes i Garnisonen (svak / middels / sterk). Lagkameratene deler foreningen av smien sin {{tactics}}.",
+    "sub": "Før runde én velger hver spiller en {{commander}}. Den angir starthæren din, HP-poolen, en permanent spesialitet og tre festningssmeder {{tactics}} (svak / middels / sterk). Lagkameratene deler foreningen av smien sin {{tactics}}.",
     "select": "Velg en {{commander}}"
   },
   "runes": {
@@ -110,7 +110,7 @@
     "mixed": "Blandet"
   },
   "tactics": {
-    "sub": "Dette er ferdighetene på din {{tactics}} stripe {{sep}} samlinger, spill, innkallinger og kampkast som dragens ildpust. Kampformler kjøpes i Garnisonen din, én gang hver, og bare de tre kommandøren din kjenner. Ikonene samsvarer med det du ser i spillet.",
+    "sub": "Dette er ferdighetene på din {{tactics}} stripe {{sep}} samlinger, spill, innkallinger og kampkast som dragens ildpust. Kampformler kjøpes i ditt festningssted, én gang hver, og bare de tre kommandøren din kjenner. Ikonene samsvarer med det du ser i spillet.",
     "select": "Velg en {{tactic}}",
     "placement": "Plassering",
     "oneShot": "Ett-skudd",
@@ -126,7 +126,7 @@
   },
   "roundCards": {
     "title": "Rundekort",
-    "sub": "Fra runde to og utover, draft ett av flere tilbudte {{items}}-kort trukket fra kamppotten. Kampformler kjøpes i Garnisonen, ikke draftes fra kort.",
+    "sub": "Fra runde to og utover, draft ett av flere tilbudte {{items}}-kort trukket fra kamppotten. Kampformler kjøpes i Festningen, ikke draftes fra kort.",
     "select": "Velg et rundekort"
   },
   "music": {

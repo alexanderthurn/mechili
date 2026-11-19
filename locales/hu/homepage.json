@@ -93,7 +93,7 @@
     }
   },
   "commanders": {
-    "sub": "Az első kör előtt minden játékos választ egy {{commander}}-t. Ez meghatározza a kezdő sereged, az ÉP-készleted, egy állandó specialitásodat és három {{tactics}}-t, amelyeket a Helyőrségben veszel meg (gyenge / közepes / erős). A csapattársak megosztják a kovácsműhelyük egyesülését {{tactics}}.",
+    "sub": "Az első kör előtt minden játékos választ egy {{commander}}-t. Ez meghatározza a kezdő sereged, az ÉP-készleted, egy állandó specialitásodat és három Erődkovácsműhelyedet {{tactics}} (gyenge / közepes / erős). A csapattársak megosztják a kovácsműhelyük egyesülését {{tactics}}.",
     "select": "Válassz egy {{commander}}-t"
   },
   "runes": {
@@ -110,7 +110,7 @@
     "mixed": "Kevert"
   },
   "tactics": {
-    "sub": "Ezek a képességek a {{tactics}} csíkodon {{sep}}: gyülekezések, kiszóródások, idézések és harci varázslatok, mint például a sárkány tűzlehelete. A harci varázslatokat a Helyőrségedben lehet megvásárolni, mindegyiket egyszer, és csak azt a hármat, amit a parancsnokod ismer. Az ikonok megegyeznek azzal, amit a játékban látsz.",
+    "sub": "Ezek a képességek a {{tactics}} csíkodon {{sep}}: gyülekezések, kiszóródások, idézések és harci varázslatok, mint például a sárkány tűzlehelete. A harci varázslatokat az erődítményedben lehet megvásárolni, mindegyiket egyszer, és csak azt a hármat, amit a parancsnokod ismer. Az ikonok megegyeznek azzal, amit a játékban látsz.",
     "select": "Válassz egy {{tactic}}-t",
     "placement": "Elhelyezés",
     "oneShot": "Egy lövés",
@@ -126,7 +126,7 @@
   },
   "roundCards": {
     "title": "Körkártyák",
-    "sub": "A második körtől kezdve húzz egyet a felkínált {{items}} lapok közül a meccskészletből. A harci varázslatokat a Helyőrségben kell megvásárolni, nem kártyákból.",
+    "sub": "A második körtől kezdve húzz egyet a felkínált {{items}} lapok közül a meccskészletből. A harci varázslatokat az Erődben kell megvásárolni, nem kártyákból.",
     "select": "Válassz egy körkártyát"
   },
   "music": {
