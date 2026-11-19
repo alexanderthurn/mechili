@@ -1,0 +1,9 @@
+{
+  "model": "misc/model-viewer/raw/teutonic-sword.glb",
+  "roles": {
+    "fire": "box_01",
+    "idle": "cheer",
+    "death": "fall"
+  },
+  "updated": "2026-11-19T12:11:50.675Z"
+}

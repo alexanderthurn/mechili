@@ -276,6 +276,7 @@ async function loadModel(entry: ModelEntry): Promise<void> {
     grid = new GridHelper(span, 24, 0x56606e, 0x3a414c);
     scene.add(grid);
     renderInfo(gltf.scene, entry);
+    renderParts(gltf.scene);
     renderRoles();
     renderClips();
     buildStage();
@@ -315,6 +316,42 @@ function renderInfo(obj: Object3D, entry: ModelEntry): void {
         ['Clips', String(current?.clips.length ?? 0)],
     ];
     $('info').innerHTML = rows.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('');
+}
+
+/** a file of several separate objects (e.g. a weapon set): list them, click one to see it alone */
+let soloPart: string | null = null;
+function renderParts(obj: Object3D): void {
+    const parts: Object3D[] = [];
+    obj.traverse((o) => {
+        if (o instanceof Mesh && !(o instanceof SkinnedMesh)) parts.push(o);
+    });
+    const box = $('partsBox');
+    box.hidden = parts.length < 2;
+    soloPart = null;
+    if (parts.length < 2) return;
+    $('partCount').textContent = `(${parts.length})`;
+    const el = $('parts');
+    const draw = () => {
+        el.innerHTML = '';
+        for (const part of [null, ...parts]) {
+            const row = document.createElement('div');
+            const name = part ? part.name || part.parent?.name || 'part' : 'All';
+            row.className = 'item' + ((part ? name : null) === soloPart ? ' on' : '');
+            const g = part instanceof Mesh ? part.geometry : null;
+            const tris = g ? (g.index ? g.index.count : g.attributes.position!.count) / 3 : 0;
+            row.innerHTML = `<span>${name}</span><small>${part ? Math.round(tris) + ' tris' : ''}</small>`;
+            row.onclick = () => {
+                soloPart = part ? name : null;
+                // the stage may hold clones: match by name
+                stage?.root.traverse((o) => {
+                    if (o instanceof Mesh && !(o instanceof SkinnedMesh)) o.visible = !soloPart || (o.name || o.parent?.name) === soloPart;
+                });
+                draw();
+            };
+            el.append(row);
+        }
+    };
+    draw();
 }
 
 function renderRoles(): void {
