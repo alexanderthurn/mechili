@@ -2618,6 +2618,7 @@ const RAW = import.meta.glob(
         '../../assets/models/units/spider.glb',
         '../../assets/models/units/stronghold.glb',
         '../../assets/models/units/tent.glb',
+        '../../assets/models/units/teutonic.glb',
         '../../assets/models/units/wall.glb',
         '../../assets/models/units/wizard.glb',
         '../../assets/textures/bark.webp',

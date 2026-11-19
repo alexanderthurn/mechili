@@ -1,0 +1,18 @@
+// Teutonic knight, base (no weapon) — rigged in Tripo (Mixamo skeleton), GPU-skinned in the
+// instance pools. Source with all 97 clips: misc/model-viewer/raw/teutonic-knight.glb.
+// Faces +Z in the GLB, hence yawDeg 90 (like the farmer). Clips cut with glb-prep-clips:
+// walk → walk, box_01 0.2–1.5 s → fire (left jab), fall 0.9–2.4 s → death, cheer → idle.
+{
+    "file": "models/units/teutonic.glb",
+    "yawDeg": 90,
+    "scale": 3,
+    "offset": { "y": -0.04 },
+    "instancedSkin": true,
+    "animation": {
+        "walk": { "clip": "walk" }, // Tripo walk, 2.33 s cycle
+        "idle": { "clip": "idle" }, // Tripo cheer, all 11.6 s, the seam eased over 0.5 s
+        "fire": { "clip": "fire", "hitAt": 0.4 }, // the jab's fist is furthest out 0.4 s in
+        // falls to his left, lies still from about 0.9 s
+        "death": { "clip": "death", "fallLocal": { "x": -1, "z": 0 } },
+    },
+}
