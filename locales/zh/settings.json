@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "全屏",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "垂直同步",
+    "vsyncHint": "关闭：帧率不受显示器限制 · 重启后生效",
     "presetMinimal": "最低",
     "presetLow": "低",
     "presetMedium": "中",

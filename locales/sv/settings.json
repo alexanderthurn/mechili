@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "Helskärm",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "VSync",
+    "vsyncHint": "Av: bildfrekvensen begränsas inte av skärmen · gäller efter omstart",
     "presetMinimal": "Minimal",
     "presetLow": "Låg",
     "presetMedium": "Medium",

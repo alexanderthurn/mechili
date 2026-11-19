@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "전체 화면",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "수직 동기화",
+    "vsyncHint": "끔: 프레임 속도를 모니터에 맞춰 제한하지 않음 · 재시작 후 적용",
     "presetMinimal": "최소",
     "presetLow": "낮음",
     "presetMedium": "중간",

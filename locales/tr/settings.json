@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "Tam ekran",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "VSync",
+    "vsyncHint": "Kapalı: kare hızı monitörle sınırlı değil · yeniden başlatınca geçerli",
     "presetMinimal": "Minimal",
     "presetLow": "Düşük",
     "presetMedium": "Orta",

@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "Skrin penuh",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "VSync",
+    "vsyncHint": "Mati: kadar bingkai tidak dihadkan oleh monitor · berkuat kuasa selepas mula semula",
     "presetMinimal": "Minimum",
     "presetLow": "Rendah",
     "presetMedium": "Sederhana",

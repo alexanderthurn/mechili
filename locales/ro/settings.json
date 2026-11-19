@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "Ecran complet",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "VSync",
+    "vsyncHint": "Oprit: cadrele nu sunt limitate de monitor · se aplică după repornire",
     "presetMinimal": "Minimal",
     "presetLow": "Scăzut",
     "presetMedium": "Mediu",

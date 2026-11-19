@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "Ecrã completo",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "VSync",
+    "vsyncHint": "Desligado: FPS sem limite do monitor · aplica-se após reiniciar",
     "presetMinimal": "Mínimo",
     "presetLow": "Baixo",
     "presetMedium": "Médio",

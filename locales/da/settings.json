@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "Fuldskærm",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "VSync",
+    "vsyncHint": "Fra: billedhastighed ikke låst til skærmen · gælder efter genstart",
     "presetMinimal": "Minimal",
     "presetLow": "Lav",
     "presetMedium": "Medium",

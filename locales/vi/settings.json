@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "Toàn màn hình",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "VSync",
+    "vsyncHint": "Tắt: tốc độ khung hình không bị giới hạn theo màn hình · áp dụng sau khi khởi động lại",
     "presetMinimal": "Tối thiểu",
     "presetLow": "Thấp",
     "presetMedium": "Trung bình",

@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "Volledig scherm",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "VSync",
+    "vsyncHint": "Uit: framerate niet beperkt tot de monitor · na herstart",
     "presetMinimal": "Minimaal",
     "presetLow": "Laag",
     "presetMedium": "Medium",

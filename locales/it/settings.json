@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "A schermo intero",
     "fullscreenHint": "F11 / Alt+Invio",
+    "vsync": "VSync",
+    "vsyncHint": "Disattivato: FPS non limitati dal monitor · dopo il riavvio",
     "presetMinimal": "Minimale",
     "presetLow": "Basso",
     "presetMedium": "Mezzo",

@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "Полный экран",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "Вертикальная синхронизация",
+    "vsyncHint": "Выкл.: частота кадров не ограничена монитором · после перезапуска",
     "presetMinimal": "Минимум",
     "presetLow": "Низко",
     "presetMedium": "Средне",

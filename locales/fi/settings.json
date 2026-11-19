@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "Koko näyttö",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "VSync",
+    "vsyncHint": "Pois: ruudunpäivitystä ei rajoita näyttö · tulee voimaan uudelleenkäynnistyksen jälkeen",
     "presetMinimal": "Minimaalinen",
     "presetLow": "Matala",
     "presetMedium": "Keskikokoinen",

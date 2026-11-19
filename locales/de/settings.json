@@ -242,6 +242,8 @@
   "gfx": {
     "fullscreen": "Vollbild",
     "fullscreenHint": "F11 / Alt+Eingabe",
+    "vsync": "VSync",
+    "vsyncHint": "Aus: Bildrate nicht an den Monitor gebunden · gilt nach Neustart",
     "presetMinimal": "Minimal",
     "presetLow": "Niedrig",
     "presetMedium": "Mittel",

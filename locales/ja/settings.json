@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "フルスクリーン",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "垂直同期",
+    "vsyncHint": "オフ：フレームレートをモニターに制限しない · 再起動後に適用",
     "presetMinimal": "最低",
     "presetLow": "低",
     "presetMedium": "中",

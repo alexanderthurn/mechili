@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "Plein écran",
     "fullscreenHint": "F11 / Alt+Entrée",
+    "vsync": "VSync",
+    "vsyncHint": "Désactivée : images/s non limitées par l'écran · après redémarrage",
     "presetMinimal": "Minimal",
     "presetLow": "Faible",
     "presetMedium": "Moyen",

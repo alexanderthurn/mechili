@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "Pełny ekran",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "VSync",
+    "vsyncHint": "Wył.: liczba klatek nie jest ograniczona przez monitor · po ponownym uruchomieniu",
     "presetMinimal": "Minimalne",
     "presetLow": "Niski",
     "presetMedium": "Średni",
