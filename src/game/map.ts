@@ -2,9 +2,11 @@ import { BLOOD_CRUSH, crushBlood } from './bloodTone';
 import {
     CanvasTexture,
     Color,
+    DataTexture,
     Mesh,
     MeshBasicMaterial,
     MeshStandardMaterial,
+    NearestFilter,
     PlaneGeometry,
     RepeatWrapping,
     SRGBColorSpace,
@@ -470,6 +472,9 @@ const PLACE_BLOCKED_SHADE = 'rgba(6, 10, 14, 0.45)';
 const CELL_GRID_OPACITY = 0.5;
 /** the faint grid left standing while no unit is being positioned (0 = hidden) */
 const CELL_GRID_IDLE_OPACITY = 0.1;
+/** the tiles other units stand on, tinted while a unit is positioned (with the cell lines) */
+const OCCUPIED_TINT = [255, 186, 92] as const;
+const OCCUPIED_OPACITY = 0.32;
 
 /** the cell lines' ripple: wave speed (wu/s), soft front width (wu), front glow (× line alpha) */
 const CELL_RIPPLE_SPEED = 400;
@@ -604,6 +609,10 @@ export class BattleMap {
     /** radius at which the ripple has passed the whole board */
     private cellRippleEnd = 0;
     private cellGridOn = false;
+    /** one texel per tile: the tiles other units stand on (see setOccupiedCells) */
+    private occupiedTex: DataTexture | null = null;
+    private overlayOccupied: MeshBasicMaterial | null = null;
+    private occupiedSig = '';
     /** alpha of the cell lines as a fraction of CELL_GRID_OPACITY: idle faint ↔ 1 shown */
     private cellGridFade = 0;
     /** the ripple plays once per deployment round; later reveals just fade in */
@@ -1905,6 +1914,14 @@ export class BattleMap {
             cell.opacity = CELL_GRID_OPACITY * this.cellGridFade;
             cell.visible = active;
         }
+        // the occupied tiles: only above the faint idle grid, i.e. while a unit is positioned
+        const occ = this.overlayOccupied;
+        if (occ) {
+            const idleFrac = CELL_GRID_IDLE_OPACITY / CELL_GRID_OPACITY;
+            const shown = Math.max(0, (this.cellGridFade - idleFrac) / (1 - idleFrac));
+            occ.opacity = OCCUPIED_OPACITY * shown;
+            occ.visible = shown > 0.01;
+        }
         const edge = this.overlayDarkEdge;
         if (edge) {
             edge.opacity = this.overlaySnow;
@@ -1982,6 +1999,31 @@ export class BattleMap {
         if (!m) return;
         m.opacity = this.deployShade;
         m.visible = this.deployShade > 0.001;
+    }
+
+    /**
+     * The tiles other units stand on, tinted while a unit is positioned (they show and fade with
+     * the cell lines) — so a crowded board reads at a glance. Cheap to call every frame: the
+     * texture is only rewritten when the set changes.
+     */
+    setOccupiedCells(cells: readonly Cell[]): void {
+        const tex = this.occupiedTex;
+        if (!tex) return;
+        const sig = cells.map(cellKey).sort().join(',');
+        if (sig === this.occupiedSig) return;
+        this.occupiedSig = sig;
+        const data = tex.image.data as Uint8Array;
+        data.fill(0);
+        for (const c of cells) {
+            if (!this.inBounds(c)) continue;
+            // texel row = tile row: the overlay's v runs from +z (row 0) to −z
+            const i = (c.row * this.cols + c.col) * 4;
+            data[i] = OCCUPIED_TINT[0];
+            data[i + 1] = OCCUPIED_TINT[1];
+            data[i + 2] = OCCUPIED_TINT[2];
+            data[i + 3] = 255;
+        }
+        tex.needsUpdate = true;
     }
 
     /** A new deployment round: its first cell-grid reveal ripples again. */
@@ -2973,6 +3015,21 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         edgeMesh.renderOrder = 2;
         mesh.add(edgeMesh);
         this.overlayDarkEdge = edgeMat;
+
+        // the tiles other units stand on (setOccupiedCells): one texel per tile, crisp edges,
+        // under the cell lines so they still frame each tile
+        if (!this.occupiedTex) {
+            this.occupiedTex = new DataTexture(new Uint8Array(this.cols * this.rows * 4), this.cols, this.rows);
+            this.occupiedTex.magFilter = NearestFilter;
+            this.occupiedTex.minFilter = NearestFilter;
+            this.occupiedTex.colorSpace = SRGBColorSpace;
+            this.occupiedTex.needsUpdate = true;
+        }
+        const occMat = new MeshBasicMaterial({ map: this.occupiedTex, transparent: true, depthWrite: false, opacity: 0 });
+        const occMesh = new Mesh(geometry, occMat);
+        occMesh.renderOrder = 0;
+        mesh.add(occMesh);
+        this.overlayOccupied = occMat;
         this.syncDarkGrid();
         return mesh;
     }

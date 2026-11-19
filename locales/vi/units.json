@@ -23,6 +23,12 @@
   "teutonic": {
     "name": "Hiệp sĩ Teuton"
   },
+  "teutonicRifleman": {
+    "name": "Lính súng trường"
+  },
+  "teutonicTank": {
+    "name": "Xe tăng"
+  },
   "dwarf": {
     "name": "Người lùn"
   },

@@ -23,6 +23,7 @@ import {
     Vector3,
     VectorKeyframeTrack,
     WebGLRenderer,
+    MeshBasicMaterial,
     type AnimationAction,
     type Material,
     type Object3D,
@@ -121,7 +122,8 @@ function stripRootMotion(clip: AnimationClip): AnimationClip {
     const tracks = clip.tracks.map((t) => t.clone());
     const pos =
         tracks.find((t) => /hips.*\.position$/i.test(t.name)) ??
-        tracks.find((t) => t.name.endsWith('.position') && t instanceof VectorKeyframeTrack);
+        // a rig without hips: only its Root — never any bone (a tank's recoiling barrel)
+        tracks.find((t) => /^root\.position$/i.test(t.name) && t instanceof VectorKeyframeTrack);
     if (pos) {
         const v = pos.values;
         const x0 = v[0]!;
@@ -320,6 +322,7 @@ function renderInfo(obj: Object3D, entry: ModelEntry): void {
 
 /** a file of several separate objects (e.g. a weapon set): list them, click one to see it alone */
 let soloPart: string | null = null;
+const HIDDEN = new MeshBasicMaterial({ visible: false });
 function renderParts(obj: Object3D): void {
     const parts: Object3D[] = [];
     obj.traverse((o) => {
@@ -343,16 +346,35 @@ function renderParts(obj: Object3D): void {
             row.onclick = () => {
                 soloPart = part ? name : null;
                 // the stage may hold clones: match by name
+                // hide by material, not .visible: a hidden parent (turret) would hide its children (cannon)
                 stage?.root.traverse((o) => {
-                    if (o instanceof Mesh && !(o instanceof SkinnedMesh)) o.visible = !soloPart || (o.name || o.parent?.name) === soloPart;
+                    if (!(o instanceof Mesh) || o instanceof SkinnedMesh) return;
+                    o.userData.mat ??= o.material;
+                    o.material = !soloPart || (o.name || o.parent?.name) === soloPart ? o.userData.mat : HIDDEN;
                 });
                 draw();
+            };
+            el.append(row);
+        }
+        // a vehicle with a "turret" object: a slider turns it about its own axis (node Y)
+        if (parts.some((p) => p.name === 'turret')) {
+            const row = document.createElement('div');
+            row.className = 'item';
+            row.innerHTML = `<span>Turret</span><input type="range" min="-180" max="180" value="${turretDeg}" style="flex:1" /><small>${turretDeg}°</small>`;
+            const input = row.querySelector('input')!;
+            input.oninput = () => {
+                turretDeg = Number(input.value);
+                row.querySelector('small')!.textContent = turretDeg + '°';
+                stage?.root.traverse((o) => {
+                    if (o.name === 'turret') o.rotation.y = (turretDeg * Math.PI) / 180;
+                });
             };
             el.append(row);
         }
     };
     draw();
 }
+let turretDeg = 0;
 
 function renderRoles(): void {
     const el = $('rolelist');

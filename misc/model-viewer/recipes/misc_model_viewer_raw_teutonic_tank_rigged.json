@@ -1,0 +1,4 @@
+{
+  "model": "misc/model-viewer/raw/teutonic-tank-rigged.glb",
+  "roles": { "walk": "walk", "fire": "fire", "idle": "idle", "death": "death" }
+}

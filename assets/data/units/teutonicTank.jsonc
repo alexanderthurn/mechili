@@ -1,0 +1,47 @@
+/**
+ * Teutonic Tank — a modern battle tank with a Teutonic knight in the hatch: `teutonictank.glb`,
+ * rigged like the prism cannon. One heavy unit; a flat, fast shell with splash.
+ * Stats are first placeholders (not balanced yet).
+ */
+{
+    "id": "teutonicTank",
+    "name": "Tank",
+    "cost": 400,
+    "unlockCost": 200,
+    "footprint": { "cols": 4, "rows": 4 }, // the hull (15.2 long) fills it; the barrel reaches over the row in front
+    "formation": { "cols": 1, "rows": 1 },
+    // 7.44 tall in game (0.85 dwarf probe × 8.76): the knight in the hatch (0.222 of the model's 0.3755)
+    // is as tall as the Teutonic (4.4)
+    "meshScale": 8.76,
+    "hoofprints": true, // track marks instead of a body-wide wear trail
+    "targets": { "ground": true, "air": false },
+    "collisionRadius": 4.0,
+    "soundSize": "large",
+    // × meshScale (8.76), like every unit's: hull ≈ r 4.4 at 1.9 high, turret ≈ r 2.8 at 3.7 high (world)
+    "colliders": [
+        { "y": 0.22, "r": 0.5 },
+        { "y": 0.42, "r": 0.32 },
+    ],
+    "projectileSpeed": 150, // a shell: fast and flat
+    "projectileStyle": "bolt", // not a stone — a stone lands, bounces and rolls; a shell goes off
+    "projectileScale": 0.8,
+    "impactBlast": true, // fire flash, flame crown, smoke column, shock ring and a kick where it hits
+    "muzzleBlast": true, // a jet of smoke out of the barrel on every shot
+    "muzzleFlame": 3, // and a big flash (a star of three tongues)
+    "splashRadius": 3.5,
+    "buildingDamageMult": 2,
+    "sandWeight": 1.15,
+    "deathWear": "ash",
+    "deathAshScorch": { "radius": 1.5, "strength": 0.3 },
+    "hp": 4800,
+    "damage": 220,
+    "range": 55,
+    "attackInterval": 3.0,
+    "speed": 4,
+    "turnRate": 0.8,
+    "turnMove": "pivot",
+    "walkLean": 0.2,
+    "proceduralModel": "dwarf",
+    "talents": ["armor", "barrel", "ap", "autoloader"],
+    "talentSlots": 4,
+}

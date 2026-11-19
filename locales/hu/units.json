@@ -23,6 +23,12 @@
   "teutonic": {
     "name": "Német lovag"
   },
+  "teutonicRifleman": {
+    "name": "Lövész"
+  },
+  "teutonicTank": {
+    "name": "Harckocsi"
+  },
   "dwarf": {
     "name": "Törpe"
   },

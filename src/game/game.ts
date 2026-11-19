@@ -12206,6 +12206,17 @@ export class Game {
                 });
                 this.stoneChips.spawnFromEvents(battleEvents, (x, z) => groundHeightAt(x, z));
                 this.fireFx.spawnFromEvents(battleEvents);
+                for (const e of battleEvents) {
+                    if (e.kind === 'muzzle' && e.blast) this.projectileRenderer.muzzleBlast(e.x, e.y, e.z, e.blast.dx, e.blast.dz);
+                    if (e.kind === 'explosion' && e.shell) {
+                        this.fireFx.impactFlames(e.x, e.y, e.z, e.radius);
+                        this.projectileRenderer.smokeColumn(e.x, e.y, e.z, e.radius);
+                    }
+                    if (e.kind === 'muzzle' && e.flame) {
+                        const f = e.flame;
+                        this.fireFx.muzzleFlash(e.x, e.y, e.z, f.dx, f.dy, f.dz, f.scale);
+                    }
+                }
                 this.towerDebuffFx.spawnFromEvents(battleEvents);
                 this.collapseFx.spawnFromEvents(battleEvents);
                 wardDomeSpawnFromEvents(battleEvents);
@@ -12420,7 +12431,9 @@ export class Game {
             setDeployShade(this.deployShade);
             this.map.setDeployShade(this.deployShade);
         }
-        // deployment grid: the single-cell lines only while a unit is being positioned
+        // deployment grid: the single-cell lines only while a unit is being positioned,
+        // and the tiles the other units stand on tinted with them
+        if (this.phase === 'build' && this.placement.repositioning) this.map.setOccupiedCells(this.placement.occupiedCellsOfOthers());
         this.map.updateCellGrid(
             this.phase === 'build' && this.placement.repositioning,
             dtSeconds,

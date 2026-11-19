@@ -23,6 +23,12 @@
   "teutonic": {
     "name": "ドイツ騎士"
   },
+  "teutonicRifleman": {
+    "name": "ライフル兵"
+  },
+  "teutonicTank": {
+    "name": "戦車"
+  },
   "dwarf": {
     "name": "ドワーフ"
   },

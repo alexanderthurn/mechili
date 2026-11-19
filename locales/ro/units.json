@@ -23,6 +23,12 @@
   "teutonic": {
     "name": "Cavaler teuton"
   },
+  "teutonicRifleman": {
+    "name": "Pușcaș"
+  },
+  "teutonicTank": {
+    "name": "Tanc"
+  },
   "dwarf": {
     "name": "Pitic"
   },

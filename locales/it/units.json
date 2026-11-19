@@ -23,6 +23,12 @@
   "teutonic": {
     "name": "Cavaliere teutonico"
   },
+  "teutonicRifleman": {
+    "name": "Fuciliere"
+  },
+  "teutonicTank": {
+    "name": "Carro armato"
+  },
   "dwarf": {
     "name": "Nano"
   },

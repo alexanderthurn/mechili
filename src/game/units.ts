@@ -811,6 +811,21 @@ export interface UnitType {
      */
     projectileTrail?: 'cloud';
     /**
+     * A cannon's blast: a short, strong jet of smoke out of the muzzle along the shot on
+     * every launch (render-only; the mortar's soft smoke, thrown forward).
+     */
+    muzzleBlast?: boolean;
+    /**
+     * A muzzle flame on every shot: the fire arrows' tip flame, out of the AttackNode along
+     * the shot for a moment (render-only). The number is its size (1 = an arrow's tip flame).
+     */
+    muzzleFlame?: number;
+    /**
+     * Its splash shots detonate: the meteor's fire flash, a shock ring, a camera kick and a big
+     * scorch, plus a burst of flame tongues and a smoke column (render-only).
+     */
+    impactBlast?: boolean;
+    /**
      * spawn height above the unit's altitude (world units). When set, overrides
      * the default collider-mid muzzle for that shot.
      */

@@ -951,6 +951,23 @@ export class PlacementController {
     }
 
     /**
+     * The tiles units stand on, except the ones being positioned right now (the bought ghost,
+     * the carried pack or the moved group) — the deployment grid tints them while placing.
+     */
+    occupiedCellsOfOthers(): Cell[] {
+        const moving = new Set<Unit>(this.selectedGroup);
+        if (this.pendingUnit) moving.add(this.pendingUnit);
+        if (this.selectedUnit) moving.add(this.selectedUnit);
+        const out: Cell[] = [];
+        for (const [key, unit] of this.occupied) {
+            if (moving.has(unit)) continue;
+            const [col, row] = key.split(':').map(Number);
+            out.push({ col: col!, row: row! });
+        }
+        return out;
+    }
+
+    /**
      * Where the deployment grid's ripple starts: the bought ghost, the selected or
      * the carried pack — its view follows the pointer. Null without one, or while a
      * fresh ghost hasn't reached the board yet.

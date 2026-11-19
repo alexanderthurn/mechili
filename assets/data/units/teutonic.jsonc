@@ -1,5 +1,5 @@
 /**
- * Teutonic knight, the base: no weapon yet, he punches — `teutonic.glb`.
+ * Teutonic knight with his sword — `teutonic.glb` (overhead slash as his attack).
  * Stats are the Dead Farmer's, as placeholders (not balanced for the shop yet).
  */
 {
@@ -16,7 +16,7 @@
     "collisionRadius": 0.95,
     "soundSize": "medium",
     "colliders": [{ "y": 1.2, "r": 0.8 }], // the archer's, a touch bigger
-    "hp": 200,
+    "hp": 900,
     "damage": 100,
     "range": 3, // melee reach past his own body
     "attackInterval": 0.7,

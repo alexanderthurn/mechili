@@ -23,6 +23,12 @@
   "teutonic": {
     "name": "Töton Şövalyesi"
   },
+  "teutonicRifleman": {
+    "name": "Tüfekçi"
+  },
+  "teutonicTank": {
+    "name": "Tank"
+  },
   "dwarf": {
     "name": "Cüce"
   },

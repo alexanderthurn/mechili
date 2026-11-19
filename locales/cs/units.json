@@ -23,6 +23,12 @@
   "teutonic": {
     "name": "Řádový rytíř"
   },
+  "teutonicRifleman": {
+    "name": "Střelec"
+  },
+  "teutonicTank": {
+    "name": "Tank"
+  },
   "dwarf": {
     "name": "Trpaslík"
   },

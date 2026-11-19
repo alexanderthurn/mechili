@@ -23,6 +23,12 @@
   "teutonic": {
     "name": "Ordensridder"
   },
+  "teutonicRifleman": {
+    "name": "Skytter"
+  },
+  "teutonicTank": {
+    "name": "Stridsvogn"
+  },
   "dwarf": {
     "name": "Dverg"
   },

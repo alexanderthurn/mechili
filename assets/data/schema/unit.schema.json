@@ -468,6 +468,18 @@
           "const": "cloud",
           "description": "Soft VFX ribbon behind flying shots. `cloud` = misty smoke puffs (mortar / Stormcaller stones)."
         },
+        "muzzleBlast": {
+          "type": "boolean",
+          "description": "A cannon's blast: a short, strong jet of smoke out of the muzzle along the shot on every launch (render-only; the mortar's soft smoke, thrown forward)."
+        },
+        "muzzleFlame": {
+          "type": "number",
+          "description": "A muzzle flame on every shot: the fire arrows' tip flame, out of the AttackNode along the shot for a moment (render-only). The number is its size (1 = an arrow's tip flame)."
+        },
+        "impactBlast": {
+          "type": "boolean",
+          "description": "Its splash shots detonate: the meteor's fire flash, a shock ring, a camera kick and a big scorch, plus a burst of flame tongues and a smoke column (render-only)."
+        },
         "projectileLaunchHeight": {
           "type": "number",
           "description": "spawn height above the unit's altitude (world units). When set, overrides the default collider-mid muzzle for that shot."

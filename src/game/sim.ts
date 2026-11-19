@@ -679,6 +679,10 @@ export type SimEvent =
           style?: 'bolt' | 'arrow' | 'largeArrow' | 'stone' | 'orb';
           /** Shooter {@link UnitType.id} — filter archer vs goblin (both use arrows). */
           unitTypeId?: string;
+          /** {@link UnitType.muzzleBlast}: the shot's xz direction, for the forward smoke jet */
+          blast?: { dx: number; dz: number };
+          /** {@link UnitType.muzzleFlame}: its size and the shot's direction */
+          flame?: { scale: number; dx: number; dy: number; dz: number };
       }
     /** `blood` = victim gore tint when hitting flesh (omit = default red).
      *  `flesh` = the hit target bleeds (else gray debris — towers, ground, shields).
@@ -745,6 +749,8 @@ export type SimEvent =
           heavy?: boolean;
           /** hot flash + embers on top of the dust (meteor) */
           fire?: boolean;
+          /** {@link UnitType.impactBlast}: a shell's detonation — flame tongues + a smoke column on top */
+          shell?: boolean;
           /** rocket pad detonation (vs generic splash) */
           rocket?: boolean;
           /** camera kick strength; omitted/0 = no shake (most explosions) */
@@ -1314,6 +1320,11 @@ const GROUND_SWAT_CATCH = 0.28;
  * mesh cost, for a minor feature.
  */
 export const LIVE_TERRAIN_DEFORMATION = false;
+
+/** a shell's detonation ({@link UnitType.impactBlast}) on top of a splash explosion: fire, ring, kick */
+function shellBlastFields(type: UnitType): { fire?: true; heavy?: true; shockRing?: true; shake?: number; shell?: true } {
+    return type.impactBlast ? { fire: true, heavy: true, shockRing: true, shake: 0.45, shell: true } : {};
+}
 
 export class BattleSim {
     private static readonly STEP = 1 / SIM_HZ;
@@ -5877,6 +5888,19 @@ export class BattleSim {
             z: mz,
             style: at.projectileStyle ?? 'bolt',
             unitTypeId: at.id,
+            ...(at.muzzleBlast && Math.hypot(vx, vz) > 1e-6
+                ? { blast: { dx: vx / Math.hypot(vx, vz), dz: vz / Math.hypot(vx, vz) } }
+                : {}),
+            ...(at.muzzleFlame && Math.hypot(vx, vy, vz) > 1e-6
+                ? {
+                      flame: {
+                          scale: at.muzzleFlame,
+                          dx: vx / Math.hypot(vx, vy, vz),
+                          dy: vy / Math.hypot(vx, vy, vz),
+                          dz: vz / Math.hypot(vx, vy, vz),
+                      },
+                  }
+                : {}),
         });
     }
 
@@ -6559,6 +6583,7 @@ export class BattleSim {
                         y: iy,
                         z: iz,
                         radius: splash,
+                        ...shellBlastFields(p.source.type),
                         scar: p.source.type.splashScar !== false,
                     });
                 }
@@ -6596,6 +6621,7 @@ export class BattleSim {
                         y: iy,
                         z: iz,
                         radius: splash,
+                        ...shellBlastFields(p.source.type),
                         scar: p.source.type.splashScar !== false,
                     });
                     const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
@@ -6670,6 +6696,7 @@ export class BattleSim {
                         y: groundY + 0.15,
                         z: nz,
                         radius: splash,
+                        ...shellBlastFields(p.source.type),
                         scar: p.source.type.splashScar !== false,
                     });
                     if (p.style === 'stone') {
@@ -6788,6 +6815,7 @@ export class BattleSim {
                     y: groundY + 0.15,
                     z: nz,
                     radius: splash,
+                    ...shellBlastFields(p.source.type),
                     scar: p.source.type.splashScar !== false,
                 });
             }
@@ -6806,6 +6834,7 @@ export class BattleSim {
                 y: groundY + 0.15,
                 z: nz,
                 radius: splash * STONE_BOUNCE_SPLASH,
+                ...shellBlastFields(p.source.type),
                 scar: false,
             });
         }

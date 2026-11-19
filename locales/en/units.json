@@ -23,6 +23,12 @@
   "teutonic": {
     "name": "Teutonic"
   },
+  "teutonicRifleman": {
+    "name": "Rifleman"
+  },
+  "teutonicTank": {
+    "name": "Tank"
+  },
   "dwarf": {
     "name": "Dwarf"
   },

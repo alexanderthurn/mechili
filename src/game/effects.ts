@@ -2457,6 +2457,9 @@ export class StuckBoltRenderer {
 }
 
 /** Draws the sim's bullets as instanced meshes — one pool per visual style. */
+/** a muzzle blast's smoke follows its flash by this much (s), so the flash is seen */
+const MUZZLE_BLAST_DELAY = 0.07;
+
 export class ProjectileRenderer {
     private readonly pools: Record<ProjectileStyle, InstancedMesh>;
     /** Per-instance rgba for the stone pool (crow opaque white / Hammerer tinted disc). */
@@ -2492,6 +2495,8 @@ export class ProjectileRenderer {
      * never allocates the pool at all.
      */
     private cloudTrail: SoftParticlePool | null = null;
+    /** muzzle blasts waiting for their beat (see muzzleBlast) */
+    private readonly pendingBlasts: { x: number; y: number; z: number; dx: number; dz: number; at: number }[] = [];
     private trailEmitAcc = 0;
     private trailQuality: FireVfxQuality = prefs().fireVfx;
     private readonly scene: Scene;
@@ -2584,6 +2589,36 @@ export class ProjectileRenderer {
         this.cloudTrail?.dispose();
         this.cloudTrail = null;
         this.trailEmitAcc = 0;
+    }
+
+    /**
+     * A cannon's blast ({@link UnitType.muzzleBlast}): the trail's soft smoke, thrown hard out of
+     * the muzzle along the shot — a short jet that slows, swells and drifts away. Off with trails.
+     */
+    muzzleBlast(x: number, y: number, z: number, dx: number, dz: number): void {
+        // the flash first: the smoke follows a beat later instead of swallowing it
+        this.pendingBlasts.push({ x, y, z, dx, dz, at: this.clock + MUZZLE_BLAST_DELAY });
+    }
+
+    /** A shell's smoke: a dark column boiling up out of the blast and drifting off. Off with trails. */
+    smokeColumn(x: number, y: number, z: number, radius: number): void {
+        const tier = this.trailTier();
+        if (!tier) return;
+        const pool = this.ensureTrail(tier.pool);
+        const s = Math.max(1, radius / 2.5);
+        const up = { x: 0, y: 1, z: 0 };
+        pool.burst(x, y + 0.5, z, { count: Math.round(14 * s), color: 0x4a4540, colorEnd: 0x8c877e, speed: 9 * s, life: 1.9, up: 6, dir: up, spread: 0.9 });
+        pool.burst(x, y + 0.3, z, { count: Math.round(10 * s), color: 0x6a645a, colorEnd: 0xa8a296, speed: 14 * s, life: 1.2, up: 1.5, spread: 1 });
+    }
+
+    private emitMuzzleBlast(x: number, y: number, z: number, dx: number, dz: number): void {
+        const tier = this.trailTier();
+        if (!tier) return;
+        const pool = this.ensureTrail(tier.pool);
+        const dir = { x: dx, y: 0.06, z: dz };
+        // a fast core along the barrel, then a wider, slower collar of smoke
+        pool.burst(x, y, z, { count: 10, color: 0xe8e2d6, colorEnd: 0x9a948a, speed: 30, life: 0.9, up: 0.6, dir, spread: 0.25 });
+        pool.burst(x, y, z, { count: 8, color: 0xd6d0c4, colorEnd: 0x8a857c, speed: 12, life: 1.2, up: 1.2, dir, spread: 0.8 });
     }
 
     private ensureTrail(maxParticles: number): SoftParticlePool {
@@ -2744,6 +2779,12 @@ export class ProjectileRenderer {
             mesh.instanceMatrix.needsUpdate = true;
         }
         this.stoneTint.needsUpdate = true;
+        for (let i = this.pendingBlasts.length - 1; i >= 0; i--) {
+            const b = this.pendingBlasts[i]!;
+            if (b.at > this.clock) continue;
+            this.pendingBlasts.splice(i, 1);
+            this.emitMuzzleBlast(b.x, b.y, b.z, b.dx, b.dz);
+        }
         if (dt > 0) this.cloudTrail?.update(dt);
     }
 
@@ -2751,6 +2792,7 @@ export class ProjectileRenderer {
         for (const mesh of Object.values(this.pools)) mesh.count = 0;
         this.trailEmitAcc = 0;
         this.cloudTrail?.clear();
+        this.pendingBlasts.length = 0;
     }
 
     /** One instance per style so bolt/arrow/stone materials compile before combat. */

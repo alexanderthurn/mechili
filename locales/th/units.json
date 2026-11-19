@@ -23,6 +23,12 @@
   "teutonic": {
     "name": "อัศวินทิวทอนิก"
   },
+  "teutonicRifleman": {
+    "name": "พลปืนไรเฟิล"
+  },
+  "teutonicTank": {
+    "name": "รถถัง"
+  },
   "dwarf": {
     "name": "คนแคระ"
   },

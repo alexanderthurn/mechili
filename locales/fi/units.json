@@ -23,6 +23,12 @@
   "teutonic": {
     "name": "Saksalaisritari"
   },
+  "teutonicRifleman": {
+    "name": "Kivääriampuja"
+  },
+  "teutonicTank": {
+    "name": "Panssarivaunu"
+  },
   "dwarf": {
     "name": "Kääpiö"
   },
