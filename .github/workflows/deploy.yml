@@ -13,7 +13,7 @@ concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: true
 
-# Every branch lands in its own folder on the Melodan All-Inkl account (KAS_ACCOUNT),
+# Every branch lands in its own folder on the Melodan All-Inkl account,
 # over rsync + SSH: <root>/branches/<branch>/, served as https://dev.melodan.com/<branch>/.
 # melodan.com, www and play.melodan.com point at branches/main; its hand-placed
 # .htaccess (the repo's .htaccess.melodan) picks web.html or index.html by host —
@@ -22,7 +22,9 @@ concurrency:
 # The SSH user is locked into its own view (chroot); DEPLOY_ROOT is that view's path.
 #
 # Secrets: SSH_DEPLOY_KEY (private ed25519 key; its public half is in KAS for the
-# SSH user) and SSH_KNOWN_HOSTS (`ssh-keyscan -t ed25519,rsa KAS_ACCOUNT.kasserver.com`).
+# SSH user), SSH_KNOWN_HOSTS (`ssh-keyscan -t ed25519,rsa <DEPLOY_HOST>`), and the
+# account itself — DEPLOY_HOST (the kasserver host), DEPLOY_USER (the SSH user) and
+# DEPLOY_ROOT (the branches folder in the user's view) — kept out of this public repo.
 #
 # rsync compares by checksum, not by timestamp: a fresh build has new timestamps on
 # every file, and FTP's lftp mirror re-sent all 205 MB / 3,200 files each time.
@@ -30,9 +32,9 @@ concurrency:
 # Never create git branches named like the folders the PHP backend keeps its data in
 # (see the excludes) — and `backend` is reserved, as before.
 env:
-  DEPLOY_HOST: KAS_ACCOUNT.kasserver.com
-  DEPLOY_USER: ssh-KAS_ACCOUNT
-  DEPLOY_ROOT: /www/htdocs/KAS_ACCOUNT/melodan.com/branches
+  DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+  DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+  DEPLOY_ROOT: ${{ secrets.DEPLOY_ROOT }}
 
 jobs:
   build:
