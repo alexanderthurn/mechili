@@ -1564,6 +1564,11 @@ export class BattleSim {
     }[] = [];
     /** when true, kills from applyBurnDamage use hammer pancake death */
     private crushingHammer = false;
+    /** scratch points for pushApart's hull spines */
+    private readonly spineA = { x: 0, z: 0 };
+    private readonly spineB = { x: 0, z: 0 };
+    /** scratch box for crushUnder's wall test */
+    private readonly ramBox: WallBox = { owner: null as unknown as Actor, x0: 0, x1: 0, z0: 0, z1: 0, top: 0 };
     /** a stand-in circle for {@link pushHullOut} (only x, z, radius and unit are read) */
     private readonly hullProbe = { x: 0, z: 0, radius: 0, unit: null as unknown as Unit } as unknown as Actor;
     /** set while a vehicle's crush deals damage — its kills splatter (death event `squash`) */
@@ -5653,7 +5658,7 @@ export class BattleSim {
                 a.z = Math.min(halfZ - a.radius, Math.max(-halfZ + a.radius, a.z));
             }
         }
-        this.crushUnder(a);
+        this.crushUnder(a, d.attackMult);
     }
 
     /**
@@ -5663,7 +5668,7 @@ export class BattleSim {
      * ones take crushDamage, at most once per crushEvery each, and shove the hull aside through the
      * usual overlap push. Ground units only.
      */
-    private crushUnder(a: Actor): void {
+    private crushUnder(a: Actor, attackMult: number): void {
         const v = a.unit.type.vehicle!;
         const small = v.crushRadius ?? 1.2;
         const every = v.crushEvery ?? 1.5;
@@ -5676,12 +5681,31 @@ export class BattleSim {
         for (const b of pool) {
             if (b === a || !b.alive || b.altitude > 0) continue;
             // buildings and walls — its own side's too: it rams whatever is in its way
-            if (b.unit.type.structure && (!v.crushBuildingDamage || b.unit.type.extra)) continue;
+            // (board extras take no space and aren't rammed — except walls and gates, extras too)
+            if (b.unit.type.structure && (!v.crushBuildingDamage || (b.unit.type.extra && !b.unit.type.wall))) continue;
             if (!front && actorTeam(b) === team) continue;
             if (this.isSpawning(b)) continue;
             const dx = b.x - a.x;
             const dz = b.z - a.z;
-            if (front) {
+            const wall = b.unit.type.wall;
+            if (wall) {
+                // a wall is a long box whose centre may lie far off to the side, and the hull stops
+                // at its face: probes just past the nose (left, middle, right) against the stone
+                if (this.opensFor(b, team)) continue; // its own gate: it drives through
+                const box = this.wallMoveBox(b, wall, this.ramBox, true);
+                const reach = (front?.reach ?? a.radius) + 0.6;
+                const half = front?.halfWidth ?? a.radius;
+                let touching = false;
+                for (const k of [-0.7, 0, 0.7]) {
+                    const px = a.x + fx * reach + fz * half * k;
+                    const pz = a.z + fz * reach - fx * half * k;
+                    if (insideBox(px, pz, box, 0.3)) {
+                        touching = true;
+                        break;
+                    }
+                }
+                if (!touching) continue;
+            } else if (front) {
                 const along = dx * fx + dz * fz; // ahead of the centre
                 const side = dx * fz - dz * fx; // across
                 if (along > front.reach + b.radius || along < front.reach - front.depth) continue;
@@ -5703,7 +5727,11 @@ export class BattleSim {
                 continue;
             }
             hits.set(b.index, this.elapsed);
-            const dmg = b.unit.type.structure ? v.crushBuildingDamage! : v.crushDamage ?? 250;
+            const base = b.unit.type.structure
+                ? v.crushBuildingDamage! * (b.unit.type.wall ? v.crushWallMult ?? 1 : 1)
+                : v.crushDamage ?? 250;
+            // grows with its level and talents like its shells, and an attack debuff weakens it
+            const dmg = this.hitDamage(a, b, base, attackMult);
             // rammed: a shower of bricks off the facade
             if (b.unit.type.structure) this.ramBricks(a, b, a.x + fx * (front?.reach ?? a.radius), a.z + fz * (front?.reach ?? a.radius), 6);
             this.applyDamage(a.unit, b, dmg, knock, 'direct');
@@ -7678,6 +7706,8 @@ export class BattleSim {
         const out = this.aimOut;
         const wall = t.unit.type.wall;
         if (!wall) {
+            const hull = t.unit.type.vehicle?.hull;
+            if (hull) return this.hullSpinePoint(t, hull, fx, fz, out);
             out.x = t.x;
             out.z = t.z;
             return out;
@@ -7690,6 +7720,32 @@ export class BattleSim {
         const hz = box.z1 - r;
         out.x = lx <= hx ? Math.max(lx, Math.min(hx, fx)) : (box.x0 + box.x1) / 2;
         out.z = lz <= hz ? Math.max(lz, Math.min(hz, fz)) : (box.z0 + box.z1) / 2;
+        return out;
+    }
+
+    /**
+     * A long vehicle's body is a capsule, not its round collision circle: the point of its spine
+     * (the hull's long axis, shortened by its radius at both ends) nearest to (px, pz). Measured
+     * to it, plus the vehicle's radius, reaches the hull's nose and tail as well as its sides.
+     */
+    private hullSpinePoint(
+        t: Actor,
+        hull: { halfLength: number; halfWidth: number },
+        px: number,
+        pz: number,
+        out: { x: number; z: number },
+    ): { x: number; z: number } {
+        if (!Number.isFinite(t.facing)) {
+            out.x = t.x;
+            out.z = t.z;
+            return out;
+        }
+        const ax = -detSin(t.facing);
+        const az = -detCos(t.facing);
+        const half = Math.max(0, hull.halfLength - t.radius);
+        const along = Math.max(-half, Math.min(half, (px - t.x) * ax + (pz - t.z) * az));
+        out.x = t.x + ax * along;
+        out.z = t.z + az * along;
         return out;
     }
 
@@ -8023,8 +8079,37 @@ export class BattleSim {
     }
 
     private pushApart(a: Actor, b: Actor): void {
-        const dx = a.x - b.x;
-        const dz = a.z - b.z;
+        // a long vehicle pushes from the nearest point of its hull's spine (see hullSpinePoint)
+        let ax = a.x;
+        let az = a.z;
+        let bx = b.x;
+        let bz = b.z;
+        // only between real units: structures keep their circles (the hull meets them in
+        // pushHullOut), and pushHullOut's stand-in circle carries the tank's type but no facing
+        const unitPair = !a.unit.type.structure && !b.unit.type.structure && a !== this.hullProbe && b !== this.hullProbe;
+        const hullA = unitPair ? a.unit.type.vehicle?.hull : undefined;
+        const hullB = unitPair ? b.unit.type.vehicle?.hull : undefined;
+        if (hullA || hullB) {
+            const pa = this.spineA;
+            const pb = this.spineB;
+            if (hullB) {
+                this.hullSpinePoint(b, hullB, a.x, a.z, pb);
+                bx = pb.x;
+                bz = pb.z;
+            }
+            if (hullA) {
+                this.hullSpinePoint(a, hullA, bx, bz, pa);
+                ax = pa.x;
+                az = pa.z;
+                if (hullB) {
+                    this.hullSpinePoint(b, hullB, ax, az, pb);
+                    bx = pb.x;
+                    bz = pb.z;
+                }
+            }
+        }
+        const dx = ax - bx;
+        const dz = az - bz;
         const dist = hypot(dx, dz);
         const minD =
             a.unit.type.structure || b.unit.type.structure

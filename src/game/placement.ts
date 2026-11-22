@@ -2890,13 +2890,20 @@ export class PlacementController {
                 const mz = origin.z + m.home.z;
                 // member Y is stored as absolute world height (see seatMembers)
                 const my = m.mesh.position.y;
-                forEachPickSphere(unit.type, mx, my, mz, (sx, sy, sz, r) => {
-                    const t = raySphereT(ray, sx, sy, sz, r);
-                    if (t !== null && t < bestT) {
-                        bestT = t;
-                        best = unit;
-                    }
-                });
+                forEachPickSphere(
+                    unit.type,
+                    mx,
+                    my,
+                    mz,
+                    (sx, sy, sz, r) => {
+                        const t = raySphereT(ray, sx, sy, sz, r);
+                        if (t !== null && t < bestT) {
+                            bestT = t;
+                            best = unit;
+                        }
+                    },
+                    m.mesh.rotation.y,
+                );
             }
 
             // towers / GLB structures: also test the real mesh so antennae etc. count

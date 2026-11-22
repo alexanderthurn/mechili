@@ -32,11 +32,23 @@ export function forEachPickSphere(
     baseY: number,
     baseZ: number,
     visit: (x: number, y: number, z: number, r: number) => void,
+    /** facing (the sim's: ahead is (−sin, −cos)) — a long vehicle's hull reaches along it */
+    yaw = 0,
 ): void {
     const scale = type.meshScale;
     if (type.colliders.length > 0) {
         for (const c of type.colliders) {
             visit(baseX, baseY + c.y * scale, baseZ, c.r * scale);
+        }
+        // a long hull (a tank): its lowest sphere again toward the nose and the tail
+        const hull = type.vehicle?.hull;
+        const low = type.colliders[0]!;
+        if (hull) {
+            const r = Math.min(low.r * scale, hull.halfWidth);
+            const off = Math.max(0, hull.halfLength - r);
+            const ax = -Math.sin(yaw);
+            const az = -Math.cos(yaw);
+            for (const k of [-1, 1]) visit(baseX + ax * off * k, baseY + low.y * scale, baseZ + az * off * k, r);
         }
         return;
     }

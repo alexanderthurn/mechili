@@ -48,7 +48,9 @@
         "crushRadius": 1.0, // dwarfs, goblins, archers, wizards, knights, zombies, farmers die under it
         "crushDamage": 250, // hammerer, ogre and bigger: a hit per pass
         "crushEvery": 1.5,
-        "crushBuildingDamage": 600, // any building or wall it rams, own ones too: × buildingDamageMult 2 = 1200 per pass
+        // ram damage grows with level and talents like its shells (crushDamage too)
+        "crushBuildingDamage": 600, // any building or wall it rams, own ones too: × buildingDamageMult 2 = 1200 per pass (level 1)
+        "crushWallMult": 5, // walls and gates: × 5 → 6000 per pass at level 1, a wall (6000 HP) in one ram
         // only what its front runs into — friend or foe; a hit from the side or behind is fine.
         // World units from the unit's centre: the hull reaches 7.6 ahead and is 4.2 wide each side
         "crushFront": { "reach": 7.6, "depth": 3.5, "halfWidth": 4.2 },
