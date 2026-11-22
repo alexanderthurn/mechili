@@ -6,6 +6,11 @@
 {
     "file": "models/units/teutonictank.glb",
     "instancedSkin": true,
+    // the game centres a model on its bounding box — barrel included — so the hull sat 0.096 GLB
+    // units behind the unit's centre; this puts it back on the footprint (× 2.264 normalized, −Z = ahead)
+    "offset": { "z": -0.217 },
+    // the sim aims the turret on its own (UnitType.vehicle): these bones turn about the Turret joint
+    "turret": { "bones": ["Turret", "Cannon", "Barrel", "MG"] },
     // sits on the slope: road wheels over 0.476 along x and tracks at z ±0.159, GLB units
     "groundConform": { "length": 0.476, "width": 0.318 },
     // two track marks behind it, one under each belt

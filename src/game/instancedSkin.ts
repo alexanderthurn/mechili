@@ -80,6 +80,11 @@ export interface InstancedSkinData {
     geometry: BufferGeometry;
     /** AttackNode riding a bone: which bone, and the point in bind (geometry) space — live beam starts */
     attack?: { bone: number; point: Vector3 };
+    /**
+     * A turret turned per instance on top of the clips (ModelSpec.turret, a vehicle's): its bones
+     * as a bit mask, the bone it turns about, and that bone's joint in bind (geometry) space.
+     */
+    turret?: { bone: number; mask: number; pivot: Vector3 };
     /** hoofprint feet: the sole of each named bone's geometry, in bind space (ModelSpec.hoofprints) */
     feet?: { bone: number; point: Vector3 }[];
     /** normalized root units per GLB (bind) unit — converts a foot's height back to GLB units */
@@ -272,6 +277,8 @@ export function bakeInstancedSkin(
     feetSpec?: { bones: readonly string[]; track?: boolean },
     /** the body bones by name (ModelSpec.stickBones); absent = measured */
     stickBones?: readonly string[],
+    /** ModelSpec.turret: bones turned per instance about the first one's joint */
+    turretSpec?: { bones: readonly string[] },
 ): { geometry: BufferGeometry; material: MeshStandardMaterial; skin: InstancedSkinData } | null {
     let sm: SkinnedMesh | undefined;
     root.traverse((o) => {
@@ -354,6 +361,20 @@ export function bakeInstancedSkin(
     m.multiplyMatrices(pre, mesh.skeleton.bones[0]!.matrixWorld).multiply(mesh.skeleton.boneInverses[0]!).multiply(mesh.bindMatrix);
     out.rootPerModel = new Vector3().setFromMatrixColumn(m, 1).length();
     if (anim.walk?.stride) out.walkStride = anim.walk.stride * out.rootPerModel;
+
+    // a turret: its bones (all on one 32-bit mask) turn about the first one's joint
+    if (turretSpec?.bones.length) {
+        const ids = turretSpec.bones.map((n) => mesh.skeleton.bones.findIndex((b) => b.name === n));
+        if (ids.some((i) => i < 0 || i > 30)) console.warn('[instancedSkin] turret bones not found (or past 30):', turretSpec.bones);
+        else {
+            // the joint in geometry space: bindMatrix⁻¹ · boneInverse⁻¹ · origin. Not via
+            // bindMatrixInverse — in three's 'attached' bind mode that follows the mesh's CURRENT
+            // world (scaled + turned by normalize), and the turret swung about a point off its ring
+            const joint = new Matrix4().copy(mesh.skeleton.boneInverses[ids[0]!]!).invert();
+            const pivot = new Vector3().setFromMatrixPosition(joint).applyMatrix4(new Matrix4().copy(mesh.bindMatrix).invert());
+            out.turret = { bone: ids[0]!, mask: ids.reduce((m, i) => m | (1 << i), 0), pivot };
+        }
+    }
 
     // an AttackNode under a bone moves with it — keep it for live (render-only) muzzles
     const attackNode = root.getObjectByName('AttackNode');
@@ -480,10 +501,44 @@ mat4 iskinClip(vec4 c) {
           + skinWeight.z * iskinBone(row + f1, skinIndex.z) + skinWeight.w * iskinBone(row + f1, skinIndex.w);
   return s0 * (1.0 - a) + s1 * a;
 }
+#ifdef ISKIN_TURRET
+uniform float uSkinTurretBone;
+uniform int uSkinTurretMask;
+uniform vec3 uSkinTurretPivot;
+attribute float aSkinTurret;
+// one bone's matrix in a clip (frames lerped like iskinClip)
+mat4 iskinOne(vec4 c, float bone) {
+  float packed = abs(c.x);
+  float frames = mod(packed, ${ROW_PACK}.0);
+  float row = floor(packed / ${ROW_PACK}.0);
+  float f = (c.y + (uSkinTime - c.z) * c.w) * ${BAKE_FPS}.0;
+  f = c.x > 0.0 ? mod(f, frames - 1.0) : clamp(f, 0.0, frames - 1.0);
+  float f0 = floor(f);
+  float a = f - f0;
+  return iskinBone(row + f0, bone) * (1.0 - a) + iskinBone(row + min(f0 + 1.0, frames - 1.0), bone) * a;
+}
+// the turret's own yaw on top of the clip: about its joint, in the turret's posed frame, so
+// recoil and a death clip's flight stay right however far it is turned
+mat4 iskinTurret(mat4 s, float k) {
+  int b = int(skinIndex.x + 0.5);
+  if (aSkinTurret == 0.0 || ((uSkinTurretMask >> b) & 1) == 0) return s;
+  mat4 t = iskinOne(aSkinA, uSkinTurretBone);
+  if (k < 1.0 && aSkinB.x != 0.0) t = t * k + iskinOne(aSkinB, uSkinTurretBone) * (1.0 - k);
+  float c = cos(aSkinTurret);
+  float n = sin(aSkinTurret);
+  mat4 r = mat4(c, 0.0, -n, 0.0, 0.0, 1.0, 0.0, 0.0, n, 0.0, c, 0.0, 0.0, 0.0, 0.0, 1.0);
+  mat4 to = mat4(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, uSkinTurretPivot, 1.0);
+  mat4 back = mat4(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -uSkinTurretPivot, 1.0);
+  return t * to * r * back * inverse(t) * s;
+}
+#endif
 mat4 iskinMatrix() {
   mat4 s = iskinClip(aSkinA);
   float k = clamp((uSkinTime - aSkinFade) / ${FADE_SECONDS.toFixed(3)}, 0.0, 1.0);
   if (k < 1.0 && aSkinB.x != 0.0) s = s * k + iskinClip(aSkinB) * (1.0 - k);
+#ifdef ISKIN_TURRET
+  s = iskinTurret(s, k);
+#endif
   return s;
 }
 `;
@@ -493,6 +548,13 @@ function uniformsFor(skin: InstancedSkinData) {
         uSkinTex: { value: skin.texture },
         uSkinTexSize: { value: [skin.texture.image.width, skin.texture.image.height] },
         uSkinTime: skinTime,
+        ...(skin.turret
+            ? {
+                  uSkinTurretBone: { value: skin.turret.bone },
+                  uSkinTurretMask: { value: skin.turret.mask },
+                  uSkinTurretPivot: { value: skin.turret.pivot },
+              }
+            : {}),
     };
 }
 
@@ -503,7 +565,7 @@ function patch(material: Material, skin: InstancedSkinData, normals: boolean): v
     material.onBeforeCompile = (shader, renderer) => {
         prevCompile?.call(material, shader, renderer);
         Object.assign(shader.uniforms, uniforms);
-        shader.vertexShader = SKIN_DECL + shader.vertexShader;
+        shader.vertexShader = (skin.turret ? '#define ISKIN_TURRET\n' : '') + SKIN_DECL + shader.vertexShader;
         if (normals) {
             // the lit pass needs the matrix for normals, which come before positions
             shader.vertexShader = shader.vertexShader
@@ -517,7 +579,7 @@ function patch(material: Material, skin: InstancedSkinData, normals: boolean): v
         }
     };
     material.customProgramCacheKey = function () {
-        return (prevKey ? prevKey.call(this) : '') + `|iskin-v1|${normals ? 'n' : 'd'}`;
+        return (prevKey ? prevKey.call(this) : '') + `|iskin-v1|${normals ? 'n' : 'd'}${skin.turret ? '|turret' : ''}`;
     };
     material.needsUpdate = true;
 }
@@ -549,6 +611,8 @@ interface SkinAnimState {
     seed: number;
     /** walk vs idle hysteresis */
     walking: boolean;
+    /** a turret's yaw on top of the clips, relative to the hull (rad; see setInstancedSkinTurret) */
+    turret: number;
     /** channelling a beam: the fire pose holds, loops don't take over */
     holding: boolean;
     /** ground units: smoothed speed ratio, and since when it has been near zero */
@@ -568,6 +632,7 @@ function stateOf(proxy: Object3D): SkinAnimState {
             dying: false,
             seed,
             walking: false,
+            turret: 0,
             holding: false,
             speed: 0,
             stillSince: -1,
@@ -784,9 +849,19 @@ export function driveFlyerSkin(proxy: Object3D, input: CrowWingRateInput, skin: 
 const A_ATTR = 'aSkinA';
 const B_ATTR = 'aSkinB';
 const FADE_ATTR = 'aSkinFade';
+const TURRET_ATTR = 'aSkinTurret';
+
+/**
+ * Turn a vehicle's turret (ModelSpec.turret) by `yaw` rad relative to its hull, on top of
+ * whatever clip plays — the sim aims it on its own (UnitType.vehicle). Render-only.
+ */
+export function setInstancedSkinTurret(proxy: Object3D, yaw: number): void {
+    if (!proxy.userData.instancedSkin) return;
+    stateOf(proxy).turret = yaw;
+}
 
 export function setupInstancedSkinAttributes(mesh: InstancedMesh, capacity: number): void {
-    for (const [name, size] of [[A_ATTR, 4], [B_ATTR, 4], [FADE_ATTR, 1]] as const) {
+    for (const [name, size] of [[A_ATTR, 4], [B_ATTR, 4], [FADE_ATTR, 1], [TURRET_ATTR, 1]] as const) {
         const attr = new InstancedBufferAttribute(new Float32Array(capacity * size), size);
         attr.setUsage(DynamicDrawUsage);
         mesh.geometry.setAttribute(name, attr);
@@ -823,12 +898,21 @@ export function writeInstancedSkin(mesh: InstancedMesh, index: number, proxy: Ob
     const a = mesh.geometry.getAttribute(A_ATTR) as InstancedBufferAttribute;
     const b = mesh.geometry.getAttribute(B_ATTR) as InstancedBufferAttribute;
     const fade = mesh.geometry.getAttribute(FADE_ATTR) as InstancedBufferAttribute;
+    const turret = mesh.geometry.getAttribute(TURRET_ATTR) as InstancedBufferAttribute | undefined;
     const av = a.array as Float32Array;
     const bv = b.array as Float32Array;
     const fv = fade.array as Float32Array;
     const o = index * 4;
     const fadeStart = Math.fround(s.fadeStart);
     let changed = fv[index] !== fadeStart;
+    if (turret) {
+        const tv = turret.array as Float32Array;
+        const yaw = Math.fround(s.turret);
+        if (tv[index] !== yaw) {
+            tv[index] = yaw;
+            changed = true;
+        }
+    }
     for (let k = 0; k < 4; k++) {
         if (av[o + k] !== _a[k] || bv[o + k] !== _b[k]) changed = true;
     }
@@ -840,7 +924,10 @@ export function writeInstancedSkin(mesh: InstancedMesh, index: number, proxy: Ob
 }
 
 export function flagInstancedSkinUpload(mesh: InstancedMesh): void {
-    for (const name of [A_ATTR, B_ATTR, FADE_ATTR]) mesh.geometry.getAttribute(name).needsUpdate = true;
+    for (const name of [A_ATTR, B_ATTR, FADE_ATTR, TURRET_ATTR]) {
+        const attr = mesh.geometry.getAttribute(name);
+        if (attr) attr.needsUpdate = true;
+    }
 }
 
 // ── CPU side: stuck arrows ride a bone ───────────────────────────────────────

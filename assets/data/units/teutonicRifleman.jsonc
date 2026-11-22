@@ -25,6 +25,7 @@
     "hp": 900, // alone on the field: tougher than one of a pack
     "damage": 50,
     "range": 42,
+    "fireRoot": 1.8, // the kneeling fire clip's length: down on one knee, he doesn't move until he is up again
     "attackInterval": 0.175, // ~6 shots a second (≈ 286 dps); far below the 1.8 s fire clip, so he stays down
     "speed": 6,
     "turnRate": 4,

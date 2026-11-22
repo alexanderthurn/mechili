@@ -11,7 +11,9 @@
     "offset": { "y": -0.04 },
     "instancedSkin": true,
     "animation": {
-        "walk": { "clip": "walk" }, // Tripo walk, 2.33 s cycle
+        // Tripo walk, 2.33 s loop of two gait cycles; a planted foot slides back against the hips at
+        // 0.583 GLB units/s, so a loop covers 1.36 — the game plays it so the feet keep pace with the ground
+        "walk": { "clip": "walk", "stride": 1.36 },
         "idle": { "clip": "idle" }, // Tripo warm_up, 18.1 s (best loop end), the seam eased over 0.5 s
         "fire": { "clip": "fire", "hitAt": 0.5 }, // kneeling; the rifle kicks 0.5 s in
         // falls to his left, lies still from about 0.9 s

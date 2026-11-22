@@ -845,6 +845,25 @@ export class Particles {
         });
     }
 
+    /**
+     * Squashed under a vehicle's front: the blood has no room under the hull, so it squirts out
+     * hard to both sides, fountains up and sprays ahead of the tracks — far more than a kill.
+     */
+    private spawnSquashSplatter(x: number, y: number, z: number, dx: number, dz: number, blood?: number): void {
+        const dark = blood ?? THEME.death;
+        const light = blood != null ? lightenBlood(blood) : THEME.deathSecondary;
+        const low = Math.max(0.4, y * 0.35); // squeezed out near the ground, not from the torso
+        for (const side of [-1, 1]) {
+            // the main jets: out from under the tracks, flat and fast
+            // flat: it sprays out along the ground, it doesn't fountain
+            this.burst(x, low, z, { count: 34, color: dark, speed: 32, life: 1.1, up: 1.2, blood: true, dir: { x: -dz * side, y: 0.06, z: dx * side }, spread: 0.3 });
+            this.burst(x, low + 0.2, z, { count: 18, color: light, speed: 24, life: 0.85, up: 1.8, blood: true, dir: { x: -dz * side + dx * 0.4, y: 0.12, z: dx * side + dz * 0.4 }, spread: 0.4 });
+        }
+        // a low splash all round, and a spray thrown ahead of the hull
+        this.burst(x, low + 0.2, z, { count: 24, color: dark, speed: 16, life: 0.9, up: 3, blood: true, spread: 0.6 });
+        this.burst(x, low, z, { count: 22, color: light, speed: 34, life: 0.8, up: 1, blood: true, dir: { x: dx, y: 0.06, z: dz }, spread: 0.35 });
+    }
+
     /** Heavy slam: dust thrown outward from a tight circle so a ring races to `radius`. */
     private spawnShockRing(x: number, y: number, z: number, radius: number): void {
         const n = Math.round(Math.min(64, 14 + radius * 4));
@@ -1167,6 +1186,7 @@ export class Particles {
                                 dir: kill,
                             });
                         }
+                        if (e.squash) this.spawnSquashSplatter(e.x, e.y, e.z, e.squash.dx, e.squash.dz, e.blood);
                     }
                     break;
                 case 'levelup':
@@ -1987,7 +2007,7 @@ export class StoneChipRenderer {
         const sx0 = e.x + ox * 0.35;
         const sy0 = e.y;
         const sz0 = e.z + oz * 0.35;
-        const n = 3 + ((Math.abs(Math.sin(e.x * 12.9898 + e.z * 78.233)) * 2) | 0);
+        const n = Math.round((3 + ((Math.abs(Math.sin(e.x * 12.9898 + e.z * 78.233)) * 2) | 0)) * (e.bricks ?? 1));
         for (let i = 0; i < n; i++) {
             const side = (Math.random() * 2 - 1) * 0.55;
             const tx = -oz * side + ox * (0.4 + Math.random() * 0.7);

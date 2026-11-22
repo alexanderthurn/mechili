@@ -900,6 +900,51 @@ export interface UnitType {
      * (before meshScale) when the GLB has no AttackNode — typically the barrel
      * mouth on a static siege mesh.
      */
+    /**
+     * Seconds a unit stays rooted after each shot: no walking, and the crowd can't shove it (others
+     * give way instead) — it may still turn to aim. Firing again before it runs out renews it, so a
+     * unit that keeps firing never moves; set it to the fire clip's length for one that kneels to
+     * shoot (the Rifleman), so it only walks on once it is up again.
+     */
+    fireRoot?: number;
+    /**
+     * A vehicle (the Teutonic tank): its turret aims on its own at {@link turretTurnRate} while the
+     * hull steers at {@link UnitType.turnRate}, and it never stops — it heads for the nearest enemy
+     * (or its rally point) at full speed, rolls over and past it and comes round again like a bull,
+     * and turns back in the same arc at the board's edge. It fires only when the turret points at
+     * its target. Enemies it drives over are crushed: small ones die, big ones take a hit per pass.
+     */
+    vehicle?: {
+        /** turret yaw rate (rad/s) — fast, the hull is slow */
+        turretTurnRate: number;
+        /** the turret must point within this of the target to fire (degrees, default 8) */
+        fireConeDeg?: number;
+        /** enemies with a collisionRadius up to this die under the tracks (default 1.2) */
+        crushRadius?: number;
+        /** what a bigger enemy takes when driven over, once per pass (default 250) */
+        crushDamage?: number;
+        /** seconds before the same big enemy can be hit again (default 1.5) */
+        crushEvery?: number;
+        /**
+         * What a building or wall in its crush zone takes — its own side's too — once per
+         * crushEvery (× its buildingDamageMult, like its shells). Default 0 = none.
+         */
+        crushBuildingDamage?: number;
+        /** closer than this (× its radius) to its goal, it holds its heading and rolls through (default 2.5) */
+        passRadii?: number;
+        /**
+         * The crush zone: a strip across the hull's front (world units from the unit's centre) —
+         * `reach` to the front edge, `depth` back from it, `halfWidth` each side. Whatever stands
+         * there is crushed, friend or foe; without it, anything it overlaps (enemies only).
+         */
+        crushFront?: { reach: number; depth: number; halfWidth: number };
+        /**
+         * The hull against walls and buildings (world units from the unit's centre): circles of
+         * radius `halfWidth` along its axis, from `halfLength` behind to `halfLength` ahead —
+         * instead of the one collisionRadius circle, which let a long hull's nose into a wall.
+         */
+        hull?: { halfLength: number; halfWidth: number };
+    };
     rampBeam?: {
         doubleEvery: number;
         maxDps?: number;

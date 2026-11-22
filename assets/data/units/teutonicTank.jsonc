@@ -35,11 +35,27 @@
     "deathAshScorch": { "radius": 1.5, "strength": 0.3 },
     "hp": 4800,
     "damage": 220,
-    "range": 55,
+    "range": 70, // past the prism (52), short of the ballista (84) and mortar (92)
+    "minRange": 18, // too close for the gun: what gets under its barrel gets the tracks instead
     "attackInterval": 3.0,
-    "speed": 4,
-    "turnRate": 0.8,
-    "turnMove": "pivot",
+    "speed": 12,
+    "turnRate": 0.55, // the hull turns slowly — wide arcs (radius ≈ speed / turnRate ≈ 22 at speed 12)
+    // its turret aims on its own (fast), it never stops (heads for the nearest enemy, rolls over
+    // and past it, comes round again; turns back at the board's edge) and crushes what it drives over
+    "vehicle": {
+        "turretTurnRate": 3.2,
+        "fireConeDeg": 8,
+        "crushRadius": 1.0, // dwarfs, goblins, archers, wizards, knights, zombies, farmers die under it
+        "crushDamage": 250, // hammerer, ogre and bigger: a hit per pass
+        "crushEvery": 1.5,
+        "crushBuildingDamage": 600, // any building or wall it rams, own ones too: × buildingDamageMult 2 = 1200 per pass
+        // only what its front runs into — friend or foe; a hit from the side or behind is fine.
+        // World units from the unit's centre: the hull reaches 7.6 ahead and is 4.2 wide each side
+        "crushFront": { "reach": 7.6, "depth": 3.5, "halfWidth": 4.2 },
+        // walls and buildings stop the whole hull, not just its centre circle
+        "hull": { "halfLength": 7.6, "halfWidth": 4.2 },
+    },
+    "crushOnKill": true, // its kills of smaller units are flattened
     "walkLean": 0.2,
     "proceduralModel": "dwarf",
     "talents": ["armor", "barrel", "ap", "autoloader"],

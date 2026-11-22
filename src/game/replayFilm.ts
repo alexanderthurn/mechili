@@ -154,21 +154,27 @@ export interface ShortArea {
 /** the smallest area, as a part of the view's height */
 const MIN_SHORT_H = 0.2;
 
-/** 2K's rectangle in the view: 16:9 from its middle, as high or as wide as the view allows */
-function twoKRect(viewAspect: number): { x: number; y: number; w: number; h: number } {
-    const w = Math.min(1, TWO_K_ASPECT / viewAspect);
-    const h = Math.min(1, viewAspect / TWO_K_ASPECT);
-    return { x: (1 - w) / 2, y: (1 - h) / 2, w, h };
+/** a format's frame shape: a Short 9:16, 2K 16:9, the wide film the view's own (null) */
+function frameAspectOf(format: FilmFormat | FilmKind): number | null {
+    return format === 'short' ? SHORT_ASPECT : format === '2k' ? TWO_K_ASPECT : null;
 }
 
-/** the area's rectangle in the view (0…1, from the top left), kept inside it */
-function shortRect(area: ShortArea, viewAspect: number): { x: number; y: number; w: number; h: number } {
-    const h = Math.max(MIN_SHORT_H, Math.min(1, area.h));
-    const w = Math.min(1, (h * SHORT_ASPECT) / viewAspect);
+/**
+ * A frame's rectangle in the view (0…1, from the top left), kept inside it: `aspect` wide
+ * (null: the view's own), `area.h` of the tallest such frame the view holds (1: as high or as
+ * wide as the view allows; smaller: closer, filmed at full resolution all the same).
+ */
+function areaRect(area: ShortArea, viewAspect: number, aspect: number | null): { x: number; y: number; w: number; h: number } {
+    const a = aspect ?? viewAspect;
+    const hMax = Math.min(1, viewAspect / a);
+    const h = Math.max(MIN_SHORT_H, Math.min(1, area.h)) * hMax;
+    const w = Math.min(1, (h * a) / viewAspect);
     const x = Math.max(0, Math.min(1 - w, area.cx - w / 2));
     const y = Math.max(0, Math.min(1 - h, area.cy - h / 2));
     return { x, y, w, h };
 }
+
+const FULL_AREA: ShortArea = { cx: 0.5, cy: 0.5, h: 1 };
 
 /** the shortest stretch the handles allow, seconds */
 const MIN_RANGE = 0.5;
@@ -195,6 +201,8 @@ export function showPreviewPlayer(
     initial: PreviewState | null = null,
 ): void {
     const url = URL.createObjectURL(video);
+    // the game behind holds its sounds and music while the preview plays (its own mix plays)
+    audio.setQuiet(true);
     const overlay = document.createElement('div');
     overlay.className = 'mechili-film-preview';
     overlay.innerHTML =
@@ -205,7 +213,7 @@ export function showPreviewPlayer(
         `<button type="button" data-format="2k" title="1080p, 16:9 from the middle — small enough for X">2K</button></div></div>` +
         `<div class="fp-frame"><div class="fp-stage"><video class="fp-video" autoplay playsinline></video>` +
         `<div class="fp-area" hidden><div class="fp-area-size" title="Drag: bigger / smaller"></div></div></div></div>` +
-        `<div class="fp-area-hint" hidden>Short: drag the frame to move it, its corner (or the mouse wheel) to size it — a smaller frame is filmed closer, as sharp.</div>` +
+        `<div class="fp-area-hint" hidden>Drag the frame to move it, its corner (or the mouse wheel) to size it — a smaller frame is filmed closer, as sharp.</div>` +
         `<div class="fp-bar"><div class="fp-sel"></div><div class="fp-head"></div>` +
         `<div class="fp-handle from" title="Start"></div><div class="fp-handle to" title="End"></div></div>` +
         `<div class="fp-info"></div>` +
@@ -233,7 +241,9 @@ export function showPreviewPlayer(
     const areaHint = overlay.querySelector<HTMLDivElement>('.fp-area-hint')!;
     videoEl.src = url;
     let format: FilmFormat = initial?.format ?? 'film';
-    const area: ShortArea = initial?.area ? { ...initial.area } : { cx: 0.5, cy: 0.5, h: 1 };
+    // a frame per format (Wide, Short, 2K), each moved and sized on its own; a film reopened keeps its own
+    const areas: Record<FilmFormat, ShortArea> = { film: { ...FULL_AREA }, short: { ...FULL_AREA }, '2k': { ...FULL_AREA } };
+    if (initial?.area) areas[initial.format] = { ...initial.area };
     const mix: FilmSound = initial ? { ...initial.mix } : { sfx: true, music: true };
     overlay.querySelectorAll<HTMLButtonElement>('.fp-mix').forEach((b) => b.classList.toggle('is-on', mix[b.dataset.part as keyof FilmSound]));
 
@@ -287,21 +297,12 @@ export function showPreviewPlayer(
     videoEl.addEventListener('pause', stopSound);
     const videoAspect = () => (videoEl.videoWidth > 0 ? videoEl.videoWidth / videoEl.videoHeight : 16 / 9);
     const paintArea = () => {
-        const short = format === 'short';
-        // 2K shows its fixed middle part; only a Short's frame can be moved and sized
-        areaEl.hidden = !short && format !== '2k';
-        areaEl.classList.toggle('fixed', format === '2k');
-        areaHint.hidden = !short;
-        if (format === '2k') {
-            const r = twoKRect(videoAspect());
-            areaEl.style.left = `${r.x * 100}%`;
-            areaEl.style.top = `${r.y * 100}%`;
-            areaEl.style.width = `${r.w * 100}%`;
-            areaEl.style.height = `${r.h * 100}%`;
-            return;
-        }
-        if (!short) return;
-        const r = shortRect(area, videoAspect());
+        // every format has its frame: Wide the view's shape, Short 9:16, 2K 16:9 — moved and sized alike
+        const area = areas[format];
+        areaEl.hidden = false;
+        areaEl.classList.remove('fixed');
+        areaHint.hidden = false;
+        const r = areaRect(area, videoAspect(), frameAspectOf(format));
         // keep the stored middle where the rectangle really is (it was kept inside the view)
         area.cx = r.x + r.w / 2;
         area.cy = r.y + r.h / 2;
@@ -316,19 +317,21 @@ export function showPreviewPlayer(
         e.preventDefault();
         e.stopPropagation();
         const mode = (e.target as HTMLElement).classList.contains('fp-area-size') ? 'size' : 'move';
-        areaDrag = { mode, x: e.clientX, y: e.clientY, start: { ...area } };
+        areaDrag = { mode, x: e.clientX, y: e.clientY, start: { ...areas[format] } };
     });
     const onAreaMove = (e: PointerEvent) => {
         if (!areaDrag) return;
         const box = stage.getBoundingClientRect();
         const dx = (e.clientX - areaDrag.x) / Math.max(1, box.width);
         const dy = (e.clientY - areaDrag.y) / Math.max(1, box.height);
+        const area = areas[format];
         if (areaDrag.mode === 'move') {
             area.cx = areaDrag.start.cx + dx;
             area.cy = areaDrag.start.cy + dy;
         } else {
             // the corner pulled down/right grows the frame (from its middle)
-            area.h = Math.max(MIN_SHORT_H, Math.min(1, areaDrag.start.h + Math.max(dy, (dx * videoAspect()) / SHORT_ASPECT) * 2));
+            const aspect = frameAspectOf(format) ?? videoAspect();
+            area.h = Math.max(MIN_SHORT_H, Math.min(1, areaDrag.start.h + Math.max(dy, (dx * videoAspect()) / aspect) * 2));
         }
         paintArea();
     };
@@ -336,8 +339,8 @@ export function showPreviewPlayer(
     stage.addEventListener(
         'wheel',
         (e) => {
-            if (format !== 'short') return;
             e.preventDefault();
+            const area = areas[format];
             area.h = Math.max(MIN_SHORT_H, Math.min(1, area.h * (e.deltaY > 0 ? 1.08 : 1 / 1.08)));
             paintArea();
         },
@@ -440,6 +443,7 @@ export function showPreviewPlayer(
         void listen?.close().catch(() => undefined);
         overlay.remove();
         URL.revokeObjectURL(url);
+        audio.setQuiet(false);
     };
     // Escape closes, Space plays/pauses; no key reaches the game behind it (camera keys, speed digits)
     const onKey = (e: KeyboardEvent) => {
@@ -475,7 +479,7 @@ export function showPreviewPlayer(
         }
         if (act === 'film') {
             const chosen = { ...range };
-            const chosenArea = format === 'short' ? { ...area } : null;
+            const chosenArea = { ...areas[format] };
             close();
             onFilm({ range: chosen, format, area: chosenArea, mix: { ...mix } });
         }
@@ -594,8 +598,10 @@ export async function filmBattle(
         if (sound) audio.filmAudioBegin();
         game.setFilmSize({ width, height });
         // a Short draws its area of the window's view (sharp at full size), not a squeezed view
-        if (kind === 'short') game.setFilmView({ aspect: viewAspect, ...shortRect(area ?? { cx: 0.5, cy: 0.5, h: 1 }, viewAspect) });
-        if (kind === '2k') game.setFilmView({ aspect: viewAspect, ...twoKRect(viewAspect) });
+        // a framed take (Wide, Short, 2K) draws its frame's part of the window's view, sharp at full size
+        if (kind === 'short' || kind === '2k' || (kind === 'film' && area)) {
+            game.setFilmView({ aspect: viewAspect, ...areaRect(area ?? FULL_AREA, viewAspect, frameAspectOf(kind)) });
+        }
         await output.start();
         // the rest of the deployment at once; frames run (unfilmed) until the battle is on
         game.skipReplayDeployment();

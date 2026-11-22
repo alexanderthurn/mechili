@@ -53,7 +53,7 @@ export class ReplayControls {
             `<label>${t('hud:replayRound', { defaultValue: 'Round' })} <select class="rc-round">${roundOptions}</select></label>` +
             `<button type="button" class="rc-skip-deploy">${t('hud:replaySkipDeploy', { defaultValue: 'Skip Deployment' })}</button>` +
             `<button type="button" class="rc-try">${t('hud:replayTryRound', { defaultValue: 'Try this round' })}</button>` +
-            `<button type="button" class="rc-autocam" title="In the battle, the camera films the fighting by itself — wide, mid and close shots; films too. Pan, zoom or turn to take it for a moment.">🎥 Auto camera</button>` +
+            `<button type="button" class="rc-autocam" title="In a film (and its preview) the camera follows the fighting by itself — wide, mid and close shots. Watching the replay, you steer it.">🎥 Auto camera</button>` +
             `<button type="button" class="rc-preview" title="A quick film of this round's battle to look at — from there, the real one in 4K (wide or a Short)">🎬 Preview Round 1</button>` +
             `</div>` +
             // hidden for now: saving a replay's board as a scenario
