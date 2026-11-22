@@ -12741,6 +12741,7 @@ export class Game {
             if (!last) this.wheelLast.set(a, (last = skin.feet.map(() => ({ x: NaN, z: NaN }))));
             for (let i = 0; i < skin.feet.length; i++) {
                 if (instancedSkinFoot(a.mesh, skin, i, _hoof) === null) continue;
+                if (!Number.isFinite(_hoof.x) || !Number.isFinite(_hoof.z)) continue;
                 const l = last[i]!;
                 if (Number.isNaN(l.x)) {
                     l.x = _hoof.x;
@@ -12905,13 +12906,20 @@ export class Game {
             const host = a.unit.hostUnitId;
             if (host != null && !(sel && (sel.id === host || sel.hostUnitId === host))) continue;
 
-            forEachPickSphere(t, a.rx, a.footY, a.rz, (cx, cy, cz, r) => {
-                const hitT = raySphereT(ray, cx, cy, cz, r);
-                if (hitT !== null && hitT < bestRayT) {
-                    bestRayT = hitT;
-                    bestRay = a;
-                }
-            });
+            forEachPickSphere(
+                t,
+                a.rx,
+                a.footY,
+                a.rz,
+                (cx, cy, cz, r) => {
+                    const hitT = raySphereT(ray, cx, cy, cz, r);
+                    if (hitT !== null && hitT < bestRayT) {
+                        bestRayT = hitT;
+                        bestRay = a;
+                    }
+                },
+                a.facing,
+            );
 
             // towers keep real meshes — catch antenna / overhang the spheres miss
             if (t.structure && a.mesh && !a.mesh.userData.instanced) {

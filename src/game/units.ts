@@ -930,6 +930,8 @@ export interface UnitType {
          * crushEvery (× its buildingDamageMult, like its shells). Default 0 = none.
          */
         crushBuildingDamage?: number;
+        /** walls and gates take crushBuildingDamage × this (default 1) — a ram goes through stone */
+        crushWallMult?: number;
         /** closer than this (× its radius) to its goal, it holds its heading and rolls through (default 2.5) */
         passRadii?: number;
         /**

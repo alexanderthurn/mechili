@@ -1173,6 +1173,8 @@ export class BattleMap {
         /** alpha floor: 0.02 for ordinary marks; the acid stain goes below it */
         minAlpha = 0.02,
     ): void {
+        // a bad position or size draws nothing (a canvas gradient throws on NaN and stops the frame)
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(r) || r <= 0) return;
         const a = Math.min(1, Math.max(minAlpha, alpha));
         const rgb =
             channel === 'r' ? `255,0,0` : channel === 'g' ? `0,255,0` : `0,0,255`;

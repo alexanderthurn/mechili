@@ -415,6 +415,13 @@ export interface Actor {
     /** the walls' layout its way round was planned for (see BattleSim.routeEpoch) */
     wallRouteEpoch?: number;
     /**
+     * The last answer of wallWaypoint (a corner, or null: straight on), the goal it was for and
+     * the step it was asked in — reused for a few steps (see WALL_LINE_EVERY_STEPS).
+     */
+    wallLineAnswer?: { x: number; z: number } | null;
+    wallLineGoalX?: number;
+    wallLineGoalZ?: number;
+    /**
      * Posted on a wall's walkway: what the wall does for it (UnitType.wall.posts.cover).
      * Set at battle start from its host.
      */
@@ -1309,6 +1316,18 @@ const CROWD_OVERLOAD_EVERY_STEPS = perSeconds(0.2);
 const TARGET_REFRESH_STEPS = perSeconds(1);
 /** after a wall falls, units plan their way round again spread over this many steps, not all in one */
 const WALL_ROUTE_EPOCH_SPREAD = perSeconds(1);
+/** at most this many way-round plans per step that could wait (a stale timer, a moved goal, a
+ *  fallen wall) — the rest keep their old way a few steps longer, in fixed actor order */
+const ROUTE_PLANS_PER_STEP = 12;
+/** wall layout changes remembered for the fall check (older: plan again to be safe) */
+const ROUTE_CHANGES_KEPT = 32;
+/** how far past its size a fallen box may lie from a unit's way and still count as touching it */
+const ROUTE_FALL_MARGIN = 2;
+/** a unit asks whether walls stand in its way only every this many steps (staggered by index);
+ *  between, it keeps the last answer — walls don't move, and the push-out keeps it off the stone */
+const WALL_LINE_EVERY_STEPS = 4;
+/** …unless its goal moved this far (world units) since it asked */
+const WALL_LINE_GOAL_SLACK = 1.5;
 
 /**
  * Ground-only vs diving free-flyers (bats): opportunistic contact swat.
@@ -1393,10 +1412,20 @@ export class BattleSim {
      * filled per side on demand, this step; empty while no gate stands
      */
     private readonly sideRouteBoxes = new Map<BattleTeam, WallBox[]>();
+    /** per side, the one rectangle round all it walks round this step (filled on demand) */
+    private readonly sideRouteBounds = new Map<BattleTeam, { x0: number; x1: number; z0: number; z1: number }>();
     /** a gate stands this step (see sideRouteBoxes) */
     private gates = false;
     /** counts the walls' layout changes (a wall fell): ways round planned before are stale */
     private routeEpoch = 0;
+    /** the last layout changes: which boxes went (a fall), or `all` when boxes came or moved */
+    private readonly routeChanges: {
+        epoch: number;
+        removed: { x0: number; x1: number; z0: number; z1: number }[];
+        all: boolean;
+    }[] = [];
+    /** way-round plans made this step — capped at {@link ROUTE_PLANS_PER_STEP} for the ones that can wait */
+    private routePlansThisStep = 0;
     /** the walled-in check ran (once, on the battle's first step) */
     private autoMarked = false;
     /** this battle's auto-marks (autoMarkWalledIn): which seat goes for which wall — for the overlay */
@@ -1535,6 +1564,11 @@ export class BattleSim {
     }[] = [];
     /** when true, kills from applyBurnDamage use hammer pancake death */
     private crushingHammer = false;
+    /** scratch points for pushApart's hull spines */
+    private readonly spineA = { x: 0, z: 0 };
+    private readonly spineB = { x: 0, z: 0 };
+    /** scratch box for crushUnder's wall test */
+    private readonly ramBox: WallBox = { owner: null as unknown as Actor, x0: 0, x1: 0, z0: 0, z1: 0, top: 0 };
     /** a stand-in circle for {@link pushHullOut} (only x, z, radius and unit are read) */
     private readonly hullProbe = { x: 0, z: 0, radius: 0, unit: null as unknown as Unit } as unknown as Actor;
     /** set while a vehicle's crush deals damage — its kills splatter (death event `squash`) */
@@ -5249,6 +5283,7 @@ export class BattleSim {
         this.stepHazardDrips();
 
         this.stepIndex++;
+        this.routePlansThisStep = 0;
         let mobile = 0;
         for (const a of this.actors) {
             // marchIn horde actors don't count toward the soft-crowd budget —
@@ -5623,7 +5658,7 @@ export class BattleSim {
                 a.z = Math.min(halfZ - a.radius, Math.max(-halfZ + a.radius, a.z));
             }
         }
-        this.crushUnder(a);
+        this.crushUnder(a, d.attackMult);
     }
 
     /**
@@ -5633,7 +5668,7 @@ export class BattleSim {
      * ones take crushDamage, at most once per crushEvery each, and shove the hull aside through the
      * usual overlap push. Ground units only.
      */
-    private crushUnder(a: Actor): void {
+    private crushUnder(a: Actor, attackMult: number): void {
         const v = a.unit.type.vehicle!;
         const small = v.crushRadius ?? 1.2;
         const every = v.crushEvery ?? 1.5;
@@ -5646,12 +5681,31 @@ export class BattleSim {
         for (const b of pool) {
             if (b === a || !b.alive || b.altitude > 0) continue;
             // buildings and walls — its own side's too: it rams whatever is in its way
-            if (b.unit.type.structure && (!v.crushBuildingDamage || b.unit.type.extra)) continue;
+            // (board extras take no space and aren't rammed — except walls and gates, extras too)
+            if (b.unit.type.structure && (!v.crushBuildingDamage || (b.unit.type.extra && !b.unit.type.wall))) continue;
             if (!front && actorTeam(b) === team) continue;
             if (this.isSpawning(b)) continue;
             const dx = b.x - a.x;
             const dz = b.z - a.z;
-            if (front) {
+            const wall = b.unit.type.wall;
+            if (wall) {
+                // a wall is a long box whose centre may lie far off to the side, and the hull stops
+                // at its face: probes just past the nose (left, middle, right) against the stone
+                if (this.opensFor(b, team)) continue; // its own gate: it drives through
+                const box = this.wallMoveBox(b, wall, this.ramBox, true);
+                const reach = (front?.reach ?? a.radius) + 0.6;
+                const half = front?.halfWidth ?? a.radius;
+                let touching = false;
+                for (const k of [-0.7, 0, 0.7]) {
+                    const px = a.x + fx * reach + fz * half * k;
+                    const pz = a.z + fz * reach - fx * half * k;
+                    if (insideBox(px, pz, box, 0.3)) {
+                        touching = true;
+                        break;
+                    }
+                }
+                if (!touching) continue;
+            } else if (front) {
                 const along = dx * fx + dz * fz; // ahead of the centre
                 const side = dx * fz - dz * fx; // across
                 if (along > front.reach + b.radius || along < front.reach - front.depth) continue;
@@ -5673,7 +5727,11 @@ export class BattleSim {
                 continue;
             }
             hits.set(b.index, this.elapsed);
-            const dmg = b.unit.type.structure ? v.crushBuildingDamage! : v.crushDamage ?? 250;
+            const base = b.unit.type.structure
+                ? v.crushBuildingDamage! * (b.unit.type.wall ? v.crushWallMult ?? 1 : 1)
+                : v.crushDamage ?? 250;
+            // grows with its level and talents like its shells, and an attack debuff weakens it
+            const dmg = this.hitDamage(a, b, base, attackMult);
             // rammed: a shower of bricks off the facade
             if (b.unit.type.structure) this.ramBricks(a, b, a.x + fx * (front?.reach ?? a.radius), a.z + fz * (front?.reach ?? a.radius), 6);
             this.applyDamage(a.unit, b, dmg, knock, 'direct');
@@ -7648,6 +7706,8 @@ export class BattleSim {
         const out = this.aimOut;
         const wall = t.unit.type.wall;
         if (!wall) {
+            const hull = t.unit.type.vehicle?.hull;
+            if (hull) return this.hullSpinePoint(t, hull, fx, fz, out);
             out.x = t.x;
             out.z = t.z;
             return out;
@@ -7660,6 +7720,32 @@ export class BattleSim {
         const hz = box.z1 - r;
         out.x = lx <= hx ? Math.max(lx, Math.min(hx, fx)) : (box.x0 + box.x1) / 2;
         out.z = lz <= hz ? Math.max(lz, Math.min(hz, fz)) : (box.z0 + box.z1) / 2;
+        return out;
+    }
+
+    /**
+     * A long vehicle's body is a capsule, not its round collision circle: the point of its spine
+     * (the hull's long axis, shortened by its radius at both ends) nearest to (px, pz). Measured
+     * to it, plus the vehicle's radius, reaches the hull's nose and tail as well as its sides.
+     */
+    private hullSpinePoint(
+        t: Actor,
+        hull: { halfLength: number; halfWidth: number },
+        px: number,
+        pz: number,
+        out: { x: number; z: number },
+    ): { x: number; z: number } {
+        if (!Number.isFinite(t.facing)) {
+            out.x = t.x;
+            out.z = t.z;
+            return out;
+        }
+        const ax = -detSin(t.facing);
+        const az = -detCos(t.facing);
+        const half = Math.max(0, hull.halfLength - t.radius);
+        const along = Math.max(-half, Math.min(half, (px - t.x) * ax + (pz - t.z) * az));
+        out.x = t.x + ax * along;
+        out.z = t.z + az * along;
         return out;
     }
 
@@ -7758,7 +7844,62 @@ export class BattleSim {
         if (this.wallBoxes.length === 0) return null;
         const pad = a.radius * 0.95;
         // what its side goes round (its own gates it walks through)
-        const boxes = this.routeBoxesFor(actorTeam(a));
+        const team = actorTeam(a);
+        const boxes = this.routeBoxesFor(team);
+        // far from every wall and building (its line to the goal clears the rectangle round them
+        // all): straight on, nothing to ask
+        const bb = this.routeBoundsFor(team, boxes);
+        if (
+            Math.max(a.x, goalX) + pad < bb.x0 ||
+            Math.min(a.x, goalX) - pad > bb.x1 ||
+            Math.max(a.z, goalZ) + pad < bb.z0 ||
+            Math.min(a.z, goalZ) - pad > bb.z1
+        ) {
+            a.wallRoute = undefined;
+            a.wallLineAnswer = undefined;
+            return null;
+        }
+        // asked a moment ago for about this goal: the same answer (its step of every
+        // WALL_LINE_EVERY_STEPS asks again, and so does reaching the corner it heads for)
+        const last = a.wallLineAnswer;
+        if (
+            last !== undefined &&
+            (this.stepIndex + a.index) % WALL_LINE_EVERY_STEPS !== 0 &&
+            hypot((a.wallLineGoalX ?? 0) - goalX, (a.wallLineGoalZ ?? 0) - goalZ) < WALL_LINE_GOAL_SLACK &&
+            (last === null || hypot(last.x - a.x, last.z - a.z) > WALL_ROUTE_REACHED)
+        ) {
+            return last;
+        }
+        a.wallLineGoalX = goalX;
+        a.wallLineGoalZ = goalZ;
+        a.wallLineAnswer = this.wallWaypointNow(a, goalX, goalZ, pad, boxes);
+        return a.wallLineAnswer;
+    }
+
+    /** the rectangle round all a side walks round this step */
+    private routeBoundsFor(team: BattleTeam, boxes: readonly WallBox[]): { x0: number; x1: number; z0: number; z1: number } {
+        let bb = this.sideRouteBounds.get(team);
+        if (!bb) {
+            bb = { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity };
+            for (const r of boxes) {
+                if (r.x0 < bb.x0) bb.x0 = r.x0;
+                if (r.x1 > bb.x1) bb.x1 = r.x1;
+                if (r.z0 < bb.z0) bb.z0 = r.z0;
+                if (r.z1 > bb.z1) bb.z1 = r.z1;
+            }
+            this.sideRouteBounds.set(team, bb);
+        }
+        return bb;
+    }
+
+    /** wallWaypoint's actual check, every time it's asked (see there) */
+    private wallWaypointNow(
+        a: Actor,
+        goalX: number,
+        goalZ: number,
+        pad: number,
+        boxes: WallBox[],
+    ): { x: number; z: number } | null {
         // a goal on or against a wall (an archer on its walkway, a foe hugging it) is
         // reached on its own side: out of the stone there, then round like any other
         // goal — else the wall it stands in would be skipped below, and the unit
@@ -7789,15 +7930,28 @@ export class BattleSim {
         }
         const wp = a.wallRoute;
         const slack = Math.max(WALL_ROUTE_GOAL_SLACK, hypot(goalX - a.x, goalZ - a.z) * WALL_ROUTE_GOAL_SLACK_SHARE);
+        // a wall fell (or stands elsewhere) since: a shorter way may be open now — asked in this
+        // unit's own step of the next second, not all at once, and only when the change touched
+        // its way (a fall far off leaves its way as it was)
+        let layoutOk = a.wallRouteEpoch === this.routeEpoch;
+        if (!layoutOk && (this.stepIndex + a.index) % WALL_ROUTE_EPOCH_SPREAD !== 0) layoutOk = true;
+        else if (!layoutOk && a.wallRouteEpoch !== undefined && !this.routeChangeTouches(a, goalX, goalZ, pad)) {
+            a.wallRouteEpoch = this.routeEpoch;
+            layoutOk = true;
+        }
+        const reached = wp !== null && (wp === undefined || hypot(wp.x - a.x, wp.z - a.z) <= WALL_ROUTE_REACHED);
         const fresh =
             a.wallRouteUntil !== undefined &&
             this.elapsed < a.wallRouteUntil &&
             hypot((a.wallRouteGoalX ?? 0) - goalX, (a.wallRouteGoalZ ?? 0) - goalZ) < slack &&
-            (wp === null || (wp !== undefined && hypot(wp.x - a.x, wp.z - a.z) > WALL_ROUTE_REACHED)) &&
-            // a wall fell (or stands elsewhere) since: a shorter way may be open now —
-            // asked again in this unit's own step of the next second, not all at once
-            (a.wallRouteEpoch === this.routeEpoch || (this.stepIndex + a.index) % WALL_ROUTE_EPOCH_SPREAD !== 0);
+            !reached &&
+            layoutOk;
         if (fresh) return wp ?? null;
+        // over this step's budget: a plan that can wait does (it has a way, not yet at its corner)
+        if (a.wallRouteUntil !== undefined && !reached && this.routePlansThisStep >= ROUTE_PLANS_PER_STEP) {
+            return wp ?? null;
+        }
+        this.routePlansThisStep++;
         const t0 = this.profileEnabled ? performance.now() : 0;
         const planned = this.planWallRoute(a, goalX, goalZ, pad);
         if (this.profileEnabled) this.lastProfile.routes = (this.lastProfile.routes ?? 0) + (performance.now() - t0);
@@ -7813,6 +7967,33 @@ export class BattleSim {
         a.wallRouteUntil = this.elapsed + WALL_ROUTE_REPLAN;
         a.wallRouteEpoch = this.routeEpoch;
         return planned.next;
+    }
+
+    /**
+     * Did a wall layout change since this unit planned touch its way? A box gone counts when it
+     * lay across (or beside) the unit's straight line to its goal, to its corner, or from its
+     * corner on — a fall elsewhere opens no shorter way for it. Boxes that came or moved count
+     * always, and so does a change too old to still be remembered.
+     */
+    private routeChangeTouches(a: Actor, goalX: number, goalZ: number, pad: number): boolean {
+        const since = a.wallRouteEpoch ?? -1;
+        const first = this.routeChanges[0];
+        if (!first || first.epoch > since + 1) return true; // forgotten: plan again to be safe
+        const wp = a.wallRoute;
+        const reach = pad + ROUTE_FALL_MARGIN;
+        for (const c of this.routeChanges) {
+            if (c.epoch <= since) continue;
+            if (c.all) return true;
+            for (const r of c.removed) {
+                const box = r as WallBox;
+                if (segmentHitsWall(a.x, a.z, goalX, goalZ, [box], reach)) return true;
+                if (wp) {
+                    if (segmentHitsWall(a.x, a.z, wp.x, wp.z, [box], reach)) return true;
+                    if (segmentHitsWall(wp.x, wp.z, goalX, goalZ, [box], reach)) return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -7898,8 +8079,37 @@ export class BattleSim {
     }
 
     private pushApart(a: Actor, b: Actor): void {
-        const dx = a.x - b.x;
-        const dz = a.z - b.z;
+        // a long vehicle pushes from the nearest point of its hull's spine (see hullSpinePoint)
+        let ax = a.x;
+        let az = a.z;
+        let bx = b.x;
+        let bz = b.z;
+        // only between real units: structures keep their circles (the hull meets them in
+        // pushHullOut), and pushHullOut's stand-in circle carries the tank's type but no facing
+        const unitPair = !a.unit.type.structure && !b.unit.type.structure && a !== this.hullProbe && b !== this.hullProbe;
+        const hullA = unitPair ? a.unit.type.vehicle?.hull : undefined;
+        const hullB = unitPair ? b.unit.type.vehicle?.hull : undefined;
+        if (hullA || hullB) {
+            const pa = this.spineA;
+            const pb = this.spineB;
+            if (hullB) {
+                this.hullSpinePoint(b, hullB, a.x, a.z, pb);
+                bx = pb.x;
+                bz = pb.z;
+            }
+            if (hullA) {
+                this.hullSpinePoint(a, hullA, bx, bz, pa);
+                ax = pa.x;
+                az = pa.z;
+                if (hullB) {
+                    this.hullSpinePoint(b, hullB, ax, az, pb);
+                    bx = pb.x;
+                    bz = pb.z;
+                }
+            }
+        }
+        const dx = ax - bx;
+        const dz = az - bz;
         const dist = hypot(dx, dz);
         const minD =
             a.unit.type.structure || b.unit.type.structure
@@ -8065,6 +8275,7 @@ export class BattleSim {
         this.wallBoxes.length = 0;
         this.routeBoxes.length = 0;
         this.sideRouteBoxes.clear();
+        this.sideRouteBounds.clear();
         this.gates = false;
         for (const a of this.actors) {
             // board extras take no space — except a wall, which is all about space
@@ -8088,21 +8299,43 @@ export class BattleSim {
         // a wall or building fell (or one stands elsewhere): the way-round graphs are stale
         const sig = this.routeSig;
         let changed = sig.length !== this.routeBoxes.length * 4;
-        if (changed) sig.length = this.routeBoxes.length * 4;
-        let k = 0;
-        for (const r of this.routeBoxes) {
-            if (sig[k] !== r.x0 || sig[k + 1] !== r.x1 || sig[k + 2] !== r.z0 || sig[k + 3] !== r.z1) {
+        if (!changed) {
+            let k = 0;
+            for (const r of this.routeBoxes) {
+                if (sig[k] !== r.x0 || sig[k + 1] !== r.x1 || sig[k + 2] !== r.z0 || sig[k + 3] !== r.z1) {
+                    changed = true;
+                    break;
+                }
+                k += 4;
+            }
+        }
+        if (changed) {
+            // what changed: boxes gone (a fall — only units whose way it touched need a new one)
+            // or boxes new / moved (anyone's way may be blocked now: all plan again)
+            const key = (x0: number, x1: number, z0: number, z1: number) => `${x0},${x1},${z0},${z1}`;
+            const now = new Set(this.routeBoxes.map((r) => key(r.x0, r.x1, r.z0, r.z1)));
+            const before = new Set<string>();
+            const removed: { x0: number; x1: number; z0: number; z1: number }[] = [];
+            for (let k = 0; k + 3 < sig.length; k += 4) {
+                const kk = key(sig[k]!, sig[k + 1]!, sig[k + 2]!, sig[k + 3]!);
+                before.add(kk);
+                if (!now.has(kk)) removed.push({ x0: sig[k]!, x1: sig[k + 1]!, z0: sig[k + 2]!, z1: sig[k + 3]! });
+            }
+            let added = false;
+            for (const kk of now) if (!before.has(kk)) added = true;
+            sig.length = this.routeBoxes.length * 4;
+            let k = 0;
+            for (const r of this.routeBoxes) {
                 sig[k] = r.x0;
                 sig[k + 1] = r.x1;
                 sig[k + 2] = r.z0;
                 sig[k + 3] = r.z1;
-                changed = true;
+                k += 4;
             }
-            k += 4;
-        }
-        if (changed) {
             this.routeGraphs.clear();
             this.routeEpoch++;
+            this.routeChanges.push({ epoch: this.routeEpoch, removed, all: added });
+            if (this.routeChanges.length > ROUTE_CHANGES_KEPT) this.routeChanges.shift();
         }
     }
 

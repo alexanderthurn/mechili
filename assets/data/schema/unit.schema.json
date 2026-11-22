@@ -561,6 +561,10 @@
               "type": "number",
               "description": "What a building or wall in its crush zone takes — its own side's too — once per crushEvery (× its buildingDamageMult, like its shells). Default 0 = none."
             },
+            "crushWallMult": {
+              "type": "number",
+              "description": "walls and gates take crushBuildingDamage × this (default 1) — a ram goes through stone"
+            },
             "passRadii": {
               "type": "number",
               "description": "closer than this (× its radius) to its goal, it holds its heading and rolls through (default 2.5)"

@@ -691,6 +691,13 @@ export function playInstancedSkinLoop(proxy: Object3D, role: LoopRole, rate: num
     const clip = skin.clips[role];
     if (!clip) return;
     const r = rate * clip.speed;
+    if (!Number.isFinite(r)) return; // never into the clock: one NaN and the clip stays NaN
+    if (!Number.isFinite(s.a.phase0) || !Number.isFinite(s.a.rate)) {
+        // already broken (before this guard): start the clip over instead of staying NaN
+        s.a.phase0 = 0;
+        s.a.anchor = t;
+        s.a.rate = r;
+    }
     const cur = skin.clips[s.a.role];
     if (cur && !cur.loop) {
         const at = clipSeconds(s.a, t);
@@ -785,8 +792,10 @@ export function resetInstancedSkin(proxy: Object3D): void {
  */
 export function skinWalkRate(skin: InstancedSkinData, speed: number, scale: number, tuned: number): number {
     const clip = skin.clips.walk;
-    if (!skin.walkStride || !clip) return tuned;
-    return (speed * clip.duration) / (skin.walkStride * scale * clip.speed);
+    const per = (skin.walkStride ?? 0) * scale * (clip?.speed ?? 0);
+    // a mesh at scale 0 (popping in) would make the rate infinite — and the clip time NaN for good
+    if (!clip || !(per > 1e-6)) return tuned;
+    return (speed * clip.duration) / per;
 }
 
 /**
