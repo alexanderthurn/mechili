@@ -25,7 +25,7 @@ import {
 const CLOUD_HEIGHT = 18;
 /** storm flash-cloud altitude */
 const STORM_CLOUD_HEIGHT = 32;
-const STORM_SCALE = 28;
+const STORM_SCALE = 56; // 2× like the flash clouds
 const POISON_SCALE = 22;
 const FADE_IN = 0.8;
 const FADE_OUT = 1.2;
@@ -47,8 +47,10 @@ const SKY_FLASH_LIFE = 0.14;
 /** cylinder radius for the main flash column */
 const BOLT_RADIUS = 0.42;
 const BOLT_GLOW_RADIUS = 0.78;
-const FLASH_CLOUD_SCALE = 7.2;
-const FLASH_CLOUD_OPACITY = 0.48;
+const FLASH_CLOUD_SCALE = 14.4; // 2× (7.2 before): the storm reads as a heavy thunderhead
+const FLASH_CLOUD_OPACITY = 0.85; // a solid, heavy cloud (was 0.48); its follow-ups 0.75 of it
+/** the poison cloud's peak opacity: see-through enough to show the units it chokes */
+const POISON_CLOUD_OPACITY = 0.7;
 
 export type CloudCue = {
     kind: 'storm' | 'poison';
@@ -162,7 +164,7 @@ export class CloudFx {
             const cloudZ = z + (Math.random() - 0.5) * 6;
             const cloudHeight = STORM_CLOUD_HEIGHT + (Math.random() - 0.5) * 5;
             const cloudY = gy + cloudHeight;
-            const meshScale = FLASH_CLOUD_SCALE + Math.random() * 1.8;
+            const meshScale = FLASH_CLOUD_SCALE + Math.random() * 3.6; // the spread grows with it
             // busy storm: strikes keep landing, the decoration around them stops
             const crowded = this.bolts.length + this.pendingBolts.length >= BOLT_BUDGET;
             const budget = crowded
@@ -259,7 +261,7 @@ export class CloudFx {
             const { cue } = c;
             const fadeIn = cue.fadeIn ?? FADE_IN;
             const fadeOut = cue.fadeOut ?? FADE_OUT;
-            const maxOp = cue.maxOpacity ?? 0.92;
+            const maxOp = cue.maxOpacity ?? (cue.kind === 'poison' ? POISON_CLOUD_OPACITY : 0.92);
             if (simElapsed < cue.startAt - fadeIn) {
                 c.root.visible = false;
                 continue;
