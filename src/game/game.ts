@@ -1933,6 +1933,9 @@ export class Game {
                 powerPreference: touchFirstDevice() ? 'low-power' : 'default',
             });
         this.renderer.outputColorSpace = SRGBColorSpace;
+        // renderer.info adds up every pass of a frame; renderFrame resets it once per frame
+        // (by default each render() call resets it, so the stats showed only the post quad)
+        this.renderer.info.autoReset = false;
         this.renderer.toneMapping = ACESFilmicToneMapping;
         // Slightly above 1 so the denser grass normals/albedo still read under ACES
         this.renderer.toneMappingExposure = touchFirstDevice() ? 1.0 : 1.08;
@@ -3790,6 +3793,9 @@ export class Game {
 
     /** Scene draw — composer when bloom/vignette are on, otherwise direct. */
     private renderFrame(): void {
+        // the stats count the whole frame — reflection, shadows, scene, post passes — not only
+        // its last pass (autoReset off, see the renderer setup)
+        this.renderer.info.reset();
         // ultra water: the mirrored view has to exist before the frame that shows it
         this.scenery.renderWaterReflection(this.renderer, this.scene, this.rig.camera);
         if (this.postFx.enabled) this.postFx.render();

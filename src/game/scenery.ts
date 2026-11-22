@@ -344,6 +344,8 @@ const FOG_DRAPE_EVERY = 8;
 function unthinnedCloud(mesh: Mesh, alphaK = 1): void {
     mesh.onBeforeRender = (_r, _s, _c, _g, mat) => {
         const m = mat as VolumetricCloudMaterial;
+        // the material debug view (Shift+T) draws everything with scene.overrideMaterial
+        if (!m.uniforms?.uCloudBoardK) return;
         m.uniforms.uCloudBoardK.value = 1;
         m.uniforms.uAlphaK.value = alphaK;
         m.uniformsNeedUpdate = true;
@@ -4813,6 +4815,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 mesh.userData.boardK = 1;
                 mesh.onBeforeRender = (_r, _s, _c, _g, mat) => {
                     const m = mat as VolumetricCloudMaterial;
+                    if (!m.uniforms?.uCloudBoardK) return; // Shift+T's override material
                     m.uniforms.uCloudBoardK.value = mesh.userData.boardK as number;
                     // the drifting sky clouds are a see-through veil: half as opaque as marched
                     m.uniforms.uAlphaK.value = 0.5;
