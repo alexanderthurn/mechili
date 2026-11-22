@@ -958,11 +958,15 @@ export class PlacementController {
         const moving = new Set<Unit>(this.selectedGroup);
         if (this.pendingUnit) moving.add(this.pendingUnit);
         if (this.selectedUnit) moving.add(this.selectedUnit);
+        // only within the moving pack's own zone — the other side's tiles are no drop target anyway
+        const team = moving.values().next().value?.team;
+        if (team !== 'player' && team !== 'enemy') return [];
         const out: Cell[] = [];
         for (const [key, unit] of this.occupied) {
             if (moving.has(unit)) continue;
             const [col, row] = key.split(':').map(Number);
-            out.push({ col: col!, row: row! });
+            const cell = { col: col!, row: row! };
+            if (this.zoneCell(team, cell)) out.push(cell);
         }
         return out;
     }
