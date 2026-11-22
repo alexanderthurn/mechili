@@ -20,6 +20,15 @@
   "hordeKomtur": {
     "name": "Ханс фон Щофелн"
   },
+  "teutonic": {
+    "name": "Тевтонски рицар"
+  },
+  "teutonicRifleman": {
+    "name": "Стрелец"
+  },
+  "teutonicTank": {
+    "name": "Танк"
+  },
   "dwarf": {
     "name": "Джудже"
   },

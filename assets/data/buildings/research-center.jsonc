@@ -24,6 +24,5 @@
     "proceduralModel": "tower",
     "sandPadScale": 1.35,
     "onDestroyed": { "seatDebuff": true },
-    // the commander spells (Oil, Dragon, Summon); Recruit, +1 Deploy and Credit moved to the Stronghold
-    "abilities": ["forgeSpells", "rangeBoost", "speedBoost"],
+    "abilities": ["recruitLevel", "deploySlot", "rangeBoost", "speedBoost", "credit"],
 }

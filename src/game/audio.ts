@@ -5525,7 +5525,21 @@ class AudioBus {
     /** muted by the player — but a film records its sound regardless; silent while it runs up to the filmed part */
     private get muted(): boolean {
         if (this.film) return !this.film.ctx;
-        return prefs().audioMuted;
+        return this.quiet || prefs().audioMuted;
+    }
+
+    /** the game holds its tongue (sounds and music) — while a film's preview plays over it */
+    private quiet = false;
+
+    /**
+     * Silence the game's own sounds and music for a while (a film preview plays its own),
+     * without touching the player's settings; off brings them back as they were.
+     */
+    setQuiet(on: boolean): void {
+        if (this.quiet === on) return;
+        this.quiet = on;
+        this.applyPrefs();
+        this.syncMusic();
     }
 
     /** the clock the throttles go by (ms): the soundtrack's own while a film records, else the wall */

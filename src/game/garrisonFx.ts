@@ -1,7 +1,7 @@
 /**
- * Visual-only Garrison spell forge: while a commander spell bought this round
+ * Visual-only Stronghold spell forge: while a commander spell bought this round
  * still charges there (ActionDispatcher.chargingSpells), a slow magical plume
- * rises from the tower top — the Stronghold chimney's idea in arcane colours,
+ * rises from the keep top — the Stronghold chimney's idea in arcane colours,
  * but few, big, soft clouds instead of many small puffs (cheap to draw).
  * The anchor is the model's `Flag` socket, else the top of its mesh
  * ({@link strongholdFlagAnchorWorld}).

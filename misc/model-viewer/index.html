@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Melodan Model Viewer</title>
+<style>
+  :root { --bg:#14171c; --panel:#1c2027; --line:#2c323c; --text:#e6e8eb; --dim:#8c95a3; --acc:#e0b64a; --walk:#6fc36f; --fire:#e2734f; --idle:#5aa6e0; --death:#b57ad8; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font:13px/1.4 system-ui, -apple-system, sans-serif; }
+  body { display:grid; grid-template-columns: 260px 1fr 340px; height:100vh; }
+  aside { background:var(--panel); overflow:auto; border-right:1px solid var(--line); }
+  aside.right { border-right:0; border-left:1px solid var(--line); }
+  h2 { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--dim); margin:14px 12px 6px; }
+  input[type=search] { width:calc(100% - 24px); margin:10px 12px 4px; padding:6px 8px; background:#0f1215; color:var(--text); border:1px solid var(--line); border-radius:6px; }
+  .item { padding:5px 12px; cursor:pointer; display:flex; justify-content:space-between; gap:8px; }
+  .item:hover { background:#252a33; }
+  .item.on { background:#2f3540; color:var(--acc); }
+  .item small { color:var(--dim); flex:none; }
+  main { position:relative; overflow:hidden; }
+  canvas { display:block; width:100%; height:100%; }
+  .bar { position:absolute; left:10px; top:10px; display:flex; flex-wrap:wrap; gap:6px; }
+  .bar button, .btn { background:#252a33cc; color:var(--text); border:1px solid var(--line); border-radius:6px; padding:5px 9px; cursor:pointer; font:inherit; }
+  .bar button.on, .btn.on { border-color:var(--acc); color:var(--acc); }
+  .status { position:absolute; left:10px; bottom:10px; color:var(--dim); }
+  .label { color:#fff; font-weight:600; padding:2px 8px; border-radius:10px; font-size:12px; white-space:nowrap; }
+  .info { display:grid; grid-template-columns:auto 1fr; gap:2px 12px; margin:0 12px; }
+  .info span:nth-child(odd) { color:var(--dim); }
+  .player { margin:6px 12px; display:grid; gap:6px; }
+  .player .row { display:flex; gap:6px; align-items:center; }
+  .player input[type=range] { flex:1; }
+  .clip { padding:4px 12px; display:flex; align-items:center; gap:6px; cursor:pointer; }
+  .clip:hover { background:#252a33; }
+  .clip.on { background:#2f3540; }
+  .clip .name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .clip .dur { color:var(--dim); font-variant-numeric:tabular-nums; }
+  .roles { display:flex; gap:3px; }
+  .roles b { width:18px; height:18px; border-radius:4px; display:grid; place-items:center; font-size:10px; border:1px solid var(--line); color:var(--dim); cursor:pointer; }
+  .roles b.walk.on { background:var(--walk); color:#000; border-color:var(--walk); }
+  .roles b.fire.on { background:var(--fire); color:#000; border-color:var(--fire); }
+  .roles b.idle.on { background:var(--idle); color:#000; border-color:var(--idle); }
+  .roles b.death.on { background:var(--death); color:#000; border-color:var(--death); }
+  .rolelist { margin:0 12px; display:grid; grid-template-columns:auto 1fr; gap:3px 10px; }
+  .rolelist .k { font-weight:600; }
+  .muted { color:var(--dim); margin:4px 12px; }
+</style>
+</head>
+<body>
+  <aside>
+    <input id="modelFilter" type="search" placeholder="Filter models" />
+    <div id="models"></div>
+  </aside>
+  <main>
+    <canvas id="view"></canvas>
+    <div class="bar">
+      <button id="rolesView" title="The four roles side by side, as the game plays them">4 roles</button>
+      <button id="inPlace" class="on" title="Strip the hips' forward / sideways travel (the game moves the unit itself)">In place</button>
+      <button id="skeleton">Skeleton</button>
+      <button id="wire">Wireframe</button>
+      <button id="rotate">Auto rotate</button>
+      <button id="frame">Frame</button>
+    </div>
+    <div class="status" id="status">Pick a model on the left.</div>
+  </main>
+  <aside class="right">
+    <h2>Model</h2>
+    <div class="info" id="info"></div>
+    <div id="partsBox" hidden>
+      <h2>Parts <span id="partCount"></span></h2>
+      <div id="parts"></div>
+    </div>
+    <h2>Roles</h2>
+    <div class="rolelist" id="rolelist"></div>
+    <p class="muted" id="recipeNote"></p>
+    <h2>Player</h2>
+    <div class="player">
+      <div class="row"><button class="btn" id="play">Pause</button><button class="btn on" id="loop">Loop</button><span id="time" class="dur"></span></div>
+      <div class="row"><input id="scrub" type="range" min="0" max="1000" value="0" /></div>
+      <div class="row">Speed <input id="speed" type="range" min="0.1" max="2" step="0.05" value="1" /><span id="speedVal">1.00×</span></div>
+    </div>
+    <h2>Clips <span id="clipCount"></span></h2>
+    <input id="clipFilter" type="search" placeholder="Filter clips" />
+    <div id="clips"></div>
+  </aside>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

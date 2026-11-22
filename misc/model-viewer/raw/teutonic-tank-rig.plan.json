@@ -1,0 +1,170 @@
+{
+ "rest": "hull",
+ "groups": {
+  "turret": {
+   "parts": [
+    "tripo_part_5",
+    "tripo_part_48",
+    "tripo_part_49",
+    "tripo_part_3",
+    "tripo_part_53",
+    "tripo_part_57",
+    "tripo_part_52",
+    "tripo_part_51",
+    "tripo_part_11",
+    "tripo_part_17",
+    "tripo_part_45",
+    "tripo_part_21",
+    "tripo_part_9"
+   ],
+   "pivot": [
+    0,
+    0.187,
+    -0.069
+   ]
+  },
+  "cannon": {
+   "parts": [
+    "tripo_part_50"
+   ],
+   "pivot": [
+    0,
+    0.236,
+    0.06
+   ],
+   "parent": "turret"
+  },
+  "mg": {
+   "parts": [
+    "tripo_part_6"
+   ],
+   "pivot": [
+    0,
+    0.262,
+    0.105
+   ],
+   "parent": "turret"
+  },
+  "track_l": {
+   "parts": [
+    "tripo_part_7",
+    "tripo_part_33",
+    "tripo_part_34",
+    "tripo_part_35",
+    "tripo_part_24",
+    "tripo_part_36",
+    "tripo_part_37",
+    "tripo_part_38",
+    "tripo_part_40",
+    "tripo_part_23",
+    "tripo_part_20"
+   ],
+   "pivot": [
+    0.159,
+    0.071,
+    -0.106
+   ]
+  },
+  "track_r": {
+   "parts": [
+    "tripo_part_1",
+    "tripo_part_26",
+    "tripo_part_27",
+    "tripo_part_28",
+    "tripo_part_29",
+    "tripo_part_30",
+    "tripo_part_31",
+    "tripo_part_32",
+    "tripo_part_39",
+    "tripo_part_18",
+    "tripo_part_19"
+   ],
+   "pivot": [
+    -0.159,
+    0.071,
+    -0.106
+   ]
+  },
+  "barrel": {
+   "parts": [
+    "tripo_part_0",
+    "tripo_part_10"
+   ],
+   "pivot": [
+    0,
+    0.236,
+    0.06
+   ],
+   "parent": "cannon"
+  }
+ },
+ "nudge": {
+  "tripo_part_48": [
+   0,
+   0.0015,
+   0
+  ],
+  "tripo_part_23": [
+   0,
+   -0.0011,
+   0.001
+  ]
+ },
+ "singleSided": true,
+ "wheels": [
+  "tripo_part_24",
+  "tripo_part_26",
+  "tripo_part_27",
+  "tripo_part_28",
+  "tripo_part_29",
+  "tripo_part_30",
+  "tripo_part_31",
+  "tripo_part_32",
+  "tripo_part_33",
+  "tripo_part_34",
+  "tripo_part_35",
+  "tripo_part_36",
+  "tripo_part_37",
+  "tripo_part_38"
+ ],
+ "muzzle": [
+  0,
+  0.25,
+  0.49
+ ],
+ "forward": "+z",
+ "rider": {
+  "file": "misc/model-viewer/raw/teutonic-knight.glb",
+  "clip": "play_video_game",
+  "time": 3,
+  "height": 0.222,
+  "hipsAt": [
+   -0.157,
+   0.29,
+   0.046
+  ],
+  "yawDeg": 90,
+  "bone": "Turret",
+  "cutBelow": 0.275,
+  "restOn": {
+   "bones": [
+    "mixamorig:LeftForeArm",
+    "mixamorig:RightForeArm",
+    "mixamorig:LeftHand",
+    "mixamorig:RightHand"
+   ],
+   "y": 0.297
+  },
+  "leanOnRoof": {
+   "out": 0.2,
+   "down": 0.55,
+   "forward": 0.8,
+   "inward": 0.45
+  }
+ },
+ "shift": [
+  0.096,
+  0,
+  0
+ ]
+}

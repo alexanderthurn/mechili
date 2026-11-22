@@ -141,7 +141,7 @@
     "movePackTitle": "移動編隊",
     "movePackNote": "先鋒 — 給予一次移動編隊 {{tactic}} 充能",
     "commanderSpellsTitle": "指揮官法術",
-    "commanderSpellNote": "守備營 — 僅限知曉該法術的指揮官",
+    "commanderSpellNote": "要塞 — 僅限知曉該法術的指揮官",
     "vanguardSpellsTitle": "先鋒法術",
     "vanguardSpellNote": "先鋒 — 任何指揮官皆可,每場一次",
     "boostsTitle": "強化",
@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "全屏",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "垂直同步",
+    "vsyncHint": "關閉：幀率不受螢幕限制 · 重新啟動後生效",
     "presetMinimal": "最低",
     "presetLow": "低",
     "presetMedium": "中",

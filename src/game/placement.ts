@@ -536,7 +536,7 @@ export class PlacementController {
     ) => {
         runes: string[];
         spellIcon: string | null;
-        /** several spell icons (the Garrison's charging spells) — shown instead of `spellIcon` */
+        /** several spell icons (the Stronghold's charging spells) — shown instead of `spellIcon` */
         spellIcons?: string[];
         productItemId?: string | null;
     } | null) | null = null;
@@ -948,6 +948,23 @@ export class PlacementController {
      */
     get repositioning(): boolean {
         return this.pendingUnit !== null || this.carryingSelected || this.formationActive;
+    }
+
+    /**
+     * The tiles units stand on, except the ones being positioned right now (the bought ghost,
+     * the carried pack or the moved group) — the deployment grid tints them while placing.
+     */
+    occupiedCellsOfOthers(): Cell[] {
+        const moving = new Set<Unit>(this.selectedGroup);
+        if (this.pendingUnit) moving.add(this.pendingUnit);
+        if (this.selectedUnit) moving.add(this.selectedUnit);
+        const out: Cell[] = [];
+        for (const [key, unit] of this.occupied) {
+            if (moving.has(unit)) continue;
+            const [col, row] = key.split(':').map(Number);
+            out.push({ col: col!, row: row! });
+        }
+        return out;
     }
 
     /**

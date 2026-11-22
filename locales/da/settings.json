@@ -141,7 +141,7 @@
     "movePackTitle": "Flyt Pack",
     "movePackNote": "Vanguard — giver én move-pack {{tactic}}-opladning",
     "commanderSpellsTitle": "Kommandørbesværgelser",
-    "commanderSpellNote": "Garnison — kun på en kommandør, der kender den",
+    "commanderSpellNote": "Stronghold — kun på en kommandør, der ved det",
     "vanguardSpellsTitle": "Vanguard-besværgelser",
     "vanguardSpellNote": "Vanguard — til enhver kommandør, én gang pr. kamp",
     "boostsTitle": "Boosts",
@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "Fuldskærm",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "VSync",
+    "vsyncHint": "Fra: billedhastighed ikke låst til skærmen · gælder efter genstart",
     "presetMinimal": "Minimal",
     "presetLow": "Lav",
     "presetMedium": "Medium",

@@ -342,8 +342,6 @@ export function boardState3(
     placeSlots: TutorialPlaceSlot[],
     garrisonType: UnitType,
     vanguardType: UnitType,
-    /** round 3's Stronghold: Recruit at Level 2 and +1 Deploy are bought there */
-    strongholdType: UnitType,
 ): Tutorial3BoardState {
     const own = host.placement
         .allUnits()
@@ -358,9 +356,6 @@ export function boardState3(
     const vanguard = host.placement
         .allUnits()
         .find((u) => u.type === vanguardType && u.team === 'player' && !u.destroyed);
-    const keep = host.placement
-        .allUnits()
-        .find((u) => u.type === strongholdType && u.team === 'player' && !u.destroyed);
     const dwarfSlot = placeSlots[0];
     const ballistaSlot = placeSlots[1];
     let r3PadsFilled = 0;
@@ -392,7 +387,6 @@ export function boardState3(
             !!placeSlots[1] && mortars.some((u) => cellEq(u.cell, placeSlots[1]!.anchor)),
         vanguardSelected: !!vanguard && selected?.id === vanguard.id,
         garrisonSelected: !!garrison && selected?.id === garrison.id,
-        strongholdSelected: !!keep && selected?.id === keep.id,
         boostAttack: host.boostState.attack[host.humanSeat]!,
         boostHp: host.boostState.hp[host.humanSeat]!,
         // the lesson buys two levels each, however many the match has

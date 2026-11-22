@@ -1,0 +1,10 @@
+{
+  "model": "misc/model-viewer/raw/teutonic-m4a1.glb",
+  "roles": {
+    "walk": "walk",
+    "fire": "box_01",
+    "idle": "cheer",
+    "death": "fall"
+  },
+  "updated": "2026-11-19T11:50:00.000Z"
+}

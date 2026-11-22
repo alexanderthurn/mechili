@@ -1933,6 +1933,9 @@ export class Game {
                 powerPreference: touchFirstDevice() ? 'low-power' : 'default',
             });
         this.renderer.outputColorSpace = SRGBColorSpace;
+        // renderer.info adds up every pass of a frame; renderFrame resets it once per frame
+        // (by default each render() call resets it, so the stats showed only the post quad)
+        this.renderer.info.autoReset = false;
         this.renderer.toneMapping = ACESFilmicToneMapping;
         // Slightly above 1 so the denser grass normals/albedo still read under ACES
         this.renderer.toneMappingExposure = touchFirstDevice() ? 1.0 : 1.08;
@@ -2405,6 +2408,10 @@ export class Game {
             if (replay.jumpToRound !== undefined && replay.jumpToRound > 1) {
                 this.fastForwardReplayThroughRound(replay.jumpToRound);
             }
+            // land on Pause at the (jumped-to) round's deployment, controls up. Here, not from main.ts:
+            // the Game boots a frame or two after the replay is opened, so a pause sent then is lost,
+            // and the deployment ran on at 1× under the intro until its battle began
+            if (this.watching) this.pauseReplay();
             if (this.practiceRound !== null) this.beginPractice();
         } else if (spectate) {
             // same catch-up machinery as a reconnecting player — no
@@ -2548,7 +2555,7 @@ export class Game {
             postedUnits: settings.postedUnits,
             clock: () => ({
                 round: this.round,
-                t: Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining),
+                t: this.loggedTOverride ?? Math.max(0, this.phaseBudgetSeconds() - this.phaseRemaining),
             }),
             // the Learner's plan dry runs (aiThinkMatch) are undone at once — no log of them
             debugLog: (category, data) => (this.placement.dryRun ? undefined : this.debugLog.log(category, data)),
@@ -3786,6 +3793,9 @@ export class Game {
 
     /** Scene draw — composer when bloom/vignette are on, otherwise direct. */
     private renderFrame(): void {
+        // the stats count the whole frame — reflection, shadows, scene, post passes — not only
+        // its last pass (autoReset off, see the renderer setup)
+        this.renderer.info.reset();
         // ultra water: the mirrored view has to exist before the frame that shows it
         this.scenery.renderWaterReflection(this.renderer, this.scene, this.rig.camera);
         if (this.postFx.enabled) this.postFx.render();
@@ -4283,6 +4293,10 @@ export class Game {
         this.resetSpeed();
         this.round++;
         if (this.watching) this.onReplayRound?.(this.round);
+        // a replay stops at every round's start — when it opens and after each battle — on Pause,
+        // its controls up (build phase), until the viewer picks a speed. Not while a jump or a
+        // resume runs rounds through, nor while a film is being taken.
+        if (this.replayLog && !this.hydrating && !this.replayFastForward && this.filmDt === null) this.pauseReplay();
         // the match's first scene stands at once — a winter start already lies under its snow;
         // later rounds ease in (the snow falls and builds slowly)
         this.applyRoundScene(this.round, this.round === 1 || this.hydrating || this.replayFastForward);
@@ -7425,19 +7439,36 @@ export class Game {
      * gone; kept as a plain full replay rather than a generalized
      * "resume from anywhere" helper, since nothing else needs the latter.
      */
+    /**
+     * Re-apply a logged action while rebuilding a match (resume / reconnect): it is logged again
+     * with ITS OWN recorded time, not the clock's — the rebuild runs with the deployment clock at 0,
+     * and every earlier round of a resumed match came out at t 0 in its replay (deployments that
+     * ended the instant they began).
+     */
+    private redispatch(entry: LoggedAction): void {
+        this.loggedTOverride = entry.t;
+        try {
+            this.dispatcher.dispatch(entry.action);
+        } finally {
+            this.loggedTOverride = null;
+        }
+    }
+    /** see redispatch: the action log's t while an old entry is re-applied */
+    private loggedTOverride: number | null = null;
+
     private replayLogFrom(log: LoggedAction[], liveBattleElapsed: number | null): void {
         let i = 0;
         while (i < log.length && !this.matchOver) {
             const entry = log[i]!;
             if (entry.round === 0) {
-                this.dispatcher.dispatch(entry.action);
+                this.redispatch(entry);
                 i++;
                 this.maybeStartMatch();
                 continue;
             }
             if (this.awaitingCards || entry.round !== this.round || this.phase !== 'build') break;
             const dispatchedRound = entry.round;
-            this.dispatcher.dispatch(entry.action);
+            this.redispatch(entry);
             i++;
             // Star mode's live endDeployment dispatch deliberately does NOT
             // trigger the battle-phase transition itself (see onEndDeployment's
@@ -7477,7 +7508,7 @@ export class Game {
                 // exactly as safe as the live host dispatching them earlier
                 // while still gated at 'build'.
                 while (i < log.length && log[i]!.round === dispatchedRound) {
-                    this.dispatcher.dispatch(log[i]!.action);
+                    this.redispatch(log[i]!);
                     i++;
                 }
                 // historical battles run to their exact end; the battle the
@@ -7594,6 +7625,10 @@ export class Game {
         while (this.replayCursor < this.replayLog.length) {
             const entry = this.replayLog[this.replayCursor]!;
             if (entry.round !== this.round || entry.t > elapsed) break;
+            // held on Pause at a round's start: its moves go in (the viewer sees the deployment),
+            // but not its end — that waits for Play or Skip Deployment. Recorded moves can carry
+            // t 0, so the clock alone would end the deployment the instant it began.
+            if (this.replayHeldPaused && entry.action.kind === 'endDeployment') break;
             const dispatchedRound = entry.round;
             this.dispatcher.dispatch(entry.action);
             this.replayCursor++;
@@ -8143,7 +8178,7 @@ export class Game {
         camera.setViewOffset(fullW, fullH, view.x * fullW, view.y * fullH, view.w * fullW, view.h * fullH);
     }
 
-    // ---- the automatic battle camera (battleCamera.ts) — replays and their films, when the viewer turned it on
+    // ---- the automatic battle camera (battleCamera.ts) — a replay's films (preview and take), when the viewer turned it on
 
     private readonly battleCam = new BattleCamera();
     private battleCamSim: BattleSim | null = null;
@@ -8152,7 +8187,8 @@ export class Game {
 
     private updateBattleCamera(dtSeconds: number, gameDt: number): void {
         const sim = this.sim;
-        if (!sim || this.phase !== 'battle' || !this.watching || !this.replayLog || !prefs().autoBattleCamera) {
+        // only while a film is shot (preview or take) — watching a replay, the viewer steers
+        if (!sim || this.phase !== 'battle' || !this.watching || !this.replayLog || this.filmDt === null || !prefs().autoBattleCamera) {
             this.battleCamSim = null;
             return;
         }
@@ -9628,23 +9664,41 @@ export class Game {
         );
     }
 
-    /** world strip over the Stronghold: predicted bake product (deploy only; battle = sparks) */
     /**
-     * The commander spells charging at this Garrison (bought this round, usable
+     * The commander spells charging at this Stronghold (bought this round, usable
      * next), as icons — only what the viewer may know: the other side's purchase
      * stays hidden through the deployment it was made in, like any purchase.
      */
-    private garrisonForgingIcons(unit: Unit): string[] {
+    private spellForgingIcons(unit: Unit): string[] {
         if (!hasAbility(unit.type, 'forgeSpells') || unit.destroyed) return [];
         if (this.phase === 'build' && this.placement.isIntelFogged(unit)) return [];
+        // a side's shared Stronghold / Tent forges for every seat of the side that
+        // has no spell building of its own (team modes: one per side, the first seat's)
+        const units = this.placement.allUnits();
+        const seats =
+            unit.team === 'horde'
+                ? [unit.seat]
+                : seatIdsOf(this.seats, unit.team).filter(
+                      (seat) =>
+                          seat === unit.seat ||
+                          !units.some(
+                              (o) => o.seat === seat && o.team === unit.team && !o.destroyed && hasAbility(o.type, 'forgeSpells'),
+                          ),
+                  );
         const icons: string[] = [];
         for (const tactic of this.types.tactics) {
-            const n = this.dispatcher.chargingSpells(unit.seat, tactic.id, this.round);
+            let n = 0;
+            for (const seat of seats) n += this.dispatcher.chargingSpells(seat, tactic.id, this.round);
             for (let i = 0; i < n; i++) icons.push(tactic.icon);
         }
         return icons;
     }
 
+    /**
+     * World strip over the Stronghold: the commander spells charging there (in the
+     * battle too, that is when the other side first sees them), then the oven's
+     * predicted bake product (deploy only; battle = sparks).
+     */
     private forgeWorldBadges(
         unit: Unit,
     ): {
@@ -9653,12 +9707,21 @@ export class Game {
         spellIcons?: string[];
         productItemId?: string | null;
     } | null {
-        // the Garrison: the spells charging there, over the tower — in the battle too,
-        // that is when the other side first sees them
-        if (hasAbility(unit.type, 'forgeSpells')) {
-            const icons = this.garrisonForgingIcons(unit);
-            return icons.length > 0 ? { runes: [], spellIcon: null, spellIcons: icons } : null;
-        }
+        const charging = this.spellForgingIcons(unit);
+        const product = this.forgeProductBadge(unit);
+        if (charging.length === 0) return product;
+        return {
+            runes: [],
+            spellIcon: null,
+            spellIcons: product?.spellIcon ? [...charging, product.spellIcon] : charging,
+            productItemId: product?.productItemId ?? null,
+        };
+    }
+
+    /** the oven's predicted bake product over a forge building (deploy only) */
+    private forgeProductBadge(
+        unit: Unit,
+    ): { runes: string[]; spellIcon: string | null; productItemId?: string | null } | null {
         if (!hasAbility(unit.type, 'forge')) return null;
         // battle: chimney sparks only — spell badge is deploy intel / loading UI
         if (this.phase !== 'build') return null;
@@ -9721,10 +9784,10 @@ export class Game {
             });
         }
         this.forgeFx.update(dt, this.time, targets, this.scene);
-        // the Garrison's magic plume while a spell charges there
+        // the Stronghold's magic plume while a commander spell charges there
         const forging = this.placement
             .allUnits()
-            .filter((u) => hasAbility(u.type, 'forgeSpells') && this.garrisonForgingIcons(u).length > 0);
+            .filter((u) => hasAbility(u.type, 'forgeSpells') && this.spellForgingIcons(u).length > 0);
         this.garrisonFx.update(dt, forging, this.scene);
     }
 
@@ -12179,6 +12242,17 @@ export class Game {
                 });
                 this.stoneChips.spawnFromEvents(battleEvents, (x, z) => groundHeightAt(x, z));
                 this.fireFx.spawnFromEvents(battleEvents);
+                for (const e of battleEvents) {
+                    if (e.kind === 'muzzle' && e.blast) this.projectileRenderer.muzzleBlast(e.x, e.y, e.z, e.blast.dx, e.blast.dz);
+                    if (e.kind === 'explosion' && e.shell) {
+                        this.fireFx.impactFlames(e.x, e.y, e.z, e.radius);
+                        this.projectileRenderer.smokeColumn(e.x, e.y, e.z, e.radius);
+                    }
+                    if (e.kind === 'muzzle' && e.flame) {
+                        const f = e.flame;
+                        this.fireFx.muzzleFlash(e.x, e.y, e.z, f.dx, f.dy, f.dz, f.scale);
+                    }
+                }
                 this.towerDebuffFx.spawnFromEvents(battleEvents);
                 this.collapseFx.spawnFromEvents(battleEvents);
                 wardDomeSpawnFromEvents(battleEvents);
@@ -12393,7 +12467,9 @@ export class Game {
             setDeployShade(this.deployShade);
             this.map.setDeployShade(this.deployShade);
         }
-        // deployment grid: the single-cell lines only while a unit is being positioned
+        // deployment grid: the single-cell lines only while a unit is being positioned,
+        // and the tiles the other units stand on tinted with them
+        if (this.phase === 'build' && this.placement.repositioning) this.map.setOccupiedCells(this.placement.occupiedCellsOfOthers());
         this.map.updateCellGrid(
             this.phase === 'build' && this.placement.repositioning,
             dtSeconds,
@@ -12716,6 +12792,16 @@ export class Game {
                     this.map.stampScorch(e.x, e.z, r, s);
                 } else if (e.wear === 'blood') {
                     const mul = e.bloodScale ?? 1;
+                    if (e.squash) {
+                        // squashed under a vehicle: the blood that flew off lands to both sides of
+                        // the track (where its jets go), so the spot itself keeps only a little
+                        for (const side of [-1, 1]) {
+                            const sx = -e.squash.dz * side;
+                            const sz = e.squash.dx * side;
+                            this.map.stampBlood(e.x + sx * 4.5, e.z + sz * 4.5, 1.1, 0.35, e.blood);
+                            this.map.stampBlood(e.x + sx * 7, e.z + sz * 7, 0.7, 0.25, e.blood);
+                        }
+                    }
                     this.map.stampBlood(
                         e.x,
                         e.z,

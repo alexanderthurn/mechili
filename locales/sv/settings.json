@@ -141,7 +141,7 @@
     "movePackTitle": "Flytta Pack",
     "movePackNote": "Avantgarde — ger en move-pack {{tactic}}-laddning",
     "commanderSpellsTitle": "Befälhavarens trollformler",
-    "commanderSpellNote": "Garnison — bara på en befälhavare som kan den",
+    "commanderSpellNote": "Fästning — bara på en befälhavare som vet det",
     "vanguardSpellsTitle": "Avantgardes trollformler",
     "vanguardSpellNote": "Avantgarde — för vilken befälhavare som helst, en gång per match",
     "boostsTitle": "Boostar",
@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "Helskärm",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "VSync",
+    "vsyncHint": "Av: bildfrekvensen begränsas inte av skärmen · gäller efter omstart",
     "presetMinimal": "Minimal",
     "presetLow": "Låg",
     "presetMedium": "Medium",

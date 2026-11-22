@@ -93,7 +93,7 @@
     }
   },
   "commanders": {
-    "sub": "Avant le premier tour, chaque joueur choisit un {{commander}}. Celui-ci détermine son armée de départ, ses points de vie, une spécialité permanente et trois {{tactics}} à acheter à la Garnison (faible / moyenne / forte). Les coéquipiers partagent l'union de leurs forges {{tactics}}.",
+    "sub": "Avant le premier tour, chaque joueur choisit un {{commander}}. Celui-ci détermine son armée de départ, ses points de vie, une spécialité permanente et trois forges de forteresse {{tactics}} (faible / moyenne / forte). Les coéquipiers partagent l'union de leurs forges {{tactics}}.",
     "select": "Choisissez un {{commander}}"
   },
   "runes": {
@@ -110,7 +110,7 @@
     "mixed": "Mixte"
   },
   "tactics": {
-    "sub": "Voici les compétences de ta barre {{tactics}} {{sep}} ralliements, nappes, invocations et sorts de combat, comme le souffle de feu du dragon. Les sorts de combat s’achètent à ta Garnison, une fois chacun, et seulement les trois que ton commandant connaît. Les icônes correspondent à celles du jeu.",
+    "sub": "Voici les compétences de ta barre {{tactics}} {{sep}} ralliements, nappes, invocations et sorts de combat, comme le souffle de feu du dragon. Les sorts de combat s’achètent à ton Bastion, une fois chacun, et seulement les trois que ton commandant connaît. Les icônes correspondent à celles du jeu.",
     "select": "Choisissez un {{tactic}}",
     "placement": "Placement",
     "oneShot": "One-shot",
@@ -126,7 +126,7 @@
   },
   "roundCards": {
     "title": "Cartes de manche",
-    "sub": "À partir du deuxième tour, choisissez une carte parmi celles proposées ({{items}}) issues de la réserve. Les sorts de combat s'achètent à la Garnison et ne sont pas choisis parmi les cartes.",
+    "sub": "À partir du deuxième tour, choisissez une carte parmi celles proposées ({{items}}) issues de la réserve. Les sorts de combat s'achètent à la Forteresse et ne sont pas choisis parmi les cartes.",
     "select": "Choisis une carte de manche"
   },
   "music": {

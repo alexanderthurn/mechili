@@ -93,7 +93,7 @@
     }
   },
   "commanders": {
-    "sub": "Vor der ersten Runde wählt jeder Spieler einen {{commander}}. Dieser bestimmt seine Startarmee, seine Lebenspunkte, eine permanente Spezialisierung und drei {{tactics}}, die man in der Garnison kauft (schwach/mittel/stark). Teammitglieder teilen sich die Vereinigung ihrer Schmiede-{{tactics}}.",
+    "sub": "Vor der ersten Runde wählt jeder Spieler einen {{commander}}. Dieser bestimmt seine Startarmee, seine Lebenspunkte, eine permanente Spezialisierung und drei Hochburg-Schmiede-{{tactics}} (schwach/mittel/stark). Teammitglieder teilen sich die Vereinigung ihrer Schmiede-{{tactics}}.",
     "select": "Wähle einen {{commander}}"
   },
   "runes": {
@@ -110,7 +110,7 @@
     "mixed": "Gemischt"
   },
   "tactics": {
-    "sub": "Dies sind die Fähigkeiten auf deinem {{tactics}}-Streifen {{sep}}: Angriffe, Zauber, Beschwörungen und Kampfzauber wie der Feueratem des Drachen. Kampfzauber kannst du in deiner Garnison kaufen, jeweils nur einmal, und nur die drei, die dein Kommandant kennt. Die Symbole entsprechen denen im Spiel.",
+    "sub": "Dies sind die Fähigkeiten auf deinem {{tactics}}-Streifen {{sep}}: Angriffe, Zauber, Beschwörungen und Kampfzauber wie der Feueratem des Drachen. Kampfzauber kannst du in deiner Hochburg kaufen, jeweils nur einmal, und nur die drei, die dein Kommandant kennt. Die Symbole entsprechen denen im Spiel.",
     "select": "Wähle einen {{tactic}}",
     "placement": "Platzierung",
     "oneShot": "Einmalig",
@@ -126,7 +126,7 @@
   },
   "roundCards": {
     "title": "Rundenkarten",
-    "sub": "Ab der zweiten Runde wählst du eine der angebotenen {{items}}-Karten aus dem Spielpool. Kampfzauber werden in der Garnison gekauft und nicht aus Karten gezogen.",
+    "sub": "Ab der zweiten Runde wählst du eine der angebotenen {{items}}-Karten aus dem Spielpool. Kampfzauber werden in der Hochburg gekauft und nicht aus Karten gezogen.",
     "select": "Wähle eine Rundenkarte"
   },
   "music": {

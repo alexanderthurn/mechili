@@ -26,6 +26,8 @@ export function fireUsesTongues(q: FireVfxQuality = prefs().fireVfx): boolean {
     return usesTongues(q);
 }
 
+/** How long a muzzle flame burns (s) — a flash, not a torch. */
+const MUZZLE_FLAME_S = 0.09;
 /** Flame size on a burning stone, per unit of the stone's own mesh scale. */
 const STONE_FLAME_SIZE = 2.6;
 /** …never smaller than this, or a small rock's flame reads as a spark. */
@@ -60,6 +62,16 @@ export class FireFx {
     private readonly fireLight: PointLight;
     private lightTime = 0;
     private readonly tipScratch: BreathTongueSample[] = [];
+    /**
+     * Short-lived flame tongues on the projectile-tip pool: muzzle flashes ({@link UnitType.muzzleFlame})
+     * and shell detonations ({@link UnitType.impactBlast}). `d` = lean (omit = upright); the size
+     * swells over the first `rise` of the life, then shrinks to nothing.
+     */
+    private readonly flashes: {
+        x: number; y: number; z: number;
+        d: { x: number; y: number; z: number } | null;
+        scale: number; born: number; life: number; rise: number;
+    }[] = [];
 
     constructor(
         private readonly particles: Particles,
@@ -89,8 +101,54 @@ export class FireFx {
         this.flames.setBloomGain(this.bloomGain);
     }
 
+    /**
+     * A gun's muzzle flash: not the arrow's one trailing streak but a short star — a long tongue
+     * along the shot and two shorter ones fanned out to the sides, all at full size at once and
+     * gone within a blink. Big flashes (a tank's) burn a little longer.
+     */
+    muzzleFlash(x: number, y: number, z: number, dx: number, dy: number, dz: number, scale: number): void {
+        if (!usesTongues(this.quality)) return;
+        const born = performance.now();
+        const life = MUZZLE_FLAME_S * (scale > 1.5 ? 1.8 : 1);
+        const out = 0.3 * scale; // the flash's body sits just past the muzzle
+        const fx = x + dx * out, fy = y + dy * out, fz = z + dz * out;
+        this.flashes.push({ x: fx, y: fy, z: fz, d: { x: dx, y: dy, z: dz }, scale: scale * 1.15, born, life, rise: 0 });
+        // the side tongues: the shot's direction turned ±60° about the vertical
+        const flat = Math.hypot(dx, dz) || 1;
+        for (const sgn of [-1, 1]) {
+            const c = Math.cos(1.05), s = Math.sin(1.05) * sgn;
+            const sx = (dx * c - dz * s) / flat, sz = (dx * s + dz * c) / flat;
+            this.flashes.push({ x: fx, y: fy, z: fz, d: { x: sx, y: 0.2, z: sz }, scale: scale * 0.55, born, life: life * 0.8, rise: 0 });
+        }
+    }
+
+    /**
+     * A shell's detonation: a crown of big upright tongues around the blast and a tall one in the
+     * middle, flaring up in the first moment and dying down over about half a second.
+     */
+    impactFlames(x: number, y: number, z: number, radius: number): void {
+        if (!usesTongues(this.quality)) return;
+        const born = performance.now();
+        const s = Math.max(1, radius / 2);
+        this.flashes.push({ x, y: y + 0.3 * s, z, d: null, scale: 4.2 * s, born, life: 0.55, rise: 0.12 });
+        const ring = 6;
+        for (let i = 0; i < ring; i++) {
+            const a = (i / ring) * Math.PI * 2 + Math.random() * 0.4;
+            const r = radius * (0.35 + Math.random() * 0.25);
+            const ox = Math.cos(a), oz = Math.sin(a);
+            // each leans outward, away from the blast
+            this.flashes.push({
+                x: x + ox * r, y: y + 0.2 * s, z: z + oz * r,
+                d: { x: ox, y: 0.6, z: oz },
+                scale: (2.2 + Math.random() * 1.2) * s, born: born + Math.random() * 60,
+                life: 0.38 + Math.random() * 0.2, rise: 0.15,
+            });
+        }
+    }
+
     /** drop continuous fire VFX (call when the battle ends — flames are battle-only) */
     clear(): void {
+        this.flashes.length = 0;
         this.flames.clear();
         this.emitAcc = 0;
         this.smokeAcc = 0;
@@ -119,6 +177,21 @@ export class FireFx {
         if (!usesTongues(this.quality)) {
             this.flames.setProjectileTips(this.tipScratch);
             return;
+        }
+        const now = performance.now();
+        for (let i = this.flashes.length - 1; i >= 0; i--) {
+            const f = this.flashes[i]!;
+            const t = (now - f.born) / (f.life * 1000);
+            if (t >= 1) {
+                this.flashes.splice(i, 1);
+                continue;
+            }
+            if (t < 0) continue; // a crown tongue that hasn't lit yet
+            const k = f.rise > 0 && t < f.rise ? t / f.rise : Math.sqrt(1 - (t - f.rise) / (1 - f.rise));
+            // a tip flame leans along the d it is given (an arrow passes −velocity, a trail); the
+            // shot's own direction makes it lick forward, out of the barrel. No d: upright.
+            const scale = f.scale * Math.max(0.05, k);
+            this.tipScratch.push(f.d ? { x: f.x, y: f.y, z: f.z, scale, dx: f.d.x, dy: f.d.y, dz: f.d.z } : { x: f.x, y: f.y, z: f.z, scale });
         }
         for (const p of projectiles) {
             if (!p.lit) continue;

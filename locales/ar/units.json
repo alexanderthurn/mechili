@@ -20,6 +20,15 @@
   "hordeKomtur": {
     "name": "Hans von Stoffeln"
   },
+  "teutonic": {
+    "name": "فارس تيوتوني"
+  },
+  "teutonicRifleman": {
+    "name": "رامي البندقية"
+  },
+  "teutonicTank": {
+    "name": "دبابة"
+  },
   "dwarf": {
     "name": "قزم"
   },

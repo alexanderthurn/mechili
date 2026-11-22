@@ -147,7 +147,7 @@ export class HudViews {
 
         for (const tactic of this.host.types.tactics) {
             if (this.host.tutorial?.hidesTacticCharge(tactic.id)) continue;
-            // a commander spell bought this round still charges at the Garrison: in the
+            // a commander spell bought this round still charges at the Stronghold: in the
             // strip, greyed with its round to go, not one of the usable charges
             const charging = this.host.dispatcher.chargingSpells(this.host.humanSeat, tactic.id, this.host.round);
             const inventory =
@@ -267,7 +267,7 @@ export class HudViews {
                     badge: 1,
                     hint: t('hud:tacticForging', {
                         name: tacticName(tactic.id, tactic.name),
-                        defaultValue: '{{name}} — forging at your Garrison. Ready next round.',
+                        defaultValue: '{{name}} — forging at your Stronghold. Ready next round.',
                     }),
                 });
             }
@@ -434,7 +434,7 @@ export class HudViews {
                     }
                 }
             }
-            // bought this round: charging at their Garrison (shown once the round is revealed)
+            // bought this round: charging at their Stronghold (shown once the round is revealed)
             const charging = revealThisRound
                 ? enemySeats.reduce((n, seat) => n + this.host.dispatcher.chargingSpells(seat, tactic.id, this.host.round), 0)
                 : 0;
@@ -443,7 +443,7 @@ export class HudViews {
                     badge: 1,
                     hint: t('hud:tacticForgingEnemy', {
                         name: tacticName(tactic.id, tactic.name),
-                        defaultValue: '{{name}} — forging at their Garrison. Ready next round.',
+                        defaultValue: '{{name}} — forging at their Stronghold. Ready next round.',
                     }),
                 });
             }

@@ -141,7 +141,7 @@
     "movePackTitle": "Siirrä Pack",
     "movePackNote": "Vanguard — myöntää yhden liikepakkauksen {{tactic}} latauksen",
     "commanderSpellsTitle": "Komentajaloitsut",
-    "commanderSpellNote": "Varuskunta – vain komentajalle, joka osaa sen",
+    "commanderSpellNote": "Linnoitus – vain komentajalle, joka tietää sen",
     "vanguardSpellsTitle": "Vanguard-loitsut",
     "vanguardSpellNote": "Vanguard — mille tahansa komentajalle, kerran ottelussa",
     "boostsTitle": "Tehosteet",
@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "Koko näyttö",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "VSync",
+    "vsyncHint": "Pois: ruudunpäivitystä ei rajoita näyttö · tulee voimaan uudelleenkäynnistyksen jälkeen",
     "presetMinimal": "Minimaalinen",
     "presetLow": "Matala",
     "presetMedium": "Keskikokoinen",

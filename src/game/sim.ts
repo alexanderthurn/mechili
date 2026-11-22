@@ -73,7 +73,7 @@ import type { TypeRegistry } from './content/typeRegistry';
 import { computeCrowWingRate, crowWingDeathSplay, setCrowWingDeathSplay, setCrowWingRateOnProxy, setCrowWingRestOnProxy } from './crowWingFlap';
 import { hasUnitDeathAnim, playUnitDeathAnim, playUnitFireAnim, unitDeathFallLocal } from './unitAnimated';
 import { attackNodeWorld, getUnitAttackNodeLocal, getUnitVisualHalfWidth, getUnitVisualHeight, groundConformOf, instancedSkinOf, usesWingFlapModel } from './unitModels';
-import { driveFlyerSkin, driveGroundSkin, holdInstancedSkinBeam, playInstancedSkinFire, playInstancedSkinOnce, skinWalkRate } from './instancedSkin';
+import { driveFlyerSkin, driveGroundSkin, holdInstancedSkinBeam, playInstancedSkinFire, playInstancedSkinOnce, setInstancedSkinTurret, skinWalkRate } from './instancedSkin';
 import {
     beginDeathClip,
     beginDeathFall,
@@ -435,6 +435,15 @@ export interface Actor {
     facing: number;
     /** Facing one sim step ago — render-lerped with {@link facing} like xz. */
     prevFacing: number;
+    /** {@link UnitType.fireRoot}: rooted (no walking, not shoved) until this sim time */
+    rootedUntil?: number;
+    /** a {@link UnitType.vehicle}'s turret yaw (world, like facing); others keep it = facing */
+    turretYaw: number;
+    prevTurretYaw: number;
+    /** a vehicle's crush: the last time it hit each big enemy (by actor index) */
+    crushHitAt?: Map<number, number>;
+    /** a vehicle's last scrape against a wall or building (bricks fall every SCRAPE_BRICKS_EVERY) */
+    scrapeAt?: number;
     /** sticky attack target — held while in range; closest search when not */
     cachedEnemy: Actor | null;
     /**
@@ -679,6 +688,10 @@ export type SimEvent =
           style?: 'bolt' | 'arrow' | 'largeArrow' | 'stone' | 'orb';
           /** Shooter {@link UnitType.id} — filter archer vs goblin (both use arrows). */
           unitTypeId?: string;
+          /** {@link UnitType.muzzleBlast}: the shot's xz direction, for the forward smoke jet */
+          blast?: { dx: number; dz: number };
+          /** {@link UnitType.muzzleFlame}: its size and the shot's direction */
+          flame?: { scale: number; dx: number; dy: number; dz: number };
       }
     /** `blood` = victim gore tint when hitting flesh (omit = default red).
      *  `flesh` = the hit target bleeds (else gray debris — towers, ground, shields).
@@ -706,6 +719,11 @@ export type SimEvent =
           dropStone?: boolean;
           /** Uniform scale for {@link dropStone} (matches flying stone). Omit = 1. */
           dropStoneScale?: number;
+          /**
+           * A masonry hit's bricks × this, falling from `y` (a vehicle ramming a wall or building:
+           * a few while it scrapes, a shower on each crush hit). Omit = the usual few chips.
+           */
+          bricks?: number;
           /** Victim {@link UnitType.bloodScale} — scales flesh spray (omit = 1). */
           bloodScale?: number;
           /** Ground wear stamp. Omit/true = stamp; false = VFX only. */
@@ -745,6 +763,8 @@ export type SimEvent =
           heavy?: boolean;
           /** hot flash + embers on top of the dust (meteor) */
           fire?: boolean;
+          /** {@link UnitType.impactBlast}: a shell's detonation — flame tongues + a smoke column on top */
+          shell?: boolean;
           /** rocket pad detonation (vs generic splash) */
           rocket?: boolean;
           /** camera kick strength; omitted/0 = no shake (most explosions) */
@@ -802,6 +822,11 @@ export type SimEvent =
           ashScorch?: { radius: number; strength: number };
           /** Hammer pancake — multiply ground + particle gore (e.g. 1.25). */
           bloodScale?: number;
+          /**
+           * Squashed under a vehicle's front ({@link UnitType.vehicle}): its heading. The blood has
+           * nowhere to go under the hull, so it bursts out sideways, up and ahead — a big splatter.
+           */
+          squash?: { dx: number; dz: number };
       }
     /**
      * A Stronghold has come down in `lifeline` and its collapse is rolling
@@ -1315,6 +1340,14 @@ const GROUND_SWAT_CATCH = 0.28;
  */
 export const LIVE_TERRAIN_DEFORMATION = false;
 
+/** a vehicle scraping a wall or building drops a few bricks this often (s, sim time) */
+const SCRAPE_BRICKS_EVERY = 0.3;
+
+/** a shell's detonation ({@link UnitType.impactBlast}) on top of a splash explosion: fire, ring, kick */
+function shellBlastFields(type: UnitType): { fire?: true; heavy?: true; shockRing?: true; shake?: number; shell?: true } {
+    return type.impactBlast ? { fire: true, heavy: true, shockRing: true, shake: 0.45, shell: true } : {};
+}
+
 export class BattleSim {
     private static readonly STEP = 1 / SIM_HZ;
 
@@ -1502,6 +1535,10 @@ export class BattleSim {
     }[] = [];
     /** when true, kills from applyBurnDamage use hammer pancake death */
     private crushingHammer = false;
+    /** a stand-in circle for {@link pushHullOut} (only x, z, radius and unit are read) */
+    private readonly hullProbe = { x: 0, z: 0, radius: 0, unit: null as unknown as Unit } as unknown as Actor;
+    /** set while a vehicle's crush deals damage — its kills splatter (death event `squash`) */
+    private crushingVehicle: { dx: number; dz: number } | null = null;
     /** ground still sinking under acid that has landed (see meltGroundUnderAcid) */
     private readonly acidMelts: {
         x: number;
@@ -1598,6 +1635,8 @@ export class BattleSim {
                     mvZ: 0,
                     facing: m.mesh.rotation.y,
                     prevFacing: m.mesh.rotation.y,
+                    turretYaw: m.mesh.rotation.y,
+                    prevTurretYaw: m.mesh.rotation.y,
                     cachedEnemy: null,
                     approachOx: 0,
                     approachOz: 0,
@@ -3421,6 +3460,8 @@ export class BattleSim {
                 mvZ: 0,
                 facing: m.mesh.rotation.y,
                 prevFacing: m.mesh.rotation.y,
+                turretYaw: m.mesh.rotation.y,
+                prevTurretYaw: m.mesh.rotation.y,
                 cachedEnemy: null,
                 approachOx: 0,
                 approachOz: 0,
@@ -4993,8 +5034,9 @@ export class BattleSim {
             dz: klen > 1e-6 ? knockDir!.z / klen : undefined,
             bloodScale:
                 wear === 'blood'
-                    ? (t.bloodScale ?? 1) * (this.crushingHammer ? 1.25 : 1)
+                    ? (t.bloodScale ?? 1) * (this.crushingHammer ? 1.25 : 1) * (this.crushingVehicle ? 0.6 : 1) // squashed: most of it flies off (see the side stains)
                     : undefined,
+            ...(this.crushingVehicle && !t.structure ? { squash: this.crushingVehicle } : {}),
         });
         if (t.structure) {
             if (razed) target.unit.razed = true;
@@ -5178,6 +5220,7 @@ export class BattleSim {
             a.prevZ = a.z;
             a.prevAltitude = a.altitude;
             a.prevFacing = a.facing;
+            a.prevTurretYaw = a.turretYaw;
             a.prevFlightPitch = a.flightPitch;
         }
         for (const p of this.projectiles) {
@@ -5249,6 +5292,12 @@ export class BattleSim {
             if (!target) {
                 canAttack = false;
                 target = this.closestEnemy(a, true);
+            }
+
+            if (a.unit.type.vehicle) {
+                const route = onPath && a.pathDestX !== null && a.pathDestZ !== null ? { x: a.pathDestX, z: a.pathDestZ } : null;
+                this.stepVehicle(a, target, canAttack, stats, d, dt, route);
+                continue;
             }
 
             if (onPath && a.pathDestX !== null && a.pathDestZ !== null) {
@@ -5480,6 +5529,158 @@ export class BattleSim {
         return simGroundSupportAt(x, z, a.radius * 0.65) + GROUND_UNIT_Y;
     }
 
+    /**
+     * A {@link UnitType.vehicle}'s whole step: the turret swings to the target and fires when it
+     * points there; the hull never stops — it heads for its goal (rally point, else the nearest
+     * enemy) at full speed, holds its heading once close so it rolls over and past, then comes
+     * round in its own (slow) turning arc; at the board's edge it turns back in. Whatever it
+     * drives over is crushed ({@link crushUnder}). Deterministic: det trig, sim state only.
+     */
+    private stepVehicle(
+        a: Actor,
+        target: Actor | null,
+        canAttack: boolean,
+        stats: ResolvedStats,
+        d: { speedMult: number; attackMult: number },
+        dt: number,
+        route: { x: number; z: number } | null,
+    ): void {
+        const v = a.unit.type.vehicle!;
+        // turret: onto the target, else back over the front
+        let aimYaw = a.facing;
+        let tDist = Infinity;
+        let reach = 0;
+        let minReach = 0;
+        if (target) {
+            const aim = this.aimAt(target, a.x, a.z);
+            const tdx = aim.x - a.x;
+            const tdz = aim.z - a.z;
+            tDist = hypot(tdx, tdz) || 1e-6;
+            reach = this.reachOf(a, target, stats.range);
+            // a dead zone like the siege units': measured surface to surface
+            minReach = stats.minRange > 0 ? stats.minRange + a.radius + target.radius : 0;
+            aimYaw = detAtan2(-tdx, -tdz);
+        }
+        const swing = deltaAngle(a.turretYaw, aimYaw);
+        const maxSwing = v.turretTurnRate * dt;
+        a.turretYaw = Math.abs(swing) <= maxSwing ? aimYaw : a.turretYaw + Math.sign(swing) * maxSwing;
+        if (a.turretYaw > Math.PI || a.turretYaw <= -Math.PI) a.turretYaw = ((a.turretYaw + Math.PI) % TAU + TAU) % TAU - Math.PI;
+
+        // fire: the reload runs whenever it may attack; the shot waits for the turret
+        if (target && canAttack && a.unit.type.projectileSpeed) {
+            if (a.cooldown > 0) a.cooldown = Math.max(0, a.cooldown - dt);
+            const cone = ((v.fireConeDeg ?? 8) * Math.PI) / 180;
+            if (
+                a.cooldown <= 0 &&
+                tDist <= reach &&
+                tDist >= minReach &&
+                Math.abs(deltaAngle(a.turretYaw, aimYaw)) <= cone &&
+                this.attackLineOpen(a, target)
+            ) {
+                a.cooldown += stats.attackInterval;
+                const damage = this.hitDamage(a, target, stats.damage, d.attackMult);
+                this.beginRangedFire(a, target, damage, a.unit.type.projectileSpeed);
+            }
+        }
+
+        // hull: the bull
+        const goal = route ?? (target ? { x: target.x, z: target.z } : { x: 0, z: 0 });
+        const gdx = goal.x - a.x;
+        const gdz = goal.z - a.z;
+        let desired = detAtan2(-gdx, -gdz);
+        // close in on it: hold the heading — over it and past, then round again (no circling on the spot)
+        if (hypot(gdx, gdz) < a.radius * (v.passRadii ?? 2.5)) desired = a.facing;
+        const fx = -detSin(a.facing);
+        const fz = -detCos(a.facing);
+        const halfW = this.config.boardHalfW;
+        const halfZ = this.config.boardHalfZ;
+        if (halfW !== undefined && halfZ !== undefined) {
+            // the board's edge ahead: turn back in toward the middle, in its own arc
+            const m = a.radius * 2;
+            if ((a.x > halfW - m && fx > 0) || (a.x < -halfW + m && fx < 0) || (a.z > halfZ - m && fz > 0) || (a.z < -halfZ + m && fz < 0)) {
+                desired = detAtan2(a.x, a.z);
+            }
+        }
+        faceToward(a, desired, dt);
+        let moveX = -detSin(a.facing);
+        let moveZ = -detCos(a.facing);
+        let move =
+            stats.speed *
+            this.moveSpeedFactor(a, d.speedMult) *
+            (this.hazards.hasOilAt(a.x, a.z) ? OIL_SPEED_MULT : 1) *
+            dt;
+        if (move > 1e-6) {
+            const slope = resolveSlopeMove(a.x, a.z, moveX, moveZ, move, ((a.index & 1) === 1) !== a.slideFlip);
+            if (slope.factor <= SLOPE_STRUGGLE + 1e-4 || slope.mx !== moveX || slope.mz !== moveZ) a.terrainHinderedAt = this.elapsed;
+            moveX = slope.mx;
+            moveZ = slope.mz;
+            move *= slope.factor;
+            a.x += moveX * move;
+            a.z += moveZ * move;
+            if (halfW !== undefined && halfZ !== undefined) {
+                // never off the board, whatever shoves it
+                a.x = Math.min(halfW - a.radius, Math.max(-halfW + a.radius, a.x));
+                a.z = Math.min(halfZ - a.radius, Math.max(-halfZ + a.radius, a.z));
+            }
+        }
+        this.crushUnder(a);
+    }
+
+    /**
+     * What a vehicle runs over: with {@link UnitType.vehicle}.crushFront, everything in the strip
+     * across its front — friend or foe (a hit from the side or behind does nothing); without it,
+     * enemies it overlaps. Small ones (crushRadius) die at once, flattened (crushOnKill); bigger
+     * ones take crushDamage, at most once per crushEvery each, and shove the hull aside through the
+     * usual overlap push. Ground units only.
+     */
+    private crushUnder(a: Actor): void {
+        const v = a.unit.type.vehicle!;
+        const small = v.crushRadius ?? 1.2;
+        const every = v.crushEvery ?? 1.5;
+        const team = actorTeam(a);
+        const front = v.crushFront;
+        const fx = -detSin(a.facing);
+        const fz = -detCos(a.facing);
+        // the front strip can reach past the 3×3 hash cells round its centre
+        const pool = front ? this.actors : this.nearby(a);
+        for (const b of pool) {
+            if (b === a || !b.alive || b.altitude > 0) continue;
+            // buildings and walls — its own side's too: it rams whatever is in its way
+            if (b.unit.type.structure && (!v.crushBuildingDamage || b.unit.type.extra)) continue;
+            if (!front && actorTeam(b) === team) continue;
+            if (this.isSpawning(b)) continue;
+            const dx = b.x - a.x;
+            const dz = b.z - a.z;
+            if (front) {
+                const along = dx * fx + dz * fz; // ahead of the centre
+                const side = dx * fz - dz * fx; // across
+                if (along > front.reach + b.radius || along < front.reach - front.depth) continue;
+                if (Math.abs(side) > front.halfWidth + b.radius * 0.5) continue;
+            } else if (hypot(dx, dz) > a.radius * 0.9 + b.radius) continue;
+            const dist = hypot(dx, dz);
+            const knock = dist > 1e-6 ? { x: dx / dist, z: dz / dist } : undefined;
+            // kills in here splatter (death event `squash`) along the vehicle's heading
+            this.crushingVehicle = { dx: fx, dz: fz };
+            if (!b.unit.type.structure && b.unit.type.collisionRadius <= small) {
+                this.applyDamage(a.unit, b, Math.max(b.hp, 1) + 1, knock, 'direct');
+                this.crushingVehicle = null;
+                continue;
+            }
+            const hits = (a.crushHitAt ??= new Map());
+            const last = hits.get(b.index);
+            if (last !== undefined && this.elapsed - last < every) {
+                this.crushingVehicle = null;
+                continue;
+            }
+            hits.set(b.index, this.elapsed);
+            const dmg = b.unit.type.structure ? v.crushBuildingDamage! : v.crushDamage ?? 250;
+            // rammed: a shower of bricks off the facade
+            if (b.unit.type.structure) this.ramBricks(a, b, a.x + fx * (front?.reach ?? a.radius), a.z + fz * (front?.reach ?? a.radius), 6);
+            this.applyDamage(a.unit, b, dmg, knock, 'direct');
+            this.crushingVehicle = null;
+        }
+    }
+
     /** seek toward a direction with obstacle avoidance and crowd separation */
     private steerToward(
         a: Actor,
@@ -5497,6 +5698,11 @@ export class BattleSim {
         // A pinned pack is standing on something. Whatever the stats say, and
         // whatever route or rally or bonus points elsewhere, it does not walk.
         if (a.unit.pinnedY != null) return;
+        // rooted by its own shots (UnitType.fireRoot): it turns to aim, but doesn't walk
+        if (a.rootedUntil !== undefined && this.elapsed < a.rootedUntil) {
+            if (avoid) faceToward(a, detAtan2(-(avoid.x - a.x), -(avoid.z - a.z)), dt); // `avoid` is its target
+            return;
+        }
         // a wall between here and the goal: walk round it, corner by corner —
         // or, walled in by the foe's walls, break through the one in the way
         if (a.altitude === 0) {
@@ -5810,6 +6016,8 @@ export class BattleSim {
         // Same whiff rules as melee — cooldown already advanced by the caller.
         if (!this.groundSwatConnects(a, target)) return;
         const n = Math.max(1, Math.floor(this.statsOf(a).projectileCount));
+        // a shooter that kneels to fire stays put until it is up again
+        if (a.unit.type.fireRoot) a.rootedUntil = this.elapsed + a.unit.type.fireRoot;
         for (let i = 0; i < n; i++) {
             this.fire(a, target, damage, speed, i);
         }
@@ -5877,6 +6085,19 @@ export class BattleSim {
             z: mz,
             style: at.projectileStyle ?? 'bolt',
             unitTypeId: at.id,
+            ...(at.muzzleBlast && Math.hypot(vx, vz) > 1e-6
+                ? { blast: { dx: vx / Math.hypot(vx, vz), dz: vz / Math.hypot(vx, vz) } }
+                : {}),
+            ...(at.muzzleFlame && Math.hypot(vx, vy, vz) > 1e-6
+                ? {
+                      flame: {
+                          scale: at.muzzleFlame,
+                          dx: vx / Math.hypot(vx, vy, vz),
+                          dy: vy / Math.hypot(vx, vy, vz),
+                          dz: vz / Math.hypot(vx, vy, vz),
+                      },
+                  }
+                : {}),
         });
     }
 
@@ -6170,7 +6391,7 @@ export class BattleSim {
                 a.x,
                 shooterFeet,
                 a.z,
-                a.facing,
+                a.unit.type.vehicle ? a.turretYaw : a.facing, // a vehicle's barrel turns with its turret
                 a.unit.visualMeshScale(),
             );
             mx = muzz.x;
@@ -6559,6 +6780,7 @@ export class BattleSim {
                         y: iy,
                         z: iz,
                         radius: splash,
+                        ...shellBlastFields(p.source.type),
                         scar: p.source.type.splashScar !== false,
                     });
                 }
@@ -6596,6 +6818,7 @@ export class BattleSim {
                         y: iy,
                         z: iz,
                         radius: splash,
+                        ...shellBlastFields(p.source.type),
                         scar: p.source.type.splashScar !== false,
                     });
                     const slen = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
@@ -6670,6 +6893,7 @@ export class BattleSim {
                         y: groundY + 0.15,
                         z: nz,
                         radius: splash,
+                        ...shellBlastFields(p.source.type),
                         scar: p.source.type.splashScar !== false,
                     });
                     if (p.style === 'stone') {
@@ -6788,6 +7012,7 @@ export class BattleSim {
                     y: groundY + 0.15,
                     z: nz,
                     radius: splash,
+                    ...shellBlastFields(p.source.type),
                     scar: p.source.type.splashScar !== false,
                 });
             }
@@ -6806,6 +7031,7 @@ export class BattleSim {
                 y: groundY + 0.15,
                 z: nz,
                 radius: splash * STONE_BOUNCE_SPLASH,
+                ...shellBlastFields(p.source.type),
                 scar: false,
             });
         }
@@ -7073,6 +7299,78 @@ export class BattleSim {
                     // …and its own side walks through its gates
                     if (a.unit.pinnedY == null && !this.opensFor(s, actorTeam(a))) this.pushOutOfWall(a, s, s.unit.type.wall);
                 } else this.pushApart(a, s);
+            }
+            if (a.unit.type.vehicle?.hull) this.pushHullOut(a, a.unit.type.vehicle.hull);
+        }
+    }
+
+    /**
+     * Bricks off a wall or building a vehicle is up against — at the contact, from up the facade
+     * (render-only; the dust and chips of a masonry hit, `bricks` × as many).
+     */
+    private ramBricks(a: Actor, s: Actor, px: number, pz: number, bricks: number): void {
+        let cx: number;
+        let cz: number;
+        if (s.unit.type.wall) {
+            // the nearest point of the wall's box
+            const box = this.wallMoveBox(s, s.unit.type.wall, this.pushBox);
+            cx = Math.max(box.x0, Math.min(box.x1, px));
+            cz = Math.max(box.z0, Math.min(box.z1, pz));
+        } else {
+            const dx = px - s.x;
+            const dz = pz - s.z;
+            const d = hypot(dx, dz) || 1e-6;
+            cx = s.x + (dx / d) * s.radius;
+            cz = s.z + (dz / d) * s.radius;
+        }
+        const dx = cx - a.x;
+        const dz = cz - a.z;
+        const d = hypot(dx, dz) || 1e-6;
+        this.events.push({
+            kind: 'impact',
+            x: cx,
+            y: simGroundHeightAt(cx, cz) + 2.5 + (bricks > 2 ? 1.5 : 0),
+            z: cz,
+            flesh: false,
+            masonry: true,
+            cx: s.x,
+            cz: s.z,
+            dx: dx / d,
+            dy: 0,
+            dz: dz / d,
+            bricks,
+        });
+    }
+
+    /**
+     * A vehicle's long hull against walls and buildings: circles of the hull's half-width at its
+     * rear, middle and nose, each pushed out like a unit's own circle — and the whole vehicle moves
+     * with every push. Without this only its centre circle collided and the nose drove into walls.
+     */
+    private pushHullOut(a: Actor, hull: { halfLength: number; halfWidth: number }): void {
+        const fx = -detSin(a.facing);
+        const fz = -detCos(a.facing);
+        const reach = Math.max(0, hull.halfLength - hull.halfWidth);
+        const probe = this.hullProbe;
+        probe.unit = a.unit;
+        probe.radius = hull.halfWidth;
+        for (const off of [reach, 0, -reach]) {
+            for (const s of this.structures) {
+                if (!s.alive) continue;
+                probe.x = a.x + fx * off;
+                probe.z = a.z + fz * off;
+                const x0 = probe.x;
+                const z0 = probe.z;
+                if (s.unit.type.wall) {
+                    if (!this.opensFor(s, actorTeam(a))) this.pushOutOfWall(probe, s, s.unit.type.wall);
+                } else this.pushApart(probe, s);
+                a.x += probe.x - x0;
+                a.z += probe.z - z0;
+                // scraping along it: a few bricks come down every so often
+                if ((probe.x !== x0 || probe.z !== z0) && this.elapsed - (a.scrapeAt ?? -1) >= SCRAPE_BRICKS_EVERY) {
+                    a.scrapeAt = this.elapsed;
+                    this.ramBricks(a, s, probe.x, probe.z, 1.5);
+                }
             }
         }
     }
@@ -7619,7 +7917,10 @@ export class BattleSim {
         // Mass from true collision radius — inflate only the desired spacing.
         const massA = a.radius * a.radius;
         const massB = b.radius * b.radius;
-        const shareA = massB / (massA + massB);
+        // one rooted by its own shots (UnitType.fireRoot) stands like a post: the other gives way
+        const rootA = a.rootedUntil !== undefined && this.elapsed < a.rootedUntil;
+        const rootB = b.rootedUntil !== undefined && this.elapsed < b.rootedUntil;
+        const shareA = rootA !== rootB ? (rootA ? 0 : 1) : massB / (massA + massB);
         const pushAx = nx * overlap * shareA;
         const pushAz = nz * overlap * shareA;
         const pushBx = -nx * overlap * (1 - shareA);
@@ -7711,6 +8012,10 @@ export class BattleSim {
                     a.prevAltitude + (a.altitude - a.prevAltitude) * alpha;
             } else {
                 a.mesh.rotation.y = lerpAngle(a.prevFacing, a.facing, alpha);
+            }
+            if (a.unit.type.vehicle) {
+                const turret = lerpAngle(a.prevTurretYaw, a.turretYaw, alpha);
+                setInstancedSkinTurret(a.mesh, deltaAngle(a.mesh.rotation.y, turret));
             }
             // Free-flight also varies altitude every step — stash lerped Y so
             // animateActor / instance sync share the same smooth height.

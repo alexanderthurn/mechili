@@ -93,7 +93,7 @@
     }
   },
   "commanders": {
-    "sub": "Před prvním kolem si každý hráč vybere {{commander}}. Ten určuje jeho počáteční armádu, HP, trvalou specializaci a tři {{tactics}} ke koupi v Posádce (slabá / střední / silná). Spoluhráči sdílejí unii své výhně {{tactics}}.",
+    "sub": "Před prvním kolem si každý hráč vybere {{commander}}. Ten určuje jeho počáteční armádu, HP, trvalou specializaci a tři pevnostní výhně {{tactics}} (slabá / střední / silná). Spoluhráči sdílejí unii své výhně {{tactics}}.",
     "select": "Vyberte {{commander}}"
   },
   "runes": {
@@ -110,7 +110,7 @@
     "mixed": "Smíšené"
   },
   "tactics": {
-    "sub": "Toto jsou dovednosti na vašem {{tactics}} pásu {{sep}}: shromáždění, rozlití, přivolání a seslání kouzla v boji, jako je ohnivý dech draka. Bojová kouzla se kupují ve vaší Posádce, každé jednou, a zná je pouze váš velitel. Ikony odpovídají tomu, co vidíte ve hře.",
+    "sub": "Toto jsou dovednosti na vašem {{tactics}} pásu {{sep}}: shromáždění, rozlití, přivolání a seslání kouzla v boji, jako je ohnivý dech draka. Bojová kouzla se kupují ve vaší pevnosti, každé jednou, a zná je pouze váš velitel. Ikony odpovídají tomu, co vidíte ve hře.",
     "select": "Vyberte {{tactic}}",
     "placement": "Umístění",
     "oneShot": "Jednorázový",
@@ -126,7 +126,7 @@
   },
   "roundCards": {
     "title": "Karty kola",
-    "sub": "Od druhého kola si draftujte jednu z několika nabízených karet {{items}} vylosovaných z herního poolu. Bojová kouzla se kupují v Posádce, ne draftují se z karet.",
+    "sub": "Od druhého kola si draftujte jednu z několika nabízených karet {{items}} vylosovaných z herního poolu. Bojová kouzla se kupují v pevnosti, ne draftují se z karet.",
     "select": "Vyberte kartu kola"
   },
   "music": {

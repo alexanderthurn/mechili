@@ -1,0 +1,36 @@
+/**
+ * Rifleman — the Teutonic with an M4: `teutonicrifleman.glb`. One man, like the archer:
+ * a high-rate killing machine. He drops to one knee to fire; the attack interval is far shorter
+ * than the kneeling fire clip (1.8 s), so while he keeps firing he stays down.
+ * Stats are first placeholders (not balanced yet).
+ */
+{
+    "id": "teutonicRifleman",
+    "name": "Rifleman",
+    "cost": 200,
+    "unlockCost": 50,
+    "footprint": { "cols": 2, "rows": 2 }, // like the archer
+    "formation": { "cols": 1, "rows": 1 }, // one man
+    "meshScale": 1.725, // 4.4 tall, exactly the Teutonic (0.85 dwarf probe × 3 × 1.725)
+    "walkAnimRate": 0.17, // the Teutonic's walk at speed 6
+    "burn": { "takenMult": 0.5 },
+    "targets": { "ground": true, "air": true }, // a rifle reaches the crows too
+    "collisionRadius": 0.95,
+    "soundSize": "medium",
+    "colliders": [{ "y": 1.2, "r": 0.8 }],
+    "projectileSpeed": 160, // a bullet: fast and flat
+    "projectileStyle": "bolt",
+    "projectileScale": 0.5,
+    "muzzleFlame": 0.8, // a flash out of the M4's barrel (AttackNode at its tip) on every shot
+    "hp": 900, // alone on the field: tougher than one of a pack
+    "damage": 50,
+    "range": 42,
+    "fireRoot": 1.8, // the kneeling fire clip's length: down on one knee, he doesn't move until he is up again
+    "attackInterval": 0.175, // ~6 shots a second (≈ 286 dps); far below the 1.8 s fire clip, so he stays down
+    "speed": 6,
+    "turnRate": 4,
+    "proceduralModel": "dwarf",
+    "talents": ["barrel", "ap", "veteranAim", "skyhunt"],
+    "talentSlots": 4,
+    "itemSlots": 2,
+}

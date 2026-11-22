@@ -93,7 +93,7 @@
     }
   },
   "commanders": {
-    "sub": "Sebelum ronde pertama, setiap pemain memilih {{commander}}. Ini menentukan pasukan awal Anda, jumlah HP, spesialisasi permanen, dan tiga {{tactics}} yang dibeli di Garnisun (lemah / sedang / kuat). Rekan satu tim berbagi persatuan bengkel {{tactics}} mereka.",
+    "sub": "Sebelum ronde pertama, setiap pemain memilih {{commander}}. Ini menentukan pasukan awal Anda, jumlah HP, spesialisasi permanen, dan tiga bengkel Stronghold {{tactics}} (lemah / sedang / kuat). Rekan satu tim berbagi persatuan bengkel {{tactics}} mereka.",
     "select": "Pilih {{commander}}"
   },
   "runes": {
@@ -110,7 +110,7 @@
     "mixed": "Campuran"
   },
   "tactics": {
-    "sub": "Ini adalah kemampuan pada strip {{tactics}} Anda. {{sep}} melakukan serangan, melancarkan mantra, memanggil, dan melancarkan serangan tempur seperti semburan api naga. Mantra tempur dibeli di Garnisun Anda, masing-masing satu kali, dan hanya tiga yang diketahui oleh komandan Anda. Ikon sesuai dengan yang Anda lihat di dalam game.",
+    "sub": "Ini adalah kemampuan pada strip {{tactics}} Anda. {{sep}} melakukan serangan, melancarkan mantra, memanggil, dan melancarkan serangan tempur seperti semburan api naga. Mantra tempur dibeli di Benteng Anda, masing-masing satu kali, dan hanya tiga yang diketahui oleh komandan Anda. Ikon sesuai dengan yang Anda lihat di dalam game.",
     "select": "Pilih {{tactic}}",
     "placement": "Penempatan",
     "oneShot": "Satu kali tayang",
@@ -126,7 +126,7 @@
   },
   "roundCards": {
     "title": "Kartu ronde",
-    "sub": "Mulai ronde kedua dan seterusnya, pilih salah satu dari beberapa kartu {{items}} yang ditawarkan yang diambil dari kumpulan kartu pertandingan. Mantra pertempuran dibeli di Garnisun, bukan dipilih dari kartu.",
+    "sub": "Mulai ronde kedua dan seterusnya, pilih salah satu dari beberapa kartu {{items}} yang ditawarkan yang diambil dari kumpulan kartu pertandingan. Mantra pertempuran dibeli di Benteng, bukan dipilih dari kartu.",
     "select": "Pilih kartu ronde"
   },
   "music": {

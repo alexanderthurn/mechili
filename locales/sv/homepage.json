@@ -93,7 +93,7 @@
     }
   },
   "commanders": {
-    "sub": "Före den första rundan väljer varje spelare en {{commander}}. Den anger din startarmé, HP-pool, en permanent specialitet och tre {{tactics}} som köps i Garnisonen (svag / medel / stark). Lagkamrater delar föreningen av sin smedja {{tactics}}.",
+    "sub": "Före den första rundan väljer varje spelare en {{commander}}. Den anger din startarmé, HP-pool, en permanent specialitet och tre fästesmedjor {{tactics}} (svag / medel / stark). Lagkamrater delar föreningen av sin smedja {{tactics}}.",
     "select": "Välj en {{commander}}"
   },
   "runes": {
@@ -110,7 +110,7 @@
     "mixed": "Blandad"
   },
   "tactics": {
-    "sub": "Det här är färdigheterna på din {{tactics}}-remsa {{sep}}: samlingar, spill, kallelser och stridskast som drakens eldandedräkt. Stridsformler köps i din Garnison, en gång per förmåga, och bara de tre som din befälhavare känner till. Ikonerna matchar det du ser i spelet.",
+    "sub": "Det här är färdigheterna på din {{tactics}}-remsa {{sep}}: samlingar, spill, kallelser och stridskast som drakens eldandedräkt. Stridsformler köps i ditt fäste, en gång per förmåga, och bara de tre som din befälhavare känner till. Ikonerna matchar det du ser i spelet.",
     "select": "Välj en {{tactic}}",
     "placement": "Placering",
     "oneShot": "Engångsbehandling",
@@ -126,7 +126,7 @@
   },
   "roundCards": {
     "title": "Rundkort",
-    "sub": "Från och med runda två, drafta ett av flera erbjudna {{items}}-kort som dras från matchpoolen. Stridsformler köps vid Garnisonen, draftas inte från kort.",
+    "sub": "Från och med runda två, drafta ett av flera erbjudna {{items}}-kort som dras från matchpoolen. Stridsformler köps vid Fästet, draftas inte från kort.",
     "select": "Välj ett rundkort"
   },
   "music": {

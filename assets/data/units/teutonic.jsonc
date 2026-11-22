@@ -1,0 +1,29 @@
+/**
+ * Teutonic knight with his sword — `teutonic.glb` (overhead slash as his attack).
+ * Stats are the Dead Farmer's, as placeholders (not balanced for the shop yet).
+ */
+{
+    "id": "teutonic",
+    "name": "Teutonic",
+    "cost": 200,
+    "unlockCost": 50,
+    "footprint": { "cols": 3, "rows": 2 }, // one 4×4 cell per knight
+    "formation": { "cols": 3, "rows": 2 }, // 6 knights, in rank like the dwarfs (no spawn scatter)
+    "meshScale": 1.725, // 4.4 tall in game (0.85 dwarf probe × 3 × 1.725): a bit taller than the archer (4.05)
+    "walkAnimRate": 0.17, // the walk clip at about its own speed at speed 6 (estimated from the foot swing)
+    "burn": { "takenMult": 0.5 },
+    "targets": { "ground": true, "air": false },
+    "collisionRadius": 0.95,
+    "soundSize": "medium",
+    "colliders": [{ "y": 1.2, "r": 0.8 }], // the archer's, a touch bigger
+    "hp": 900,
+    "damage": 100,
+    "range": 3, // melee reach past his own body
+    "attackInterval": 0.7,
+    "speed": 6, // a dwarf's pace: armoured, slower than the farmer's 8
+    "turnRate": 4,
+    "proceduralModel": "dwarf",
+    "talents": ["legs", "armor", "bloodRage", "looseRank"],
+    "talentSlots": 4,
+    "itemSlots": 2,
+}

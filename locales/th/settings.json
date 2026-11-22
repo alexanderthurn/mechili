@@ -141,7 +141,7 @@
     "movePackTitle": "ย้ายแพ็ก",
     "movePackNote": "แนวหน้า — ให้ชาร์จ {{tactic}} ย้ายแพ็กหนึ่งครั้ง",
     "commanderSpellsTitle": "คาถาผู้บัญชาการ",
-    "commanderSpellNote": "กองรักษาการณ์ — เฉพาะบนผู้บัญชาการที่รู้",
+    "commanderSpellNote": "ป้อมหลัก — เฉพาะบนผู้บัญชาการที่รู้",
     "vanguardSpellsTitle": "คาถาแนวหน้า",
     "vanguardSpellNote": "แนวหน้า — สำหรับผู้บัญชาการทุกคน ซื้อได้หนึ่งครั้งต่อแมตช์",
     "boostsTitle": "บูสต์",
@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "เต็มจอ",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "VSync",
+    "vsyncHint": "ปิด: ไม่จำกัดเฟรมเรตตามจอภาพ · มีผลหลังรีสตาร์ท",
     "presetMinimal": "ต่ำสุด",
     "presetLow": "ต่ำ",
     "presetMedium": "กลาง",

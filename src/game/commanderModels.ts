@@ -11,20 +11,18 @@ import type { Group } from 'three';
 import type { SpecialityId } from './cards';
 import { loadSpellTemplate } from './spellMeshes';
 import { applyTextureBudget, modelTextureBudget } from './textureBudget';
-import { assetUrl, onAssetOverlaySwitch } from './assets';
+import { onAssetOverlaySwitch } from './assets';
 import { disposeScene } from '../engine/disposeScene';
 
-const URLS: Partial<Record<SpecialityId, string>> = {
-    get giant() {
-        return assetUrl('models/specs/spec-giant-512.glb');
-    },
-    get speed() {
-        return assetUrl('models/specs/spec-speed-512.glb');
-    },
-    get tutor() {
-        return assetUrl('models/specs/spec-tutor-4k.glb');
-    },
-};
+/**
+ * Empty while the commander figure is off (see strongholdCommander.ts): the three authored
+ * figures are parked in misc/model-viewer/raw/specs/ — committed, viewable in the model viewer,
+ * but not shipped (every asset URL literal in src/ goes into the build). To bring them back, move
+ * them to assets/models/specs/ and give each speciality a getter returning its asset URL:
+ * speed → spec-speed-512.glb, giant → spec-giant-512.glb, tutor → spec-tutor-4k.glb (shrink its 4K
+ * texture first).
+ */
+const URLS: Partial<Record<SpecialityId, string>> = {};
 
 /**
  * Stands in for every speciality without its own figure — nine of twelve

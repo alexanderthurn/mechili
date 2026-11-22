@@ -141,7 +141,7 @@
     "movePackTitle": "Pack de movimiento",
     "movePackNote": "Vanguardia: otorga una carga de Pack de movimientos {{tactic}}",
     "commanderSpellsTitle": "Hechizos de comandante",
-    "commanderSpellNote": "Guarnición: solo con un comandante que lo conozca.",
+    "commanderSpellNote": "Fortaleza: solo en manos de un comandante que lo sepa.",
     "vanguardSpellsTitle": "Hechizos de la Vanguardia",
     "vanguardSpellNote": "Vanguardia: para cualquier comandante, una vez por partida",
     "boostsTitle": "Impulsos",
@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "Pantalla completa",
     "fullscreenHint": "F11 / Alt+Intro",
+    "vsync": "VSync",
+    "vsyncHint": "Desactivado: FPS sin límite del monitor · se aplica al reiniciar",
     "presetMinimal": "Mínimo",
     "presetLow": "Bajo",
     "presetMedium": "Medio",

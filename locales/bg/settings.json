@@ -141,7 +141,7 @@
     "movePackTitle": "Преместване на отряд",
     "movePackNote": "Авангард — дава един заряд на отряд за движение {{tactic}}",
     "commanderSpellsTitle": "Командирски магии",
-    "commanderSpellNote": "Гарнизон — само за командир, който го познава",
+    "commanderSpellNote": "Крепост — само за командир, който я познава",
     "vanguardSpellsTitle": "Магии на Авангарда",
     "vanguardSpellNote": "Авангард — за всеки командир, веднъж на мач",
     "boostsTitle": "Усилвания",
@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "Цял екран",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "VSync",
+    "vsyncHint": "Изкл.: кадрите не са ограничени от монитора · след рестарт",
     "presetMinimal": "Минимални",
     "presetLow": "Ниско",
     "presetMedium": "Среден",

@@ -20,6 +20,15 @@
   "hordeKomtur": {
     "name": "Hans von Stoffeln"
   },
+  "teutonic": {
+    "name": "튜턴 기사"
+  },
+  "teutonicRifleman": {
+    "name": "소총수"
+  },
+  "teutonicTank": {
+    "name": "전차"
+  },
   "dwarf": {
     "name": "드워프"
   },

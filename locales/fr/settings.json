@@ -141,7 +141,7 @@
     "movePackTitle": "Pack de déplacement",
     "movePackNote": "Vanguard — octroie une charge de pack de déplacement {{tactic}}",
     "commanderSpellsTitle": "Sorts de commandant",
-    "commanderSpellNote": "Garnison — uniquement pour un commandant qui le connaît",
+    "commanderSpellNote": "Forteresse — uniquement pour un commandant qui le sait",
     "vanguardSpellsTitle": "Sorts de la Vanguard",
     "vanguardSpellNote": "Vanguard — pour tout commandant, une fois par partie",
     "boostsTitle": "Boosts",
@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "Plein écran",
     "fullscreenHint": "F11 / Alt+Entrée",
+    "vsync": "VSync",
+    "vsyncHint": "Désactivée : images/s non limitées par l'écran · après redémarrage",
     "presetMinimal": "Minimal",
     "presetLow": "Faible",
     "presetMedium": "Moyen",

@@ -13,7 +13,7 @@ import {
     type Prefs,
     type VoiceLanguage,
 } from '../game/prefs';
-import { isElectron, win } from 'steam-electron-build/native';
+import { isElectron, storage, win } from 'steam-electron-build/native';
 
 import { availableTransports } from '../game/multiplayerTransport';
 import {
@@ -119,6 +119,10 @@ export function openSettings(parent: HTMLElement): void {
         if (fsText) fsText.textContent = t('settings:gfx.fullscreen');
         const fsHint = overlay.querySelector<HTMLElement>('.s-fullscreen-hint');
         if (fsHint) fsHint.textContent = t('settings:gfx.fullscreenHint');
+        const vsText = overlay.querySelector<HTMLElement>('.s-vsync-text');
+        if (vsText) vsText.textContent = t('settings:gfx.vsync');
+        const vsHint = overlay.querySelector<HTMLElement>('.s-vsync-hint');
+        if (vsHint) vsHint.textContent = t('settings:gfx.vsyncHint');
         for (const button of overlay.querySelectorAll<HTMLButtonElement>('.s-preset[data-preset]')) {
             const id = button.dataset.preset!;
             button.textContent = t(`settings:gfx.preset${id.charAt(0).toUpperCase()}${id.slice(1)}`);
@@ -282,7 +286,10 @@ export function openSettings(parent: HTMLElement): void {
         // Desktop only: browsers refuse fullscreen without a user gesture, and
         // the window mode is remembered by the app (window-state.json), not prefs.
         (isElectron()
-            ? `<label class="s-row"><input type="checkbox" class="s-fullscreen" /> <span class="s-fullscreen-text"></span> <span class="s-hint s-fullscreen-hint"></span></label>`
+            ? `<label class="s-row"><input type="checkbox" class="s-fullscreen" /> <span class="s-fullscreen-text"></span> <span class="s-hint s-fullscreen-hint"></span></label>` +
+              // A Chromium launch switch: the app reads launch.json at start, so it
+              // applies after a restart. Browsers always sync to the monitor.
+              `<label class="s-row"><input type="checkbox" class="s-vsync" /> <span class="s-vsync-text"></span> <span class="s-hint s-vsync-hint"></span></label>`
             : '') +
         `<div class="s-presets">` +
         GRAPHICS_PRESET_IDS.map(
@@ -404,6 +411,7 @@ export function openSettings(parent: HTMLElement): void {
     }
 
     const fullscreen = overlay.querySelector<HTMLInputElement>('.s-fullscreen');
+    const vsync = overlay.querySelector<HTMLInputElement>('.s-vsync');
     const debugToggle = overlay.querySelector<HTMLInputElement>('.s-debug')!;
     const combat = overlay.querySelector<HTMLInputElement>('.s-combat')!;
     const audioMute = overlay.querySelector<HTMLInputElement>('.s-audio-mute')!;
@@ -536,6 +544,17 @@ export function openSettings(parent: HTMLElement): void {
         void win.isFullscreen().then((on) => { fullscreen.checked = on; });
         fullscreen.addEventListener('change', () => {
             void win.setFullscreen(fullscreen.checked);
+        });
+    }
+    // Machine-specific like the window mode: lives in launch.json (read by the
+    // desktop app at start), not in prefs, and "reset all" leaves it alone.
+    if (vsync) {
+        vsync.checked = true;
+        void storage.load('launch.json').then((launch) => { vsync.checked = launch.vsync !== false; }).catch(() => {});
+        vsync.addEventListener('change', () => {
+            void storage.load('launch.json')
+                .catch(() => ({}))
+                .then((launch) => storage.save({ ...launch, vsync: vsync.checked }, 'launch.json'));
         });
     }
 

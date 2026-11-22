@@ -141,7 +141,7 @@
     "movePackTitle": "Pack hareketi",
     "movePackNote": "Öncü — bir hareket Pack’i {{tactic}} yükü verir",
     "commanderSpellsTitle": "Komutan Büyüleri",
-    "commanderSpellNote": "Garnizon — sadece onu bilen bir komutanın elinde.",
+    "commanderSpellNote": "Kale — sadece onu bilen bir komutanın elinde.",
     "vanguardSpellsTitle": "Öncü Büyüleri",
     "vanguardSpellNote": "Öncü — herhangi bir komutan için, maç başına bir kez",
     "boostsTitle": "Güçlendirir",
@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "Tam ekran",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "VSync",
+    "vsyncHint": "Kapalı: kare hızı monitörle sınırlı değil · yeniden başlatınca geçerli",
     "presetMinimal": "Minimal",
     "presetLow": "Düşük",
     "presetMedium": "Orta",

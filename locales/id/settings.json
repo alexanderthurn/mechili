@@ -141,7 +141,7 @@
     "movePackTitle": "Pindahkan Pack",
     "movePackNote": "Vanguard — memberikan satu muatan move-pack {{tactic}}",
     "commanderSpellsTitle": "Mantra Komandan",
-    "commanderSpellNote": "Garnisun — hanya pada komandan yang mengetahuinya",
+    "commanderSpellNote": "Benteng — hanya pada komandan yang mengetahuinya",
     "vanguardSpellsTitle": "Mantra Vanguard",
     "vanguardSpellNote": "Vanguard — untuk komandan mana pun, sekali per pertandingan",
     "boostsTitle": "Peningkatan",
@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "Layar penuh",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "VSync",
+    "vsyncHint": "Mati: frame rate tidak dibatasi monitor · berlaku setelah mulai ulang",
     "presetMinimal": "Minimal",
     "presetLow": "Rendah",
     "presetMedium": "Sedang",

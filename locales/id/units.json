@@ -20,6 +20,15 @@
   "hordeKomtur": {
     "name": "Hans von Stoffeln"
   },
+  "teutonic": {
+    "name": "Ksatria Teutonik"
+  },
+  "teutonicRifleman": {
+    "name": "Penembak"
+  },
+  "teutonicTank": {
+    "name": "Tank"
+  },
   "dwarf": {
     "name": "Kerdil"
   },

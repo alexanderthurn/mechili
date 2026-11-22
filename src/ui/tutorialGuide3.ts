@@ -12,7 +12,6 @@ export type Tutorial3Highlight =
     | 'shop-mortar'
     | 'vanguard'
     | 'garrison'
-    | 'stronghold'
     | 'boost-attack'
     | 'boost-hp'
     | 'deploy-slot'
@@ -67,8 +66,6 @@ export interface Tutorial3BoardState {
     mortarPlaced1: boolean;
     vanguardSelected: boolean;
     garrisonSelected: boolean;
-    /** round 3: the Stronghold (Recruit at Level 2, +1 Deploy) is selected */
-    strongholdSelected: boolean;
     boostAttack: number;
     boostHp: number;
     boostMax: number;
@@ -145,13 +142,13 @@ export class TutorialGuide3 extends TutorialPanel {
                 this.step = 'r2End';
             }
         } else if (state.round === 3) {
-            if (this.step === 'r3SelectGarrison' && state.strongholdSelected) {
+            if (this.step === 'r3SelectGarrison' && state.garrisonSelected) {
                 this.step = 'r3Recruit';
             } else if (this.step === 'r3Recruit' && state.recruitActive) {
                 this.step = 'r3BuyTwo';
             } else if (this.step === 'r3BuyTwo' && state.r3PadsFilled >= 2) {
                 this.step = 'r3SelectGarrisonAgain';
-            } else if (this.step === 'r3SelectGarrisonAgain' && state.strongholdSelected) {
+            } else if (this.step === 'r3SelectGarrisonAgain' && state.garrisonSelected) {
                 this.step = 'r3DeploySlot';
             } else if (this.step === 'r3DeploySlot' && state.deployExtra >= 1) {
                 this.step = 'r3BuyThird';
@@ -320,7 +317,7 @@ export class TutorialGuide3 extends TutorialPanel {
             case 'r3SelectGarrison':
                 this.titleEl.textContent = t('tutorial:tutorial3R3SelectTitle');
                 this.bodyEl.textContent = t('tutorial:tutorial3R3SelectBody');
-                highlight = 'stronghold';
+                highlight = 'garrison';
                 break;
             case 'r3Recruit':
                 this.titleEl.textContent = t('tutorial:tutorial3R3RecruitTitle');
@@ -340,7 +337,7 @@ export class TutorialGuide3 extends TutorialPanel {
             case 'r3SelectGarrisonAgain':
                 this.titleEl.textContent = t('tutorial:tutorial3R3SelectAgainTitle');
                 this.bodyEl.textContent = t('tutorial:tutorial3R3SelectAgainBody');
-                highlight = 'stronghold';
+                highlight = 'garrison';
                 break;
             case 'r3DeploySlot':
                 this.titleEl.textContent = t('tutorial:tutorial3R3SlotTitle');

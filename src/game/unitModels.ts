@@ -100,6 +100,11 @@ export interface ModelSpec {
      */
     stickBones?: string[];
     /**
+     * GPU-skinned vehicles: bones turned per instance on top of the clips, about the first one's
+     * joint — a tank's turret with its cannon, MG and crew. The sim aims it (UnitType.vehicle).
+     */
+    turret?: { bones: string[] };
+    /**
      * Sit on the slope under it — pitched along `length`, rolled across `width` (the
      * contact spacing in GLB units, e.g. wheelbase and track) — instead of level at
      * its centre's height. GPU-skinned models only; see groundConform.ts.
@@ -968,7 +973,7 @@ async function loadUnitModelsNow(
             if (!spec.skinned) {
                 const skinned =
                     spec.instancedSkin && spec.animation
-                        ? bakeInstancedSkin(root, gltf.animations ?? [], spec.animation, spec.hoofprints, spec.stickBones)
+                        ? bakeInstancedSkin(root, gltf.animations ?? [], spec.animation, spec.hoofprints, spec.stickBones, spec.turret)
                         : null;
                 const baked: InstanceAsset = skinned ? { parts: [skinned] } : bakeInstanceAsset(root);
                 if (isStructureModel(id)) {

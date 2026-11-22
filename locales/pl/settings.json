@@ -141,7 +141,7 @@
     "movePackTitle": "Przeniesienie Packa",
     "movePackNote": "Vanguard — zapewnia jeden Pack ruchów {{tactic}}",
     "commanderSpellsTitle": "Zaklęcia dowódcy",
-    "commanderSpellNote": "Garnizon — tylko dla dowódcy, który je zna",
+    "commanderSpellNote": "Twierdza — tylko dla dowódcy, który ją zna",
     "vanguardSpellsTitle": "Zaklęcia Vanguard",
     "vanguardSpellNote": "Vanguard — dla każdego dowódcy, raz na mecz",
     "boostsTitle": "Wzmacnia",
@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "Pełny ekran",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "VSync",
+    "vsyncHint": "Wył.: liczba klatek nie jest ograniczona przez monitor · po ponownym uruchomieniu",
     "presetMinimal": "Minimalne",
     "presetLow": "Niski",
     "presetMedium": "Średni",

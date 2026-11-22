@@ -141,7 +141,7 @@
     "movePackTitle": "نقل الـ Pack",
     "movePackNote": "الطليعة — يمنح شحنة {{tactic}} نقل Pack واحدة",
     "commanderSpellsTitle": "تعويذات القائد",
-    "commanderSpellNote": "الحامية — فقط على قائد يعرفها",
+    "commanderSpellNote": "القلعة — فقط على قائد يعرفها",
     "vanguardSpellsTitle": "تعويذات الطليعة",
     "vanguardSpellNote": "الطليعة — لأي قائد، مرة واحدة في المباراة",
     "boostsTitle": "تعزيزات",
@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "ملء الشاشة",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "VSync",
+    "vsyncHint": "إيقاف: معدل الإطارات غير مقيد بالشاشة · يسري بعد إعادة التشغيل",
     "presetMinimal": "الحد الأدنى",
     "presetLow": "منخفض",
     "presetMedium": "متوسط",

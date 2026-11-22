@@ -32,3 +32,6 @@ misc/**
 node_modules/
 .env.translate.local
 arena-cases.json
+# Model viewer + raw model material (source GLBs with all their clips): committed (must come AFTER misc/**)
+!misc/model-viewer/
+!misc/model-viewer/**

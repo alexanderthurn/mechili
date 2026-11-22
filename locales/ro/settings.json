@@ -141,7 +141,7 @@
     "movePackTitle": "Mută Pack",
     "movePackNote": "Avangarda — acordă o încărcătură de Pack de mișcări {{tactic}}",
     "commanderSpellsTitle": "Vrăji de comandant",
-    "commanderSpellNote": "Garnizoană — doar pentru un comandant care o știe",
+    "commanderSpellNote": "Fortăreață — doar pentru un comandant care o știe",
     "vanguardSpellsTitle": "Vrăji ale Avangardei",
     "vanguardSpellNote": "Avangarda — pentru orice comandant, o dată pe meci",
     "boostsTitle": "Boost-uri",
@@ -243,6 +243,8 @@
   "gfx": {
     "fullscreen": "Ecran complet",
     "fullscreenHint": "F11 / Alt+Enter",
+    "vsync": "VSync",
+    "vsyncHint": "Oprit: cadrele nu sunt limitate de monitor · se aplică după repornire",
     "presetMinimal": "Minimal",
     "presetLow": "Scăzut",
     "presetMedium": "Mediu",
