@@ -87,7 +87,8 @@ export function openSettings(parent: HTMLElement): void {
         for (const opt of overlay.querySelectorAll<HTMLOptionElement>('.s-shake option')) {
             opt.textContent = t(`settings:shake.${opt.value}`);
         }
-        overlay.querySelector('.s-controls-head')!.textContent = t('settings:controls');
+        const controlsHead = overlay.querySelector<HTMLElement>('.s-controls-head');
+        if (controlsHead) controlsHead.textContent = t('settings:controls');
         overlay.querySelector('.s-smooth-label')!.textContent = t('settings:cameraSmoothing', { defaultValue: 'Camera smoothing' });
         for (const opt of overlay.querySelectorAll<HTMLOptionElement>('.s-smooth option')) {
             opt.textContent = t(`settings:smoothing.${opt.value}`);
@@ -240,9 +241,7 @@ export function openSettings(parent: HTMLElement): void {
         `<label class="s-row"><span class="s-shake-label"></span> <select class="s-shake">` +
         CAMERA_SHAKE_LEVELS.map((id) => `<option value="${id}"></option>`).join('') +
         `</select></label>` +
-        `</section>` +
-        `<section class="s-section">` +
-        `<div class="s-section-head s-controls-head"></div>` +
+        // no "Controls" head for now (settings:controls stays translated for later)
         `<label class="s-row"><span class="s-smooth-label"></span> <select class="s-smooth">` +
         CAMERA_SMOOTHING_LEVELS.map((id) => `<option value="${id}"></option>`).join('') +
         `</select></label>` +
