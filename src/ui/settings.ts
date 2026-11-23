@@ -286,10 +286,7 @@ export function openSettings(parent: HTMLElement): void {
         // Desktop only: browsers refuse fullscreen without a user gesture, and
         // the window mode is remembered by the app (window-state.json), not prefs.
         (isElectron()
-            ? `<label class="s-row"><input type="checkbox" class="s-fullscreen" /> <span class="s-fullscreen-text"></span> <span class="s-hint s-fullscreen-hint"></span></label>` +
-              // A Chromium launch switch: the app reads launch.json at start, so it
-              // applies after a restart. Browsers always sync to the monitor.
-              `<label class="s-row"><input type="checkbox" class="s-vsync" /> <span class="s-vsync-text"></span> <span class="s-hint s-vsync-hint"></span></label>`
+            ? `<label class="s-row"><input type="checkbox" class="s-fullscreen" /> <span class="s-fullscreen-text"></span> <span class="s-hint s-fullscreen-hint"></span></label>`
             : '') +
         `<div class="s-presets">` +
         GRAPHICS_PRESET_IDS.map(
@@ -381,6 +378,12 @@ export function openSettings(parent: HTMLElement): void {
         `<option value="low"></option>` +
         `<option value="off"></option>` +
         `</select> <span class="s-hint s-ao-hint"></span></label>` +
+        // Desktop only, and not part of the presets. A Chromium launch switch: the
+        // app reads launch.json at start, so it applies after a restart. On unless
+        // launch.json says vsync:false. Browsers always sync to the monitor.
+        (isElectron()
+            ? `<label class="s-row"><input type="checkbox" class="s-vsync" /> <span class="s-vsync-text"></span> <span class="s-hint s-vsync-hint"></span></label>`
+            : '') +
         `</details>` +
         `</section>` +
         `</div>` +
