@@ -380,7 +380,9 @@ export function openSettings(parent: HTMLElement): void {
         // Desktop only, and not part of the presets. A Chromium launch switch: the
         // app reads launch.json at start, so it applies after a restart. On unless
         // launch.json says vsync:false. Browsers always sync to the monitor.
-        (isElectron()
+        // Not on macOS: the switches crash the GPU process there (blank white
+        // window), so the runtime ignores the option and the row would do nothing.
+        (isElectron() && !/Mac/i.test(navigator.platform)
             ? `<label class="s-row"><input type="checkbox" class="s-vsync" /> <span class="s-vsync-text"></span> <span class="s-hint s-vsync-hint"></span></label>`
             : '') +
         `</details>` +
