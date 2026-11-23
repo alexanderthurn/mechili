@@ -661,6 +661,11 @@ export interface ActionContext {
     starterPicked: boolean[];
     /** per-SEAT unit types currently buyable in the shop (starter + own unlocks) */
     unlockedUnits: string[][];
+    /**
+     * per-SEAT: the single-player cheat made the `secret` units buyable (no
+     * unlock needed). Absent = nobody has it — the AI and multiplayer never do.
+     */
+    secretUnits?: boolean[];
     /** each SEAT may unlock at most one new unit type per deployment round */
     unlockUsedThisRound: boolean[];
     /** player HP pools (cards set the starting value) */
@@ -975,7 +980,9 @@ export class ActionDispatcher {
                 if (!sandbox && type.structure && !type.extra) return false;
                 // army units come from the seat's shop (its commander's own, else the normal one)
                 const shop = this.ctx.types.shopFor(this.ctx.types.commander(this.ctx.commander[seat] ?? ''));
-                if (!sandbox && (type.extra ? !isPlayerBuyable(type) : !shop.includes(type.id))) return false;
+                // a secret unit only after this seat's cheat — then without an unlock
+                const secretOk = type.secret === true && this.ctx.secretUnits?.[seat] === true;
+                if (!sandbox && !secretOk && (type.extra ? !isPlayerBuyable(type) : !shop.includes(type.id))) return false;
                 // board extras by side (boardExtrasFor): Siege attacker Fire Bolt + Ward Stone,
                 // defender the Wall, else Wall + Ward Stone — the editor's sandbox places anything
                 if (!sandbox && type.extra && !yearBoardExtraAllowed(this.ctx.climbAttacker, action.team, type.id, this.ctx.wallsMode)) {
@@ -984,6 +991,7 @@ export class ActionDispatcher {
                 if (
                     !sandbox &&
                     !type.extra &&
+                    !secretOk &&
                     !this.ctx.unlockedUnits[seat]!.includes(action.typeId)
                 ) {
                     return false;

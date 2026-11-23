@@ -180,6 +180,10 @@
           "type": "boolean",
           "description": "When `false`, players and the AI cannot buy or unlock this type from the shop. Omit or `true` = eligible (still subject to unlock / extras). Horde-only units set this false; a type may be both shop and horde."
         },
+        "secret": {
+          "type": "boolean",
+          "description": "When `true`, a special unit: in no shop, never bought by the AI, skipped by Shift+U. The single-player cheat Shift+P (SECRET_UNITS_CHEAT in units.ts) makes it buyable for the human for the rest of the match."
+        },
         "horde": {
           "type": "boolean",
           "description": "When `true`, eligible for The Komtur wave plan / forest roster. Independent of buyable — set both for dual-use types."

@@ -372,6 +372,17 @@ export function isPlayerBuyable(type: UnitType): boolean {
     return type.buyable !== false;
 }
 
+/** A special unit only the cheat makes buyable — {@link UnitType.secret}. */
+export function isSecretUnit(type: UnitType): boolean {
+    return type.secret === true;
+}
+
+/**
+ * The single-player cheat key that makes {@link UnitType.secret} units buyable:
+ * Shift+P, for Panzer — the Order rolls up in a tank. (`KeyboardEvent.code`.)
+ */
+export const SECRET_UNITS_CHEAT = 'KeyP';
+
 /** The Komtur / forest wave roster — {@link UnitType.horde}. */
 export function isHordeUnit(type: UnitType): boolean {
     return type.horde === true;
@@ -642,6 +653,13 @@ export interface UnitType {
      * Horde-only units set this false; a type may be both shop and horde.
      */
     buyable?: boolean;
+    /**
+     * When `true`, a special unit: not in any shop, never bought by the AI,
+     * left out of Shift+U — until the human types the secret-units cheat in a
+     * single-player match ({@link SECRET_UNITS_CHEAT}). Then it is buyable for
+     * that seat without an unlock, for the rest of the match.
+     */
+    secret?: boolean;
     /**
      * When `true`, eligible for The Komtur wave plan / forest roster.
      * Independent of {@link buyable} — set both for dual-use types.
