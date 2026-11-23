@@ -6614,6 +6614,10 @@ export class Game {
     private starSeatReconnected(seat: SeatId): void {
         if (!this.star || this.star.role !== 'host') return;
         const hub = this.star.hub;
+        // everything after this snapshot waits in the seat's buffer until its
+        // rebuilt Game answers 'ready' — sent in between, it reached the old,
+        // discarded Game and was lost (a resync once swallowed two actions)
+        hub.holdSeat(seat);
         hub.send(seat, {
             type: 'matchCatchUp',
             version: GAME_VERSION,
@@ -7887,6 +7891,46 @@ export class Game {
         );
     }
 
+    /**
+     * Diagnostics (multiplayer): every unit as the battle ended — the mirror of
+     * sim.battleStart's dump. A battle-end hash mismatch said only THAT a battle
+     * played out differently; with both clients' dumps in their desync reports,
+     * the first unit that differs (position, HP, XP, kills, alive) names where.
+     */
+    private logBattleEnd(): void {
+        const sim = this.sim;
+        if (!sim) return;
+        const parts = this.stateHashParts();
+        this.debugLog.log('sim.battleEnd', {
+            hydrating: this.hydrating,
+            round: this.round,
+            elapsed: Math.round(sim.elapsed * 1000) / 1000,
+            hash: parts.total,
+            marks: { models: parts.models, hp: parts.hp, economy: parts.economy, actors: parts.actors, stats: parts.stats },
+            unitCount: sim.actors.length,
+            // one row per unit, columns as named — compact, since a report carries
+            // every round's start AND end dump and the server takes at most 8 MiB
+            cols: ['id', 'seat', 'type', 'alive', 'level', 'hp', 'x', 'z', 'facing', 'shieldHp', 'xp', 'kills', 'allegianceSeat'],
+            actors: sim.actors
+                .map((a) => [
+                    a.unit.id,
+                    a.unit.seat,
+                    a.unit.type.id,
+                    a.alive ? 1 : 0,
+                    a.unit.level,
+                    Math.round(a.hp * 1000) / 1000,
+                    Math.round(a.x * 100) / 100,
+                    Math.round(a.z * 100) / 100,
+                    Math.round(a.facing * 1e6) / 1e6,
+                    Math.round(a.shieldHp * 1000) / 1000,
+                    a.unit.xp,
+                    a.unit.kills,
+                    a.allegiance === null ? null : a.allegianceSeat,
+                ] as const)
+                .sort((a, b) => a[0] - b[0]),
+        });
+    }
+
     /** canonical state fingerprint, exchanged at battle start to catch desyncs */
     private stateHash(): number {
         return this.stateHashParts().total;
@@ -8598,6 +8642,10 @@ export class Game {
             // happening while a barrier-triggered resync for it was already
             // in flight — and each needs its own resolution/announcement.
             if (isHost && fromSeat !== undefined) {
+                // its new Game is listening now: release what was held since the snapshot
+                if (star.role === 'host') {
+                    star.hub.releaseSeat(fromSeat, (side) => !this.fogOfWar || this.starSideLocked(side));
+                }
                 if (this.pendingStarSeats.has(fromSeat)) this.starSeatReady(fromSeat);
                 if (this.pendingSyncSeats.has(fromSeat)) {
                     this.pendingSyncSeats.delete(fromSeat);
@@ -11120,9 +11168,13 @@ export class Game {
         const leader: Team | null = ahead > 1e-6 ? 'player' : ahead < -1e-6 ? 'enemy' : null;
         const ownSign = this.map.ownAtFar ? -1 : 1;
         // which way the leader's half lies (a tie still needs a side to
-        // measure the angle from — the camps end up left and right anyway)
+        // measure the angle from — the camps end up left and right anyway).
+        // A tie measures from side 0's half: the same half on every client.
+        // "My own half" (the old tie rule) is the opposite half on the other
+        // client, so a round-1 wave stood mirrored there — a multiplayer desync.
+        const side0Sign = this.mySide() === 0 ? ownSign : -ownSign;
         const leaderSign =
-            leader === 'player' ? ownSign : leader === 'enemy' ? -ownSign : ownSign;
+            leader === 'player' ? ownSign : leader === 'enemy' ? -ownSign : side0Sign;
         const wave = hordeCampSpots(this.map, rng, leaderSign, ahead);
         // read back with mechiliHorde() in the console
         this.lastHordeWave = wave;
@@ -11266,6 +11318,7 @@ export class Game {
             // (and its actors) are torn down below — stateHash() reads
             // this.sim.actors, so this MUST run before `this.sim = null`.
             if (this.star && !this.hydrating) hash = this.stateHash();
+            if (this.star) this.logBattleEnd();
         }
         audio.stopBeamLoops();
         this.sim = null;

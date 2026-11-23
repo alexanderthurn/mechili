@@ -937,6 +937,17 @@ export interface HostHub {
      *  live/sideLocked check `relayBuild` applies) — see the concrete
      *  implementations' own doc comments. */
     seedBuildBuffer(seat: SeatId, msg: Extract<NetMessage, { type: 'action' | 'undo' }>): void;
+    /**
+     * A seat is being sent a matchCatchUp: from now until it answers 'ready',
+     * everything relayed to it goes into its buffer. The guest tears down its
+     * Game and builds a new one from the snapshot — an action sent in between
+     * reached the old, discarded Game and was lost for good (found live: a
+     * resync swallowed the host's next two actions, a level-up batch and a
+     * spell, and the next battle desynced).
+     */
+    holdSeat(seat: SeatId): void;
+    /** the seat answered 'ready': release its held backlog under the usual fog rule */
+    releaseSeat(seat: SeatId, sideLocked: (side: 'a' | 'b') => boolean): void;
     connectedSeats(): SeatId[];
     sideOf(seat: SeatId): 'a' | 'b';
     currentRoster(): CanonicalSeatDef[];
@@ -1477,6 +1488,8 @@ export class StarHub implements HostHub {
         // onSeatReconnected), so stale buffered entries would only risk
         // double-delivery once StarHub.relayBuild resumes flushing to them
         viewer.buffer.length = 0;
+        // a reclaim sends a fresh matchCatchUp and holds the seat again
+        this.heldSeats.delete(seat);
         this.onSeatSuspended?.(seat);
         this.onRosterChange?.();
         const timer = setTimeout(() => {
@@ -1532,6 +1545,11 @@ export class StarHub implements HostHub {
             // a currently-disconnected recipient gets fully caught up via
             // matchCatchUp on reconnect instead — nothing useful to buffer
             if (!viewer.conn) continue;
+            // mid catch-up: hold everything until its new Game says 'ready' (see holdSeat)
+            if (this.heldSeats.has(seat)) {
+                if (seat !== fromSeat) viewer.buffer.push(msg);
+                continue;
+            }
             const policy = seatVisionPolicy(this.sideOf(seat));
             // flush anything this viewer just became entitled to (typically:
             // their side locked in and the enemy backlog can stream now),
@@ -1571,10 +1589,31 @@ export class StarHub implements HostHub {
         this.bySeat.get(seat)?.buffer.push(msg);
     }
 
+    /** seats mid catch-up — see {@link HostHub.holdSeat} */
+    private readonly heldSeats = new Set<SeatId>();
+
+    holdSeat(seat: SeatId): void {
+        this.heldSeats.add(seat);
+    }
+
+    releaseSeat(seat: SeatId, sideLocked: (side: 'a' | 'b') => boolean): void {
+        if (!this.heldSeats.delete(seat)) return;
+        const viewer = this.bySeat.get(seat);
+        if (!viewer?.conn || viewer.buffer.length === 0) return;
+        // what is revealable now goes out at once; a fogged tail waits for the
+        // usual reveal (this side's lock-in, or battle start) — same rule as relayBuild
+        const policy = seatVisionPolicy(this.sideOf(seat));
+        if ([...policy.ownSides].every((side) => sideLocked(side))) {
+            for (const buffered of viewer.buffer) viewer.conn.send(buffered);
+            viewer.buffer.length = 0;
+        }
+    }
+
     /** force-flush every recipient's buffer (all sides now locked) */
     flushAllBuffers(): void {
-        for (const viewer of this.bySeat.values()) {
+        for (const [seat, viewer] of this.bySeat) {
             if (!viewer.conn) continue;
+            if (this.heldSeats.has(seat)) continue; // released on its 'ready'
             for (const buffered of viewer.buffer) viewer.conn.send(buffered);
             viewer.buffer.length = 0;
         }

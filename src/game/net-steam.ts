@@ -700,6 +700,8 @@ export class SteamStarHub implements HostHub {
         viewer.channel = null;
         // moot now: a reclaim gets a fresh authoritative matchCatchUp instead
         viewer.buffer.length = 0;
+        // a reclaim sends a fresh matchCatchUp and holds the seat again
+        this.heldSeats.delete(seat);
         this.onDebugEvent?.('star.seatSuspended', { seat, graceMs: STAR_RECONNECT_GRACE_MS });
         this.onSeatSuspended?.(seat);
         this.onRosterChange?.();
@@ -793,6 +795,11 @@ export class SteamStarHub implements HostHub {
     ): void {
         const fromSide = this.sideOf(fromSeat);
         for (const [seat, viewer] of this.bySeat) {
+            // mid catch-up: hold everything until its new Game says 'ready' (see HostHub.holdSeat)
+            if (this.heldSeats.has(seat)) {
+                if (seat !== fromSeat && viewer.channel) viewer.buffer.push(msg);
+                continue;
+            }
             const policy = seatVisionPolicy(this.sideOf(seat));
             // flush newly-entitled backlog even for the locking sender
             // (must not echo `msg` back to them — see StarHub.relayBuild)
@@ -816,8 +823,28 @@ export class SteamStarHub implements HostHub {
     }
 
     flushAllBuffers(): void {
-        for (const viewer of this.bySeat.values()) {
+        for (const [seat, viewer] of this.bySeat) {
+            if (this.heldSeats.has(seat)) continue; // released on its 'ready'
             for (const buffered of viewer.buffer) viewer.channel?.send(buffered);
+            viewer.buffer.length = 0;
+        }
+    }
+
+    /** seats mid catch-up — see {@link HostHub.holdSeat} */
+    private readonly heldSeats = new Set<SeatId>();
+
+    holdSeat(seat: SeatId): void {
+        this.heldSeats.add(seat);
+    }
+
+    releaseSeat(seat: SeatId, sideLocked: (side: 'a' | 'b') => boolean): void {
+        if (!this.heldSeats.delete(seat)) return;
+        const viewer = this.bySeat.get(seat);
+        if (!viewer?.channel || viewer.buffer.length === 0) return;
+        // revealable now → out at once; a fogged tail waits for the usual reveal
+        const policy = seatVisionPolicy(this.sideOf(seat));
+        if ([...policy.ownSides].every((side) => sideLocked(side))) {
+            for (const buffered of viewer.buffer) viewer.channel.send(buffered);
             viewer.buffer.length = 0;
         }
     }
