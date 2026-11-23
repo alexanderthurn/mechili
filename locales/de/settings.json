@@ -304,5 +304,18 @@
     "summer": "Sommer",
     "autumn": "Herbst",
     "winter": "Winter"
+  },
+  "about": {
+    "tab": "Über",
+    "studio": "Melodan wird von Feuerware entwickelt, einem kleinen Spielestudio aus Bonn.",
+    "legal": "Rechtliches",
+    "imprint": "Impressum",
+    "privacy": "Datenschutz",
+    "thanks": "Danke",
+    "openSource": "Melodan ist {{github}} (GPL-3.0).",
+    "tools": "Ein großer Teil von Melodan wurde von Claude (Anthropic) entwickelt. Die 3D-Modelle entstanden mit Tripo3D, die Stimmen und Sounds mit ElevenLabs.",
+    "ai": "KI",
+    "openSourceTitle": "Open Source",
+    "support": "Gefällt dir Melodan? Kauf es auf {{steam}} und unterstütze damit die Entwicklung."
   }
 }

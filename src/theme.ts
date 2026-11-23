@@ -339,6 +339,32 @@ export const WOOD_BUTTON = `
  */
 export function materialStyles(u: (typeof THEME)['ui']): string {
     return `
+/* --- scrollbars: one Melodan look for every scrolling area (there was none: each
+   showed the browser's own). scrollbar-color is inherited, so the root sets the dark
+   look and parchment surfaces re-ink it; Chrome/Electron and Firefox read these. --- */
+:root { scrollbar-color: ${u.bronze} rgba(0, 0, 0, 0.35); }
+* { scrollbar-width: thin; }
+/* on parchment: an ink thumb on a faint ink groove */
+.m-frame,
+html .mechili-menu { scrollbar-color: rgba(106, 52, 16, 0.6) rgba(90, 55, 20, 0.12); }
+/* dark inlaid slots inside parchment go back to the dark look */
+.m-slot { scrollbar-color: ${u.bronze} rgba(0, 0, 0, 0.35); }
+/* Safari has no scrollbar-color: the same look through the old pseudo-elements
+   (Chrome ignores these once the standard properties above apply) */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.35); border-radius: 4px; }
+::-webkit-scrollbar-thumb {
+    background: ${u.bronze};
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+::-webkit-scrollbar-corner { background: transparent; }
+.m-frame ::-webkit-scrollbar-track,
+html .mechili-menu ::-webkit-scrollbar-track { background: rgba(90, 55, 20, 0.12); }
+.m-frame ::-webkit-scrollbar-thumb,
+html .mechili-menu ::-webkit-scrollbar-thumb { background: rgba(106, 52, 16, 0.6); background-clip: padding-box; }
+
 /* --- fantasy material primitives --- */
 .m-frame {
     position: relative;
@@ -484,7 +510,19 @@ html .mechili-settings .s-hint a,
 html .mechili-settings .s-advanced > summary::before,
 html .mechili-controls-help .ch-section h2 { color: ${INK_RUST}; }
 html .mechili-settings .s-hint a { border-bottom-color: rgba(106, 52, 16, 0.4); }
+/* About window on parchment, like the controls help */
+html .mechili-about .ab-title { color: ${INK}; text-shadow: none; }
+html .mechili-about .ab-head { border-bottom-color: rgba(90, 55, 20, 0.35); box-shadow: none; }
+html .mechili-about .ab-section h2 { color: ${INK_RUST}; }
+html .mechili-about .ab-doc { color: ${INK}; }
+html .mechili-about .ab-doc :is(h1, h2, h3, h4) { color: ${INK_RUST}; }
+html .mechili-about .ab-doc a { color: ${INK_RUST}; border-bottom-color: rgba(106, 52, 16, 0.4); }
+html .mechili-about .ab-doc a:hover { color: ${INK}; border-bottom-color: ${INK}; }
+html .mechili-about .ab-text a { color: ${INK_RUST}; border-bottom-color: rgba(106, 52, 16, 0.4); }
+html .mechili-about .ab-text a:hover { color: ${INK}; border-bottom-color: ${INK}; }
 html .mechili-settings .s-row,
+html .mechili-about .ab-text,
+html .mechili-about .ab-credits,
 html .mechili-controls-help .ch-row,
 html .mechili-controls-help .ch-desc { color: ${INK}; }
 html .mechili-controls-help .ch-row { border-bottom-color: rgba(90, 55, 20, 0.18); }
