@@ -794,6 +794,7 @@ export function openControlsHelp(parent: HTMLElement): void {
                 row('Shift+Y', t('settings:debugHelp.timeOfDay')) +
                 row('Shift+U', t('settings:debugHelp.spawnAll')) +
                 row('Ctrl+Shift+U', t('settings:debugHelp.spawnAllPlus')) +
+                row('Shift+P', t('settings:debugHelp.secretUnits')) +
                 row('Shift+H', t('settings:debugHelp.hordePacks')) +
                 row('Shift+I', t('settings:debugHelp.skipRound')) +
                 row('Shift+K', t('settings:debugHelp.killStronghold')) +
