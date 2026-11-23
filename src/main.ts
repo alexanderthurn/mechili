@@ -179,8 +179,6 @@ import { localizeRoster, type CanonicalSeatDef, type SeatId } from './game/seats
 import {
     AI_DIFFICULTIES,
     DEFAULT_AI_DIFFICULTY,
-    DEFAULT_AI_PERSONALITY,
-    personalitiesFor,
     type AiDifficulty,
     type AiPersonality,
 } from './game/aiProfile';
@@ -3000,10 +2998,6 @@ function roomArmies(): string[] {
     return armies;
 }
 
-function armyName(army: string): string {
-    return t(`menu:armies.${army}`, { defaultValue: army });
-}
-
 /** room seats' MMR by name, loaded once each (null = none / not found) — redraws the seats when it arrives */
 const roomMmr = new Map<string, number | null>();
 function roomMmrOf(name: string): number | null | undefined {
@@ -3150,27 +3144,9 @@ function renderRosterTable(
             // the seat's tags (army, role) on a line of their own under the name
             const tags = document.createElement('div');
             tags.className = 'm-roster-tags';
-            // the seat's army: a chip that walks the armies where this client may change it —
-            // only in debug mode: players play the standard army
-            if (lobbyArmy && debugEnabled()) {
-                const army = roster[seat]!.army ?? 'standard';
-                const editable = lobbyArmy.canEdit(seat);
-                const chip = document.createElement(editable ? 'button' : 'span');
-                chip.className = `m-roster-army is-${army}${editable ? ' is-editable' : ''}`;
-                chip.textContent = armyName(army);
-                if (editable) {
-                    (chip as HTMLButtonElement).type = 'button';
-                    chip.title = t('menu:armyPick');
-                    chip.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        const armies = roomArmies();
-                        const next = armies[(armies.indexOf(army) + 1) % armies.length]!;
-                        lobbyArmy?.pick(seat, next);
-                    });
-                }
-                tags.appendChild(chip);
-            }
-            // an AI seat (or an open one a bot will fill, where this client sets the bots): its strength and style
+            // No army or AI-style chip, debug or not — like Single Player, a seat
+            // shows only an AI's strength (the army stays standard, the style Random).
+            // an AI seat (or an open one a bot will fill, where this client sets the bots): its strength
             if (lobbyArmy && seat !== mySeat && (entry.controller === 'ai' || guaranteedAi || (!filled && !!lobbyArmy.pickAi))) {
                 const editable = !!lobbyArmy.pickAi && lobbyArmy.canEdit(seat);
                 const chip = (cls: string, text: string, title: string, next: () => void) => {
@@ -3191,16 +3167,6 @@ function renderRosterTable(
                 chip(`is-${difficulty}`, t(`menu:aiDifficulty.${difficulty}`), t('menu:aiDifficultyPick'), () =>
                     lobbyArmy?.pickAi?.(seat, { aiDifficulty: AI_DIFFICULTIES[(AI_DIFFICULTIES.indexOf(difficulty) + 1) % AI_DIFFICULTIES.length]! }),
                 );
-                // the style chip only in debug mode: players see the strength, the style stays Random
-                if (debugEnabled()) {
-                    // only the styles that fit the seat's side in a Siege (a stored one that doesn't shows as Random)
-                    const fits = personalitiesFor(siegeRole);
-                    const stored = entry.aiPersonality ?? DEFAULT_AI_PERSONALITY;
-                    const personality = fits.includes(stored) ? stored : 'random';
-                    chip(`is-${personality}`, t(`menu:aiPersonality.${personality}`), t('menu:aiPersonalityPick'), () =>
-                        lobbyArmy?.pickAi?.(seat, { aiPersonality: fits[(fits.indexOf(personality) + 1) % fits.length]! }),
-                    );
-                }
             }
             // always: an empty line keeps a seat without chips as tall as one with them
             cell.appendChild(tags);
