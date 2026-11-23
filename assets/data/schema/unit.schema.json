@@ -182,7 +182,7 @@
         },
         "secret": {
           "type": "boolean",
-          "description": "When `true`, a special unit: in no shop, never bought by the AI, skipped by Shift+U. The single-player cheat Shift+P (SECRET_UNITS_CHEAT in units.ts) makes it buyable for the human for the rest of the match."
+          "description": "When `true`, a special unit: a normal shop unit, except that the unlock dialog leaves it out, the AI never unlocks or buys it, and Shift+U skips it — until the human presses the single-player cheat Shift+P (SECRET_UNITS_CHEAT). Then it is unlockable like any other unit for the rest of the match."
         },
         "horde": {
           "type": "boolean",

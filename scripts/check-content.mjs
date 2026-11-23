@@ -714,7 +714,7 @@ try {
             const blankCheck = scen.normalizeScenario(blank, T);
             zexpect(blankCheck.def !== null && !scen.hasErrors(blankCheck.issues), `a new draft has errors: ${blankCheck.issues.map((i) => i.message).join('; ')}`);
             zexpect(ed.mapPresetOf(blank.map) === 'standard' && ed.hasBaseBuildings(T, blank, 'enemy'), 'a new draft is not the standard board with base buildings');
-            zexpect(blank.rules.unlockedUnits?.length === T.shopUnitIds.length && blankCheck.issues.every((i) => !i.message.includes('empty shop')), 'a new draft has no shop units');
+            zexpect(blank.rules.unlockedUnits?.length === T.shopUnitIds.filter((id) => !T.byId(id)?.secret).length && blankCheck.issues.every((i) => !i.message.includes('empty shop')), 'a new draft has no shop units');
             const emptyShop = structuredClone(blank);
             delete emptyShop.rules.unlockedUnits;
             zexpect(scen.normalizeScenario(emptyShop, T).issues.some((i) => i.message.includes('empty shop')), 'no commander + no shop units is not warned');

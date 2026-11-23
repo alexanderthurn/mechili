@@ -884,8 +884,10 @@ export class Game {
     private readonly unlockedUnits: string[][];
     /** per-SEAT: at most one shop unlock per deployment round */
     private readonly unlockUsedThisRound: boolean[];
-    /** per-SEAT: the single-player cheat ({@link SECRET_UNITS_CHEAT}, Shift+P) made the `secret` units buyable */
+    /** per-SEAT: the single-player cheat ({@link SECRET_UNITS_CHEAT}, Shift+P) lets the seat unlock the `secret` units */
     private readonly secretUnits: boolean[];
+    /** the unlock dialog's pool for the human seat (see refreshShopHud), cached by its inputs */
+    private unlockPool: { key: string; pool: readonly string[] } | null = null;
     /** frozen enemy inventory intel captured at deployment-phase start */
     private enemyIntelSnapshot: EnemyIntelSnapshot | null = null;
     /**
@@ -4590,13 +4592,14 @@ export class Game {
     /** SP cheat (Shift+U): +supply to every seat (same amount each press). */
     /**
      * Single-player only ({@link SECRET_UNITS_CHEAT}, Shift+P): the `secret` units
-     * become buyable for the human seat for the rest of the match. Not in a replay.
+     * appear in the human seat's unlock dialog for the rest of the match (unlocked
+     * the normal way, one per round). Not in a replay.
      */
     private cheatSecretUnits(): void {
         if (this.replayLog || this.secretUnits[this.humanSeat] || this.types.secretUnitIds.length === 0) return;
         this.secretUnits[this.humanSeat] = true;
         this.refreshShopHud();
-        this.hud.flashCinemaHint('PANZER! The Order rolls out its secret arsenal.', 2600);
+        this.hud.flashCinemaHint('PANZER! The Order’s secret arsenal can now be unlocked.', 2600);
     }
 
     private cheatGrantSupply(amount = 10_000): void {
@@ -10372,13 +10375,18 @@ export class Game {
     }
 
     private refreshShopHud(): void {
-        // after the cheat the secret units sit at the end of the shop, already unlocked
-        const secret = this.secretUnits[this.humanSeat] ? this.types.secretUnitIds : [];
+        // the pool is what the unlock dialog offers: the secret units only after the cheat
         const shop = this.types.shopFor(this.starterCardOfSeat(this.humanSeat));
-        this.hud.setShopPool([...shop, ...secret.filter((id) => !shop.includes(id))]);
-        const unlocked = this.unlockedUnits[this.humanSeat]!;
+        const cheat = this.secretUnits[this.humanSeat];
+        // the same array while nothing changes: a new one each frame makes the HUD
+        // re-lay the grid every frame, which swallows clicks on the tiles
+        const key = `${cheat}|${shop.join(',')}`;
+        if (this.unlockPool?.key !== key) {
+            this.unlockPool = { key, pool: cheat ? shop : shop.filter((id) => !this.types.byId(id)?.secret) };
+        }
+        this.hud.setShopPool(this.unlockPool.pool);
         this.hud.updateShop(
-            [...unlocked, ...secret.filter((id) => !unlocked.includes(id))],
+            this.unlockedUnits[this.humanSeat]!,
             !this.unlockUsedThisRound[this.humanSeat],
             this.economy.balance(this.humanSeat),
             !!this.starterPicked[this.humanSeat],

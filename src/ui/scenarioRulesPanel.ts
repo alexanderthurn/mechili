@@ -202,12 +202,12 @@ function withRule(def: ScenarioDef, rule: string, el: HTMLInputElement | HTMLSel
             break;
         case 'unlockedMode':
             if (value === 'commander') delete r.unlockedUnits;
-            else r.unlockedUnits ??= [...types.shopUnitIds];
+            else r.unlockedUnits ??= types.shopUnitIds.filter((id) => !types.byId(id)?.secret);
             break;
         case 'unlockableMode':
             if (value === 'any') delete r.unlockable;
             else if (value === 'none') r.unlockable = [];
-            else r.unlockable = r.unlockable?.length ? r.unlockable : [...types.shopUnitIds];
+            else r.unlockable = r.unlockable?.length ? r.unlockable : types.shopUnitIds.filter((id) => !types.byId(id)?.secret);
             break;
         case 'loadout':
             if (value === 'player') delete r.loadout;

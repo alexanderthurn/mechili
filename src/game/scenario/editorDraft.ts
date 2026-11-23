@@ -60,7 +60,7 @@ export function newDraft(gameVersion: string, types: TypeRegistry): ScenarioDef 
             strongholdMode: DEFAULT_SETTINGS.strongholdMode,
             opponents: 'lockInOnly',
             enemyIntel: 'visible',
-            unlockedUnits: [...types.shopUnitIds],
+            unlockedUnits: types.shopUnitIds.filter((id) => !types.byId(id)?.secret), // secret units: only by the author's own pick
         },
         scene: {
             units: [],

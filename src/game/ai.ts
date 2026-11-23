@@ -1093,10 +1093,18 @@ export class AiOpponent implements Opponent, ThinkingAi {
         return best;
     }
 
-    /** the unit types this seat's shop holds (its commander's own shop, else the normal one) */
+    /**
+     * the unit types this seat's shop holds (its commander's own shop, else the
+     * normal one) — without the `secret` ones: those are the human's cheat only
+     */
     private shop(): readonly string[] {
-        return this.ctx.types.shopFor(this.ctx.types.commander(this.ctx.commander[this.seat] ?? ''));
+        const shop = this.ctx.types.shopFor(this.ctx.types.commander(this.ctx.commander[this.seat] ?? ''));
+        if (this.aiShop?.from !== shop) {
+            this.aiShop = { from: shop, ids: shop.filter((id) => !this.ctx.types.byId(id)?.secret) };
+        }
+        return this.aiShop.ids;
     }
+    private aiShop: { from: readonly string[]; ids: readonly string[] } | null = null;
 
     /** unlocked, buyable army types this seat can afford right now */
     private affordableArmyTypes(pred?: (t: UnitType) => boolean): UnitType[] {
