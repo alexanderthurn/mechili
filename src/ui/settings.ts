@@ -87,7 +87,8 @@ export function openSettings(parent: HTMLElement): void {
         for (const opt of overlay.querySelectorAll<HTMLOptionElement>('.s-shake option')) {
             opt.textContent = t(`settings:shake.${opt.value}`);
         }
-        overlay.querySelector('.s-controls-head')!.textContent = t('settings:controls');
+        const controlsHead = overlay.querySelector<HTMLElement>('.s-controls-head');
+        if (controlsHead) controlsHead.textContent = t('settings:controls');
         overlay.querySelector('.s-smooth-label')!.textContent = t('settings:cameraSmoothing', { defaultValue: 'Camera smoothing' });
         for (const opt of overlay.querySelectorAll<HTMLOptionElement>('.s-smooth option')) {
             opt.textContent = t(`settings:smoothing.${opt.value}`);
@@ -240,9 +241,7 @@ export function openSettings(parent: HTMLElement): void {
         `<label class="s-row"><span class="s-shake-label"></span> <select class="s-shake">` +
         CAMERA_SHAKE_LEVELS.map((id) => `<option value="${id}"></option>`).join('') +
         `</select></label>` +
-        `</section>` +
-        `<section class="s-section">` +
-        `<div class="s-section-head s-controls-head"></div>` +
+        // no "Controls" head for now (settings:controls stays translated for later)
         `<label class="s-row"><span class="s-smooth-label"></span> <select class="s-smooth">` +
         CAMERA_SMOOTHING_LEVELS.map((id) => `<option value="${id}"></option>`).join('') +
         `</select></label>` +
@@ -286,10 +285,7 @@ export function openSettings(parent: HTMLElement): void {
         // Desktop only: browsers refuse fullscreen without a user gesture, and
         // the window mode is remembered by the app (window-state.json), not prefs.
         (isElectron()
-            ? `<label class="s-row"><input type="checkbox" class="s-fullscreen" /> <span class="s-fullscreen-text"></span> <span class="s-hint s-fullscreen-hint"></span></label>` +
-              // A Chromium launch switch: the app reads launch.json at start, so it
-              // applies after a restart. Browsers always sync to the monitor.
-              `<label class="s-row"><input type="checkbox" class="s-vsync" /> <span class="s-vsync-text"></span> <span class="s-hint s-vsync-hint"></span></label>`
+            ? `<label class="s-row"><input type="checkbox" class="s-fullscreen" /> <span class="s-fullscreen-text"></span> <span class="s-hint s-fullscreen-hint"></span></label>`
             : '') +
         `<div class="s-presets">` +
         GRAPHICS_PRESET_IDS.map(
@@ -381,6 +377,12 @@ export function openSettings(parent: HTMLElement): void {
         `<option value="low"></option>` +
         `<option value="off"></option>` +
         `</select> <span class="s-hint s-ao-hint"></span></label>` +
+        // Desktop only, and not part of the presets. A Chromium launch switch: the
+        // app reads launch.json at start, so it applies after a restart. On unless
+        // launch.json says vsync:false. Browsers always sync to the monitor.
+        (isElectron()
+            ? `<label class="s-row"><input type="checkbox" class="s-vsync" /> <span class="s-vsync-text"></span> <span class="s-hint s-vsync-hint"></span></label>`
+            : '') +
         `</details>` +
         `</section>` +
         `</div>` +
@@ -792,6 +794,7 @@ export function openControlsHelp(parent: HTMLElement): void {
                 row('Shift+Y', t('settings:debugHelp.timeOfDay')) +
                 row('Shift+U', t('settings:debugHelp.spawnAll')) +
                 row('Ctrl+Shift+U', t('settings:debugHelp.spawnAllPlus')) +
+                row('Shift+P', t('settings:debugHelp.secretUnits')) +
                 row('Shift+H', t('settings:debugHelp.hordePacks')) +
                 row('Shift+I', t('settings:debugHelp.skipRound')) +
                 row('Shift+K', t('settings:debugHelp.killStronghold')) +

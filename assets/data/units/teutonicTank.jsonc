@@ -8,6 +8,7 @@
     "name": "Tank",
     "cost": 400,
     "unlockCost": 200,
+    "secret": true, // special: only after the single-player cheat Shift+P (SECRET_UNITS_CHEAT), never the AI or Shift+U
     "footprint": { "cols": 4, "rows": 4 }, // the hull (15.2 long) fills it; the barrel reaches over the row in front
     "formation": { "cols": 1, "rows": 1 },
     // 7.44 tall in game (0.85 dwarf probe × 8.76): the knight in the hatch (0.222 of the model's 0.3755)

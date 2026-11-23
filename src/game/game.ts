@@ -294,6 +294,7 @@ import {
     strongholdArcherSlotWorld,
     formationHeadcount,
     isPlayerBuyable,
+    SECRET_UNITS_CHEAT,
     isTargetMarked,
     techDescription,
     techIcon,
@@ -883,6 +884,8 @@ export class Game {
     private readonly unlockedUnits: string[][];
     /** per-SEAT: at most one shop unlock per deployment round */
     private readonly unlockUsedThisRound: boolean[];
+    /** per-SEAT: the single-player cheat ({@link SECRET_UNITS_CHEAT}, Shift+P) made the `secret` units buyable */
+    private readonly secretUnits: boolean[];
     /** frozen enemy inventory intel captured at deployment-phase start */
     private enemyIntelSnapshot: EnemyIntelSnapshot | null = null;
     /**
@@ -1125,6 +1128,11 @@ export class Game {
         if (e.code === 'KeyU' && e.shiftKey && !this.star) {
             // Shift+U = SP deploy cheat (shop units only); Ctrl+Shift+U adds horde + level scramble
             this.cheatSpawnAllUnits({ scrambleLevels: e.ctrlKey, includeHorde: e.ctrlKey });
+            return;
+        }
+        if (e.code === SECRET_UNITS_CHEAT && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && !this.star) {
+            // Shift+P = SP: the secret units (tank, rifleman) into the shop, for the rest of the match
+            this.cheatSecretUnits();
             return;
         }
         if (e.code === 'KeyH' && e.shiftKey && !this.star) {
@@ -2137,6 +2145,7 @@ export class Game {
         this.boostState = { attack: this.seats.map(() => 0), hp: this.seats.map(() => 0) };
         this.roundBoosts = { range: this.seats.map(() => false), speed: this.seats.map(() => false) };
         this.unlockedUnits = this.seats.map(() => []);
+        this.secretUnits = this.seats.map(() => false);
         this.unlockUsedThisRound = this.seats.map(() => false);
         // Siege: attacker seats get two free Rally Route charges (same as
         // card-granted one-shots — Tent buy slots stay separate, up to 2 more).
@@ -2533,6 +2542,7 @@ export class Game {
             seatReady: this.seatReady,
             starterPicked: this.starterPicked,
             unlockedUnits: this.unlockedUnits,
+            secretUnits: this.secretUnits,
             // the scenario editor's own deployment buys anything, unlimited (see ActionContext)
             editorSandbox: this.settings.scenario?.mode === 'author',
             unlockUsedThisRound: this.unlockUsedThisRound,
@@ -4208,6 +4218,7 @@ export class Game {
                 if (type.id === 'shield' || type.id === 'rocket') continue; // extras clutter the test field
                 if (type.wall) continue; // no walls or gates either
                 if (!opts.includeHorde && !isPlayerBuyable(type)) continue; // horde roster only on Ctrl+Shift+U
+                if (type.secret) continue; // special units only through their cheat (SECRET_UNITS_CHEAT)
                 const copies = type.id === 'dwarf' ? 3 : 1;
                 for (let i = 0; i < copies; i++) {
                     const spot = this.placement.findStartSpot(team, type);
@@ -4577,6 +4588,17 @@ export class Game {
     }
 
     /** SP cheat (Shift+U): +supply to every seat (same amount each press). */
+    /**
+     * Single-player only ({@link SECRET_UNITS_CHEAT}, Shift+P): the `secret` units
+     * become buyable for the human seat for the rest of the match. Not in a replay.
+     */
+    private cheatSecretUnits(): void {
+        if (this.replayLog || this.secretUnits[this.humanSeat] || this.types.secretUnitIds.length === 0) return;
+        this.secretUnits[this.humanSeat] = true;
+        this.refreshShopHud();
+        this.hud.flashCinemaHint('PANZER! The Order rolls out its secret arsenal.', 2600);
+    }
+
     private cheatGrantSupply(amount = 10_000): void {
         for (let seat = 0; seat < this.seats.length; seat++) this.economy.credit(seat, amount);
     }
@@ -10350,9 +10372,13 @@ export class Game {
     }
 
     private refreshShopHud(): void {
-        this.hud.setShopPool(this.types.shopFor(this.starterCardOfSeat(this.humanSeat)));
+        // after the cheat the secret units sit at the end of the shop, already unlocked
+        const secret = this.secretUnits[this.humanSeat] ? this.types.secretUnitIds : [];
+        const shop = this.types.shopFor(this.starterCardOfSeat(this.humanSeat));
+        this.hud.setShopPool([...shop, ...secret.filter((id) => !shop.includes(id))]);
+        const unlocked = this.unlockedUnits[this.humanSeat]!;
         this.hud.updateShop(
-            this.unlockedUnits[this.humanSeat]!,
+            [...unlocked, ...secret.filter((id) => !unlocked.includes(id))],
             !this.unlockUsedThisRound[this.humanSeat],
             this.economy.balance(this.humanSeat),
             !!this.starterPicked[this.humanSeat],

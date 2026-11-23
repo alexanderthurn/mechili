@@ -9,6 +9,7 @@
     "name": "Rifleman",
     "cost": 200,
     "unlockCost": 50,
+    "secret": true, // special: only after the single-player cheat Shift+P (SECRET_UNITS_CHEAT), never the AI or Shift+U
     "footprint": { "cols": 2, "rows": 2 }, // like the archer
     "formation": { "cols": 1, "rows": 1 }, // one man
     "meshScale": 1.725, // 4.4 tall, exactly the Teutonic (0.85 dwarf probe × 3 × 1.725)
