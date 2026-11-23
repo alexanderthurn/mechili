@@ -33,10 +33,11 @@ export class TypeRegistry {
     readonly models: Readonly<Record<string, ModelSpecData>>;
     /**
      * Buyable army types in the deployment shop, in roster order: no board
-     * extras, no structures, nothing marked `buyable: false` or `secret`.
+     * extras, no structures, nothing marked `buyable: false`. Includes the
+     * `secret` ones — only the unlock (and the AI) leave those out.
      */
     readonly shopUnitIds: readonly string[];
-    /** `secret` army types, in roster order — buyable only after the single-player cheat */
+    /** `secret` army types, in roster order — unlockable only after the single-player cheat */
     readonly secretUnitIds: readonly string[];
     /** every unit type any shop can hold: the normal shop plus each commander's own */
     readonly allShopUnitIds: readonly string[];
@@ -78,7 +79,7 @@ export class TypeRegistry {
         this.models = pack.models;
         this.index = new Map([...pack.roster, ...pack.offRoster, ...pack.buildings].map((t) => [t.id, t]));
         this.shopUnitIds = pack.roster
-            .filter((t) => !t.extra && !t.structure && t.buyable !== false && t.secret !== true)
+            .filter((t) => !t.extra && !t.structure && t.buyable !== false)
             .map((t) => t.id);
         this.secretUnitIds = pack.roster
             .filter((t) => !t.extra && !t.structure && t.secret === true)

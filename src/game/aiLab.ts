@@ -52,7 +52,7 @@ export interface LearnedData {
 /** the packs the lab buys: the normal shop's fighting units */
 export function labPool(types: TypeRegistry): UnitType[] {
     const shop = types.shopFor(null);
-    return types.roster.filter((t) => shop.includes(t.id) && !t.extra && !t.structure && !t.wall && t.damage > 0 && t.target !== false);
+    return types.roster.filter((t) => shop.includes(t.id) && !t.secret && !t.extra && !t.structure && !t.wall && t.damage > 0 && t.target !== false);
 }
 
 /** a fingerprint of the numbers the lab's results stand on: change a unit and it no longer matches */

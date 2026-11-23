@@ -372,13 +372,8 @@ export function isPlayerBuyable(type: UnitType): boolean {
     return type.buyable !== false;
 }
 
-/** A special unit only the cheat makes buyable — {@link UnitType.secret}. */
-export function isSecretUnit(type: UnitType): boolean {
-    return type.secret === true;
-}
-
 /**
- * The single-player cheat key that makes {@link UnitType.secret} units buyable:
+ * The single-player cheat key that makes {@link UnitType.secret} units unlockable:
  * Shift+P, for Panzer — the Order rolls up in a tank. (`KeyboardEvent.code`.)
  */
 export const SECRET_UNITS_CHEAT = 'KeyP';
@@ -654,10 +649,11 @@ export interface UnitType {
      */
     buyable?: boolean;
     /**
-     * When `true`, a special unit: not in any shop, never bought by the AI,
-     * left out of Shift+U — until the human types the secret-units cheat in a
-     * single-player match ({@link SECRET_UNITS_CHEAT}). Then it is buyable for
-     * that seat without an unlock, for the rest of the match.
+     * When `true`, a special unit: a normal shop unit, except that the unlock
+     * dialog leaves it out, the AI never unlocks or buys it, and Shift+U skips
+     * it — until the human presses the single-player cheat Shift+P
+     * ({@link SECRET_UNITS_CHEAT}). Then it is unlockable like any other unit
+     * for the rest of the match.
      */
     secret?: boolean;
     /**
