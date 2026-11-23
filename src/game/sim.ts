@@ -941,8 +941,6 @@ function stoneDropFields(p: Projectile): { dropStone?: boolean; dropStoneScale?:
 /** overkill fed to a lifeline death, as a multiple of the victim's own max hp —
  *  drives the tip-over flop and, for flyers, how far the wreck is thrown */
 const COLLAPSE_OVERKILL = 4;
-/** outward shove on each corpse, decayed per frame like any blast impulse */
-const COLLAPSE_SHOVE = 0.55;
 /** how hard a lifeline death throws its gore along the blast line */
 const COLLAPSE_GORE_FLING = 2.8;
 /** how hard a razed building's own stone is thrown down the front's path */
@@ -1356,6 +1354,10 @@ const GROUND_SWAT_CATCH = 0.28;
  * board. A crater that changed every later path and shot was a large extra surface for
  * two clients to drift apart (and for a resync to carry a stale grid), and a per-frame
  * mesh cost, for a minor feature.
+ *
+ * Turning it back on: corpses are fitted to the ground ONCE when they land and then
+ * skipped (`corpseFitted` in syncBattleVisuals) — ground that changes under them would
+ * need those corpses refitted, or they float over a crater.
  */
 export const LIVE_TERRAIN_DEFORMATION = false;
 
@@ -3151,16 +3153,17 @@ export class BattleSim {
         }
     }
 
-    /** Slide a corpse with a blast (bumps mid-fall drift or settled mesh). */
+    /**
+     * A blast catches a wreck still tumbling through the air (bumps its fall
+     * drift). Render-only. A corpse on the ground no longer slides: blast after
+     * blast kept whole fields of them drifting, and lying still lets the visual
+     * pass skip them altogether (see corpseFitted in syncBattleVisuals).
+     */
     private nudgeWreck(a: Actor, dx: number, dz: number): void {
         const fall = a.mesh.userData.deathFall as DeathFallState | undefined;
-        if (fall) {
-            fall.driftX += dx * 2.2;
-            fall.driftZ += dz * 2.2;
-            return;
-        }
-        a.impulseX = (a.impulseX ?? 0) + dx;
-        a.impulseZ = (a.impulseZ ?? 0) + dz;
+        if (!fall) return;
+        fall.driftX += dx * 2.2;
+        fall.driftZ += dz * 2.2;
     }
 
     private emitStuckBolt(
@@ -4390,10 +4393,9 @@ export class BattleSim {
                     this.kill(a, null, a.maxHp * COLLAPSE_OVERKILL, away, false, true);
                     continue;
                 }
+                // flung away from the keep by its death (the knock direction);
+                // the corpse then lies still like every other
                 this.kill(a, null, a.maxHp * COLLAPSE_OVERKILL, away, true);
-                // and keeps sliding — the same corpse impulse a blast applies
-                a.impulseX = away.x * COLLAPSE_SHOVE;
-                a.impulseZ = away.z * COLLAPSE_SHOVE;
             }
         }
     }
@@ -4632,6 +4634,10 @@ export class BattleSim {
             // a summon (or a production reserve) not yet arrived is dormant, not dead:
             // posing it as a corpse would leave it lying in the ground once it appears
             if (a.alive || a.unit.type.structure || !a.appeared) continue;
+            // a corpse lies still once it has landed: fitted to the ground once, then
+            // never touched again (the ground cannot change mid-battle — see
+            // LIVE_TERRAIN_DEFORMATION; with it on, corpses would need a refit there)
+            if (a.mesh.userData.corpseFitted) continue;
             const fall = a.mesh.userData.deathFall as DeathFallState | undefined;
             const tip = a.mesh.userData.deathTip as DeathTipState | undefined;
             const deathClip = a.mesh.userData.deathClip as DeathClipState | undefined;
@@ -4663,25 +4669,14 @@ export class BattleSim {
                 a.mesh.position.y = gy;
                 const crush = a.mesh.userData.buildingCollapse as BuildingCollapseState | undefined;
                 if (crush) crush.startY = gy;
+                // a pancake's own collapse squash still plays out in the structure loop
+                if (!crush) a.mesh.userData.corpseFitted = true;
             } else {
-                // Settled wreck: hug terrain height + slope
+                // Settled wreck: hug terrain height + slope — once (see corpseFitted above)
                 const wx = a.unit.world.x + a.mesh.position.x;
                 const wz = a.unit.world.z + a.mesh.position.z;
                 alignSettledCorpse(a.mesh, wx, wz, worldHeightAt(wx, wz) + GROUND_UNIT_Y);
-            }
-            // Settled / tipping wrecks still slide from later blasts — not hammer pancakes
-            if (!fall && !deathClip && !a.mesh.userData.hammerCrushed) {
-                const ix = a.impulseX ?? 0;
-                const iz = a.impulseZ ?? 0;
-                if (Math.hypot(ix, iz) > 0.008) {
-                    a.mesh.position.x += ix;
-                    a.mesh.position.z += iz;
-                    a.impulseX = ix * 0.88;
-                    a.impulseZ = iz * 0.88;
-                } else {
-                    a.impulseX = 0;
-                    a.impulseZ = 0;
-                }
+                a.mesh.userData.corpseFitted = true;
             }
             if (usesWingFlapModel(a.unit.type.modelId ?? a.unit.type.id) && a.mesh.userData.instanced) {
                 setCrowWingDeathSplay(
@@ -4689,7 +4684,6 @@ export class BattleSim {
                     crowWingDeathSplay(timeSeconds, fall, tip),
                 );
             }
-            if (fall || tip || deathClip) continue;
         }
         // Destroyed structures settle into rubble; hammer-crushed units pancake
         for (const a of this.actors) {
