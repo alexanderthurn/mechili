@@ -55,6 +55,13 @@ export function withRememberedChips(
         if (lobby === 'hosted' && !isOpen(seat)) return entry;
         const chips = clean(stored[seat]);
         if (chips.army && !armies.includes(chips.army)) delete chips.army;
+        // a hosted room's seats have no army or AI-style chip any more (only the
+        // strength, like Single Player) — one remembered from back when they did
+        // would otherwise still apply, unseen and with no way to change it
+        if (lobby === 'hosted') {
+            delete chips.army;
+            delete chips.aiPersonality;
+        }
         return { ...entry, ...chips };
     });
 }

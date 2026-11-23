@@ -39,7 +39,6 @@ import {
     formatBuild,
     ourBuild,
     hostStarRoom,
-    isMelodanPlayHost,
     joinAsSpectator,
     joinStarRoom,
     loadSinglePlayer,
@@ -49,7 +48,6 @@ import {
     STAR_RESUME_AUTO_MS,
     STAR_RESUME_HEARTBEAT_MS,
     saveStarResumeMarker,
-    branchSiteUrl,
     type CustomGameConfig,
     type CustomGameMode,
     type GuestSession,
@@ -130,6 +128,7 @@ import { discardPrewarmedRenderer, prewarmGpu } from './game/gpuWarmup';
 import { initInputCapabilities, noteGamepadActivity } from './game/inputCapabilities';
 import { applySteamLanguageDefault, debugEnabled, effectiveDpr, GRAPHICS_PRESETS, onPrefsChange, overridePrefs, prefs, updatePrefs } from './game/prefs';
 import { openSettings } from './ui/settings';
+import { openAbout } from './ui/about';
 import { openSuggest } from './suggest';
 import { cssUrl, iconHtml } from './ui/iconAtlas';
 import { DEFAULT_TERRAIN_SHAPE, TERRAIN_SHAPES, terrainShapeOption, type TerrainShape } from './game/terrainShapes';
@@ -179,8 +178,6 @@ import { localizeRoster, type CanonicalSeatDef, type SeatId } from './game/seats
 import {
     AI_DIFFICULTIES,
     DEFAULT_AI_DIFFICULTY,
-    DEFAULT_AI_PERSONALITY,
-    personalitiesFor,
     type AiDifficulty,
     type AiPersonality,
 } from './game/aiProfile';
@@ -497,16 +494,16 @@ menuChromeEl.className = 'mechili-menu-chrome';
 menuChromeEl.style.display = 'none';
 wrapper.appendChild(menuChromeEl);
 
-const versionEl = document.createElement(isMelodanPlayHost() ? 'a' : 'div');
-versionEl.className = 'mechili-version';
-versionEl.style.zIndex = '30';
-versionEl.textContent = `v${__APP_VERSION__}`;
-if (versionEl instanceof HTMLAnchorElement) {
-    versionEl.target = '_blank';
-    versionEl.rel = 'noopener noreferrer';
-    versionEl.classList.add('link');
-}
-menuChromeEl.appendChild(versionEl);
+// bottom left of the menu: the version, one link with "About" — opens the About window
+const aboutEl = document.createElement('button');
+aboutEl.type = 'button';
+aboutEl.className = 'mechili-version link';
+aboutEl.style.zIndex = '30';
+const paintAboutLabel = (): void => {
+    aboutEl.textContent = `v${__APP_VERSION__} · ${t('settings:about.tab', { defaultValue: 'About' })}`;
+};
+aboutEl.addEventListener('click', () => openAbout(wrapper));
+menuChromeEl.appendChild(aboutEl);
 
 /** PLAYTEST wordmark under the logo. HTML rather than a Pixi Text so it can sit
  *  above the menu panel — the menu is an HTML overlay, so canvas always loses. */
@@ -526,20 +523,10 @@ let titleReady = false;
 let menuChromeVisible = false;
 
 /** Menu label: semver · branch · Steam|PeerJS · Online|Offline (transport fixed at launch). */
-async function refreshVersionLabel(): Promise<void> {
+/** Playtest or not (its badge, and whether desyncs and errors are reported) — the menu
+ *  label this once also wrote (version · branch · transport · online) is gone */
+async function detectPlaytest(): Promise<void> {
     const onSteam = await steamReady();
-    let branch = '';
-    if (onSteam) {
-        try {
-            branch = (await steam.getCurrentBetaName())?.trim() ?? '';
-        } catch {
-            /* ignore */
-        }
-    }
-    if (!branch) {
-        const fromUrl = new URLSearchParams(location.search).get('branch')?.trim();
-        branch = fromUrl || (typeof __GIT_BRANCH__ === 'string' ? __GIT_BRANCH__.trim() : '');
-    }
     // A playtest/demo is its own child appID sharing the same depots, so the
     // binary is identical — only the id Steam launched us as tells them apart.
     if (onSteam) {
@@ -556,27 +543,9 @@ async function refreshVersionLabel(): Promise<void> {
     // a playtest reports desyncs and errors to the backend (so does the debug overlay)
     setDiagnosticsMode(isPlaytest);
     showPlaytestBadge();
-    const transport = onSteam ? 'Steam' : 'PeerJS';
-    const net = navigator.onLine ? 'Online' : 'Offline';
-    const parts = [`v${__APP_VERSION__}`];
-    if (branch) parts.push(branch);
-    if (isPlaytest) parts.push('Playtest');
-    parts.push(transport, net);
-    versionEl.textContent = parts.join(' · ');
-    if (versionEl instanceof HTMLAnchorElement) {
-        const href = branchSiteUrl(branch);
-        versionEl.href = href;
-        try {
-            versionEl.title = new URL(href).hostname;
-        } catch {
-            versionEl.title = href;
-        }
-    }
 }
 
-void refreshVersionLabel();
-window.addEventListener('online', () => void refreshVersionLabel());
-window.addEventListener('offline', () => void refreshVersionLabel());
+void detectPlaytest();
 
 const feuerwareLogoUrl = (): string => assetUrl('marketing/feuerware_melodan.webp');
 const feuerwareEl = document.createElement('img');
@@ -1772,6 +1741,7 @@ let roomsListScope: 'LAN' | 'Steam' | 'Web' = 'Web';
 /** Paint static menu chrome from the active locale. Dynamic labels (Start /
  *  Cancel / room rows) are set by their own helpers, which also call `t()`. */
 function paintMenuChrome(): void {
+    paintAboutLabel();
     for (const el of menu.querySelectorAll<HTMLElement>('[data-i18n]')) {
         const key = el.getAttribute('data-i18n');
         if (key) el.textContent = t(key);
@@ -3000,10 +2970,6 @@ function roomArmies(): string[] {
     return armies;
 }
 
-function armyName(army: string): string {
-    return t(`menu:armies.${army}`, { defaultValue: army });
-}
-
 /** room seats' MMR by name, loaded once each (null = none / not found) — redraws the seats when it arrives */
 const roomMmr = new Map<string, number | null>();
 function roomMmrOf(name: string): number | null | undefined {
@@ -3150,27 +3116,9 @@ function renderRosterTable(
             // the seat's tags (army, role) on a line of their own under the name
             const tags = document.createElement('div');
             tags.className = 'm-roster-tags';
-            // the seat's army: a chip that walks the armies where this client may change it —
-            // only in debug mode: players play the standard army
-            if (lobbyArmy && debugEnabled()) {
-                const army = roster[seat]!.army ?? 'standard';
-                const editable = lobbyArmy.canEdit(seat);
-                const chip = document.createElement(editable ? 'button' : 'span');
-                chip.className = `m-roster-army is-${army}${editable ? ' is-editable' : ''}`;
-                chip.textContent = armyName(army);
-                if (editable) {
-                    (chip as HTMLButtonElement).type = 'button';
-                    chip.title = t('menu:armyPick');
-                    chip.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        const armies = roomArmies();
-                        const next = armies[(armies.indexOf(army) + 1) % armies.length]!;
-                        lobbyArmy?.pick(seat, next);
-                    });
-                }
-                tags.appendChild(chip);
-            }
-            // an AI seat (or an open one a bot will fill, where this client sets the bots): its strength and style
+            // No army or AI-style chip, debug or not — like Single Player, a seat
+            // shows only an AI's strength (the army stays standard, the style Random).
+            // an AI seat (or an open one a bot will fill, where this client sets the bots): its strength
             if (lobbyArmy && seat !== mySeat && (entry.controller === 'ai' || guaranteedAi || (!filled && !!lobbyArmy.pickAi))) {
                 const editable = !!lobbyArmy.pickAi && lobbyArmy.canEdit(seat);
                 const chip = (cls: string, text: string, title: string, next: () => void) => {
@@ -3191,16 +3139,6 @@ function renderRosterTable(
                 chip(`is-${difficulty}`, t(`menu:aiDifficulty.${difficulty}`), t('menu:aiDifficultyPick'), () =>
                     lobbyArmy?.pickAi?.(seat, { aiDifficulty: AI_DIFFICULTIES[(AI_DIFFICULTIES.indexOf(difficulty) + 1) % AI_DIFFICULTIES.length]! }),
                 );
-                // the style chip only in debug mode: players see the strength, the style stays Random
-                if (debugEnabled()) {
-                    // only the styles that fit the seat's side in a Siege (a stored one that doesn't shows as Random)
-                    const fits = personalitiesFor(siegeRole);
-                    const stored = entry.aiPersonality ?? DEFAULT_AI_PERSONALITY;
-                    const personality = fits.includes(stored) ? stored : 'random';
-                    chip(`is-${personality}`, t(`menu:aiPersonality.${personality}`), t('menu:aiPersonalityPick'), () =>
-                        lobbyArmy?.pickAi?.(seat, { aiPersonality: fits[(fits.indexOf(personality) + 1) % fits.length]! }),
-                    );
-                }
             }
             // always: an empty line keeps a seat without chips as tall as one with them
             cell.appendChild(tags);

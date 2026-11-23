@@ -2152,6 +2152,7 @@ button.m-seat-invite:disabled { opacity: 0.7; cursor: default; }
 .mechili-version.link {
     pointer-events: auto;
     cursor: pointer;
+    font-family: inherit;
     transition: color 0.12s ease, opacity 0.12s ease;
 }
 .mechili-version.link:hover { color: ${u.brassLight}; opacity: 1; }
@@ -3049,6 +3050,167 @@ ${hpTubeVal('.mechili-loading .hp-val', '16px', 'letter-spacing: 1px;')}
 .mechili-settings .s-hint a:hover {
     color: ${u.cream};
     border-bottom-color: ${u.cream};
+}
+/* About — its own window over the menu (src/ui/about.ts), built like the controls help */
+.mechili-about {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.62);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    z-index: 82;
+    padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
+        max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+    box-sizing: border-box;
+}
+.mechili-about .ab-box {
+    display: flex;
+    flex-direction: column;
+    width: min(900px, 100%);
+    height: 100%;
+    padding: 14px 16px 12px;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+.mechili-about .ab-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-shrink: 0;
+    padding: 4px 4px 12px;
+    border-bottom: 1px solid ${u.frameLo};
+    box-shadow: 0 1px 0 rgba(255, 220, 160, 0.08);
+}
+.mechili-about .ab-title {
+    font-family: var(--font-ui);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: ${u.cream};
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+}
+.mechili-about .ab-head button { padding: 6px 14px; font-size: 13px; }
+.mechili-about .ab-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 12px 4px 4px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.mechili-about .ab-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.mechili-about .ab-section h2 {
+    margin: 0;
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: ${u.bronzeLight};
+}
+.mechili-about .ab-text {
+    margin: 0;
+    max-width: 62ch;
+    font-size: 14px;
+    line-height: 1.5;
+    color: ${u.cream};
+}
+.mechili-about .ab-credits {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 4px 0 2px;
+    padding: 0;
+    list-style: none;
+    font-size: 14px;
+    font-weight: 700;
+    color: ${u.cream};
+}
+.mechili-about .ab-text a {
+    color: ${u.brassLight};
+    text-decoration: none;
+    border-bottom: 1px solid rgba(212, 184, 120, 0.4);
+}
+.mechili-about .ab-text a:hover { color: ${u.cream}; border-bottom-color: ${u.cream}; }
+/* framed (the fallback), the legal part takes the rest of the height: the page reads
+   in the window, not a slot. Inline it just flows on — one scrollbar, the window's */
+.mechili-about .ab-legal.is-framed {
+    flex: 1;
+    min-height: 260px;
+}
+.mechili-about .ab-doc[hidden] { display: none; }
+.mechili-about .ab-doc {
+    max-width: 72ch;
+    padding-top: 6px;
+    border-top: 1px solid rgba(90, 55, 20, 0.3);
+    font-size: 13px;
+    line-height: 1.5;
+    color: ${u.cream};
+    overflow-wrap: anywhere;
+}
+.mechili-about .ab-doc :is(h1, h2, h3, h4) {
+    margin: 16px 0 6px;
+    font-family: var(--font-ui);
+    line-height: 1.25;
+    color: ${u.bronzeLight};
+}
+.mechili-about .ab-doc h1 { font-size: 17px; }
+.mechili-about .ab-doc h2 { font-size: 15px; }
+.mechili-about .ab-doc :is(h3, h4) { font-size: 13.5px; }
+.mechili-about .ab-doc p { margin: 0 0 8px; }
+.mechili-about .ab-doc :is(ul, ol) { margin: 0 0 8px; padding-left: 20px; }
+.mechili-about .ab-doc a {
+    color: ${u.brassLight};
+    text-decoration: none;
+    border-bottom: 1px solid rgba(212, 184, 120, 0.4);
+}
+.mechili-about .ab-doc a:hover { color: ${u.cream}; border-bottom-color: ${u.cream}; }
+.mechili-about .ab-docs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.mechili-about .ab-doc-btn {
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 0.4px;
+    background: linear-gradient(180deg, #0c0a08 0%, ${u.slotBg} 55%, #181410 100%);
+    border: 1px solid ${u.slotBorder};
+    border-radius: 3px;
+    color: ${u.creamMuted};
+    cursor: pointer;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.55);
+    transition-property: border-color, color, transform;
+    transition-duration: 0.18s;
+    transition-timing-function: cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.mechili-about .ab-doc-btn:hover { border-color: ${u.bronzeLight}; color: ${u.cream}; transform: translateY(-1px); }
+.mechili-about .ab-doc-btn.active { border-color: ${u.bronze}; color: ${u.bronzeLight}; }
+.mechili-about .ab-frame[hidden] { display: none; }
+/* transparent: the legal pages are bare HTML (no background of their own), so they
+   read on the window's parchment. color-scheme light — a page whose scheme differs
+   from the embedder's gets an opaque canvas painted behind it */
+.mechili-about .ab-frame {
+    flex: 1;
+    width: 100%;
+    min-height: 220px;
+    border: none;
+    border-top: 1px solid rgba(90, 55, 20, 0.3);
+    background: transparent;
+    color-scheme: light;
 }
 .mechili-settings .s-reset {
     padding: 5px 12px;

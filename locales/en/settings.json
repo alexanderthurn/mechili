@@ -304,5 +304,18 @@
     "summer": "Summer",
     "autumn": "Autumn",
     "winter": "Winter"
+  },
+  "about": {
+    "tab": "About",
+    "studio": "Melodan is made by Feuerware, a small game studio from Bonn, Germany.",
+    "legal": "Legal",
+    "imprint": "Imprint",
+    "privacy": "Data privacy",
+    "thanks": "Thanks",
+    "openSource": "Melodan is {{github}} (GPL-3.0).",
+    "tools": "A large part of Melodan was developed by Claude from Anthropic. The 3D models were made with Tripo3D, the voices and sounds with ElevenLabs.",
+    "ai": "AI",
+    "openSourceTitle": "Open Source",
+    "support": "Enjoying Melodan? Buy it on {{steam}} to support its development."
   }
 }

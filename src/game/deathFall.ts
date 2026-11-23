@@ -330,6 +330,7 @@ export function settleCorpseFlat(mesh: Group): void {
  */
 export function clearCorpsePose(mesh: Group): void {
     delete mesh.userData.corpseSettled;
+    delete mesh.userData.corpseFitted;
     delete mesh.userData.corpseTipX;
     delete mesh.userData.corpseTipZ;
     delete mesh.userData.corpseYaw;

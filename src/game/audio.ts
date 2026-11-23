@@ -2007,6 +2007,19 @@ const CUES: Record<string, CueDef> = {
         maxVoices: 4,
         gain: 0.95,
     },
+    // A wall / gate segment falling: the building ruin take, but a battlefield sound —
+    // positional, FF-ducked, ~10 dB under a building, two at most. Walls are cheap and
+    // many; as a global building sting each one rang like a Command Tower going down.
+    death_wall: {
+        paths: ['audio/death_structure_1.ogg'],
+        group: 'sfx',
+        maxVoices: 2,
+        spatial: true,
+        refDistance: SPATIAL_REF,
+        maxDistance: SPATIAL_MAX,
+        rolloff: SPATIAL_ROLLOFF,
+        gain: 0.3,
+    },
     death_tent: {
         paths: ['audio/death_tent_1.ogg'],
         group: 'ui',
@@ -2054,7 +2067,8 @@ const CUES: Record<string, CueDef> = {
         ],
         group: 'ui',
         maxVoices: 2,
-        gain: 0.6,
+        // the file is very soft (−30 LUFS): ~+14 dB, near victory and defeat
+        gain: 3.0,
     },
     explosion: {
         paths: [
@@ -2330,24 +2344,26 @@ const CUES: Record<string, CueDef> = {
         rolloff: SPATIAL_ROLLOFF,
         gain: 0.55,
     },
+    // One per surviving unit, a whole tier landing within ~1 s: ~7 dB under the old
+    // 2.6 / 1.8 / 1.2, which peaked over full scale and buried the victory sting.
     hp_draw_high: {
         paths: ['audio/hp_draw_1.ogg'],
         group: 'ui',
-        // Shared cap enforced in playHpDrawHit — keep per-cue high as backstop.
-        maxVoices: 2,
-        gain: 2.6,
+        // Shared cap (2 sounding) in playHpDrawHit; 3 here leaves room for one fading out.
+        maxVoices: 3,
+        gain: 1.2,
     },
     hp_draw_low: {
         paths: ['audio/hp_draw_1.ogg'],
         group: 'ui',
-        maxVoices: 2,
-        gain: 1.2,
+        maxVoices: 3,
+        gain: 0.55,
     },
     hp_draw_medium: {
         paths: ['audio/hp_draw_1.ogg'],
         group: 'ui',
-        maxVoices: 2,
-        gain: 1.8,
+        maxVoices: 3,
+        gain: 0.85,
     },
     impact_flesh: {
         paths: [
@@ -3133,7 +3149,8 @@ const CUES: Record<string, CueDef> = {
         ],
         group: 'ui',
         maxVoices: 2,
-        gain: 0.7,
+        // the file is soft (−26 LUFS): ~+10 dB so the win lands over the HP draw before it (≈ defeat's level)
+        gain: 2.2,
     },
 };
 
@@ -3972,6 +3989,8 @@ class AudioBus {
         stoppedAt: number;
     } | null = null;
     private master!: GainNode;
+    /** the live bus's last stage: master runs through it to the speakers (and the record tap) */
+    private output: { input: AudioNode; out: AudioNode } | null = null;
     private groups!: Record<AudioGroupId, GainNode>;
     /** Hazard / beam beds — same SFX volume pref, never time-scaled or ducked. */
     private loopBus!: GainNode;
@@ -4055,7 +4074,7 @@ class AudioBus {
         if (ctx.state === 'suspended') void ctx.resume();
         if (!this.recordDest) {
             this.recordDest = ctx.createMediaStreamDestination();
-            this.master.connect(this.recordDest);
+            (this.output?.out ?? this.master).connect(this.recordDest);
         }
         this.recordTapUsers += 1;
         return this.recordDest.stream;
@@ -4065,7 +4084,7 @@ class AudioBus {
         if (this.recordTapUsers > 0) this.recordTapUsers -= 1;
         if (this.recordTapUsers > 0 || !this.recordDest) return;
         try {
-            this.master.disconnect(this.recordDest);
+            (this.output?.out ?? this.master).disconnect(this.recordDest);
         } catch {
             /* already disconnected */
         }
@@ -4903,30 +4922,47 @@ class AudioBus {
         this.playUi(result === 'draw' ? 'draw_match' : result);
     }
 
-    /** Soul hit on HP bar — short punch; at most 2 overlapping across all tiers. */
+    /**
+     * Soul hit on HP bar — short punch; at most 2 overlapping across all tiers, and
+     * no closer than {@link HP_DRAW_MIN_GAP_MS} apart: a swarm (40 dwarves landing
+     * within a second) is a drum roll, not 40 restarts. A higher tier than the last
+     * one may cut in early, so the big hits are never the ones skipped.
+     */
     playHpDrawHit(tier: 'low' | 'medium' | 'high'): void {
         const cueId =
             tier === 'high' ? 'hp_draw_high' : tier === 'medium' ? 'hp_draw_medium' : 'hp_draw_low';
-        // Identical punch samples phase-cancel / clip when many stack (esp. gain 2).
-        // Cap globally and steal the oldest so later hits stay clean.
+        const rank = tier === 'high' ? 2 : tier === 'medium' ? 1 : 0;
+        const now = this.nowMs();
+        if (now - this.lastHpDrawAt < HP_DRAW_MIN_GAP_MS && rank <= this.lastHpDrawRank) return;
+        // Identical punch samples phase-cancel / clip when many stack.
+        // Cap globally; the oldest fades out (a hard stop clicks) so later hits stay clean.
         const active = this.voices.filter((v) =>
-            v.cueId === 'hp_draw_low' ||
-            v.cueId === 'hp_draw_medium' ||
-            v.cueId === 'hp_draw_high',
+            (v.cueId === 'hp_draw_low' || v.cueId === 'hp_draw_medium' || v.cueId === 'hp_draw_high') &&
+            !this.fadingVoices.has(v),
         );
         while (active.length >= 2) {
             const oldest = active.shift();
             if (!oldest) break;
-            oldest.source.onended = null;
+            // fades out and ends by itself (its onended releases it) — no click
+            this.fadingVoices.add(oldest);
             try {
-                oldest.source.stop();
+                const t = oldest.gain.context.currentTime;
+                oldest.gain.gain.setTargetAtTime(0, t, HP_DRAW_FADE_S / 3);
+                oldest.source.stop(t + HP_DRAW_FADE_S);
             } catch {
-                /* already ended */
+                this.releaseVoice(oldest); // already ended
             }
-            this.releaseVoice(oldest);
         }
-        this.playUi(cueId);
+        if (this.play(cueId)) {
+            this.lastHpDrawAt = now;
+            this.lastHpDrawRank = rank;
+        }
     }
+    /** when the last HP-draw hit sounded (nowMs) and its tier rank — see playHpDrawHit */
+    private lastHpDrawAt = -Infinity;
+    private lastHpDrawRank = -1;
+    /** voices fading out after being stolen — still sounding, no longer counted */
+    private readonly fadingVoices = new WeakSet<Voice>();
 
     /**
      * Keep convert / ramp beam loops in sync with live actors.
@@ -5337,7 +5373,10 @@ class AudioBus {
                     );
                     break;
                 case 'death':
-                    if (e.structure) {
+                    if (e.structure && e.unitTypeId && unitTypes.byId(e.unitTypeId)?.wall) {
+                        // walls and gates: a battlefield sound where they fall, not a global sting
+                        this.play('death_wall', e.x, e.z);
+                    } else if (e.structure) {
                         const cue = structureDeathCue(e.unitTypeId);
                         if (cue) this.play(cue); // global — no spatial falloff
                     } else {
@@ -5505,7 +5544,11 @@ class AudioBus {
             ctx.destination.channelInterpretation = 'discrete';
             merger.connect(ctx.destination);
         } else {
-            this.master.connect(ctx.destination);
+            // master → soft clipper → speakers: a big fight (or a file peaking over full
+            // scale) used to sum past 1.0 and hard-clip; now it bends off gently instead
+            this.output = softClipper(ctx);
+            this.master.connect(this.output.input);
+            this.output.out.connect(ctx.destination);
             this.groups.sfx.connect(this.master);
             this.loopBus.connect(this.master);
             this.groups.music.connect(this.master);
@@ -5924,6 +5967,36 @@ function sfxPlaybackRate(scale: number): number {
 }
 
 /** Soft one-shot SFX duck above 1× so fast-forward stays readable. */
+/** HP draw: the closest two hit sounds may follow each other (a higher tier may cut in) */
+const HP_DRAW_MIN_GAP_MS = 70;
+/** HP draw: how long a stolen hit takes to fade out, seconds */
+const HP_DRAW_FADE_S = 0.03;
+
+/**
+ * The live bus's safety stage: linear up to −3 dBFS (0.7), then a tanh knee that
+ * approaches 1.0 — so loud sums bend instead of hard-clipping, and ordinary levels
+ * pass untouched (no make-up gain, unlike a DynamicsCompressorNode). Handles input up
+ * to +6 dBFS: a 0.5 pre-gain maps ±2 onto the shaper's ±1 curve domain.
+ */
+function softClipper(ctx: BaseAudioContext): { input: AudioNode; out: AudioNode } {
+    const pre = ctx.createGain();
+    pre.gain.value = 0.5;
+    const shaper = ctx.createWaveShaper();
+    const n = 4096;
+    const curve = new Float32Array(n);
+    const knee = 0.7;
+    for (let i = 0; i < n; i++) {
+        const x = ((i / (n - 1)) * 2 - 1) * 2; // the real level, −2…2
+        const a = Math.abs(x);
+        const y = a <= knee ? a : knee + (1 - knee) * Math.tanh((a - knee) / (1 - knee));
+        curve[i] = Math.sign(x) * y;
+    }
+    shaper.curve = curve;
+    shaper.oversample = '4x';
+    pre.connect(shaper);
+    return { input: pre, out: shaper };
+}
+
 function sfxTimeDuck(scale: number): number {
     if (scale <= 1) return 1;
     return 1 / Math.sqrt(scale);
