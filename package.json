@@ -14,7 +14,8 @@
     ],
     "executableName": "Melodan",
     "fullscreen": false,
-    "lan": true
+    "lan": true,
+    "crashReportUrl": "https://play.melodan.com/backend/diag.php?action=submit"
   },
   "scripts": {
     "dev": "vite --host",

@@ -9,7 +9,8 @@
  * Protocol (JSON, CORS open for submit):
  *   OPTIONS
  *       CORS preflight.
- *   POST ?action=submit   body: report JSON (diagnostics.ts; kind desync | error | manual)
+ *   POST ?action=submit   body: report JSON (diagnostics.ts: kind desync | error | manual;
+ *                         steam-electron-build runtime/crashlog.cjs: kind crash)
  *       {"ok":true,"id":"..."}
  *   GET  ?action=list&key=<ADMIN_KEY>[&limit=<n>]
  *       Reports grouped by match, newest first (no event payloads).
