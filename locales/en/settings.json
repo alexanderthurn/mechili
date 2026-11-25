@@ -232,7 +232,7 @@
     "timeOfDay": "Next time of day",
     "spawnAll": "Single-player: free-spawn every shop unit, max supply, tactics, and bag runes",
     "spawnAllPlus": "Same as Shift+U, plus horde units, pack-level scramble, and up to 3 techs per press",
-    "secretUnits": "Secret units (Teutonic tank and Rifleman) can be unlocked this match",
+    "secretUnits": "Secret units (Teutonic tank and Rifleman) can be unlocked this match, also in multiplayer",
     "hordePacks": "Single-player, deploy phase: extra horde packs (repeat to pile on)",
     "skipRound": "Single-player: skip the rest of this round",
     "killStronghold": "Single-player, battle phase: destroy the enemy Stronghold where it stands",
