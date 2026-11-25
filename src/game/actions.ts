@@ -661,11 +661,6 @@ export interface ActionContext {
     starterPicked: boolean[];
     /** per-SEAT unit types currently buyable in the shop (starter + own unlocks) */
     unlockedUnits: string[][];
-    /**
-     * per-SEAT: the single-player cheat (Shift+P) let this seat unlock the
-     * `secret` units. Absent = nobody has it — the AI and multiplayer never do.
-     */
-    secretUnits?: boolean[];
     /** each SEAT may unlock at most one new unit type per deployment round */
     unlockUsedThisRound: boolean[];
     /** player HP pools (cards set the starting value) */
@@ -1737,8 +1732,9 @@ export class ActionDispatcher {
             case 'unlockUnit': {
                 if (this.ctx.unlockUsedThisRound[seat]) return false;
                 if (this.ctx.unlockedUnits[seat]!.includes(action.typeId)) return false;
-                // a secret unit only after this seat's single-player cheat (Shift+P)
-                if (this.ctx.types.byId(action.typeId)?.secret && !this.ctx.secretUnits?.[seat]) return false;
+                // a `secret` unit is a normal unlock here: only the unlock dialog hides it until
+                // the player's Shift+P (a local, UI-only cheat — so it works in multiplayer:
+                // every peer applies this same action, nobody needs to know about the cheat)
                 if (action.team === 'player' && this.ctx.playerUnlockable && !this.ctx.playerUnlockable.includes(action.typeId)) {
                     return false;
                 }

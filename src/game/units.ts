@@ -651,7 +651,7 @@ export interface UnitType {
     /**
      * When `true`, a special unit: a normal shop unit, except that the unlock
      * dialog leaves it out, the AI never unlocks or buys it, and Shift+U skips
-     * it — until the human presses the single-player cheat Shift+P
+     * it — until the player presses the cheat Shift+P (single player and multiplayer)
      * ({@link SECRET_UNITS_CHEAT}). Then it is unlockable like any other unit
      * for the rest of the match.
      */

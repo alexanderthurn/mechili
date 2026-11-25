@@ -884,7 +884,7 @@ export class Game {
     private readonly unlockedUnits: string[][];
     /** per-SEAT: at most one shop unlock per deployment round */
     private readonly unlockUsedThisRound: boolean[];
-    /** per-SEAT: the single-player cheat ({@link SECRET_UNITS_CHEAT}, Shift+P) lets the seat unlock the `secret` units */
+    /** per-SEAT, local only: the cheat ({@link SECRET_UNITS_CHEAT}, Shift+P) shows the `secret` units in this player's unlock dialog */
     private readonly secretUnits: boolean[];
     /** the unlock dialog's pool for the human seat (see refreshShopHud), cached by its inputs */
     private unlockPool: { key: string; pool: readonly string[] } | null = null;
@@ -1132,8 +1132,8 @@ export class Game {
             this.cheatSpawnAllUnits({ scrambleLevels: e.ctrlKey, includeHorde: e.ctrlKey });
             return;
         }
-        if (e.code === SECRET_UNITS_CHEAT && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && !this.star) {
-            // Shift+P = SP: the secret units (tank, rifleman) into the shop, for the rest of the match
+        if (e.code === SECRET_UNITS_CHEAT && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            // Shift+P = SP and MP: the secret units (tank, rifleman) into the shop, for the rest of the match
             this.cheatSecretUnits();
             return;
         }
@@ -2544,7 +2544,6 @@ export class Game {
             seatReady: this.seatReady,
             starterPicked: this.starterPicked,
             unlockedUnits: this.unlockedUnits,
-            secretUnits: this.secretUnits,
             // the scenario editor's own deployment buys anything, unlimited (see ActionContext)
             editorSandbox: this.settings.scenario?.mode === 'author',
             unlockUsedThisRound: this.unlockUsedThisRound,
@@ -4591,12 +4590,13 @@ export class Game {
 
     /** SP cheat (Shift+U): +supply to every seat (same amount each press). */
     /**
-     * Single-player only ({@link SECRET_UNITS_CHEAT}, Shift+P): the `secret` units
-     * appear in the human seat's unlock dialog for the rest of the match (unlocked
-     * the normal way, one per round). Not in a replay.
+     * {@link SECRET_UNITS_CHEAT} (Shift+P), single player and multiplayer: the `secret`
+     * units appear in the human seat's unlock dialog for the rest of the match (unlocked
+     * the normal way, one per round). UI only — the sim never checks it, so nothing
+     * goes over the wire. Not in a replay or as a spectator.
      */
     private cheatSecretUnits(): void {
-        if (this.replayLog || this.secretUnits[this.humanSeat] || this.types.secretUnitIds.length === 0) return;
+        if (this.replayLog || this.spectateSession || this.secretUnits[this.humanSeat] || this.types.secretUnitIds.length === 0) return;
         this.secretUnits[this.humanSeat] = true;
         this.refreshShopHud();
         this.hud.flashCinemaHint('PANZER! The Order’s secret arsenal can now be unlocked.', 2600);
