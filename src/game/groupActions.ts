@@ -77,12 +77,7 @@ export function groupSteps(units: readonly Unit[], ctx: GroupContext): GroupStep
     add('level', level);
 
     const walls = own.filter((u) => !!u.type.wall);
-    add(
-        'walkway',
-        walls
-            .filter((w) => !w.type.wall!.autoWalk && !w.wallWalk)
-            .map((w) => ({ action: { kind: 'buildWallWalk', team: 'player', unitId: w.id } as Action, cost: w.type.wall!.walkCost ?? 20 })),
-    );
+    // no 'walkway' step any more: every wall comes with its walkway (autoWalk), a gate never has one
     add(
         'archers',
         walls

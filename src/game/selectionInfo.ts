@@ -206,15 +206,7 @@ export class SelectionInfoBuilder {
                     maxLevel: buildingMaxLevel(u, this.host.seats, this.host.settings.towers),
                 };
             })(),
-            // experiment: a wall's walkway (no tile when it comes with the wall)
-            wallWalk:
-                ownInteractive && u.type.wall && !u.type.wall.autoWalk
-                    ? {
-                          cost: u.type.wall.walkCost ?? 20,
-                          affordable: this.host.economy.balance(this.host.humanSeat) >= (u.type.wall.walkCost ?? 20),
-                          built: u.wallWalk,
-                      }
-                    : undefined,
+            // no walkway tile: every wall comes with its walkway (autoWalk), a gate never has one
             wallPosts: (() => {
                 const posts = u.type.wall?.posts;
                 if (!ownInteractive || !posts || !u.wallWalk) return undefined;

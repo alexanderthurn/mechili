@@ -1,25 +1,22 @@
 import { Box3, Vector3, type Object3D } from 'three';
-import { actorTeam, type Actor } from './sim';
+import type { Actor } from './sim';
 import type { Unit } from './units';
 
 /**
  * A gate's doors (render-only): in battle its two leaves (the model's
  * `doorLeft` / `doorRight`, hung at the towers) swing outward — toward the
- * enemy — while one of its own side's walking units is near it, stay open a
- * moment after the last has passed, and swing shut with a small rebound.
- * Closed outside battle. Tweak live:
+ * enemy — while the sim has the gate open (Actor.gateOpen: one of its side's
+ * walkers at it, a moment after the last, or someone in the doorway; then the
+ * enemy passes too), and swing shut with a small rebound. Closed outside
+ * battle. Tweak live:
  * - angleDeg: how far a leaf opens
- * - near: world units from the gate's line a unit opens it from
  * - openS / closeS: seconds to swing open / shut
- * - holdS: seconds it stays open after the last unit
  * - bounce: the rebound when the leaves meet, × angleDeg; bounceS its length
  */
 export const GATE_DOORS = {
     angleDeg: 80,
-    near: 7,
     openS: 0.6,
     closeS: 1.2,
-    holdS: 1,
     bounce: 0.05,
     bounceS: 0.3,
 };
@@ -29,8 +26,6 @@ const LEAVES = ['doorLeft', 'doorRight'] as const;
 interface GateState {
     /** 0 shut … 1 open (before easing) */
     open: number;
-    /** seconds it stays open without a unit near */
-    hold: number;
     /** seconds since the leaves met, while it rebounds */
     since: number;
 }
@@ -48,18 +43,15 @@ export class GateDoors {
             if (!u.type.wall?.gate) continue;
             let s = this.state.get(u);
             if (!s) {
-                s = { open: 0, hold: 0, since: Infinity };
+                s = { open: 0, since: Infinity };
                 this.state.set(u, s);
             }
             if (!actors || u.destroyed) {
                 s.open = 0;
-                s.hold = 0;
                 s.since = Infinity;
             } else {
-                if (this.someoneNear(u, actors)) s.hold = GATE_DOORS.holdS;
-                else s.hold = Math.max(0, s.hold - dt);
                 const was = s.open;
-                if (s.hold > 0) s.open = Math.min(1, s.open + dt / GATE_DOORS.openS);
+                if (this.isOpen(u, actors)) s.open = Math.min(1, s.open + dt / GATE_DOORS.openS);
                 else s.open = Math.max(0, s.open - dt / GATE_DOORS.closeS);
                 if (was > 0 && s.open === 0) s.since = 0;
                 else s.since += dt;
@@ -81,17 +73,9 @@ export class GateDoors {
         return 0;
     }
 
-    /** one of its side's living ground units within `near` of the gate's line, along its length */
-    private someoneNear(u: Unit, actors: readonly Actor[]): boolean {
-        const wall = u.type.wall!;
-        const cx = u.world.x;
-        const cz = u.world.z;
-        for (const a of actors) {
-            if (!a.alive || actorTeam(a) !== u.team || a.unit.type.structure || a.unit.type.flying) continue;
-            const along = u.rotated ? a.z - cz : a.x - cx;
-            const across = u.rotated ? a.x - cx : a.z - cz;
-            if (Math.abs(along) <= wall.halfLength && Math.abs(across) <= GATE_DOORS.near) return true;
-        }
+    /** the sim has the gate open (see Actor.gateOpen) */
+    private isOpen(u: Unit, actors: readonly Actor[]): boolean {
+        for (const a of actors) if (a.unit === u) return !!a.gateOpen;
         return false;
     }
 

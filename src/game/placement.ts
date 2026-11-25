@@ -3485,6 +3485,13 @@ export class PlacementController {
                 cells.every((c) => this.deployCellOk('player', c, type, this.localSeat) && this.cellFree(type, c, null)) &&
                 this.wallOverlapOk(type, cells, null);
             const center = this.map.areaCenter(anchor, fp.cols, fp.rows);
+            // a wall's facing is keyed to the board half it stands on (Unit.setRotated):
+            // the ghost must stand where the wall will, or on the far half (the
+            // second player's side) it previews the wall half a turn round
+            if (type.wall && (this.pendingUnit.world.z >= 0) !== (center.z >= 0)) {
+                this.pendingUnit.world.set(center.x, 0, center.z);
+                this.pendingUnit.setWallTurn(this.pendingRotated, this.pendingFlipped);
+            }
             this.pendingUnit.view.position.set(center.x, 0, center.z);
             this.pendingUnit.seatMembers(center.x, center.z);
             this.placeFootprintPlate(

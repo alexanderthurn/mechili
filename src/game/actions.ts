@@ -1261,6 +1261,8 @@ export class ActionDispatcher {
                 const unit = placement.unitById(action.unitId);
                 const wall = unit?.type.wall;
                 if (!unit || !wall || unit.team !== action.team || unit.seat !== seat || unit.wallWalk) return false;
+                // no longer bought: a wall comes with its walkway (autoWalk), a gate never gets one
+                if (!wall.autoWalk) return false;
                 const cost = wall.walkCost ?? 20;
                 if (!economy.spend(seat, cost)) return false;
                 entry.paid = cost;

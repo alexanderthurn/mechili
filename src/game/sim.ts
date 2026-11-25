@@ -422,6 +422,15 @@ export interface Actor {
     wallLineGoalX?: number;
     wallLineGoalZ?: number;
     /**
+     * A gate (wall.gate): open this step — one of its own side's walkers is at it
+     * (GATE_OPEN_NEAR), or was until GATE_OPEN_HOLD ago, or it was open and
+     * someone still stands in its doorway. Open, it lets everyone through, the
+     * enemy too; shut, only its own side. The doors (gateDoors.ts) swing with it.
+     */
+    gateOpen?: boolean;
+    /** a gate: sim time until which it stays open without anyone at it */
+    gateOpenUntil?: number;
+    /**
      * Posted on a wall's walkway: what the wall does for it (UnitType.wall.posts.cover).
      * Set at battle start from its host.
      */
@@ -1078,6 +1087,16 @@ const AVOID_MARGIN = 0.6; // extra clearance kept around obstacles
  * stays. Tweak live.
  */
 const AUTO_MARK_MERGE = 22;
+/** a gate opens for its own side's walkers this close to its line (world units, across it) */
+const GATE_OPEN_NEAR = 7;
+/** …and stays open this long (s) after the last of them; tweak live */
+const GATE_OPEN_HOLD = 1;
+/**
+ * Off: the auto-marks marked enemy walls the players never chose (a gap too
+ * narrow for the pack, rebuilt walls) — walls are only ever marked by hand now.
+ * true brings autoMarkWalledIn back.
+ */
+const AUTO_MARK_WALLED_IN = false;
 /** a wall's rectangle on the board */
 interface WallBox {
     /** the wall's actor (its side, its HP) */
@@ -3441,6 +3460,26 @@ export class BattleSim {
         }
     }
 
+    /**
+     * A mid-battle spawn's first facing: toward the nearest living foe on the
+     * ground or in the air, by sim positions only (deterministic on every peer);
+     * none left → toward the far side, like a fresh pack.
+     */
+    private spawnYaw(team: BattleTeam, x: number, z: number): number {
+        let best: Actor | null = null;
+        let bestD = Infinity;
+        for (const f of this.actors) {
+            if (!f.alive || actorTeam(f) === team || f.unit.type.extra) continue;
+            const d = (f.x - x) ** 2 + (f.z - z) ** 2;
+            if (d < bestD) {
+                bestD = d;
+                best = f;
+            }
+        }
+        if (best) return detAtan2(-(best.x - x), -(best.z - z));
+        return z >= 0 ? 0 : Math.PI;
+    }
+
     /** Wire a mid-battle pack into the sim as living actors (summon VFX). */
     private adoptOnKillChild(child: Unit, parent: Unit, x: number, z: number): void {
         if (child.level !== parent.level) {
@@ -3460,6 +3499,11 @@ export class BattleSim {
         for (const m of child.members) {
             const ax = x + m.home.x;
             const az = z + m.home.z;
+            // its first facing from the sim alone: spawnAtWorld turned the mesh toward
+            // the enemy as this client sees him (render positions, its own fog intel) —
+            // a yaw that differs between peers and ended up in the state hash
+            const yaw = this.spawnYaw(child.team, ax, az);
+            m.mesh.rotation.y = yaw;
             const actor: Actor = {
                 unit: child,
                 mesh: m.mesh,
@@ -3495,10 +3539,10 @@ export class BattleSim {
                 pathBestDist: Infinity,
                 mvX: 0,
                 mvZ: 0,
-                facing: m.mesh.rotation.y,
-                prevFacing: m.mesh.rotation.y,
-                turretYaw: m.mesh.rotation.y,
-                prevTurretYaw: m.mesh.rotation.y,
+                facing: yaw,
+                prevFacing: yaw,
+                turretYaw: yaw,
+                prevTurretYaw: yaw,
                 cachedEnemy: null,
                 approachOx: 0,
                 approachOz: 0,
@@ -6307,7 +6351,7 @@ export class BattleSim {
     /** the wall whose stone is at (x, z) — not the one `a` stands on, not the one it aims at */
     private wallStoneAt(x: number, z: number, a: Actor, target: Actor): Actor | null {
         for (const r of this.wallBoxes) {
-            if (r.owner === target || r.owner.unit.id === a.unit.hostUnitId) continue;
+            if (r.owner === target || r.owner.unit.id === a.unit.hostUnitId || r.owner.gateOpen) continue;
             if (insideBox(x, z, r, 0)) return r.owner;
         }
         return null;
@@ -7481,7 +7525,7 @@ export class BattleSim {
      * rule. Own walls are never marked: who walls himself in stays in.
      */
     private autoMarkWalledIn(): void {
-        if (this.wallBoxes.length === 0) return;
+        if (!AUTO_MARK_WALLED_IN || this.wallBoxes.length === 0) return;
         // one walker per pack: its first ground member on the board
         const reps = new Map<Unit, Actor>();
         for (const a of this.actors) {
@@ -7637,8 +7681,11 @@ export class BattleSim {
      * walls regardless — monsters.
      */
     private targetFor(t: Actor, from: Actor): boolean {
-        if (t.unit.type.wall && actorTeam(from) === 'horde') return true;
         const v = (t.targetBy ?? t.unit.targetBy)[actorSeat(from)];
+        // an open gate is a gap, not a wall: walked through, not attacked — unless
+        // this seat marked it (break the gate), the horde included
+        if (t.gateOpen && v !== true) return false;
+        if (t.unit.type.wall && actorTeam(from) === 'horde') return true;
         return v ?? t.unit.type.target ?? true;
     }
 
@@ -7781,9 +7828,49 @@ export class BattleSim {
         return boxes;
     }
 
-    /** a gate of `team`'s side: its walkers pass */
+    /** a gate `team`'s walkers pass: its own side's always, an open one (gateOpen) for everyone */
     private opensFor(w: Actor, team: BattleTeam): boolean {
-        return !!w.unit.type.wall?.gate && actorTeam(w) === team;
+        return !!w.unit.type.wall?.gate && (actorTeam(w) === team || !!w.gateOpen);
+    }
+
+    /**
+     * Each gate open or shut for this step (Actor.gateOpen), by sim positions only.
+     * Returns whether any gate changed — the ways round it are stale then.
+     */
+    private updateGates(): boolean {
+        let changed = false;
+        for (const g of this.actors) {
+            const wall = g.unit.type.wall;
+            if (!wall?.gate) continue;
+            let open = false;
+            if (g.alive) {
+                const { hx, hz } = this.wallHalfExtents(g, wall);
+                const team = actorTeam(g);
+                const along = g.unit.rotated ? hz : hx;
+                const depth = g.unit.rotated ? hx : hz;
+                let ownNear = false;
+                let inDoor = false;
+                for (const a of this.actors) {
+                    if (!a.alive || a.altitude > 0 || a.unit.type.structure) continue;
+                    const da = g.unit.rotated ? a.z - g.z : a.x - g.x;
+                    const dc = g.unit.rotated ? a.x - g.x : a.z - g.z;
+                    if (Math.abs(da) > along + a.radius) continue;
+                    // someone in the doorway: it can't shut on him, whoever's side he is on
+                    if (Math.abs(dc) <= depth + a.radius) inDoor = true;
+                    if (actorTeam(a) === team && Math.abs(dc) <= GATE_OPEN_NEAR) ownNear = true;
+                    if (inDoor && ownNear) break;
+                }
+                if (ownNear) g.gateOpenUntil = this.elapsed + GATE_OPEN_HOLD;
+                // the doorway only keeps an open gate open: an enemy pressed against a
+                // shut one doesn't open it
+                open = ownNear || (g.gateOpenUntil ?? -1) > this.elapsed || (inDoor && !!g.gateOpen);
+            }
+            if (open !== !!g.gateOpen) {
+                g.gateOpen = open;
+                changed = true;
+            }
+        }
+        return changed;
     }
 
     /** whether a point is in some wall's walkers' box (walkway included), grown by `pad` */
@@ -8271,6 +8358,8 @@ export class BattleSim {
         this.sideRouteBoxes.clear();
         this.sideRouteBounds.clear();
         this.gates = false;
+        // a gate opening or shutting changes who walks where: plan the ways again (below)
+        const gatesChanged = this.updateGates();
         for (const a of this.actors) {
             // board extras take no space — except a wall, which is all about space
             if (!a.alive || !a.unit.type.structure || (a.unit.type.extra && !a.unit.type.wall)) continue;
@@ -8292,6 +8381,15 @@ export class BattleSim {
         }
         // a wall or building fell (or one stands elsewhere): the way-round graphs are stale
         const sig = this.routeSig;
+        if (gatesChanged) {
+            // and who sees and shoots through it: the cached sight lines are stale
+            this.losCache.clear();
+            this.routeGraphs.clear();
+            this.routeEpoch++;
+            // shut: a way through may be blocked now; open: a shorter one may be there — all plan again
+            this.routeChanges.push({ epoch: this.routeEpoch, removed: [], all: true });
+            if (this.routeChanges.length > ROUTE_CHANGES_KEPT) this.routeChanges.shift();
+        }
         let changed = sig.length !== this.routeBoxes.length * 4;
         if (!changed) {
             let k = 0;
@@ -8423,7 +8521,7 @@ export class BattleSim {
         targetWall: Actor | null = null,
     ): boolean {
         for (const r of this.wallBoxes) {
-            if (r.owner.unit.id === skipWallId || r.owner === targetWall) continue;
+            if (r.owner.unit.id === skipWallId || r.owner === targetWall || r.owner.gateOpen) continue;
             if (!insideBox(x, z, r, 0)) continue;
             if (y < simGroundHeightAt(x, z) + r.top) return true;
         }
@@ -8438,7 +8536,8 @@ export class BattleSim {
     private wallOnSegment(p: Projectile, sx: number, sy: number, sz: number): { building: Actor; t: number } | null {
         let best: { building: Actor; t: number } | null = null;
         for (const r of this.wallBoxes) {
-            if (r.owner.unit.id === p.source.hostUnitId) continue;
+            // an open gate is a gap: shots fly through it, both ways
+            if (r.owner.unit.id === p.source.hostUnitId || r.owner.gateOpen) continue;
             const span = segmentSpan(p.x, p.z, sx, sz, r);
             if (!span) continue;
             const [t0, t1] = span;
