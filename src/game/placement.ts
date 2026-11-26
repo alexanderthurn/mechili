@@ -1061,6 +1061,13 @@ export class PlacementController {
         return this.intelSnapshot.has(unit.id);
     }
 
+    /** where this player sees a pack stand (null: not seen) — see {@link asSeen} */
+    seenPose(unit: Unit): { cell: Cell; rotated: boolean; flipped: boolean } | null {
+        if (!this.isFogged(unit)) return unit;
+        const snap = this.intelSnapshot.get(unit.id);
+        return snap ? { cell: snap.cell, rotated: snap.rotated, flipped: snap.flipped } : null;
+    }
+
     /**
      * A pack as this player sees it — for anything worked out from the board
      * during deployment (the range preview), which must not read hidden enemy

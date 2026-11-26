@@ -28,15 +28,44 @@ const SECTION_PREFIX = 'center';
 
 const _p = new Vector3();
 
+/** where a wall stands, as far as joining goes */
+export interface WallPose {
+    cell: Cell;
+    rotated: boolean;
+    flipped: boolean;
+}
+
+function livePose(u: Unit): WallPose {
+    return { cell: u.cell, rotated: u.rotated, flipped: u.flipped };
+}
+
 export class WallJoins {
     private key = '';
+    /** this update's walls and where they are seen */
+    private readonly poses = new Map<Unit, WallPose>();
 
     constructor(private readonly map: BattleMap) {}
 
-    /** call every frame with the placed units; does work only when walls changed */
-    update(units: readonly Unit[]): void {
-        const walls = units.filter((u) => u.type.wall && !u.destroyed);
-        const key = walls.map((u) => `${u.id}:${u.cell.col},${u.cell.row},${u.rotated ? 1 : 0},${u.flipped ? 1 : 0},${u.level},${u.wallWalk ? 1 : 0}`).join('|');
+    /**
+     * Call every frame with the placed units; does work only when walls changed.
+     * `seenPose` is where this player sees a wall (null: not seen) — enemy walls
+     * under deploy intel fog stand at their snapshot pose, and ones placed since
+     * must not join the walls beside them.
+     */
+    update(units: readonly Unit[], seenPose: (u: Unit) => WallPose | null = livePose): void {
+        this.poses.clear();
+        for (const u of units) {
+            if (!u.type.wall || u.destroyed) continue;
+            const pose = seenPose(u);
+            if (pose) this.poses.set(u, pose);
+        }
+        const walls = [...this.poses.keys()];
+        const key = walls
+            .map((u) => {
+                const p = this.poses.get(u)!;
+                return `${u.id}:${p.cell.col},${p.cell.row},${p.rotated ? 1 : 0},${p.flipped ? 1 : 0},${u.level},${u.wallWalk ? 1 : 0}`;
+            })
+            .join('|');
         if (key === this.key) return;
         this.key = key;
 
@@ -58,7 +87,9 @@ export class WallJoins {
                 const a = walls[i]!;
                 const b = walls[k]!;
                 // one wall only when they lie the same way and their backs are on the same side
-                if (a.rotated !== b.rotated || a.flipped !== b.flipped || a.team !== b.team) continue;
+                const pa = this.poses.get(a)!;
+                const pb = this.poses.get(b)!;
+                if (pa.rotated !== pb.rotated || pa.flipped !== pb.flipped || a.team !== b.team) continue;
                 const ea = this.endsOf(a);
                 const eb = this.endsOf(b);
                 // straight on: a's far end on b's near end, or the other way round
@@ -95,8 +126,9 @@ export class WallJoins {
     }
 
     private endsOf(u: Unit): [Cell, Cell] {
-        const fp = u.rotated ? { cols: u.type.footprint.rows, rows: u.type.footprint.cols } : u.type.footprint;
-        return wallEnds(u.cell, fp);
+        const pose = this.poses.get(u) ?? livePose(u);
+        const fp = pose.rotated ? { cols: u.type.footprint.rows, rows: u.type.footprint.cols } : u.type.footprint;
+        return wallEnds(pose.cell, fp);
     }
 
     /** show / hide each end's tower: the end parts nearest the hidden end tile go */

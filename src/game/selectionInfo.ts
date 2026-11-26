@@ -158,6 +158,8 @@ export class SelectionInfoBuilder {
         const rs = this.host.resolvedStatsView(u);
         const lv = this.host.levelInfo(u);
         const fogItems = this.host.placement.intelOf(u)?.items;
+        const fogged = this.host.placement.isIntelFogged(u);
+        const fogTechs = fogged ? this.host.intelTechOwned(u) : new Set<string>();
         const ownInteractive = u.team === 'player' && this.host.playerCanAct;
         return {
             name: unitName(u.type.id, u.type.name),
@@ -168,7 +170,9 @@ export class SelectionInfoBuilder {
                 effectiveTargets(
                     u.type,
                     u.seat,
-                    (s, typeId, techId) => this.host.techTree.has(s, typeId, techId),
+                    // a fogged enemy's own techs as of the phase start (resolvedStatsView does the same)
+                    (s, typeId, techId) =>
+                        fogged && typeId === u.type.id ? fogTechs.has(techId) : this.host.techTree.has(s, typeId, techId),
                     this.host.types,
                 ),
             ),
@@ -186,7 +190,7 @@ export class SelectionInfoBuilder {
             xp: lv.xp,
             xpNext: lv.xpNext,
             structure: !!u.type.structure,
-            onDestroyed: this.destructionNote(u),
+            onDestroyed: this.destructionNote(u, lv.level),
             unitId: u.id,
             items: this.selectionItems(u, ownInteractive && !fogItems, fogItems),
             itemSlotCount:
@@ -529,7 +533,7 @@ export class SelectionInfoBuilder {
      * it replaces the combat rows a structure has no use for. Reads live match
      * settings: the Stronghold's answer depends on `strongholdMode`.
      */
-    private destructionNote(u: Unit): string | undefined {
+    private destructionNote(u: Unit, level = u.level): string | undefined {
         if (!u.type.structure) return undefined;
         const onDestroyed = u.type.onDestroyed;
         if (onDestroyed?.collapseOwnArmy) {
@@ -539,7 +543,7 @@ export class SelectionInfoBuilder {
         // the window shrinks as the building levels, so read it off THIS one —
         // and a fully upgraded tower reaches 0, where the sim applies nothing
         const dur = this.host.settings.towers.debuffDuration;
-        const seconds = Math.max(0, dur.baseSeconds - (u.level - 1) * dur.stepSeconds);
+        const seconds = Math.max(0, dur.baseSeconds - (level - 1) * dur.stepSeconds);
         return seconds > 0 ? t('hud:secondDebuff', { n: seconds }) : t('hud:noEffect');
     }
 

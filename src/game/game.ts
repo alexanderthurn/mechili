@@ -12581,7 +12581,7 @@ export class Game {
         // End Deployment has locked this seat in.
         this.placement.repositioningEnabled = this.playerCanAct;
         this.placement.update(this.time, gameDt);
-        this.wallJoins.update(this.placement.allUnits());
+        this.wallJoins.update(this.placement.allUnits(), (u) => this.placement.seenPose(u));
         this.gateDoors.update(this.placement.allUnits(), this.phase === 'battle' ? (this.sim?.actors ?? null) : null, gameDt);
         this.updateLandings();
         this.birds.update(gameDt);
