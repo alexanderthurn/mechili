@@ -3425,10 +3425,12 @@ export class PlacementController {
         this.hoveredUnit = over;
         // a movable pack has its plate already: updateMovablePlates brightens that one
         if (this.isMovable(over)) return;
-        const fp = this.footprintOf(over.type, over.rotated);
+        // a fogged enemy's frame goes where it was last seen, like the pack itself
+        const snap = this.isFogged(over) ? this.intelSnapshot.get(over.id) : undefined;
+        const fp = this.footprintOf(over.type, snap?.rotated ?? over.rotated);
         const center = over.gridless
             ? new Vector3(over.world.x, over.world.y, over.world.z)
-            : this.map.areaCenter(over.cell, fp.cols, fp.rows);
+            : this.map.areaCenter(snap?.cell ?? over.cell, fp.cols, fp.rows);
         const material = this.hoverHintMesh.material as MeshBasicMaterial;
         this.placeFootprintPlate(this.hoverHintMesh, material, center, fp, this.standingPlateColor(over), timeSeconds, false, 0.035, over.pinnedY ?? undefined, over);
     }
