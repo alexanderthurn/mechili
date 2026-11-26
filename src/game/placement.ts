@@ -1062,6 +1062,39 @@ export class PlacementController {
     }
 
     /**
+     * A pack as this player sees it — for anything worked out from the board
+     * during deployment (the range preview), which must not read hidden enemy
+     * moves. Unfogged packs come back as they are; a fogged enemy pack not in
+     * the snapshot (bought since) is null; one that moved, turned or levelled
+     * since comes back as a stand-in at its snapshot pose (reads fall through
+     * to the live pack, writes stay on the stand-in).
+     */
+    asSeen(unit: Unit): Unit | null {
+        if (!this.isFogged(unit)) return unit;
+        const snap = this.intelSnapshot.get(unit.id);
+        if (!snap) return null;
+        if (
+            snap.cell.col === unit.cell.col &&
+            snap.cell.row === unit.cell.row &&
+            snap.rotated === unit.rotated &&
+            snap.flipped === unit.flipped &&
+            snap.level === unit.level
+        ) {
+            return unit;
+        }
+        const seen = Object.create(unit) as Unit;
+        Object.assign(seen, {
+            cell: { ...snap.cell },
+            rotated: snap.rotated,
+            flipped: snap.flipped,
+            facing: snap.facing,
+            world: snap.world.clone(),
+            level: snap.level,
+        });
+        return seen;
+    }
+
+    /**
      * Member ground positions as currently shown on screen.
      * Empty when the pack is hidden by intel fog; fogged enemies use snapshot poses.
      * Own/ally packs use the live view center so carried / formation-drag

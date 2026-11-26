@@ -221,13 +221,15 @@ export class BattleOverlays {
             }
         } else if (this.host.sim === null && !this.host.placement.repositioning) {
             const u = this.host.placement.selectedUnit;
-            if (u && !u.destroyed && u.type.projectileSpeed) unit = u;
+            // an enemy shooter is measured from where it was last seen
+            if (u && !u.destroyed && u.type.projectileSpeed) unit = this.host.placement.asSeen(u);
         }
         if (!unit) {
             this.fireCoverage.hide();
             return;
         }
         const shooter = unit;
+        let seenBuildings: Unit[] = [];
         let key: string;
         if (live && this.host.sim) {
             // battle: where it stands now (half-unit steps) and which buildings still stand
@@ -235,9 +237,14 @@ export class BattleOverlays {
             for (const s of this.host.sim.actors) if (s.alive && s.unit.type.structure) standing++;
             key = `b:${live.index}:${Math.round(live.x * 2)},${Math.round(live.z * 2)}:${standing}`;
         } else {
-            const board = this.host.placement
+            // the board as this player sees it: enemy buildings hidden by intel
+            // fog stay where they were last seen, ones bought since are left out
+            seenBuildings = this.host.placement
                 .allUnits()
-                .filter((u) => u.type.structure && !u.destroyed)
+                .filter((u) => u.type.structure && !u.destroyed && !u.productionHeld)
+                .map((u) => this.host.placement.asSeen(u))
+                .filter((u): u is Unit => u !== null);
+            const board = seenBuildings
                 .map((u) => `${u.id}:${u.cell.col},${u.cell.row},${u.rotated ? 1 : 0},${u.flipped ? 1 : 0},${u.level}`)
                 .join('|');
             key = `d:${shooter.id}:${shooter.world.x.toFixed(2)},${shooter.world.z.toFixed(2)},${shooter.level}:${board}`;
@@ -247,9 +254,7 @@ export class BattleOverlays {
             let sim = this.host.sim;
             if (!battle) {
                 // just the shooter and what stands on the board: no battle, no side effects
-                const units = this.host.placement
-                    .allUnits()
-                    .filter((u) => u === shooter || (u.type.structure && !u.destroyed && !u.productionHeld));
+                const units = [shooter, ...seenBuildings.filter((u) => u.id !== shooter.id)];
                 sim = new BattleSim(units, this.probeSimConfig());
                 sim.prepareProbe();
             }
