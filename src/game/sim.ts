@@ -603,6 +603,112 @@ export interface Actor {
     stompTz?: number;
 }
 
+/**
+ * A fresh battle actor: where it stands, its health, first cooldown, index,
+ * altitude and facing come from the caller (battle start or a mid-battle
+ * spawn); every other runtime field starts at its rest value. One literal for
+ * both, so a new Actor field can't get two different start values.
+ */
+function newActor(init: {
+    unit: Unit;
+    mesh: Group;
+    x: number;
+    z: number;
+    maxHp: number;
+    shieldMax: number;
+    cooldown: number;
+    index: number;
+    /** also the starting foot height — callers that need the real ground re-derive it (feetY) */
+    altitude: number;
+    facing: number;
+}): Actor {
+    return {
+        unit: init.unit,
+        mesh: init.mesh,
+        x: init.x,
+        z: init.z,
+        prevX: init.x,
+        prevZ: init.z,
+        rx: init.x,
+        rz: init.z,
+        hp: init.maxHp,
+        maxHp: init.maxHp,
+        shieldHp: init.shieldMax,
+        shieldMaxHp: init.shieldMax,
+        cooldown: init.cooldown,
+        alive: true,
+        radius: init.unit.type.collisionRadius,
+        index: init.index,
+        hurtTimer: 0,
+        altitude: init.altitude,
+        prevAltitude: init.altitude,
+        footY: init.altitude,
+        rocketTarget: null,
+        goldenUntil: 0,
+        stormDebuffUntil: 0,
+        spawnUntil: 0,
+        spawnDamaged: false,
+        pathDestX: null,
+        pathDestZ: null,
+        pathNextX: null,
+        pathNextZ: null,
+        pathRouteId: null,
+        pathStuck: 0,
+        pathBestDist: Infinity,
+        mvX: 0,
+        mvZ: 0,
+        facing: init.facing,
+        prevFacing: init.facing,
+        turretYaw: init.facing,
+        prevTurretYaw: init.facing,
+        cachedEnemy: null,
+        approachOx: 0,
+        approachOz: 0,
+        approachOffsetUntil: 0,
+        terrainHinderedAt: -1e9,
+        slideFlip: false,
+        progressTarget: null,
+        progressBest: Infinity,
+        progressAt: 0,
+        shunTarget: null,
+        shunUntil: 0,
+        burnUntil: 0,
+        burnDps: 0,
+        empUntil: 0,
+        empSpeedMult: 1,
+        corrodedUntil: 0,
+        appearAt: 0,
+        appeared: true,
+        allegiance: null,
+        allegianceSeat: init.unit.seat,
+        convertTarget: null,
+        convertTargets: [],
+        convertProgress: 0,
+        convertBy: null,
+        convertCooldown: 0,
+        convertRayTipX: 0,
+        convertRayTipY: 0,
+        convertRayTipZ: 0,
+        convertRayActive: false,
+        rampBeamTargets: [],
+        rampBeamLockTs: [],
+        rampBeamTarget: null,
+        beamAims: [],
+        meleePendingDamage: 0,
+        meleePendingAt: 0,
+        meleePendingFocus: 0,
+        meleeRetreatGoal: 0,
+        flyPassPhase: 0,
+        flyPassUntil: 0,
+        flyPassHx: 0,
+        flyPassHz: -1,
+        flyPassStruck: false,
+        flyPassTurnYaw: 0,
+        flightPitch: 0,
+        prevFlightPitch: 0,
+    };
+}
+
 /** Combat team for targeting / scoring — honors mid-battle converts. */
 export function actorTeam(a: Actor): BattleTeam {
     return a.allegiance ?? a.unit.team;
@@ -1646,98 +1752,26 @@ export class BattleSim {
             const shieldMax = hasShieldHp(unit, config.hasTech, config.types)
                 ? stats.hp * this.levelMult(unit)
                 : 0;
+            const maxHp = stats.hp * this.levelMult(unit);
+            // a pinned pack (Stronghold archer on his battlement) owns
+            // its own absolute Y — feetY already returns altitude
+            // verbatim whenever it is above zero
+            const altitude = unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech, this.config.types);
             for (const m of unit.members) {
                 const x = unit.world.x + m.home.x;
                 const z = unit.world.z + m.home.z;
-                this.actors.push({
+                this.actors.push(newActor({
                     unit,
                     mesh: m.mesh,
                     x,
                     z,
-                    prevX: x,
-                    prevZ: z,
-                    rx: x,
-                    rz: z,
-                    hp: stats.hp * this.levelMult(unit),
-                    maxHp: stats.hp * this.levelMult(unit),
-                    shieldHp: shieldMax,
-                    shieldMaxHp: shieldMax,
+                    maxHp,
+                    shieldMax,
                     cooldown: 0, // assigned canonically below
-                    alive: true,
-                    radius: unit.type.collisionRadius,
                     index: 0,
-                    hurtTimer: 0,
-                    // a pinned pack (Stronghold archer on his battlement) owns
-                    // its own absolute Y — feetY already returns altitude
-                    // verbatim whenever it is above zero
-                    altitude: unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech, this.config.types),
-                    prevAltitude:
-                        unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech, this.config.types),
-                    footY: unit.pinnedY ?? effectiveFlying(unit.type, unit.seat, this.config.hasTech, this.config.types),
-                    rocketTarget: null,
-                    goldenUntil: 0,
-                    stormDebuffUntil: 0,
-                    spawnUntil: 0,
-                    spawnDamaged: false,
-                    pathDestX: null,
-                    pathDestZ: null,
-                    pathNextX: null,
-                    pathNextZ: null,
-                    pathRouteId: null,
-                    pathStuck: 0,
-                    pathBestDist: Infinity,
-                    mvX: 0,
-                    mvZ: 0,
+                    altitude,
                     facing: m.mesh.rotation.y,
-                    prevFacing: m.mesh.rotation.y,
-                    turretYaw: m.mesh.rotation.y,
-                    prevTurretYaw: m.mesh.rotation.y,
-                    cachedEnemy: null,
-                    approachOx: 0,
-                    approachOz: 0,
-                    approachOffsetUntil: 0,
-                    terrainHinderedAt: -1e9,
-                    slideFlip: false,
-                    progressTarget: null,
-                    progressBest: Infinity,
-                    progressAt: 0,
-                    shunTarget: null,
-                    shunUntil: 0,
-                    burnUntil: 0,
-                    burnDps: 0,
-                    empUntil: 0,
-                    empSpeedMult: 1,
-                    corrodedUntil: 0,
-                    appearAt: 0,
-                    appeared: true,
-                    allegiance: null,
-                    allegianceSeat: unit.seat,
-                    convertTarget: null,
-                    convertTargets: [],
-                    convertProgress: 0,
-                    convertBy: null,
-                    convertCooldown: 0,
-                    convertRayTipX: 0,
-                    convertRayTipY: 0,
-                    convertRayTipZ: 0,
-                    convertRayActive: false,
-                    rampBeamTargets: [],
-                    rampBeamLockTs: [],
-                    rampBeamTarget: null,
-                    beamAims: [],
-                    meleePendingDamage: 0,
-                    meleePendingAt: 0,
-                    meleePendingFocus: 0,
-                    meleeRetreatGoal: 0,
-                    flyPassPhase: 0,
-                    flyPassUntil: 0,
-                    flyPassHx: 0,
-                    flyPassHz: -1,
-                    flyPassStruck: false,
-                    flyPassTurnYaw: 0,
-                    flightPitch: 0,
-                    prevFlightPitch: 0,
-                });
+                }));
             }
         }
 
@@ -3504,91 +3538,18 @@ export class BattleSim {
             // a yaw that differs between peers and ended up in the state hash
             const yaw = this.spawnYaw(child.team, ax, az);
             m.mesh.rotation.y = yaw;
-            const actor: Actor = {
+            const actor: Actor = newActor({
                 unit: child,
                 mesh: m.mesh,
                 x: ax,
                 z: az,
-                prevX: ax,
-                prevZ: az,
-                rx: ax,
-                rz: az,
-                hp: maxHp,
                 maxHp,
-                shieldHp: shieldMax,
-                shieldMaxHp: shieldMax,
+                shieldMax,
                 cooldown: (nth % 5) * (stats.attackInterval / 5),
-                alive: true,
-                radius: child.type.collisionRadius,
                 index: this.actors.length,
-                hurtTimer: 0,
                 altitude: alt,
-                prevAltitude: alt,
-                footY: alt,
-                rocketTarget: null,
-                goldenUntil: 0,
-                stormDebuffUntil: 0,
-                spawnUntil: 0,
-                spawnDamaged: false,
-                pathDestX: null,
-                pathDestZ: null,
-                pathNextX: null,
-                pathNextZ: null,
-                pathRouteId: null,
-                pathStuck: 0,
-                pathBestDist: Infinity,
-                mvX: 0,
-                mvZ: 0,
                 facing: yaw,
-                prevFacing: yaw,
-                turretYaw: yaw,
-                prevTurretYaw: yaw,
-                cachedEnemy: null,
-                approachOx: 0,
-                approachOz: 0,
-                approachOffsetUntil: 0,
-                terrainHinderedAt: -1e9,
-                slideFlip: false,
-                progressTarget: null,
-                progressBest: Infinity,
-                progressAt: 0,
-                shunTarget: null,
-                shunUntil: 0,
-                burnUntil: 0,
-                burnDps: 0,
-                empUntil: 0,
-                empSpeedMult: 1,
-                corrodedUntil: 0,
-                appearAt: 0,
-                appeared: true,
-                allegiance: null,
-                allegianceSeat: child.seat,
-                convertTarget: null,
-                convertTargets: [],
-                convertProgress: 0,
-                convertBy: null,
-                convertCooldown: 0,
-                convertRayTipX: 0,
-                convertRayTipY: 0,
-                convertRayTipZ: 0,
-                convertRayActive: false,
-                rampBeamTargets: [],
-                rampBeamLockTs: [],
-                rampBeamTarget: null,
-                beamAims: [],
-                meleePendingDamage: 0,
-                meleePendingAt: 0,
-                meleePendingFocus: 0,
-                meleeRetreatGoal: 0,
-                flyPassPhase: 0,
-                flyPassUntil: 0,
-                flyPassHx: 0,
-                flyPassHz: -1,
-                flyPassStruck: false,
-                flyPassTurnYaw: 0,
-                flightPitch: 0,
-                prevFlightPitch: 0,
-            };
+            });
             actor.footY = this.feetY(actor);
             this.actors.push(actor);
             m.mesh.visible = true;
