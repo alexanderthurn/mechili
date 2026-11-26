@@ -16,7 +16,6 @@ import {
     RALLY_ROUTE_ID,
 } from './tactics';
 import type { TypeRegistry } from './content/typeRegistry';
-import { DISPLAY } from './displayNames';
 import { itemDescription, itemName, t, tacticDescription, tacticName } from '../i18n';
 import {
     isElementalRuneId,
@@ -25,8 +24,6 @@ import {
 
 /** Max runes one player may insert into the shared forge */
 export const FORGE_SLOTS_PER_PLAYER = 3;
-/** @deprecated alias of {@link FORGE_SLOTS_PER_PLAYER} */
-export const FORGE_SLOT_COUNT = FORGE_SLOTS_PER_PLAYER;
 
 export interface ForgeSlot {
     itemId: string;
@@ -272,114 +269,6 @@ export function resolveForge(
         product: null,
         consumed: [],
         refunds: filled.map(({ itemId, seat }) => ({ itemId, seat })),
-    };
-}
-
-/** true when every count in `have` is ≤ the corresponding count in `need` */
-function isMultisetSubset(have: Map<string, number>, need: Map<string, number>): boolean {
-    for (const [id, n] of have) {
-        if ((need.get(id) ?? 0) < n) return false;
-    }
-    return true;
-}
-
-export interface ForgeDragPreview {
-    /** product that would bake if the oven burned now (with optional add) */
-    bakeProduct: ForgeProduct | null;
-    /** larger recipes still reachable — each with runes still needed */
-    paths: { product: ForgeProduct; missingItemIds: string[] }[];
-}
-
-/** item ids still required to complete `need` given `have` (one entry per missing copy) */
-function missingIngredients(
-    have: Map<string, number>,
-    need: Map<string, number>,
-): string[] {
-    const missing: string[] = [];
-    for (const [id, n] of need) {
-        const short = n - (have.get(id) ?? 0);
-        for (let i = 0; i < short; i++) missing.push(id);
-    }
-    return missing;
-}
-
-function sameProduct(a: ForgeProduct | null, b: ForgeProduct): boolean {
-    return !!a && a.kind === b.kind && a.id === b.id;
-}
-
-/**
- * Bake + reachable paths for the current oven, optionally as if `addingItemId`
- * were inserted (drag-over preview). Locked (non-pool) spell recipes are omitted.
- */
-export function forgeOvenPreview(
-    types: TypeRegistry,
-    ovenItemIds: readonly string[],
-    addingItemId?: string | null,
-    pool: ForgeSpellPool = 'all',
-): ForgeDragPreview {
-    let next = [...ovenItemIds];
-    if (addingItemId) {
-        next.push(addingItemId);
-    }
-    if (next.length === 0) {
-        return { bakeProduct: null, paths: [] };
-    }
-    const slots: ForgeSlot[] = next.map((itemId) => ({
-        itemId,
-        seat: 0 as SeatId,
-        round: 0,
-    }));
-    const bakeProduct = resolveForge(types, slots, pool).product;
-    const have = countMultiset(next);
-    const paths: ForgeDragPreview['paths'] = [];
-    for (const recipe of types.forgeRecipes) {
-        if (!isForgeRecipeAllowed(recipe, pool)) continue;
-        if (recipe.ingredients.length <= next.length) continue;
-        if (sameProduct(bakeProduct, recipe.product)) continue;
-        const need = countMultiset(recipe.ingredients);
-        if (!isMultisetSubset(have, need)) continue;
-        paths.push({
-            product: recipe.product,
-            missingItemIds: missingIngredients(have, need),
-        });
-    }
-    return { bakeProduct, paths };
-}
-
-/** Preview while dragging a rune onto the forge. */
-export function forgeDragPreview(
-    types: TypeRegistry,
-    ovenItemIds: readonly string[],
-    addingItemId: string,
-    pool: ForgeSpellPool = 'all',
-): ForgeDragPreview {
-    return forgeOvenPreview(types, ovenItemIds, addingItemId, pool);
-}
-
-/** HUD-ready icons for {@link forgeOvenPreview} */
-export interface ForgePreviewView {
-    bakeIcon: string | null;
-    paths: { spellIcon: string; missingIcons: string[] }[];
-}
-
-/** Icon view for drag ghost / forge-slot hover. */
-export function forgePreviewView(
-    types: TypeRegistry,
-    ovenItemIds: readonly string[],
-    addingItemId?: string | null,
-    pool: ForgeSpellPool = 'all',
-): ForgePreviewView {
-    const preview = forgeOvenPreview(types, ovenItemIds, addingItemId, pool);
-    return {
-        bakeIcon: preview.bakeProduct
-            ? (forgeProductInfo(types, preview.bakeProduct)?.icon ?? null)
-            : null,
-        paths: preview.paths.map((p) => ({
-            spellIcon: forgeProductInfo(types, p.product)?.icon ?? '?',
-            missingIcons: p.missingItemIds
-                .map((id) => types.rune(id)?.icon)
-                .filter((id): id is string => !!id),
-        })),
     };
 }
 

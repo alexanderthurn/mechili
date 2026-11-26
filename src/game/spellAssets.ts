@@ -106,11 +106,6 @@ async function loadOne(id: SpellAssetId): Promise<Group> {
     return tpl;
 }
 
-/** Shared prepared template — do not dispose; clones are made per spawn. */
-export function getSpellTemplate(id: SpellAssetId): Group | null {
-    return templates.get(id) ?? null;
-}
-
 export function ensureSpellTemplate(id: SpellAssetId): Promise<Group | null> {
     const load = loadOne(id).catch((e: unknown) => {
         console.error(`[spellAssets] '${id}' failed to load`, e);

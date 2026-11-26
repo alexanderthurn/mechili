@@ -221,15 +221,3 @@ export function iconFrame(id: string): AtlasFrame['frame'] | null {
     const f = atlas.frames[frameKey(id)] ?? atlas.frames[frameKey('ui-unknown')];
     return f?.frame ?? null;
 }
-
-export function iconAtlasUrl(): string {
-    return atlasPaintUrl;
-}
-
-export function iconAtlasSize(): { w: number; h: number } {
-    return { w: sheetW, h: sheetH };
-}
-
-export function listIconIds(): string[] {
-    return Object.keys(atlas.frames).map((k) => k.replace(/\.png$/, ''));
-}

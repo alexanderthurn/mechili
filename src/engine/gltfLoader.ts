@@ -22,10 +22,3 @@ export function getGltfLoader(): GLTFLoader {
     shared.setDRACOLoader(draco);
     return shared;
 }
-
-/** Release decoder workers (match teardown / HMR). */
-export function disposeGltfLoader(): void {
-    draco?.dispose();
-    draco = null;
-    shared = null;
-}

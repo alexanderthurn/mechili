@@ -478,6 +478,58 @@ const LANDING = {
 /** ?hordeFull buys as if this far in: past where every preset has every cap and level (Low: round 51) */
 const HORDE_FULL_TEST_ROUND = 60;
 
+/**
+ * Watch mode: replaces the entire match with someone else's (or your own)
+ * finished one, played back at a natural pace — distinct from `resume`, which
+ * continues a still-live match. Mutually exclusive with `net`/`star`/`resume`.
+ */
+export interface GameReplayOptions {
+    actions: LoggedAction[];
+    /** instantly fast-forwards (dispatch + headless battles) through everything
+     *  before that round before paced playback takes over — used for both
+     *  "jump to round N" and "skip to end" (an unreachably high target) */
+    jumpToRound?: number;
+    /** re-submits the recomputed result through the normal telemetry pipeline
+     *  at match end (see finishMatch) — a fast, no-watching way to check a
+     *  stored replay still reproduces its recorded outcome */
+    verify?: boolean;
+    /** the ORIGINAL match's mode (net/star are always null while watching, so
+     *  reportMatchTelemetry can't otherwise tell a replayed 2v2 from solo —
+     *  needed so a verify submission's fingerprint can match the original's) */
+    mode?: MatchMode;
+    /** the originally-recorded outcome, shown alongside the recomputed one on
+     *  the game-over screen in verify mode */
+    expected?: { result: MatchResult; rounds: number; playerHp: number; enemyHp: number };
+    /** whose eyes: the seat played back as "you" (its shop, its money); unset = side a/b's first */
+    seat?: number;
+    /** "Try this round": `jumpToRound`'s round is played live by `seat` (see practiceRound) */
+    practice?: boolean;
+}
+
+/**
+ * Spectate mode: a read-only live view of someone else's running match, joined
+ * via `joinAsSpectator` (see net.ts). Mutually exclusive with
+ * `net`/`star`/`resume`/`replay`. `initial` is the same shape `resume`
+ * consumes — catch-up reuses `hydrate()` verbatim, no perspective swap (there
+ * is no "my side" to swap to). Ongoing play streams in over `session` exactly
+ * like any other seat's build traffic (see `onSpectateMessage`/
+ * `starRemoteQueue`); no build UI ever shows because `this.watching` is true,
+ * the same guard replay playback already relies on throughout this class.
+ */
+export interface GameSpectateOptions {
+    session: SpectatorLink;
+    /** the watching user's own name — distinct from `playerNames`, which for
+     *  spectate mode holds the two PLAYERS' names (for the roster display, not
+     *  "who is chatting") */
+    watcherName: string;
+    initial: {
+        actions: LoggedAction[];
+        battleElapsed: number | null;
+        phaseRemaining: number;
+        speedMultiplier: number;
+    };
+}
+
 export class Game {
     private readonly map: BattleMap;
     private readonly economy: Economy;
@@ -1656,57 +1708,10 @@ export class Game {
          *  `settings.seats` must already be the LOCALIZED roster (via
          *  localizeRoster) by the time this reaches the constructor. */
         private readonly star: StarRole | null = null,
-        /** watch mode: replaces the entire match with someone else's
-         *  (or your own) finished one, played back at a natural pace —
-         *  distinct from `resume`, which continues a still-live match.
-         *  Mutually exclusive with `net`/`star`/`resume`. `jumpToRound`
-         *  instantly fast-forwards (dispatch + headless battles) through
-         *  everything before that round before paced playback takes over —
-         *  used for both "jump to round N" and "skip to end" (an
-         *  unreachably high target). `verify` re-submits the recomputed
-         *  result through the normal telemetry pipeline at match end (see
-         *  finishMatch) — a fast, no-watching way to check a stored replay
-         *  still reproduces its recorded outcome; `mode` is the ORIGINAL
-         *  match's mode (net/star are always null while watching, so
-         *  reportMatchTelemetry can't otherwise tell a replayed 2v2 from
-         *  solo — needed so a verify submission's fingerprint can actually
-         *  match the original's). `expected` is the originally-recorded
-         *  outcome, shown alongside the recomputed one on the game-over
-         *  screen in verify mode so the match/mismatch is visible without
-         *  needing to cross-reference replays.html by hand. */
-        replay: {
-            actions: LoggedAction[];
-            jumpToRound?: number;
-            verify?: boolean;
-            mode?: MatchMode;
-            expected?: { result: MatchResult; rounds: number; playerHp: number; enemyHp: number };
-            /** whose eyes: the seat played back as "you" (its shop, its money); unset = side a/b's first */
-            seat?: number;
-            /** "Try this round": `jumpToRound`'s round is played live by `seat` (see practiceRound) */
-            practice?: boolean;
-        } | null = null,
-        /** spectate mode: a read-only live view of someone else's running
-         *  match, joined via `joinAsSpectator` (see net.ts). Mutually
-         *  exclusive with `net`/`star`/`resume`/`replay`. `initial` is the
-         *  same shape `resume` consumes — catch-up reuses `hydrate()`
-         *  verbatim, no perspective swap (there is no "my side" to swap to).
-         *  Ongoing play streams in over `session` exactly like any other
-         *  seat's build traffic (see `onSpectateMessage`/`starRemoteQueue`);
-         *  no build UI ever shows because `this.watching` is true, the same
-         *  guard replay playback already relies on throughout this class. */
-        spectate: {
-            session: SpectatorLink;
-            /** the watching user's own name — distinct from `playerNames`,
-             *  which for spectate mode holds the two PLAYERS' names (for
-             *  the roster display, not "who is chatting") */
-            watcherName: string;
-            initial: {
-                actions: LoggedAction[];
-                battleElapsed: number | null;
-                phaseRemaining: number;
-                speedMultiplier: number;
-            };
-        } | null = null,
+        /** watch mode — see {@link GameReplayOptions} */
+        replay: GameReplayOptions | null = null,
+        /** spectate mode — see {@link GameSpectateOptions} */
+        spectate: GameSpectateOptions | null = null,
         /** fresh match only: hold specialist cards + HUD while the camera
          *  flies in from a wide overlook (menu logo covers the ctor hitch). */
         matchIntro = false,

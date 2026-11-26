@@ -10,7 +10,7 @@ import type { Hud, SelectionInfo } from '../ui/hud';
 import type { Tutorial2BoardState } from '../ui/tutorialGuide2';
 import type { Tutorial3BoardState, Tutorial3Highlight } from '../ui/tutorialGuide3';
 import type { Tutorial4BoardState, Tutorial4Highlight } from '../ui/tutorialGuide4';
-import type { Tutorial5BoardState, Tutorial5Highlight } from '../ui/tutorialGuide5';
+import type { Tutorial5BoardState } from '../ui/tutorialGuide5';
 import type { TutorialCameraSnap, TutorialSlotMask } from '../ui/tutorialGuide';
 import { primarySeatOf } from './seats';
 import { t } from '../i18n';
@@ -40,7 +40,6 @@ import {
     stampMatchesCorridor,
     stampMatchesPoint,
     tutorial1PlaceSlots,
-    tutorial1R2EnemyDwarfCells,
     tutorial1R2HammererSlots,
     tutorial1R3PlaceSlots,
     tutorial1R4ArcherSlots,
@@ -495,15 +494,6 @@ export class TutorialRuntime {
         for (const u of [...this.host.placement.allUnits()]) {
             if (u.type.structure || isFixture(u)) continue;
             this.host.placement.removeUnit(u);
-        }
-    }
-
-    /** Round 3 opens on a bare field — every building comes down first. */
-    private clearStructures(): void {
-        for (const u of [...this.host.placement.allUnits()]) {
-            if (u.type.structure || isFixture(u)) {
-                this.host.placement.removeUnit(u);
-            }
         }
     }
 

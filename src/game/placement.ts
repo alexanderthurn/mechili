@@ -3205,11 +3205,6 @@ export class PlacementController {
         }
     }
 
-    private freeFor(cell: Cell, unit: Unit): boolean {
-        const holder = this.occupied.get(cellKey(cell));
-        return holder === undefined || holder === unit;
-    }
-
     /**
      * Whether `type` may stand on `cell`, given what already stands there
      * (`self` and any of `group` moving along don't count):

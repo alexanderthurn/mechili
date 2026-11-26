@@ -17,7 +17,7 @@ import {
 import { hypot } from './detMath';
 import { TerrainGrid } from './terrainGrid';
 import { DEFAULT_TERRAIN_SHAPE, type TerrainShape } from './terrainShapes';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, HEX_MAP_FRAGMENT_GLSL, HEX_TILE_FNS, HEX_TILE_UNIFORM_DECL, hexNormalFragmentMapsGlsl, LAWN_SNOW_COLOR_GLSL, SLOPE_ROCK_NORMAL, SLOPE_ROCK_NORMAL_APPLY_GLSL, texRGB, GRASS_VARIANTS, GRASS_VARIANTS_MAP_FRAGMENT_GLSL, grassVariantsGlsl, SLOPE_GROUND_FNS, groundZonesGlsl, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl, WINTER_BARE_GROUND_GLSL } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, WEAR_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, HEX_MAP_FRAGMENT_GLSL, HEX_TILE_FNS, HEX_TILE_UNIFORM_DECL, hexNormalFragmentMapsGlsl, LAWN_SNOW_COLOR_GLSL, SLOPE_ROCK_NORMAL, SLOPE_ROCK_NORMAL_APPLY_GLSL, texRGB, GRASS_VARIANTS, GRASS_VARIANTS_MAP_FRAGMENT_GLSL, grassVariantsGlsl, SLOPE_GROUND_FNS, groundZonesGlsl, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, SOFT_BLOB_MASK_GLSL, textureBombGlsl, WINTER_BARE_GROUND_GLSL } from './groundQuality';
 import {
     grassAlbedoUrl,
     grassNormalUrl,
@@ -29,11 +29,6 @@ import {
     loadWorldTexture,
 } from './worldTextures';
 
-/**
- * Default world units per grass tile (medium/low). High/ultra use a tighter
- * tile from {@link groundMaterialProfile} so HQ 2K maps get more texels/wu.
- */
-export const DETAIL_TILE = 20;
 export { grassAlbedoUrl, grassNormalUrl, sandAlbedoUrl };
 
 /**
@@ -548,7 +543,6 @@ export class BattleMap {
     private sandCtx: CanvasRenderingContext2D | null = null;
     private sandW = 0;
     private sandH = 0;
-    private sandSeed = 0;
     private sandDirty = false;
     private sandFlushAt = 0;
     /**
@@ -1113,7 +1107,6 @@ export class BattleMap {
         const h = Math.round((w * this.height) / this.width);
         this.sandW = w;
         this.sandH = h;
-        this.sandSeed = seed;
 
         // static base mud (under snow)
         const baseCanvas = document.createElement('canvas');
@@ -2168,29 +2161,6 @@ export class BattleMap {
             if (variants) extraUniforms += 'uniform sampler2D uGrassLush;\nuniform sampler2D uGrassDry;\nuniform sampler2D uGrassSparse;\n';
             // Footstep strength for oil/acid disturbance (set when wear mask is present).
             inject += '\tfloat footWear = 0.0;\n';
-            // Shared: soft round patches via jittered-grid texture bombing (no square tiles).
-            const softBlobFn =
-                'float softBlobMask( vec2 uv, float cellScale, float density, float radius ) {\n' +
-                '\tvec2 cell = floor( uv * cellScale );\n' +
-                '\tfloat acc = 0.0;\n' +
-                '\tfor ( int j = -1; j <= 1; j ++ ) {\n' +
-                '\t\tfor ( int i = -1; i <= 1; i ++ ) {\n' +
-                '\t\t\tvec2 c = cell + vec2( float( i ), float( j ) );\n' +
-                '\t\t\tfloat h = fract( sin( dot( c, vec2( 127.1, 311.7 ) ) ) * 43758.5453 );\n' +
-                '\t\t\tif ( h <= density ) {\n' +
-                '\t\t\t\tvec2 jitter = vec2(\n' +
-                '\t\t\t\t\tfract( sin( dot( c, vec2( 269.5, 183.3 ) ) ) * 43758.5453 ),\n' +
-                '\t\t\t\t\tfract( sin( dot( c + 19.2, vec2( 113.5, 271.9 ) ) ) * 43758.5453 )\n' +
-                '\t\t\t\t);\n' +
-                '\t\t\t\tvec2 center = ( c + 0.5 + ( jitter - 0.5 ) * 0.9 ) / cellScale;\n' +
-                '\t\t\t\tfloat d = length( uv - center ) * cellScale;\n' +
-                '\t\t\t\tfloat r = radius * ( 0.5 + 0.5 * fract( h * 7.13 ) );\n' +
-                '\t\t\t\tacc = max( acc, 1.0 - smoothstep( r * 0.25, r, d ) );\n' +
-                '\t\t\t}\n' +
-                '\t\t}\n' +
-                '\t}\n' +
-                '\treturn clamp( acc, 0.0, 1.0 );\n' +
-                '}\n';
             // Closer camera → finer grass tile (blades stop looking human-sized).
             if (useCloseTile) {
                 inject += closeTileInjectGlsl(profile, hex, variants ? 'lawnSample( ' : 'hexTileRGB( map, ');
@@ -2396,7 +2366,7 @@ export class BattleMap {
             let frag =
                 'uniform sampler2D uMacro;\nuniform vec3 uMacroBase;\nvarying vec2 vMacroUv;\n' +
                 extraUniforms +
-                (photo ? softBlobFn : '') +
+                (photo ? SOFT_BLOB_MASK_GLSL : '') +
                 shader.fragmentShader.replace(
                     '#include <map_fragment>',
                     `${variants ? GRASS_VARIANTS_MAP_FRAGMENT_GLSL : hex ? HEX_MAP_FRAGMENT_GLSL : '#include <map_fragment>'}\n${inject}`,
@@ -2824,7 +2794,6 @@ ${richHazards ? HAZARD_ROUGHNESS_GLSL : ''}`,
         const rimPx = this.size.rimCells * cellPx;
         const zonePx = (this.size.zoneRows + (this.neutralUnlocked ? this.size.neutralRows / 2 : 0)) * cellPx;
         const flankPx = this.size.flankCols * cellPx;
-        const playH = h - 2 * rimPx;
         // texture top = far (-z) half; whose that is depends on ownAtFar
         const nearTint = this.ownAtFar ? teamColors.enemy.tint : teamColors.player.tint;
         const farTint = this.ownAtFar ? teamColors.player.tint : teamColors.enemy.tint;

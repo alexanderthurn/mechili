@@ -97,21 +97,6 @@ export function effectiveFlying(
 }
 
 /**
- * True if this type owns the tech via {@link UnitType.innateTechs} or the
- * seat's research tree. Prefer this (or a hasTech callback that includes
- * innate) over raw {@link TechTree.has} for combat effects.
- */
-export function typeOwnsTech(
-    type: Pick<UnitType, 'id' | 'innateTechs'>,
-    seat: SeatId,
-    techId: string,
-    hasTech: (seat: SeatId, typeId: string, techId: string) => boolean,
-): boolean {
-    if (type.innateTechs?.includes(techId)) return true;
-    return hasTech(seat, type.id, techId);
-}
-
-/**
  * Which techs each SEAT owns, per unit type — per-seat, never shared, same
  * as items/economy/buildings: a bought tech applies only to the buyer's own
  * packs of that type (current and future), not a teammate's. This also

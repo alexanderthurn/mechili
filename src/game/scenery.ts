@@ -28,7 +28,6 @@ import {
     Quaternion,
     RGFormat,
     RepeatWrapping,
-    ShaderMaterial,
     SphereGeometry,
     Sprite,
     SpriteMaterial,
@@ -61,7 +60,7 @@ import {
     worldHeightAt,
     type BattleMap,
 } from './map';
-import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, HEX_MAP_FRAGMENT_GLSL, HEX_TILE_FNS, HEX_TILE_UNIFORM_DECL, hexNormalFragmentMapsGlsl, texRGB, GRASS_VARIANTS, grassVariantsGlsl, grassVariantsMapFragment, grassVariantsMeadowEdge, LAWN_SNOW_COLOR_GLSL, OUTER_LAWN_EDGE, OUTER_LAWN_FADE, OUTER_LAWN_TINT_GLSL, SLOPE_GROUND_FNS, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, textureBombGlsl, WINTER_BARE_GROUND_GLSL } from './groundQuality';
+import { groundDetailCacheKey, groundMaterialProfile, PHOTO_BLEND, bindCloseTileUniforms, closeTileInjectGlsl, closeTileSampleGlsl, closeTileUniformDecls, closeTileVertexShader, closeTileWeightFallbackGlsl, HEX_MAP_FRAGMENT_GLSL, HEX_TILE_FNS, HEX_TILE_UNIFORM_DECL, hexNormalFragmentMapsGlsl, texRGB, GRASS_VARIANTS, grassVariantsGlsl, grassVariantsMapFragment, grassVariantsMeadowEdge, LAWN_SNOW_COLOR_GLSL, OUTER_LAWN_EDGE, OUTER_LAWN_FADE, OUTER_LAWN_TINT_GLSL, SLOPE_GROUND_FNS, slopeGroundGlsl, SNOW_SLOPE_HOLD_GLSL, SOFT_BLOB_MASK_GLSL, textureBombGlsl, WINTER_BARE_GROUND_GLSL } from './groundQuality';
 import {
     barkUrl,
     foliageUrl,
@@ -1439,18 +1438,6 @@ export class Scenery {
         const slope = 1 - ny;
         const slopeRock = smooth01((slope - 0.32) / 0.26) * smooth01((h - 3) / 6);
         return Math.max(heightRock, slopeRock) * (1 - snowF) * (1 - this.alpineMeadowAt(x, z, h));
-    }
-
-    /** 0..1 how well this spot holds snow — slope sheds it, altitude adds it back on peaks. */
-    private snowRetentionAt(x: number, z: number, h = this.terrainHeight(x, z)): number {
-        const eps = 2;
-        const dhdx = (this.terrainHeight(x + eps, z) - this.terrainHeight(x - eps, z)) / (2 * eps);
-        const dhdz = (this.terrainHeight(x, z + eps) - this.terrainHeight(x, z - eps)) / (2 * eps);
-        const ny = 1 / Math.hypot(dhdx, 1, dhdz);
-        const slope = 1 - ny;
-        const slopeHold = 1 - smooth01((slope - 0.24) / 0.5) * 0.72;
-        const peakBoost = smooth01((h - 120) / 100);
-        return Math.min(1, slopeHold + peakBoost * 0.75);
     }
 
     /**
@@ -3512,28 +3499,6 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}
                 shader.uniforms.uGrassDry = { value: grassVariants.dry };
                 shader.uniforms.uGrassSparse = { value: grassVariants.sparse };
             }
-            const softBlobFn =
-                'float softBlobMask( vec2 uv, float cellScale, float density, float radius ) {\n' +
-                '\tvec2 cell = floor( uv * cellScale );\n' +
-                '\tfloat acc = 0.0;\n' +
-                '\tfor ( int j = -1; j <= 1; j ++ ) {\n' +
-                '\t\tfor ( int i = -1; i <= 1; i ++ ) {\n' +
-                '\t\t\tvec2 c = cell + vec2( float( i ), float( j ) );\n' +
-                '\t\t\tfloat h = fract( sin( dot( c, vec2( 127.1, 311.7 ) ) ) * 43758.5453 );\n' +
-                '\t\t\tif ( h <= density ) {\n' +
-                '\t\t\t\tvec2 jitter = vec2(\n' +
-                '\t\t\t\t\tfract( sin( dot( c, vec2( 269.5, 183.3 ) ) ) * 43758.5453 ),\n' +
-                '\t\t\t\t\tfract( sin( dot( c + 19.2, vec2( 113.5, 271.9 ) ) ) * 43758.5453 )\n' +
-                '\t\t\t\t);\n' +
-                '\t\t\t\tvec2 center = ( c + 0.5 + ( jitter - 0.5 ) * 0.9 ) / cellScale;\n' +
-                '\t\t\t\tfloat d = length( uv - center ) * cellScale;\n' +
-                '\t\t\t\tfloat r = radius * ( 0.5 + 0.5 * fract( h * 7.13 ) );\n' +
-                '\t\t\t\tacc = max( acc, 1.0 - smoothstep( r * 0.25, r, d ) );\n' +
-                '\t\t\t}\n' +
-                '\t\t}\n' +
-                '\t}\n' +
-                '\treturn clamp( acc, 0.0, 1.0 );\n' +
-                '}\n';
             shader.vertexShader =
                 'attribute float aBeach;\nattribute float aShore;\nattribute float aScree;\nattribute float aMoss;\nattribute float aGrass;\nattribute float aRock;\nattribute float aSnow;\nvarying float vBeachV;\nvarying float vShore;\nvarying float vScree;\nvarying float vMoss;\nvarying float vGrass;\nvarying float vRock;\nvarying float vSnow;\nvarying float vTerrainH;\nvarying vec2 vWorldXZ;\nvarying float vSlope;\nvarying vec3 vWorldN;\n' +
                 shader.vertexShader.replace(
@@ -3760,7 +3725,7 @@ ${OUTER_MOUNTAIN_LIGHTING_GLSL}`;
                 (rock ? ROCK_TRIPLANAR_FNS : '') +
                 SLOPE_GROUND_FNS +
                 'uniform float uSnowCover;\nuniform float uAlpineCap;\nuniform float uDryGrass;\n' +
-                (needBlob ? softBlobFn : '') +
+                (needBlob ? SOFT_BLOB_MASK_GLSL : '') +
                 shader.fragmentShader.replace(
                     '#include <map_fragment>',
                     // gravel/sand weight: the lake part fades up the bank by the

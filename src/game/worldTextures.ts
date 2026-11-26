@@ -216,27 +216,6 @@ export async function loadWorldTexture(texUrl: string): Promise<Texture | null> 
     return base.clone();
 }
 
-async function loadPhotoSet(
-    specs: readonly { albedo: string; normal: string }[],
-): Promise<PhotoTextureSet | null> {
-    const loaded = await Promise.all(
-        specs.map(async (spec) => ({
-            albedo: await loadWorldTexture(spec.albedo),
-            normal: await loadWorldTexture(spec.normal),
-        })),
-    );
-    if (!loaded[0]?.albedo) return null;
-    const variants = loaded
-        .slice(1)
-        .map((l) => l.albedo)
-        .filter((t): t is Texture => t !== null);
-    return {
-        albedo: loaded[0].albedo,
-        normal: loaded[0].normal,
-        variants,
-    };
-}
-
 /**
  * Grass base is the authored HQ lawn. Field grass photos are soft, sparse
  * accents to break tiling — not a full replacement (they're too close-up).

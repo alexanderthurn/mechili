@@ -11,8 +11,7 @@ import type { ScenarioDef, ScenarioRules } from '../game/scenario/scenarioDef';
 import type { StrongholdMode } from '../game/settings';
 import type { Season, TimeOfDay, WeatherKind } from '../game/weather';
 import { t } from '../i18n';
-
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+import { escapeHtml as esc } from './escapeHtml';
 
 const SEASONS: Season[] = ['spring', 'summer', 'autumn', 'winter'];
 const WEATHERS: WeatherKind[] = ['clear', 'rain', 'snow'];

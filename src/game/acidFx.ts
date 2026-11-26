@@ -121,11 +121,6 @@ function acidRim(field: HazardField, x: number, z: number): { rim: boolean; nx: 
     return { rim: true, nx: nx / len, nz: nz / len };
 }
 
-/** True when acid smell billboards are drawn (same tiers as flame tongues). */
-export function acidUsesFumes(q: FireVfxQuality): boolean {
-    return q === 'medium' || q === 'high';
-}
-
 /**
  * Rising smell / fume billboards over acid cells — analog of flame tongues.
  * Texture atlas of flat smell sprites; loops fade out as they drift up.

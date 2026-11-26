@@ -306,11 +306,6 @@ export function snapVegetationSeason(season: Season): void {
     commitBillboardSeason(season);
 }
 
-/** @deprecated use {@link setVegetationSeason} */
-export function setVegetationSeasonTint(season: Season): void {
-    setVegetationSeason(season);
-}
-
 /**
  * Ease leaf tint + billboard crossfade toward the pending season.
  * Uses the same tau as atmosphere so sky and foliage land together.
@@ -327,14 +322,6 @@ export function updateVegetationSeason(dtSeconds: number): void {
     if (seasonFadeUniform.value >= 1 - 1e-4) {
         commitBillboardSeason(billboardToSeason);
     }
-}
-
-/**
- * Crossfade far-tree billboard albedo (spring/autumn art; winter = summer map + snow).
- * Mid-fade retargets from the dominant side so rapid N-taps stay coherent.
- */
-export function setBillboardSeason(season: Season): void {
-    beginBillboardSeasonFade(season);
 }
 
 function beginBillboardSeasonFade(season: Season): void {
@@ -675,10 +662,6 @@ export async function loadSceneryBillboards(): Promise<void> {
         );
     })();
     return billboardPromise;
-}
-
-export function getVegetationAsset(kind: VegetationKind): VegetationAsset | null {
-    return cache.get(kind) ?? null;
 }
 
 /** Build an InstancedMesh for a vegetation kind (empty until matrices filled). */

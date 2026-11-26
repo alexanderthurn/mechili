@@ -674,7 +674,6 @@ export class Weather {
     /** index into {@link ATMOSPHERE_SCENES}; -1 until first N / explicit apply */
     private sceneIndex = 0; // Spring morning
     private target: ComposedTarget;
-    private readonly rng: () => number;
     /** renderer's tone-mapping exposure before the weather system starts driving it */
     private readonly baseExposure: number;
 
@@ -703,7 +702,6 @@ export class Weather {
         private readonly h: WeatherHandles,
         seed: number,
     ) {
-        this.rng = mulberry32(seed);
         this.target = composeTarget(this.atmosphere);
         this.state.set(this.target);
         this.baseExposure = h.renderer.toneMappingExposure;

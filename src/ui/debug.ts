@@ -105,6 +105,10 @@ export function formatCpuLines(timings: CpuTimings, indent = ''): string[] {
 export class DebugOverlay {
     readonly el: HTMLDivElement;
     private accumulator = 0;
+    /** Frame times (ms) of the last second, with their timestamps — the fps
+     *  readout is an average over this window plus its slowest frame, since
+     *  `ticker.FPS` is a single frame and flips 60↔30 on every vsync miss. */
+    private readonly frameWin: { t: number; ms: number }[] = [];
     private enabled = false;
     /** click both copies the report AND toggles this. Starts collapsed: the full
      *  readout covers a chunk of the board, and the one-liner already carries fps. */
@@ -198,12 +202,24 @@ export class DebugOverlay {
         if (stats.cpu) blendTimings(this.cpuAvg, stats.cpu);
         if (stats.simCpu) blendTimings(this.simCpuAvg, stats.simCpu);
 
+        const now = performance.now();
+        const frameMs = app.ticker.elapsedMS;
+        if (frameMs > 0) this.frameWin.push({ t: now, ms: frameMs });
+        while (now - (this.frameWin[0]?.t ?? now) > 1000) this.frameWin.shift();
+
         this.accumulator += dtSeconds;
         if (this.accumulator < 0.25) return;
         this.accumulator = 0;
 
-        const fps = app.ticker.FPS;
-        const ms = fps > 0 ? 1000 / fps : 0;
+        let sumMs = 0;
+        let worstMs = 0;
+        for (const f of this.frameWin) {
+            sumMs += f.ms;
+            if (f.ms > worstMs) worstMs = f.ms;
+        }
+        const ms = this.frameWin.length > 0 ? sumMs / this.frameWin.length : 0;
+        const fps = ms > 0 ? 1000 / ms : 0;
+        const worstFps = worstMs > 0 ? 1000 / worstMs : 0;
         const info = renderer.info;
         const sceneStats = countSceneObjects(scene);
         const tris =
@@ -226,7 +242,7 @@ export class DebugOverlay {
                 : '';
 
         const hud =
-            `fps ${fps.toFixed(0)}  ${ms.toFixed(1)}ms  dpr ${dpr}\n` +
+            `fps ${fps.toFixed(0)} (worst ${worstFps.toFixed(0)})  ${ms.toFixed(1)}ms  dpr ${dpr}\n` +
             `units ${stats.units}  mechs ${stats.mechs}` +
             (stats.mobile !== undefined
                 ? `  mobile ${stats.mobile}` +
@@ -251,7 +267,7 @@ export class DebugOverlay {
             cpuBlock +
             `\n(click to copy)`;
         this.lastHud = hud;
-        this.lastSummary = `fps ${fps.toFixed(0)}`;
+        this.lastSummary = `fps ${fps.toFixed(0)} (worst ${worstFps.toFixed(0)})`;
         this.renderText();
 
         const lines = [
@@ -259,7 +275,7 @@ export class DebugOverlay {
             `time  ${new Date().toISOString()}`,
             `ua    ${navigator.userAgent}`,
             `phase ${stats.phase ?? '?'}  round ${stats.round ?? '?'}`,
-            `fps   ${fps.toFixed(1)}  frame ${ms.toFixed(2)}ms  dpr ${dpr}`,
+            `fps   ${fps.toFixed(1)} (worst ${worstFps.toFixed(1)}, 1s window)  frame ${ms.toFixed(2)}ms  dpr ${dpr}`,
             `canvas css ${canvas.clientWidth}x${canvas.clientHeight}  buffer ${canvas.width}x${canvas.height}`,
             `units ${stats.units}  mechs ${stats.mechs}` +
             (stats.mobile !== undefined ? `  mobile ${stats.mobile}` : '') +

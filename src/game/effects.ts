@@ -328,10 +328,21 @@ function alignShaftToPlusZ(geo: BufferGeometry): void {
 }
 
 /**
- * Bake bolt.glb into unit-length +Z-forward geometry (matches projectile flight
- * orientation). Shaft axis is detected via PCA — Tripo often exports it askew.
+ * Shared bake for the effect GLBs (bolt, brick, rock): merges every mesh in
+ * world space, clones the first standard material (adjusted by `tune`),
+ * centres the result on the origin and scales its longest axis to
+ * `targetLength`. `beforeCenter` runs on the merged geometry first.
+ * Returns geometry with a fresh bounding box and normals; material is null
+ * when the file has no MeshStandardMaterial (callers supply a fallback).
  */
-function prepareBoltFromScene(scene: Group): BoltAsset | null {
+function bakeEffectScene(
+    scene: Group,
+    opts: {
+        targetLength: number;
+        tune: (material: MeshStandardMaterial) => void;
+        beforeCenter?: (geo: BufferGeometry) => void;
+    },
+): { geometry: BufferGeometry; material: MeshStandardMaterial | null } | null {
     const budget = modelTextureBudget();
     if (budget) applyTextureBudget(scene, budget);
 
@@ -346,9 +357,7 @@ function prepareBoltFromScene(scene: Group): BoltAsset | null {
         const mat = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as Material;
         if (mat instanceof MeshStandardMaterial && !material) {
             material = mat.clone();
-            if (typeof material.metalness === 'number') material.metalness = Math.min(material.metalness, 0.55);
-            material.envMapIntensity = 1.05;
-            material.flatShading = false;
+            opts.tune(material);
         }
         const geo = dequantizeGeometry(mesh.geometry);
         scratch.copy(mesh.matrixWorld);
@@ -360,7 +369,7 @@ function prepareBoltFromScene(scene: Group): BoltAsset | null {
     const merged = geos.length === 1 ? geos[0]! : mergeGeometries(geos)!;
     for (let i = 1; i < geos.length; i++) geos[i]!.dispose();
 
-    alignShaftToPlusZ(merged);
+    opts.beforeCenter?.(merged);
 
     merged.computeBoundingBox();
     const box = merged.boundingBox!;
@@ -369,10 +378,9 @@ function prepareBoltFromScene(scene: Group): BoltAsset | null {
     const center = new Vector3();
     box.getCenter(center);
     merged.translate(-center.x, -center.y, -center.z);
-    // Prefer Z length after alignment; fall back to longest axis.
-    const longest = Math.max(size.z, size.x, size.y, 1e-3);
-    merged.scale(1 / longest, 1 / longest, 1 / longest);
-    // Re-center after scale (floating error) and ensure tip stays on +Z.
+    const s = opts.targetLength / Math.max(size.x, size.y, size.z, 1e-3);
+    merged.scale(s, s, s);
+    // re-centre after scale (floating error)
     merged.computeBoundingBox();
     const box2 = merged.boundingBox!;
     merged.translate(
@@ -382,17 +390,43 @@ function prepareBoltFromScene(scene: Group): BoltAsset | null {
     );
     merged.computeBoundingBox();
     merged.computeVertexNormals();
-    const tipZ = Math.max(merged.boundingBox!.max.z, 0.35);
+    return { geometry: merged, material };
+}
 
-    if (!material) {
-        material = new MeshStandardMaterial({
+/** Brick and rock chips: duller metal, pulled forward so they don't z-fight the ground. */
+function tuneChipMaterial(m: MeshStandardMaterial): void {
+    if (typeof m.metalness === 'number') m.metalness = Math.min(m.metalness, 0.35);
+    m.envMapIntensity = 1.0;
+    m.flatShading = false;
+    m.polygonOffset = true;
+    m.polygonOffsetFactor = -2;
+    m.polygonOffsetUnits = -2;
+}
+
+/**
+ * Bake bolt.glb into unit-length +Z-forward geometry (matches projectile flight
+ * orientation). Shaft axis is detected via PCA — Tripo often exports it askew.
+ */
+function prepareBoltFromScene(scene: Group): BoltAsset | null {
+    const baked = bakeEffectScene(scene, {
+        targetLength: 1,
+        beforeCenter: alignShaftToPlusZ,
+        tune: (m) => {
+            if (typeof m.metalness === 'number') m.metalness = Math.min(m.metalness, 0.55);
+            m.envMapIntensity = 1.05;
+            m.flatShading = false;
+        },
+    });
+    if (!baked) return null;
+    const tipZ = Math.max(baked.geometry.boundingBox!.max.z, 0.35);
+    const material =
+        baked.material ??
+        new MeshStandardMaterial({
             color: 0x8a6a3c,
             roughness: 0.75,
             metalness: 0.15,
         });
-    }
-
-    return { geometry: merged, material, tipZ };
+    return { geometry: baked.geometry, material, tipZ };
 }
 
 /** Load shared bolt mesh for archer / ballista InstancedMesh pools. Safe to call repeatedly. */
@@ -417,10 +451,6 @@ export async function preloadProjectileBolt(): Promise<void> {
         })();
     }
     await boltLoad;
-}
-
-export function getProjectileBoltAsset(): BoltAsset | null {
-    return boltAsset;
 }
 
 /** World-space tip offset along flight dir for a bolt instance (matches 3D mesh tip). */
@@ -448,58 +478,11 @@ let brickHalfExtentY = 0.24;
 
 /** Bake brick.glb into a centered unit-size chip with its own albedo. */
 function prepareBrickFromScene(scene: Group): BrickAsset | null {
-    const budget = modelTextureBudget();
-    if (budget) applyTextureBudget(scene, budget);
-
-    scene.updateMatrixWorld(true);
-    const geos: BufferGeometry[] = [];
-    let material: MeshStandardMaterial | null = null;
-    const scratch = new Matrix4();
-
-    scene.traverse((o) => {
-        const mesh = o as Mesh;
-        if (!mesh.isMesh || !mesh.geometry) return;
-        const mat = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as Material;
-        if (mat instanceof MeshStandardMaterial && !material) {
-            material = mat.clone();
-            if (typeof material.metalness === 'number') material.metalness = Math.min(material.metalness, 0.35);
-            material.envMapIntensity = 1.0;
-            material.flatShading = false;
-            material.polygonOffset = true;
-            material.polygonOffsetFactor = -2;
-            material.polygonOffsetUnits = -2;
-        }
-        const geo = dequantizeGeometry(mesh.geometry);
-        scratch.copy(mesh.matrixWorld);
-        geo.applyMatrix4(scratch);
-        geos.push(geo);
-    });
-
-    if (geos.length === 0) return null;
-    const merged = geos.length === 1 ? geos[0]! : mergeGeometries(geos)!;
-    for (let i = 1; i < geos.length; i++) geos[i]!.dispose();
-
-    merged.computeBoundingBox();
-    const box = merged.boundingBox!;
-    const size = new Vector3();
-    box.getSize(size);
-    const center = new Vector3();
-    box.getCenter(center);
-    merged.translate(-center.x, -center.y, -center.z);
-    const longest = Math.max(size.x, size.y, size.z, 1e-3);
-    merged.scale(1 / longest, 1 / longest, 1 / longest);
-    merged.computeBoundingBox();
-    const box2 = merged.boundingBox!;
-    merged.translate(
-        -(box2.min.x + box2.max.x) * 0.5,
-        -(box2.min.y + box2.max.y) * 0.5,
-        -(box2.min.z + box2.max.z) * 0.5,
-    );
-    merged.computeBoundingBox();
-    merged.computeVertexNormals();
-
-    if (!material) {
-        material = new MeshStandardMaterial({
+    const baked = bakeEffectScene(scene, { targetLength: 1, tune: tuneChipMaterial });
+    if (!baked) return null;
+    const material =
+        baked.material ??
+        new MeshStandardMaterial({
             color: 0xa09c92,
             roughness: 0.9,
             metalness: 0.05,
@@ -507,10 +490,8 @@ function prepareBrickFromScene(scene: Group): BrickAsset | null {
             polygonOffsetFactor: -2,
             polygonOffsetUnits: -2,
         });
-    }
-
-    const height = Math.max(merged.boundingBox!.max.y - merged.boundingBox!.min.y, 0.05);
-    return { geometry: merged, material, height };
+    const box = baked.geometry.boundingBox!;
+    return { geometry: baked.geometry, material, height: Math.max(box.max.y - box.min.y, 0.05) };
 }
 
 /** Load shared masonry chip mesh. Safe to call repeatedly. */
@@ -538,10 +519,6 @@ export async function preloadDebrisBrick(): Promise<void> {
     await brickLoad;
 }
 
-export function getDebrisBrickAsset(): BrickAsset | null {
-    return brickAsset;
-}
-
 const ROCK_URL = (): string => assetUrl('models/rock.glb');
 
 interface RockAsset {
@@ -564,60 +541,11 @@ export function crowRockGlbEnabled(quality: SceneryQuality = prefs().scenery): b
 
 /** Bake rock.glb to crow-stone size (longest axis ≈ 2× icosahedron radius). */
 function prepareRockFromScene(scene: Group): RockAsset | null {
-    const budget = modelTextureBudget();
-    if (budget) applyTextureBudget(scene, budget);
-
-    scene.updateMatrixWorld(true);
-    const geos: BufferGeometry[] = [];
-    let material: MeshStandardMaterial | null = null;
-    const scratch = new Matrix4();
-
-    scene.traverse((o) => {
-        const mesh = o as Mesh;
-        if (!mesh.isMesh || !mesh.geometry) return;
-        const mat = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as Material;
-        if (mat instanceof MeshStandardMaterial && !material) {
-            material = mat.clone();
-            if (typeof material.metalness === 'number') material.metalness = Math.min(material.metalness, 0.35);
-            material.envMapIntensity = 1.0;
-            material.flatShading = false;
-            material.polygonOffset = true;
-            material.polygonOffsetFactor = -2;
-            material.polygonOffsetUnits = -2;
-        }
-        const geo = dequantizeGeometry(mesh.geometry);
-        scratch.copy(mesh.matrixWorld);
-        geo.applyMatrix4(scratch);
-        geos.push(geo);
-    });
-
-    if (geos.length === 0) return null;
-    const merged = geos.length === 1 ? geos[0]! : mergeGeometries(geos)!;
-    for (let i = 1; i < geos.length; i++) geos[i]!.dispose();
-
-    merged.computeBoundingBox();
-    const box = merged.boundingBox!;
-    const size = new Vector3();
-    box.getSize(size);
-    const center = new Vector3();
-    box.getCenter(center);
-    merged.translate(-center.x, -center.y, -center.z);
-    const longest = Math.max(size.x, size.y, size.z, 1e-3);
-    const target = CROW_STONE_GEO_R * 2;
-    const s = target / longest;
-    merged.scale(s, s, s);
-    merged.computeBoundingBox();
-    const box2 = merged.boundingBox!;
-    merged.translate(
-        -(box2.min.x + box2.max.x) * 0.5,
-        -(box2.min.y + box2.max.y) * 0.5,
-        -(box2.min.z + box2.max.z) * 0.5,
-    );
-    merged.computeBoundingBox();
-    merged.computeVertexNormals();
-
-    if (!material) {
-        material = new MeshStandardMaterial({
+    const baked = bakeEffectScene(scene, { targetLength: CROW_STONE_GEO_R * 2, tune: tuneChipMaterial });
+    if (!baked) return null;
+    const material =
+        baked.material ??
+        new MeshStandardMaterial({
             color: THEME.scenery.rock,
             roughness: 0.92,
             metalness: 0.05,
@@ -625,10 +553,8 @@ function prepareRockFromScene(scene: Group): RockAsset | null {
             polygonOffsetFactor: -2,
             polygonOffsetUnits: -2,
         });
-    }
-
-    const height = Math.max(merged.boundingBox!.max.y - merged.boundingBox!.min.y, 0.05);
-    return { geometry: merged, material, height };
+    const box = baked.geometry.boundingBox!;
+    return { geometry: baked.geometry, material, height: Math.max(box.max.y - box.min.y, 0.05) };
 }
 
 /** Load crow-rider rock.glb when scenery is high/ultra. Safe to call repeatedly. */
@@ -687,10 +613,6 @@ onAssetOverlaySwitch('projectile and debris models', async () => {
     }
     await Promise.all(reloads);
 });
-
-export function getCrowRockAsset(): RockAsset | null {
-    return rockAsset;
-}
 
 /** pulsing additive magic orb — hot core + cyan rim (visual only) */
 function makeOrbMaterial(): ShaderMaterial {

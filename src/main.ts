@@ -17,9 +17,9 @@ import {
     prefetchIntroRosterMmrs,
 } from './ui/introRoster';
 import { registerHoverTipClearer } from './ui/hoverTips';
-import { Game, type MatchLoadWait } from './game/game';
+import { Game, type GameReplayOptions, type GameSpectateOptions, type MatchLoadWait } from './game/game';
 import { audio, LOGO_LINE_COUNT, playMatchMusic, playMenuMusic } from './game/audio';
-import { fetchMatchReplay, replayBuildMismatch, type MatchMode, type MatchResult, type MatchTelemetry } from './game/telemetry';
+import { fetchMatchReplay, replayBuildMismatch, type MatchResult, type MatchTelemetry } from './game/telemetry';
 import { ReplayControls } from './ui/replayControls';
 import { GamepadCursor } from './engine/gamepadCursor';
 import { CameraRig } from './engine/cameraRig';
@@ -55,7 +55,6 @@ import {
     type NetMessage,
     type PeerServerConfig,
     type SinglePlayerSave,
-    type SpectatorLink,
     type StarRole,
 } from './game/net';
 import * as sebNative from 'steam-electron-build/native';
@@ -3600,27 +3599,8 @@ function constructGame(
     names: { local: string; opponent: string },
     resume: MatchResume | null,
     star: StarRole | null,
-    replay: {
-        actions: LoggedAction[];
-        jumpToRound?: number;
-        verify?: boolean;
-        mode?: MatchMode;
-        expected?: { result: MatchResult; rounds: number; playerHp: number; enemyHp: number };
-        /** whose eyes (Game's replay.seat) */
-        seat?: number;
-        /** "Try this round" (Game's replay.practice) */
-        practice?: boolean;
-    } | null,
-    spectate: {
-        session: SpectatorLink;
-        watcherName: string;
-        initial: {
-            actions: LoggedAction[];
-            battleElapsed: number | null;
-            phaseRemaining: number;
-            speedMultiplier: number;
-        };
-    } | null,
+    replay: GameReplayOptions | null,
+    spectate: GameSpectateOptions | null,
     useIntro: boolean,
 ): Game {
     const preloadedRosterMmr = pendingIntroRosterMmr;
@@ -3709,31 +3689,12 @@ function startGame(
      *  `verify` re-submits telemetry at the end despite watching;
      *  `expected` is the originally-recorded outcome, shown alongside the
      *  recomputed one on the game-over screen. */
-    replay: {
-        actions: LoggedAction[];
-        jumpToRound?: number;
-        verify?: boolean;
-        mode?: MatchMode;
-        expected?: { result: MatchResult; rounds: number; playerHp: number; enemyHp: number };
-        /** whose eyes (Game's replay.seat) */
-        seat?: number;
-        /** "Try this round" (Game's replay.practice) */
-        practice?: boolean;
-    } | null = null,
+    replay: GameReplayOptions | null = null,
     /** spectate mode: a read-only live view of someone else's running match —
      *  mutually exclusive with everything above; never persists/resumes/reports
      *  (see game.ts). `watcherName` is the spectator's own name, distinct from
      *  `names` (which holds the two PLAYERS' names, for display). */
-    spectate: {
-        session: SpectatorLink;
-        watcherName: string;
-        initial: {
-            actions: LoggedAction[];
-            battleElapsed: number | null;
-            phaseRemaining: number;
-            speedMultiplier: number;
-        };
-    } | null = null,
+    spectate: GameSpectateOptions | null = null,
 ): void {
     if (started) return;
     // The match plays the level its settings name (unset = base game). Loading

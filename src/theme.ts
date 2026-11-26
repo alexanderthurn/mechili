@@ -1,4 +1,4 @@
-import { HORDE_COLOR, shadeCss, teamColors } from './game/colors';
+import { shadeCss, teamColors } from './game/colors';
 
 /**
  * Allied blue vs Soviet red on a bright, warm RA2-style green battlefield.

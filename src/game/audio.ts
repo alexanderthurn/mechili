@@ -6086,10 +6086,6 @@ export function playMatchMusic(opts?: {
     audio.playMusic(resolveMusicBed({ scene: 'match', ...opts }));
 }
 
-export function registerCue(id: string, def: CueDef): void {
-    CUES[id] = def;
-}
-
 export function cueIds(): string[] {
     return Object.keys(CUES);
 }

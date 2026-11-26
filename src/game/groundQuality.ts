@@ -5,7 +5,7 @@
  */
 
 import { ShaderChunk } from 'three';
-import { detectGraphicsPreset, prefs, type GraphicsPreset } from './prefs';
+import { prefs } from './prefs';
 import { touchFirstDevice } from './inputCapabilities';
 
 export type GroundTextureTier = 'low' | 'medium' | 'high' | 'ultra';
@@ -522,6 +522,31 @@ export function textureBombGlsl(sample: (uv: string) => string): string {
 /** how far a bombing patch leans toward the rotated copy (was 0.55: too patchy) */
 const BOMB_STRENGTH = 0.25;
 
+/** GLSL `softBlobMask( uv, cellScale, density, radius )`: soft round patches via
+ *  jittered-grid texture bombing (no square tiles). Shared by the board and scenery ground shaders. */
+export const SOFT_BLOB_MASK_GLSL =
+    'float softBlobMask( vec2 uv, float cellScale, float density, float radius ) {\n' +
+    '\tvec2 cell = floor( uv * cellScale );\n' +
+    '\tfloat acc = 0.0;\n' +
+    '\tfor ( int j = -1; j <= 1; j ++ ) {\n' +
+    '\t\tfor ( int i = -1; i <= 1; i ++ ) {\n' +
+    '\t\t\tvec2 c = cell + vec2( float( i ), float( j ) );\n' +
+    '\t\t\tfloat h = fract( sin( dot( c, vec2( 127.1, 311.7 ) ) ) * 43758.5453 );\n' +
+    '\t\t\tif ( h <= density ) {\n' +
+    '\t\t\t\tvec2 jitter = vec2(\n' +
+    '\t\t\t\t\tfract( sin( dot( c, vec2( 269.5, 183.3 ) ) ) * 43758.5453 ),\n' +
+    '\t\t\t\t\tfract( sin( dot( c + 19.2, vec2( 113.5, 271.9 ) ) ) * 43758.5453 )\n' +
+    '\t\t\t\t);\n' +
+    '\t\t\t\tvec2 center = ( c + 0.5 + ( jitter - 0.5 ) * 0.9 ) / cellScale;\n' +
+    '\t\t\t\tfloat d = length( uv - center ) * cellScale;\n' +
+    '\t\t\t\tfloat r = radius * ( 0.5 + 0.5 * fract( h * 7.13 ) );\n' +
+    '\t\t\t\tacc = max( acc, 1.0 - smoothstep( r * 0.25, r, d ) );\n' +
+    '\t\t\t}\n' +
+    '\t\t}\n' +
+    '\t}\n' +
+    '\treturn clamp( acc, 0.0, 1.0 );\n' +
+    '}\n';
+
 /**
  * GLSL (global scope): smooth noise for the slope look's ragged edges, in 0…1.
  * Gradient (Perlin) noise: a random DIRECTION per lattice point, not a random
@@ -802,11 +827,4 @@ export function bindCloseTileUniforms(
     uniforms.uCloseRepeat = { value: profile.closeRepeat };
     uniforms.uCloseNear = { value: profile.closeNear };
     uniforms.uCloseFar = { value: profile.closeFar };
-}
-
-export function graphicsPresetOrFallback(): GraphicsPreset {
-    const preset = detectGraphicsPreset();
-    if (preset) return preset;
-    // Ground tiers have no Minimal — map the inferred texture tier up.
-    return groundTextureTier();
 }

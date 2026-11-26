@@ -188,11 +188,6 @@ function useRemotePhpBackend(): boolean {
     return false;
 }
 
-/** localhost (dev) or the public play host — same hosts that use the Melodan backend path */
-export function isMelodanPlayHost(): boolean {
-    return isLocalhost() || location.hostname === 'play.melodan.com';
-}
-
 /**
  * Branches that use production play.melodan.com when developing on localhost.
  * Everything else (including `melodan`) hits dev.melodan.com/<branch>/.
@@ -213,16 +208,6 @@ export function resolvedDevBranch(): string | null {
     const fromGit = typeof __GIT_BRANCH__ === 'string' ? __GIT_BRANCH__.trim() : '';
     if (!fromGit || PLAY_HOST_DEV_BRANCHES.has(fromGit)) return null;
     return fromGit;
-}
-
-/**
- * Site / deploy URL for a branch name (git or Steam beta).
- * `main`/`master` → melodan.com; other branches (incl. `melodan`) → dev.melodan.com/<branch>/.
- */
-export function branchSiteUrl(branch?: string | null): string {
-    const b = (branch?.trim() || resolvedDevBranch() || '').trim();
-    if (!b || PLAY_HOST_DEV_BRANCHES.has(b)) return 'https://melodan.com/';
-    return `${BRANCH_DEPLOY_ROOT}${encodeURIComponent(b)}/`;
 }
 
 /** Base URL for PHP endpoints under /backend/ (trailing slash). */
@@ -2000,7 +1985,6 @@ export function joinStarRoom(
     peerServer?: PeerServerConfig | null,
 ): SessionPending<StarGuestSession> {
     let peer: Peer | null = null;
-    const localName = getPlayerName();
     const code = roomCodeFromName(hostName);
     if (!code) {
         return { session: Promise.reject(new Error('Invalid room name')), cancel: () => undefined };

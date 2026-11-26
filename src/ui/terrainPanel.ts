@@ -6,8 +6,7 @@
  */
 import { t } from '../i18n';
 import { TerrainBrushes, type TerrainBrush } from '../game/terrainBrushes';
-
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+import { escapeHtml as esc } from './escapeHtml';
 
 const TOOLS: { group: string; groupLabel: string; tools: { brush: TerrainBrush; key: string; label: string; fallback: string }[] }[] = [
     {

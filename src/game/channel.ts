@@ -10,7 +10,3 @@ export const BUILD_CHANNEL: BuildChannel = 'open';
 export function isOpenBuild(): boolean {
     return BUILD_CHANNEL === 'open';
 }
-
-export function isSteamBuild(): boolean {
-    return BUILD_CHANNEL === 'steam';
-}

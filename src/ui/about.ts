@@ -10,6 +10,7 @@
 import { openUrl } from 'steam-electron-build/native';
 import { t } from '../i18n';
 import { removeWithDialogFade, withDialogFade } from './dialogFade';
+import { escapeHtml as esc } from './escapeHtml';
 
 const MECHABELLUM_URL = 'https://www.playmechabellum.com/';
 /** the source (GPL-3.0), and the store page — the homepage links the same */
@@ -24,10 +25,6 @@ type LegalDoc = keyof typeof LEGAL_DOCS;
 
 /** the team and the community, by the names they go by — names only */
 const CREDITS: readonly string[] = ['mangoo', 'Trash Collection', 'TNT', 'hONK'];
-
-function esc(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 export function openAbout(parent: HTMLElement): void {
     if (document.querySelector('.mechili-about')) return;

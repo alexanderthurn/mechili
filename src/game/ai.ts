@@ -22,7 +22,7 @@ import { NO_STANCE, YearBrain, type PackPick, type Stance } from './aiYear';
 import { AI_ROLES, readFlankNeeds, readNeeds, readWeakPoints, STRONG_FROM, strongHelpless, THIRD_PACK_FREE_FROM, type LossKind, type Need, type Roster, type WeakPoint } from './aiRoles';
 import { CELL } from './map';
 import { isChaff } from './aiCounters';
-import { AI_WALL_ID, orderedWallPlan, placeWallPlan, planGateSlots, sideFrontline, wallInSlot, wallPlanCells, type PlanSlot } from './aiWalls';
+import { AI_WALL_ID, orderedWallPlan, placeWallPlan, planGateSlots, wallInSlot, wallPlanCells, type PlanSlot } from './aiWalls';
 import type { LevelingSettings } from './settings';
 import { AI_SUPPLY_SHARE, DEFENDER_WALL_SHARE, personalitiesFor, type AiDifficulty, type AiStyle } from './aiProfile';
 import { AiThinkSession, type AiThinkHost, type PlanDraft, type ThinkingAi } from './aiThink';

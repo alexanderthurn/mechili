@@ -84,17 +84,6 @@ export function transportLookingStatus(transport: MultiplayerTransport): string 
     }
 }
 
-export function transportConnectedStatus(transport: MultiplayerTransport): string {
-    switch (transport) {
-        case 'steam':
-            return t('menu:transportConnectedSteam');
-        case 'matchmaking':
-            return t('menu:transportConnectedMatchmaking');
-        case 'lan':
-            return t('menu:transportConnectedLan');
-    }
-}
-
 export function transportUnavailableMessage(
     pref: MultiplayerTransportPref = prefs().multiplayerTransport,
 ): string {
@@ -109,16 +98,5 @@ export function transportUnavailableMessage(
                 : t('menu:transportUnavailableLan');
         default:
             return t('menu:transportUnavailableNone');
-    }
-}
-
-export function transportLabel(transport: MultiplayerTransport): string {
-    switch (transport) {
-        case 'steam':
-            return t('menu:transportSteam');
-        case 'matchmaking':
-            return t('menu:transportMatchmaking');
-        case 'lan':
-            return t('menu:transportLan');
     }
 }

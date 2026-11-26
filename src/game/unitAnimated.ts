@@ -227,10 +227,6 @@ function measureFootAlign(holder: Group, walk: AnimationClip): { x: number; z: n
     return { x: -mid.x, z: -mid.z };
 }
 
-function innerModel(holder: Object3D): Object3D | null {
-    return holder.children[0] ?? null;
-}
-
 /**
  * Object stuck arrows should parent to. For animated units this is the anim
  * holder that receives foot-align — the empty proxy alone leaves shafts floating.

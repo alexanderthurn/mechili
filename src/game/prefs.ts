@@ -4,7 +4,7 @@ import { steam } from 'steam-electron-build/native';
 
 import { detectDeviceLanguage, matchSteamGameLanguage } from '../i18n/detect';
 import type { LanguageId } from '../i18n/languages';
-import { isLanguageId } from '../i18n/languages';
+import { isLanguageId, LANGUAGE_IDS } from '../i18n/languages';
 
 /** Languages the spoken lines ship in (`assets/audio/<lang>/`; English is the shared base). */
 export const VOICE_LANGUAGES = ['en', 'de', 'es', 'ru', 'zh'] as const satisfies readonly LanguageId[];
@@ -359,9 +359,6 @@ export function hardwareProbe(): HardwareProbe | null {
  * never overwrites a player (or cloud-restored) choice.
  */
 let storedHadLanguage = false;
-export function prefsHadStoredLanguage(): boolean {
-    return storedHadLanguage;
-}
 const DEFAULTS: Prefs = {
     combatChat: true,
     audioMuted: false,
@@ -778,39 +775,7 @@ const SANITIZERS: Partial<Record<keyof Prefs, Sanitizer>> = {
     stuckProjectiles: asWord(['off', 'low', 'medium', 'high', 'ultra']),
     shadows: asWord(QUALITY_5),
     controlScheme: asWord(['auto', 'mouse', 'touch', 'gamepad']),
-    language: asWord([
-        'en',
-        'de',
-        'fr',
-        'it',
-        'ko',
-        'es',
-        'es-419',
-        'zh',
-        'zh-Hant',
-        'ru',
-        'th',
-        'ja',
-        'pt',
-        'pl',
-        'da',
-        'nl',
-        'fi',
-        'nb',
-        'sv',
-        'hu',
-        'cs',
-        'ro',
-        'tr',
-        'ar',
-        'pt-BR',
-        'bg',
-        'el',
-        'uk',
-        'vi',
-        'id',
-        'ms',
-    ]),
+    language: asWord(LANGUAGE_IDS),
     multiplayerTransport: asWord(['steam', 'matchmaking', 'lan']),
 };
 

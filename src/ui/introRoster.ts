@@ -18,6 +18,7 @@ import type { StarRole } from '../game/net';
 import { audio } from '../game/audio';
 import { t } from '../i18n';
 import { withDialogFade } from './dialogFade';
+import { escapeAttr, escapeHtml } from './escapeHtml';
 
 export type IntroRosterEntry = {
     team: 'player' | 'enemy';
@@ -29,18 +30,6 @@ export type IntroRosterEntry = {
     mmr: number | null;
     isLocal: boolean;
 };
-
-function escapeAttr(s: string): string {
-    return s
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/</g, '&lt;')
-        .replace(/\n/g, '&#10;');
-}
-
-function escapeHtml(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
 
 /** Localized seats for the intro roster — mirrors Game constructor logic. */
 export function introRosterEntries(

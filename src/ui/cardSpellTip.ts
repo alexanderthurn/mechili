@@ -14,18 +14,7 @@ import { THEME } from '../theme';
 import { iconHtml, moneyHtml } from './iconAtlas';
 import { registerHoverTipClearer } from './hoverTips';
 import { audio } from '../game/audio';
-
-function escapeAttr(s: string): string {
-    return s
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/</g, '&lt;')
-        .replace(/\n/g, '&#10;');
-}
-
-function escapeHtml(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
+import { escapeAttr, escapeHtml } from './escapeHtml';
 
 /** Shared body for panel action-info and floating card tips. */
 export function spellInfoFrameHtml(opts: {

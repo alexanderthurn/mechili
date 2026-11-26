@@ -26,17 +26,9 @@ import {
 import { applyLanguageFont } from '../theme';
 import { removeWithDialogFade, withDialogFade } from './dialogFade';
 import { audio, LOGO_LINE_COUNT } from '../game/audio';
+import { escapeHtml as esc } from './escapeHtml';
 
 const STEAM_URL = 'https://steam.melodan.com';
-
-/** Copy goes through innerHTML in the help sheet — keep translated text inert. */
-function esc(s: string): string {
-    return s
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-}
 
 /**
  * The settings dialog — one shared overlay, opened from the main menu and

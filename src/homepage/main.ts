@@ -44,7 +44,7 @@ import {
     techName,
     unitName,
 } from '../i18n/format';
-import { prefs, updatePrefs, applySteamLanguageDefault } from '../game/prefs';
+import { updatePrefs, applySteamLanguageDefault } from '../game/prefs';
 import { applyLanguageFont } from '../theme';
 import { hudStyles } from '../styles/hudStyles';
 import { menuStyles } from '../styles/menuStyles';
@@ -56,6 +56,7 @@ import { ATMOSPHERE_SCENES } from '../game/weather';
 import { openSuggest } from '../suggest';
 import { createShowcaseViewer } from '../ui/modelViewer';
 import { homepageStyles } from './styles';
+import { escapeHtml as esc } from '../ui/escapeHtml';
 
 /**
  * The homepage is its own Vite entry (web.html) — nothing boots i18n for it the
@@ -181,14 +182,6 @@ function steamLink(className: string, inner: string): string {
 /** The GitHub link, ready to drop into a `{{github}}` slot in translated copy. */
 function githubLink(label: string): string {
     return `<a href="${esc(GITHUB_URL)}" rel="noopener noreferrer" target="_blank">${esc(label)}</a>`;
-}
-
-function esc(s: string): string {
-    return s
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
 }
 
 function startCardFace(c: StartCard): string {

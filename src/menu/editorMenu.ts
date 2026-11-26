@@ -8,7 +8,7 @@
  *
  * main.ts owns the match lifecycle; it hands that in once ({@link initEditorMenu}).
  */
-import { isScenarioTerrainFile, type OverlayFile } from '../game/assets';
+import type { OverlayFile } from '../game/assets';
 import { writeZip } from '../game/content/zip';
 import {
     activeLevel,
@@ -28,7 +28,6 @@ import { packageScenarioIds, scenarioPackageFiles, scenarioSlug, withScenarioInP
 import type { ScenarioDef } from '../game/scenario/scenarioDef';
 import { applyScenarioToSettings } from '../game/scenario/scenarioSettings';
 import { decodeTerrainText, draftTerrainText, packagedTerrain, setDraftTerrain } from '../game/scenario/scenarioTerrain';
-import { encodeShareCode } from '../game/scenario/shareCode';
 import type { GameSettings } from '../game/settings';
 
 export interface EditorMenuDeps {
@@ -183,23 +182,6 @@ async function saveScenarioIntoLevel(
         id,
         reopen: (def) => void openScenarioEditor('author', def, ref),
     };
-}
-
-/** a package as a share code on the clipboard; resolves to a status line */
-export async function copyShareCode(id: string, files: readonly OverlayFile[]): Promise<string> {
-    const { code, skipped } = await encodeShareCode(id, files);
-    try {
-        await navigator.clipboard.writeText(code);
-    } catch {
-        console.info('[scenario] share code:', code);
-        return 'Could not reach the clipboard — the code is in the console';
-    }
-    const terrain = skipped.some((p) => isScenarioTerrainFile(p));
-    const media = skipped.filter((p) => !isScenarioTerrainFile(p)).length;
-    const note =
-        (terrain ? ' (without the terrain — too big for a code, share a zip for it)' : '') +
-        (media > 0 ? ` (without ${media} model/texture files)` : '');
-    return `Code copied — ${Math.ceil(code.length / 1024)} KB${note}`;
 }
 
 

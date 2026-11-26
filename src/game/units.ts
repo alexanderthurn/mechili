@@ -22,7 +22,7 @@ import type { EntityVoice } from './cards';
 import type { BurnAffinity, FireProfile } from './fire';
 import { detAtan2, detCos, detSin } from './detMath';
 import { LEVEL_TINT_COLORS, applyLevelTintColor } from './colors';
-import { CELL, mulberry32, worldHeightAt, type Cell } from './map';
+import { CELL, worldHeightAt, type Cell } from './map';
 import { drapeWall } from './wallDrape';
 import { setWallWalkLevel, setWallWalkMeshes, walkTopScale } from './wallWalk';
 
@@ -473,11 +473,6 @@ export function techForUnit(type: UnitType, tech: TechDef): TechDef {
     const scaled = applyTalentMod(tech, mod);
     byId.set(tech.id, { from: tech, scaled });
     return scaled;
-}
-
-/** Look up a unit's fine-tune blob for one talent (missing → undefined). */
-export function talentModOf(type: UnitType, talentId: string): TalentMod | undefined {
-    return type.talentMod?.[talentId];
 }
 
 /** Walk clip rate when moving at full `speed` (UnitType.walkAnimRate is per 1.0 of ground speed). */

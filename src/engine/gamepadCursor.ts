@@ -5,7 +5,6 @@ const CURSOR_SPEED = 950; // px/s at full stick deflection (quadratic response)
 const ORBIT_SPEED = 2.4; // rad/s at full right-stick deflection
 const PITCH_SPEED = 1.7;
 const ZOOM_SPEED = 1.6; // exp factor/s at full trigger
-const HEADING_SPEED = Math.PI / 2; // shoulders, rad/s — matches Q/E
 const HIDE_AFTER_MS = 3500;
 /** synthetic events carry this id — never a real pointer, cannot be captured */
 const FAKE_POINTER_ID = 0x7fff;

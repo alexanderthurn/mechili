@@ -410,21 +410,6 @@ export function attackNodeWorld(
     };
 }
 
-const _liveAttack = new Vector3();
-
-/**
- * Live world position of an `AttackNode` on a spawned mesh (follows bones if
- * parented under the skeleton). View / VFX only — do not feed the sim; peers
- * would disagree whenever mixers drift.
- */
-export function liveAttackNodeWorld(root: Object3D): { x: number; y: number; z: number } | null {
-    const node = root.getObjectByName('AttackNode');
-    if (!node) return null;
-    root.updateMatrixWorld(true);
-    node.getWorldPosition(_liveAttack);
-    return { x: _liveAttack.x, y: _liveAttack.y, z: _liveAttack.z };
-}
-
 /**
  * Read AttackNode after optionally posing a fire clip. Restores bind pose so
  * the template is not left mid-swing. Fraction 0.85 ≈ late release (matches

@@ -9,10 +9,7 @@
  */
 import { prefs, updatePrefs } from '../game/prefs';
 import { t } from '../i18n';
-
-function escapeHtml(s: string): string {
-    return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
-}
+import { escapeHtml } from './escapeHtml';
 
 export interface ReplayControlsCallbacks {
     /** the match's seats to watch through (their shop, their money) */

@@ -7,11 +7,7 @@ import { t, unitName } from '../i18n';
 export { MOVE_UNIT_ID, OIL_SPILL_ID, RALLY_ROUTE_ID, SELL_UNIT_ID, TUTOR_ID } from './content/coreIds';
 /** battle spells: point-targeted stamps that fire seconds into the battle */
 export const SPAWN_DWARVES_ID = 'spawnDwarves';
-export const BIG_METEOR_ID = 'bigMeteor';
-export const SPAWN_CROWS_ID = 'spawnCrows';
-export const HAMMER_ID = 'hammerOfGods';
 export const STORM_ID = 'storm';
-export const METEOR_SHOWER_ID = 'meteorShower';
 /** shared by sim (impact timing) and meteorFx (visual fall) — keep in sync */
 export const METEOR_SHARD_FALL_SEC = 0.55;
 /** Great Meteor visual fall before the sim strike — keep in sync with meteorFx. */

@@ -38,6 +38,7 @@ import { hudStyles } from '../styles/hudStyles';
 import { yearMarksHtml, yearProgressHtml, yearRoleName, type YearProgress } from './yearTally';
 import { isUnlimitedBuys, yearWinner } from '../game/settings';
 import { audio } from '../game/audio';
+import { escapeAttr, escapeHtml } from './escapeHtml';
 
 export type Phase = 'build' | 'battle' | 'hpDraw';
 
@@ -85,20 +86,6 @@ function ensureHudStyleSheet(): void {
         document.head.appendChild(sharedHudStyle);
     }
     sharedHudStyle.textContent = hudStyles();
-}
-
-/** escapes a string for safe use inside a double-quoted HTML attribute */
-function escapeAttr(s: string): string {
-    return s
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/</g, '&lt;')
-        .replace(/\n/g, '&#10;');
-}
-
-/** escapes a string for safe use as HTML text content */
-function escapeHtml(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function picksEqual(
@@ -579,9 +566,6 @@ export class Hud {
     /** bag rune/item ids (human) — with oven, drives owned-ingredient marks */
     private lastBagItemIds: string[] = [];
     private lastForgeOvenKey = '';
-    /** enemy bag + forge (intel / live) for opponent specialist recipe panel */
-    private lastEnemyBagItemIds: string[] = [];
-    private lastEnemyForgeOvenIds: string[] = [];
     private lastEnemyForgeKey = '';
     private playerHpFill!: HTMLDivElement;
     private enemyHpFill!: HTMLDivElement;
@@ -2091,17 +2075,6 @@ export class Hud {
         el.appendChild(mark);
     }
 
-    /** @deprecated use setCommanders — kept for any external callers */
-    setPlayers(local: string, opponent: string): void {
-        this.setCommanders(
-            [
-                { seat: 0, team: 'player', name: local, primary: true },
-                { seat: 1, team: 'enemy', name: opponent, primary: true },
-            ],
-            0,
-        );
-    }
-
     /** the undo buttons only show while there is something to undo */
     setUndoVisible(visible: boolean): void {
         // '' lets the battle-phase CSS rule keep hiding it during battles
@@ -2517,7 +2490,6 @@ export class Hud {
         const key = JSON.stringify({ items, tactics, options });
         if (key === this.lastEnemyInventoryKey) return;
         this.lastEnemyInventoryKey = key;
-        this.lastEnemyBagItemIds = items.map((i) => i.id).filter((id): id is string => !!id);
         const visible = items.length > 0 || tactics.length > 0 || !!options.sellAbility;
         this.enemyInventoryEl.style.display = visible ? '' : 'none';
         const total = items.length + tactics.length + (options.sellAbility ? 1 : 0);
@@ -2594,7 +2566,6 @@ export class Hud {
         const key = ovenItemIds.join('\0');
         if (key === this.lastEnemyForgeKey) return;
         this.lastEnemyForgeKey = key;
-        this.lastEnemyForgeOvenIds = [...ovenItemIds];
         this.refreshEnemySpecialistDetail();
     }
 
@@ -2700,11 +2671,6 @@ export class Hud {
             el.classList.toggle('unaffordable', !show);
             el.setAttribute('aria-hidden', show ? 'false' : 'true');
         }
-    }
-
-    /** @deprecated use {@link setBoardExtraIds} */
-    setBoardExtrasAllowed(allowed: boolean): void {
-        this.setBoardExtraIds(allowed ? null : []);
     }
 
     private extraTypeAllowed(type: UnitType): boolean {
@@ -4649,14 +4615,6 @@ export class Hud {
                 .filter((title): title is string => Boolean(title));
             this.enemySpecEl.textContent = titles.join(' & ');
         }
-    }
-
-    /** @deprecated use setSeatSpecialists */
-    setSpecialities(own: StartCard | null, opponent: StartCard | null): void {
-        this.setSeatSpecialists([
-            { seat: 0, card: own },
-            { seat: 1, card: opponent },
-        ]);
     }
 
     /**

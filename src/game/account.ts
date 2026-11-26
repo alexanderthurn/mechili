@@ -32,8 +32,6 @@ export interface PlayerProfile {
     avatar?: string | null;
 }
 
-export type ProbeResult = { exists: boolean; hasPassword: boolean; name?: string };
-
 export type ClaimResult =
     | { ok: true; player: PlayerProfile; token: string; created?: boolean }
     | { ok: false; needsPassword?: boolean; wrongPassword?: boolean; error?: string; hint?: string };
@@ -75,14 +73,6 @@ function saveAuth(name: string, token: string): void {
     }
 }
 
-export function clearAuth(): void {
-    try {
-        localStorage.removeItem(AUTH_KEY);
-    } catch {
-        /* ignore */
-    }
-}
-
 export function getSessionTokenFor(name: string): string | null {
     const auth = loadAuth();
     if (!auth) return null;
@@ -106,19 +96,6 @@ async function fetchJson(url: string, init?: RequestInit): Promise<unknown | nul
     } catch {
         return null;
     }
-}
-
-export async function probeName(name: string): Promise<ProbeResult | null> {
-    if (!isOpenBuild()) return null;
-    const data = (await fetchJson(
-        `${playerUrl()}?action=probe&name=${encodeURIComponent(name)}`,
-    )) as ProbeResult | null;
-    if (!data || typeof data.exists !== 'boolean') return null;
-    return {
-        exists: data.exists,
-        hasPassword: !!data.hasPassword,
-        name: data.name,
-    };
 }
 
 export async function claimName(input: {
@@ -278,28 +255,6 @@ export async function fetchPlayerPublic(name: string): Promise<PlayerProfile | n
         `${playerUrl()}?action=get&name=${encodeURIComponent(name)}`,
     )) as { player?: PlayerProfile } | null;
     return data?.player ?? null;
-}
-
-export async function fetchLadder(limit = 50): Promise<PlayerProfile[]> {
-    if (!isOpenBuild()) return [];
-    const data = (await fetchJson(
-        `${playerUrl()}?action=ladder&limit=${limit}`,
-    )) as { ladder?: Array<Partial<PlayerProfile> & { name: string; mmr: number }> } | null;
-    return (data?.ladder ?? []).map((row) => ({
-        track: 'open',
-        id: `open:${row.name}`,
-        name: row.name,
-        mmr: row.mmr,
-        peakMmr: row.mmr,
-        wins: row.wins ?? 0,
-        losses: row.losses ?? 0,
-        draws: row.draws ?? 0,
-        games: row.games ?? 0,
-        mpGames: row.games ?? 0,
-        gamesAi: row.gamesAi ?? 0,
-        games1v1: row.games1v1 ?? row.games ?? 0,
-        games2v2: row.games2v2 ?? 0,
-    }));
 }
 
 export function matchResultId(seed: number, local: string, opponent: string, rounds: number): string {

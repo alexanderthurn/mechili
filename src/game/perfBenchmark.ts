@@ -23,7 +23,6 @@
 
 import {
     type Prefs,
-    type GraphicsPreset,
     GRAPHICS_PRESETS,
     GRAPHICS_PRESET_IDS,
     prefs,

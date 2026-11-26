@@ -9,6 +9,7 @@
 import { formatGameVersion, GAME_VERSION } from '../game/net';
 import { fetchReplayList, gameVersionLabel, replayBuildMismatch, type ReplayListGroup, type ReplayListRecord } from '../game/telemetry';
 import { t } from '../i18n';
+import { escapeHtml } from './escapeHtml';
 
 export interface ReplayListOptions {
     /** the local player's name — "mine" shows the matches they reported */
@@ -17,10 +18,6 @@ export interface ReplayListOptions {
 }
 
 const PAGE = 30;
-
-function escapeHtml(s: string): string {
-    return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
-}
 
 function difficultyLabel(d: string | null): string {
     if (!d) return t('menu:replaysAi', { defaultValue: 'AI' });

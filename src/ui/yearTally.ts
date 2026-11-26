@@ -6,6 +6,7 @@
  */
 import { t } from '../i18n';
 import type { YearRoundWinner } from '../game/settings';
+import { escapeHtml as esc } from './escapeHtml';
 
 export interface YearProgress {
     /** who took each finished round, in order */
@@ -19,8 +20,6 @@ export interface YearProgress {
     /** what to call the two sides — a Standard match has no attacker and defender (omit = the roles) */
     names?: { attacker: string; defender: string };
 }
-
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
 export function yearRoleName(role: YearRoundWinner, names?: YearProgress['names']): string {
     if (names) return names[role];

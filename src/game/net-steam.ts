@@ -16,7 +16,6 @@ import {
     type GuestSession,
     type HostHub,
     type NetMessage,
-    type SessionPending,
     type SpectateResult,
     type SpectatorLink,
     type SpectatorTransport,

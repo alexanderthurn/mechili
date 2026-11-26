@@ -18,9 +18,6 @@ export type RuneElement = (typeof RUNE_ELEMENTS)[number];
 /** Shared level cap for elemental runes. */
 export const RUNE_MAX_LEVEL = 9;
 
-/** Flat Stronghold supply to bake — forging is free; card prices stay separate. */
-export const ELEMENTAL_FORGE_COST = 0;
-
 const ELEMENT_SET = new Set<string>(RUNE_ELEMENTS);
 
 const ELEMENT_LABEL: Record<RuneElement, string> = {
@@ -31,7 +28,6 @@ const ELEMENT_LABEL: Record<RuneElement, string> = {
 };
 
 const MOD_KEYS = ['hp', 'damage', 'range', 'speed', 'attackInterval'] as const;
-type ModKey = (typeof MOD_KEYS)[number];
 
 export function isRuneElement(id: string): id is RuneElement {
     return ELEMENT_SET.has(id);
@@ -87,11 +83,6 @@ export function mixDescription(elements: readonly string[]): string {
     const mix = normalizeMix(elements);
     if (mix.length < 2) return '';
     return `Forged mix of ${mixDisplayName(mix)}.`;
-}
-
-/** All 15 mix atlas ids (4 pure + 11 combinations). */
-export function allMixIconIds(): string[] {
-    return allElementMixes().map((m) => `item-${m.join('-')}`);
 }
 
 export interface ElementalRuneRef {

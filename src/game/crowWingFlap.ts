@@ -505,11 +505,6 @@ export function setupCrowWingInstanceAttributes(mesh: InstancedMesh, capacity: n
     rollAttributes.set(mesh, rolls);
 }
 
-/** @deprecated use {@link setupCrowWingInstanceAttributes} */
-export function setupCrowWingPhaseAttribute(mesh: InstancedMesh, capacity: number): void {
-    setupCrowWingInstanceAttributes(mesh, capacity);
-}
-
 export function setCrowWingPhase(mesh: InstancedMesh, index: number, phase: number): void {
     const attr = phaseAttributes.get(mesh);
     if (!attr) return;

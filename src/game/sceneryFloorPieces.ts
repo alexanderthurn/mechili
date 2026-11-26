@@ -4,7 +4,6 @@
  */
 
 import {
-    Box3,
     BufferAttribute,
     BufferGeometry,
     InstancedMesh,
@@ -66,8 +65,6 @@ let loadPromise: Promise<void> | null = null;
 /** file URL the pieces were loaded from */
 let loadedFrom = '';
 let pickIds: FloorPieceId[] = [];
-let pickWeights: number[] = [];
-let pickTotal = 0;
 
 const _dq = new Vector3();
 const scratch = new Matrix4();
@@ -127,14 +124,10 @@ function pieceBaseScale(id: FloorPieceId): number {
 
 function rebuildPickTable(): void {
     pickIds = [];
-    pickWeights = [];
-    pickTotal = 0;
     for (const [id] of assets) {
         const w = pieceWeight(id);
         if (w <= 0) continue;
         pickIds.push(id);
-        pickWeights.push(w);
-        pickTotal += w;
     }
 }
 
@@ -233,16 +226,6 @@ export function listFloorPieces(): FloorPieceId[] {
         for (let i = 0; i < copies; i++) out.push(id);
     }
     return out;
-}
-
-export function pickFloorPiece(rng: () => number): FloorPieceId | null {
-    if (pickTotal <= 0 || pickIds.length === 0) return null;
-    let roll = rng() * pickTotal;
-    for (let i = 0; i < pickIds.length; i++) {
-        roll -= pickWeights[i]!;
-        if (roll <= 0) return pickIds[i]!;
-    }
-    return pickIds[pickIds.length - 1] ?? null;
 }
 
 export function floorPieceScale(id: FloorPieceId, rng: () => number): number {

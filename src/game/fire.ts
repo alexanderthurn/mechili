@@ -27,7 +27,6 @@ export const OIL_SPILL_DURATION_ROUNDS = 1;
 
 /** default Acid Spill tactic stamp — same shape as oil, different per-step effect */
 export const ACID_SPILL_RADIUS = 4 * CELL;
-export const ACID_SPILL_DURATION_ROUNDS = 1;
 /** Directed oil (pitch bolts): splash extends backward / forward along flight. */
 export const OIL_DIRECTED_BACK = 0.05;
 export const OIL_DIRECTED_FWD = 0.95;
@@ -44,8 +43,6 @@ export const ACID_DPS_PERCENT = 3;
 
 /** Fire Spill — same capsule as oil/acid; battle-seconds burn (not round expiry) */
 export const FIRE_SPILL_RADIUS = 4 * CELL;
-export const FIRE_SPILL_BURN_SEC = 12;
-export const FIRE_SPILL_INTENSITY = 21;
 
 /** after battle freeze, wait this long before the first drip starts falling */
 export const HAZARD_POUR_DELAY_SEC = 0.55;
@@ -85,10 +82,6 @@ export interface HazardPour {
      */
     fallSeconds?: number;
 }
-
-/** Fire Bolt / weapon ground-fire defaults (can be overridden per UnitType.fire) */
-export const DEFAULT_GROUND_FIRE_DURATION = 16;
-export const DEFAULT_GROUND_FIRE_INTENSITY = 21;
 
 /** visual tint for ground fire (sim-stored; VFX + ground shader read it) */
 export const FIRE_TINT_NORMAL = 0;

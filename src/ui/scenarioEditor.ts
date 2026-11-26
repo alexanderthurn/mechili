@@ -37,6 +37,7 @@ import type { ScenarioIssue } from '../game/scenario/normalize';
 import type { ScenarioDef, SceneTeam, SceneUnit } from '../game/scenario/scenarioDef';
 import { nextWallTurn, type Unit, type UnitType } from '../game/units';
 import { rulesHtml, wireRules } from './scenarioRulesPanel';
+import { escapeHtml as esc } from './escapeHtml';
 
 export interface ScenarioEditorHost {
     readonly types: TypeRegistry;
@@ -145,8 +146,6 @@ function storedWindowPos(): { x: number; y: number } | null {
         return null;
     }
 }
-
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
 export class ScenarioEditor {
     private readonly history: DraftHistory;
@@ -560,24 +559,6 @@ export class ScenarioEditor {
 
     private cancelPress(): void {
         this.press = null;
-    }
-
-    /** grid anchor + world center for a footprint centered under the pointer */
-    private anchorAt(
-        type: UnitType,
-        rotated: boolean,
-        x: number,
-        y: number,
-        /** horde packs may stand past the board edge */
-        offBoard = false,
-    ): { at: { col: number; row: number }; center: { x: number; z: number } } | null {
-        const placement = this.host.placement;
-        const cell = offBoard ? placement.gridCellAtPoint(x, y) : placement.cellAtPoint(x, y);
-        if (!cell) return null;
-        const at = placement.anchorCenteredOn(type, rotated, cell);
-        const fp = rotated ? { cols: type.footprint.rows, rows: type.footprint.cols } : type.footprint;
-        const center = placement.map.areaCenter(at, fp.cols, fp.rows);
-        return { at, center: { x: center.x, z: center.z } };
     }
 
     /** can the entry stand where it says? (`moving` may already stand there) */
