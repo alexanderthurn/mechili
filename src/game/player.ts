@@ -1,8 +1,28 @@
 import { migrateUserStorage, USER_NAME_KEY } from './userStorage';
 
-/** PeerJS id suffix — lowercase alphanumeric, underscore, hyphen. */
+/** Longest display name, in characters — Steam's own limit, so a Steam name always fits. */
+export const PLAYER_NAME_MAX = 32;
+
+/**
+ * PeerJS id suffix and web account key — lowercase alphanumeric, underscore,
+ * hyphen. A name with at least two of those keeps exactly that (so existing
+ * keys never change); any other name (李明, Øx, ★★) gets `u` + a hash of the
+ * whole name. backend/player.php nameKey() computes the same.
+ */
 export function roomCodeFromName(name: string): string {
-    return name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    const lower = name.trim().toLowerCase();
+    const ascii = lower.replace(/[^a-z0-9_-]/g, '');
+    return ascii.length >= 2 ? ascii : `u${fnv1a64Hex(lower)}`;
+}
+
+/** FNV-1a 64-bit over the UTF-8 bytes — same as PHP hash('fnv1a64', ...). */
+function fnv1a64Hex(s: string): string {
+    let h = 0xcbf29ce484222325n;
+    for (const b of new TextEncoder().encode(s)) {
+        h ^= BigInt(b);
+        h = (h * 0x100000001b3n) & 0xffffffffffffffffn;
+    }
+    return h.toString(16).padStart(16, '0');
 }
 
 export function peerRoomId(name: string): string {
@@ -13,13 +33,19 @@ function randomDefaultName(): string {
     return `Player${1000 + Math.floor(Math.random() * 9000)}`;
 }
 
-/** Sanitize for display; returns null if unusable as a room code. */
+/**
+ * Clean a name for display: any script, control and text-direction characters
+ * removed, whitespace collapsed, cut to {@link PLAYER_NAME_MAX} characters.
+ * null when nothing is left.
+ */
 export function validatePlayerName(raw: string): string | null {
-    const trimmed = raw.trim();
-    if (trimmed.length < 2 || trimmed.length > 16) return null;
-    const code = roomCodeFromName(trimmed);
-    if (code.length < 2) return null;
-    return trimmed;
+    const clean = raw
+        .normalize('NFC')
+        .replace(/[\p{Cc}\u200B\u200C\u200E\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/gu, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const name = Array.from(clean).slice(0, PLAYER_NAME_MAX).join('').trim();
+    return name || null;
 }
 
 export function getPlayerName(): string {

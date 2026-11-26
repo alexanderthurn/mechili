@@ -6833,6 +6833,8 @@ export class Game {
                 side: this.star.hub.sideOf(seat),
                 controller: 'ai',
                 name: def.name,
+                // whose seat it was — on Steam, how the player gets it back
+                steamId: this.star.hub.currentRoster()[seat]?.steamId,
                 // The bot keeps playing the DEPARTED player's talents (see
                 // `this.seats` above — the army on the board was built for
                 // them). Carried here too so the hub roster never disagrees

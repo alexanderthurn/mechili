@@ -91,7 +91,7 @@
   "hintOnlineAvatar": "Avatarul este salvat pe acest dispozitiv și în profilul tău online (184×184).",
   "hintLocalAvatar": "Avatarul este salvat pe acest dispozitiv (184×184). Se afișează colegilor când te alături.",
   "errBadImage": "Nu s-a putut folosi acea imagine — încearcă un fișier PNG sau JPEG mai mic.",
-  "errBadName": "Numele trebuie să conțină între 2 și 16 litere, cifre, _ sau -.",
+  "errBadName": "Introdu un nume.",
   "rosterTeam": "Echipa {{n}}",
   "siegeSwapSides": "Schimbă atacatorul cu apărătorul",
   "rosterYou": "(tu)",

@@ -91,7 +91,7 @@
   "hintOnlineAvatar": "아바타는 이 기기와 온라인 프로필에 저장됩니다 (184×184).",
   "hintLocalAvatar": "아바타는 이 기기에 저장됩니다 (184×184). 참가 시 피어에게 표시됩니다.",
   "errBadImage": "그 이미지를 쓸 수 없습니다 — 더 작은 PNG 또는 JPEG를 시도하세요.",
-  "errBadName": "이름은 2–16자의 글자, 숫자, _ 또는 -여야 합니다.",
+  "errBadName": "이름을 입력하세요.",
   "rosterTeam": "팀 {{n}}",
   "siegeSwapSides": "공격과 수비 바꾸기",
   "rosterYou": " (나)",

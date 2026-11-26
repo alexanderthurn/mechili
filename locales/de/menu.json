@@ -91,7 +91,7 @@
   "hintOnlineAvatar": "Dein Avatar wird auf diesem Gerät und in deinem Online-Profil gespeichert (184×184).",
   "hintLocalAvatar": "Dein Avatar wird auf diesem Gerät gespeichert (184×184). Er wird deinen Freunden beim Beitritt angezeigt.",
   "errBadImage": "Das Bild konnte nicht verwendet werden – versuch es mit einer kleineren PNG- oder JPEG-Datei.",
-  "errBadName": "Der Name muss aus 2 bis 16 Buchstaben, Zahlen, Unterstrichen oder Bindestrichen bestehen.",
+  "errBadName": "Bitte gib einen Namen ein.",
   "rosterTeam": "Team {{n}}",
   "siegeSwapSides": "Angreifer und Verteidiger tauschen",
   "rosterYou": "(du)",

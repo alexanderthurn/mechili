@@ -91,7 +91,7 @@
   "hintOnlineAvatar": "L'avatar est enregistré sur cet appareil et sur votre profil en ligne (184×184).",
   "hintLocalAvatar": "Votre avatar est enregistré sur cet appareil (184×184). Il sera affiché à vos pairs lorsque vous vous connecterez.",
   "errBadImage": "Impossible d'utiliser cette image ; essayez un format PNG ou JPEG plus petit.",
-  "errBadName": "Le nom doit comporter entre 2 et 16 lettres, chiffres, _ ou -.",
+  "errBadName": "Saisis un nom.",
   "rosterTeam": "Équipe {{n}}",
   "siegeSwapSides": "Échanger attaquant et défenseur",
   "rosterYou": " (toi)",

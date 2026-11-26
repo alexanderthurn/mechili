@@ -91,7 +91,7 @@
   "hintOnlineAvatar": "アバターはこの端末とオンラインプロフィールに保存されます（184×184）。",
   "hintLocalAvatar": "アバターはこの端末に保存されます（184×184）。参加時にピアへ表示されます。",
   "errBadImage": "その画像は使えません — 小さめの PNG または JPEG を試してください。",
-  "errBadName": "名前は 2–16 文字の英数字、_ または - のみ。",
+  "errBadName": "名前を入力してください。",
   "rosterTeam": "チーム {{n}}",
   "siegeSwapSides": "攻撃側と防衛側を入れ替える",
   "rosterYou": "（あなた）",

@@ -91,7 +91,7 @@
   "hintOnlineAvatar": "Avataren er lagret på denne enheten og på din onlineprofil (184×184).",
   "hintLocalAvatar": "Avataren er lagret på denne enheten (184×184). Vises til jevnaldrende når du blir med.",
   "errBadImage": "Kunne ikke bruke det bildet – prøv en mindre PNG- eller JPEG-fil.",
-  "errBadName": "Navnet må være på 2–16 bokstaver, tall, _ eller -.",
+  "errBadName": "Skriv inn et navn.",
   "rosterTeam": "Lag {{n}}",
   "siegeSwapSides": "Bytt angriper og forsvarer",
   "rosterYou": "(du)",

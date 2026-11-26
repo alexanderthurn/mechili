@@ -91,7 +91,7 @@
   "hintOnlineAvatar": "Avatar on tallennettu tälle laitteelle ja online-profiiliisi (184 × 184).",
   "hintLocalAvatar": "Avatar on tallennettu tälle laitteelle (184 × 184). Näytetään muille liittymisen yhteydessä.",
   "errBadImage": "Kuvaa ei voitu käyttää – kokeile pienempää PNG- tai JPEG-kuvaa.",
-  "errBadName": "Nimen on oltava 2–16 kirjainta, numeroa, _ tai -.",
+  "errBadName": "Anna nimi.",
   "rosterTeam": "Tiimi {{n}}",
   "siegeSwapSides": "Vaihda hyökkääjä ja puolustaja",
   "rosterYou": "(sinä)",

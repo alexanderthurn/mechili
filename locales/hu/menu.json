@@ -91,7 +91,7 @@
   "hintOnlineAvatar": "Az avatar mentésre kerül erre az eszközre és az online profilodra (184×184).",
   "hintLocalAvatar": "Az avatar elmentve ezen az eszközön (184×184). Csatlakozáskor megjelenik a többi felhasználó számára.",
   "errBadImage": "Nem sikerült használni a képet – próbáljon meg egy kisebb PNG vagy JPEG fájlt.",
-  "errBadName": "A névnek 2–16 betűből, számból, _ vagy - jelből kell állnia.",
+  "errBadName": "Adj meg egy nevet.",
   "rosterTeam": "{{n}} csapat",
   "siegeSwapSides": "Támadó és védő cseréje",
   "rosterYou": "(te)",

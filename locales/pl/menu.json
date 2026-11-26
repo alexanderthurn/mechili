@@ -91,7 +91,7 @@
   "hintOnlineAvatar": "Awatar zostanie zapisany na tym urządzeniu i w Twoim profilu online (184×184).",
   "hintLocalAvatar": "Awatar jest zapisany na tym urządzeniu (184×184). Będzie widoczny dla innych użytkowników po dołączeniu.",
   "errBadImage": "Nie udało się użyć tego obrazu — spróbuj użyć mniejszego pliku PNG lub JPEG.",
-  "errBadName": "Nazwa musi zawierać od 2 do 16 liter, cyfr lub znaku _ lub -.",
+  "errBadName": "Wpisz nazwę.",
   "rosterTeam": "Zespół {{n}}",
   "siegeSwapSides": "Zamień atakującego i obrońcę",
   "rosterYou": " (Ty)",

@@ -467,6 +467,7 @@ export class SteamStarHub implements HostHub {
             build: BuildStamp,
             avatar?: string | null,
             loadout?: Loadout,
+            steamId64?: string,
         ) => SeatId | { reject: string },
     ): void {
         if (this.accepting) return;
@@ -518,6 +519,7 @@ export class SteamStarHub implements HostHub {
             build: BuildStamp,
             avatar?: string | null,
             loadout?: Loadout,
+            steamId64?: string,
         ) => SeatId | { reject: string },
     ): Promise<void> {
         const channel = new SteamChannel(steamId64);
@@ -543,7 +545,7 @@ export class SteamStarHub implements HostHub {
                 msg = await channel.once();
                 continue;
             }
-            if (this.needsMatchLevel(msg)) {
+            if (this.needsMatchLevel(msg, steamId64)) {
                 channel.send(matchLevelOffer());
                 msg = await channel.once();
                 continue;
@@ -554,16 +556,15 @@ export class SteamStarHub implements HostHub {
         settled = true;
         this.pending.delete(steamId64);
 
-        // Explicit "I was seat N, let me back in". Both seat AND name must
-        // match a seat we are actually holding: the seat number alone is a
-        // small guessable integer, so name is what makes this an identity
-        // check rather than a seat grab.
+        // Explicit "I was seat N, let me back in". The seat must be one we
+        // are holding for this same Steam account: the seat number alone is a
+        // small guessable integer, and names are not unique on Steam.
         if (msg.type === 'starRejoin') {
             const holding = this.bySeat.get(msg.seat);
             if (
                 isSameBuild(msg) &&
                 holding?.channel === null &&
-                this.roster[msg.seat]?.name === msg.name &&
+                holding.steamId64 === steamId64 &&
                 this.reclaimSeat(msg.seat, channel, steamId64)
             ) {
                 return;
@@ -586,14 +587,14 @@ export class SteamStarHub implements HostHub {
         // before treating them as a newcomer, or they are told the room is
         // full while their own seat sits waiting for them.
         if (isSameBuild(msg)) {
-            const held = this.findDroppedSeatByName(msg.name);
+            const held = this.findDroppedSeat(steamId64);
             if (held !== null && this.reclaimSeat(held, channel, steamId64)) return;
 
             // Came back after the window elapsed: the seat is AI-controlled but
             // still carries their name, so it can be handed back with no
             // deadline (the AI-takeover counterpart, checked after the held-seat
             // case since such a seat has left bySeat entirely).
-            const fromAi = this.findReclaimableSeatByName(msg.name);
+            const fromAi = this.findReclaimableSeat(steamId64);
             if (fromAi !== null) {
                 this.reclaimableSeats.delete(fromAi);
                 this.bySeat.set(fromAi, { steamId64, channel, buffer: [] });
@@ -608,7 +609,7 @@ export class SteamStarHub implements HostHub {
             }
         }
 
-        const result = onJoin(msg.name, msg, msg.avatar, msg.loadout);
+        const result = onJoin(msg.name, msg, msg.avatar, msg.loadout, steamId64);
         if (typeof result !== 'number') {
             channel.send({ type: 'starRejected', reason: result.reject });
             channel.dispose();
@@ -622,13 +623,13 @@ export class SteamStarHub implements HostHub {
     }
 
     /** see `StarHub.needsMatchLevel` (net.ts) — a seat reclaim that needs the match's scenario first */
-    private needsMatchLevel(msg: NetMessage): boolean {
+    private needsMatchLevel(msg: NetMessage, steamId64: string): boolean {
         if (msg.type !== 'starRejoin' && msg.type !== 'starJoin') return false;
         if (isSameBuild(msg) || !isSameBaseBuild(msg)) return false;
         return (
             msg.type === 'starRejoin' ||
-            this.findDroppedSeatByName(msg.name) !== null ||
-            this.findReclaimableSeatByName(msg.name) !== null
+            this.findDroppedSeat(steamId64) !== null ||
+            this.findReclaimableSeat(steamId64) !== null
         );
     }
 
@@ -735,21 +736,21 @@ export class SteamStarHub implements HostHub {
         return true;
     }
 
-    /** An AI-controlled seat still carrying its original player's name — the
-     *  takeover counterpart of findDroppedSeatByName, with no deadline. */
-    private findReclaimableSeatByName(name: string): SeatId | null {
+    /** An AI-controlled seat that was this Steam account's — the takeover
+     *  counterpart of findDroppedSeat, with no deadline. */
+    private findReclaimableSeat(steamId64: string): SeatId | null {
         for (const seat of this.reclaimableSeats) {
-            if (this.roster[seat]?.name === name) return seat;
+            if (this.roster[seat]?.steamId === steamId64) return seat;
         }
         return null;
     }
 
-    /** A held seat whose roster name matches — the same identity check the
-     *  PeerJS host uses; `seat` alone is a guessable integer. */
-    private findDroppedSeatByName(name: string): SeatId | null {
+    /** A held seat of this Steam account. Steam ids, not names: names are not
+     *  unique on Steam, and `seat` alone is a guessable integer. */
+    private findDroppedSeat(steamId64: string): SeatId | null {
         for (const [seat, viewer] of this.bySeat) {
             if (viewer.channel !== null) continue;
-            if (this.roster[seat]?.name === name) return seat;
+            if (viewer.steamId64 === steamId64) return seat;
         }
         return null;
     }

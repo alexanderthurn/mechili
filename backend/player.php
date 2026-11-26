@@ -31,7 +31,7 @@ const RESULTS_DIR = PLAYERS_DIR . '/results';
 const SESSIONS_DIR = PLAYERS_DIR . '/sessions';
 const DEFAULT_MMR = 1000;
 const ELO_K = 32;
-const MAX_NAME = 16;
+const MAX_NAME = 32;
 const MAX_LADDER = 100;
 const MIN_PASSWORD = 4;
 const MAX_PASSWORD = 64;
@@ -142,15 +142,20 @@ function respond(array $data, int $code = 200): void {
 }
 
 function displayName(string $raw): ?string {
-    $raw = trim(strip_tags($raw));
-    if (strlen($raw) < 2 || strlen($raw) > MAX_NAME) return null;
-    $key = nameKey($raw);
-    if (strlen($key) < 2) return null;
+    // same cleaning as validatePlayerName() in src/game/player.ts
+    $raw = strip_tags($raw);
+    if (!mb_check_encoding($raw, 'UTF-8')) return null;
+    $raw = preg_replace('/[\p{Cc}\x{200B}\x{200C}\x{200E}\x{200F}\x{202A}-\x{202E}\x{2066}-\x{2069}\x{FEFF}]/u', '', $raw) ?? '';
+    $raw = trim(preg_replace('/\s+/u', ' ', $raw) ?? '');
+    if ($raw === '' || mb_strlen($raw, 'UTF-8') > MAX_NAME) return null;
     return $raw;
 }
 
+/** same as roomCodeFromName() in src/game/player.ts: the ASCII letters when there are two, else u + a hash of the name */
 function nameKey(string $name): string {
-    return strtolower(preg_replace('/[^a-zA-Z0-9_-]/', '', $name) ?? '');
+    $lower = mb_strtolower(trim($name), 'UTF-8');
+    $ascii = preg_replace('/[^a-z0-9_-]/', '', $lower) ?? '';
+    return strlen($ascii) >= 2 ? $ascii : 'u' . hash('fnv1a64', $lower);
 }
 
 function shard(string $key): string {

@@ -91,7 +91,7 @@
   "hintOnlineAvatar": "De avatar wordt op dit apparaat en in uw online profiel opgeslagen (184×184).",
   "hintLocalAvatar": "Avatar wordt op dit apparaat opgeslagen (184×184). Wordt aan andere deelnemers getoond wanneer u zich aanmeldt.",
   "errBadImage": "Deze afbeelding kon niet worden gebruikt — probeer een kleinere PNG- of JPEG-afbeelding.",
-  "errBadName": "De naam moet 2 tot en met 16 letters, cijfers, _ of - bevatten.",
+  "errBadName": "Voer een naam in.",
   "rosterTeam": "Team {{n}}",
   "siegeSwapSides": "Aanvaller en verdediger wisselen",
   "rosterYou": " (Jij)",

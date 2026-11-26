@@ -961,6 +961,8 @@ export interface HostHub {
             build: BuildStamp,
             avatar?: string | null,
             loadout?: Loadout,
+            /** Steam: the joiner's account, from the connection itself (never claimed) */
+            steamId64?: string,
         ) => SeatId | { reject: string }): void;
     /** first seat still free for a human, or null when the room is full */
     nextOpenSeat(): SeatId | null;

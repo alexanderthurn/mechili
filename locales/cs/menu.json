@@ -91,7 +91,7 @@
   "hintOnlineAvatar": "Avatar je uložen v tomto zařízení a ve vašem online profilu (184×184).",
   "hintLocalAvatar": "Avatar je uložen na tomto zařízení (184×184). Zobrazí se ostatním uživatelům po připojení.",
   "errBadImage": "Tento obrázek se nepodařilo použít – zkuste menší PNG nebo JPEG.",
-  "errBadName": "Jméno musí mít 2–16 písmen, číslic a znaků _ nebo -.",
+  "errBadName": "Zadejte jméno.",
   "rosterTeam": "Tým {{n}}",
   "siegeSwapSides": "Prohodit útočníka a obránce",
   "rosterYou": "(ty)",

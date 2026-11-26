@@ -91,7 +91,7 @@
   "hintOnlineAvatar": "Avatar disimpan pada peranti ini dan ke profil dalam talian anda (184×184).",
   "hintLocalAvatar": "Avatar disimpan pada peranti ini (184×184). Ditunjukkan kepada rakan sebaya apabila anda menyertai.",
   "errBadImage": "Tidak dapat menggunakan imej itu — cuba PNG atau JPEG yang lebih kecil.",
-  "errBadName": "Nama mestilah terdiri daripada 2–16 huruf, nombor, _ atau -.",
+  "errBadName": "Masukkan nama.",
   "rosterTeam": "Pasukan {{n}}",
   "siegeSwapSides": "Tukar penyerang dan pertahanan",
   "rosterYou": "(awak)",

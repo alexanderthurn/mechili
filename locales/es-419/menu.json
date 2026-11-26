@@ -91,7 +91,7 @@
   "hintOnlineAvatar": "El avatar se guarda en este dispositivo y en tu perfil en línea (184×184).",
   "hintLocalAvatar": "El avatar está guardado en este dispositivo (184×184). Se mostrará a los demás usuarios cuando te conectes.",
   "errBadImage": "No se pudo utilizar esa imagen; pruebe con un archivo PNG o JPEG más pequeño.",
-  "errBadName": "El nombre debe tener entre 2 y 16 letras, números, _ o -.",
+  "errBadName": "Ingresa un nombre.",
   "rosterTeam": "Equipo {{n}}",
   "siegeSwapSides": "Intercambiar atacante y defensor",
   "rosterYou": " (tú)",

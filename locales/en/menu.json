@@ -102,7 +102,7 @@
   "hintOnlineAvatar": "Avatar is saved on this device and to your online profile (184×184).",
   "hintLocalAvatar": "Avatar is saved on this device (184×184). Shown to peers when you join.",
   "errBadImage": "Could not use that image — try a smaller PNG or JPEG.",
-  "errBadName": "Name must be 2–16 letters, numbers, _ or -.",
+  "errBadName": "Please enter a name.",
   "rosterTeam": "Team {{n}}",
   "siegeSwapSides": "Swap attacker and defender",
   "rosterYou": " (you)",

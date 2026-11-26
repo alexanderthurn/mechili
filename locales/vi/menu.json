@@ -91,7 +91,7 @@
   "hintOnlineAvatar": "Ảnh đại diện được lưu trên thiết bị này và vào hồ sơ trực tuyến của bạn (184×184).",
   "hintLocalAvatar": "Ảnh đại diện được lưu trên thiết bị này (184×184). Sẽ hiển thị cho những người khác khi bạn tham gia.",
   "errBadImage": "Không thể sử dụng hình ảnh đó — hãy thử định dạng PNG hoặc JPEG nhỏ hơn.",
-  "errBadName": "Tên phải có từ 2 đến 16 chữ cái, số, dấu gạch dưới (_) hoặc dấu gạch ngang (-).",
+  "errBadName": "Hãy nhập tên.",
   "rosterTeam": "Đội {{n}}",
   "siegeSwapSides": "Đổi bên công và bên thủ",
   "rosterYou": " (Bạn)",

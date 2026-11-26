@@ -150,7 +150,7 @@ if ($action === 'list') {
 }
 
 if ($action === 'spectate-lookup') {
-    if ($name === '' || strlen($name) > 32) {
+    if ($name === '' || mb_strlen($name, 'UTF-8') > 32) {
         http_response_code(400);
         echo json_encode(['error' => 'bad room name']);
         exit;
@@ -224,7 +224,7 @@ if ($action === 'leave') {
     echo json_encode(['ok' => true]);
     exit;
 } elseif ($action === 'host') {
-    if ($name === '' || strlen($name) > 32) {
+    if ($name === '' || mb_strlen($name, 'UTF-8') > 32) {
         flock($fp, LOCK_UN);
         fclose($fp);
         http_response_code(400);
@@ -253,7 +253,7 @@ if ($action === 'leave') {
     fclose($fp);
     exit;
 } elseif ($action === 'spectate-register') {
-    if ($name === '' || strlen($name) > 32) {
+    if ($name === '' || mb_strlen($name, 'UTF-8') > 32) {
         flock($fp, LOCK_UN);
         fclose($fp);
         http_response_code(400);

@@ -91,7 +91,7 @@
   "hintOnlineAvatar": "头像保存在本机并同步到在线资料（184×184）。",
   "hintLocalAvatar": "头像保存在本机（184×184）。加入时其他玩家可见。",
   "errBadImage": "无法使用该图片 — 请换更小的 PNG 或 JPEG。",
-  "errBadName": "名字须为 2–16 个字母、数字、_ 或 -。",
+  "errBadName": "请输入名字。",
   "rosterTeam": "队伍 {{n}}",
   "siegeSwapSides": "交换进攻方和防守方",
   "rosterYou": "（你）",

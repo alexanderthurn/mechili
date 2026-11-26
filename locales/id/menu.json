@@ -91,7 +91,7 @@
   "hintOnlineAvatar": "Avatar disimpan di perangkat ini dan di profil online Anda (184×184).",
   "hintLocalAvatar": "Avatar tersimpan di perangkat ini (184×184). Ditampilkan kepada teman-teman saat Anda bergabung.",
   "errBadImage": "Gambar tersebut tidak dapat digunakan — coba gunakan PNG atau JPEG yang lebih kecil.",
-  "errBadName": "Nama harus terdiri dari 2–16 huruf, angka, _ atau -.",
+  "errBadName": "Masukkan nama.",
   "rosterTeam": "Tim {{n}}",
   "siegeSwapSides": "Tukar penyerang dan bertahan",
   "rosterYou": " (Anda)",

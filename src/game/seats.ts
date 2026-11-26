@@ -131,6 +131,10 @@ export interface CanonicalSeatDef {
     side: 'a' | 'b';
     controller: 'human' | 'ai';
     name: string;
+    /** Steam: the seat's player's steamId64, stamped by the host from the
+     *  connection. Names are not unique on Steam, so this is what a client
+     *  finds its own seat by. Unset off Steam and for AI / the host's seat. */
+    steamId?: string;
     /** optional custom player face (data URL); omitted for AI / unset */
     avatar?: string | null;
     /** Custom Game lobby only: this seat's own "I'm ready" checkbox state
